@@ -1443,7 +1443,7 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
 
   return (
     <Modal open={Boolean(kind)} onClose={onClose} title={`${isEdit ? 'Edit' : 'Tambah'} ${title}`} size="lg">
-      <form onSubmit={submit} className="max-h-[75vh] space-y-4 overflow-y-auto pr-1">
+      <form onSubmit={submit} className="space-y-4 overflow-y-auto pr-1 sm:max-h-[75vh] sm:min-h-0">
         {kind === 'komika' && (
           <ImageUpload label="Foto Komika" folder="komika" value={form.photo ?? ''} onChange={(url) => set('photo', url)} aspect="portrait" onUploadingChange={setUploading} />
         )}

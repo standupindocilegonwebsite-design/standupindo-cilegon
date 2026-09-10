@@ -20,11 +20,18 @@
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
     scroll-behavior: smooth;
+    height: 100%;
   }
 
   body {
+    height: 100%;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     @apply bg-[#F1F5FB] text-slate-900 antialiased;
+    overscroll-behavior-y: contain;
+  }
+
+  #root {
+    min-height: 100%;
   }
 
   ::selection {
