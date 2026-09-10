@@ -25,11 +25,11 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
   const maxW = size === 'sm' ? 'max-w-sm' : size === 'lg' ? 'max-w-2xl' : 'max-w-md';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4 sm:p-6" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <div className={`relative max-h-[calc(100dvh-2rem)] w-full ${maxW} animate-scale-in touch-pan-y overscroll-contain overflow-y-auto rounded-2xl border border-blue-300 bg-white p-5 text-slate-900 shadow-[0_26px_80px_rgba(11,31,68,0.3)] sm:max-h-[min(90vh,680px)] sm:p-6`}>
-        <div className="mb-5 flex items-center justify-between gap-4">
-          {title && <h3 className="text-xl font-extrabold tracking-[-0.03em] text-slate-900">{title}</h3>}
+      <div className={`relative mt-auto w-full max-h-[85dvh] ${maxW} animate-scale-in touch-pan-y overscroll-contain overflow-y-auto rounded-t-3xl border border-blue-300 bg-white p-4 text-slate-900 shadow-[0_26px_80px_rgba(11,31,68,0.3)] sm:mt-0 sm:max-h-[min(90vh,680px)] sm:rounded-2xl sm:p-6`}>
+        <div className="mb-4 flex items-center justify-between gap-4 sm:mb-5">
+          {title && <h3 className="text-lg font-extrabold tracking-[-0.03em] text-slate-900 sm:text-xl">{title}</h3>}
           <button
             onClick={onClose}
             className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900"
