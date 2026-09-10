@@ -16,44 +16,21 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     const previousBodyOverflow = document.body.style.overflow;
     const previousHtmlOverflow = document.documentElement.style.overflow;
-    const previousBodyPosition = document.body.style.position;
-    const previousHtmlPosition = document.documentElement.style.position;
-    const previousBodyTop = document.body.style.top;
-    const previousBodyLeft = document.body.style.left;
-    const previousBodyRight = document.body.style.right;
-    const previousBodyBottom = document.body.style.bottom;
-    const previousBodyWidth = document.body.style.width;
-    const previousHtmlWidth = document.documentElement.style.width;
     const previousBodyTouchAction = document.body.style.touchAction;
-    const previousScrollY = window.scrollY;
+    const previousHtmlTouchAction = document.documentElement.style.touchAction;
 
     window.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.documentElement.style.position = 'fixed';
-    document.body.style.left = '0';
-    document.body.style.right = '0';
-    document.body.style.top = `-${previousScrollY}px`;
-    document.body.style.bottom = '0';
-    document.body.style.width = '100%';
-    document.documentElement.style.width = '100%';
     document.body.style.touchAction = 'none';
+    document.documentElement.style.touchAction = 'none';
 
     return () => {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = previousBodyOverflow;
       document.documentElement.style.overflow = previousHtmlOverflow;
-      document.body.style.position = previousBodyPosition;
-      document.documentElement.style.position = previousHtmlPosition;
-      document.body.style.left = previousBodyLeft;
-      document.body.style.right = previousBodyRight;
-      document.body.style.bottom = previousBodyBottom;
-      document.body.style.top = previousBodyTop;
-      document.body.style.width = previousBodyWidth;
-      document.documentElement.style.width = previousHtmlWidth;
       document.body.style.touchAction = previousBodyTouchAction;
-      window.scrollTo(0, previousScrollY);
+      document.documentElement.style.touchAction = previousHtmlTouchAction;
     };
   }, [open, onClose]);
 
