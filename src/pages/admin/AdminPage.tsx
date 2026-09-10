@@ -241,8 +241,8 @@ export function AdminPage({ router, settings }: Props) {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-sm will-change-transform lg:hidden" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.25rem)' }}>
-        <div className="flex items-stretch justify-around">
+      <nav className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] lg:hidden" aria-label="Navigasi admin mobile">
+        <div className="flex w-full max-w-md items-stretch justify-around rounded-[1.75rem] border border-blue-100 bg-white/95 p-2 shadow-[0_-8px_30px_rgba(37,99,235,0.12)] backdrop-blur-xl">
           {BOTTOM_NAV.map((item) => {
             const Icon = item.icon;
             const active = section === item.key || (item.key === 'events' && section === 'events') || (item.key === 'komika' && section === 'komika');
@@ -250,13 +250,14 @@ export function AdminPage({ router, settings }: Props) {
             const pendingEventCount = Object.values(eventPendingCounts).reduce((total, count) => total + count, 0);
             const communityPendingCount = communityApplications.filter((application) => application.status === 'pending').length;
             const showPendingBadge = (item.key === 'open-mic' && pendingRegistrationCount > 0) || (item.key === 'events' && pendingEventCount > 0) || (item.key === 'applications' && communityPendingCount > 0);
+            const isActive = active || moreActive;
             return (
-              <button key={item.key} onClick={() => navigateSection(item.key)} className={`mobile-nav-item flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-semibold transition-all duration-300 ${active || moreActive ? 'mobile-nav-item-active text-blue-700' : 'text-slate-400'}`}>
-                <span className={`mobile-nav-icon relative flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-300 ${active || moreActive ? 'mobile-nav-icon-active bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)]' : ''}`}>
-                  <Icon className="h-5 w-5" />
+              <button key={item.key} onClick={() => navigateSection(item.key)} className={`mobile-nav-item flex min-h-[58px] flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[11px] font-semibold transition-all duration-300 ${isActive ? 'mobile-nav-item-active text-blue-700' : 'text-slate-400'}`}>
+                <span className={`mobile-nav-icon relative flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-300 ${isActive ? 'mobile-nav-icon-active bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)]' : 'bg-slate-100 text-slate-400'}`}>
+                  <Icon className="h-4.5 w-4.5" />
                   {showPendingBadge && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-extrabold leading-none text-white" aria-label="Pendaftar baru menunggu konfirmasi">{item.key === 'open-mic' ? pendingRegistrationCount : item.key === 'events' ? pendingEventCount : communityPendingCount}</span>}
                 </span>
-                <span className={`mobile-nav-label ${active || moreActive ? 'mobile-nav-label-active' : ''}`}>{item.label}</span>
+                <span className={`mobile-nav-label ${isActive ? 'mobile-nav-label-active' : ''}`}>{item.label}</span>
               </button>
             );
           })}
