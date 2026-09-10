@@ -241,8 +241,8 @@ export function AdminPage({ router, settings }: Props) {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] flex justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] lg:hidden" aria-label="Navigasi admin mobile">
-        <div className="flex w-full max-w-md items-stretch justify-around rounded-[1.75rem] border border-blue-100 bg-white/95 p-2 shadow-[0_-8px_30px_rgba(37,99,235,0.12)] backdrop-blur-xl">
+      <nav className="pointer-events-auto fixed bottom-3 left-1/2 z-[60] w-[calc(100%-1rem)] max-w-md -translate-x-1/2 lg:hidden" aria-label="Navigasi admin mobile" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)' }}>
+        <div className="flex items-stretch justify-around rounded-[1.75rem] border border-blue-100 bg-white/95 p-2 shadow-[0_-8px_30px_rgba(37,99,235,0.12)] backdrop-blur-xl">
           {BOTTOM_NAV.map((item) => {
             const Icon = item.icon;
             const active = section === item.key || (item.key === 'events' && section === 'events') || (item.key === 'komika' && section === 'komika');
