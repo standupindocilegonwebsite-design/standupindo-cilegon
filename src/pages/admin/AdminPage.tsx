@@ -241,8 +241,12 @@ export function AdminPage({ router, settings }: Props) {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="pointer-events-auto fixed bottom-3 left-1/2 z-[60] w-[calc(100%-1rem)] max-w-md -translate-x-1/2 lg:hidden" aria-label="Navigasi admin mobile" style={{ bottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-        <div className="flex items-stretch justify-around rounded-[1.75rem] border border-blue-100 bg-white/95 p-2 shadow-[0_-8px_30px_rgba(37,99,235,0.12)] backdrop-blur-xl">
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-blue-100 bg-white/90 shadow-[0_-8px_24px_rgba(11,60,93,0.08)] backdrop-blur-xl lg:hidden"
+        aria-label="Navigasi admin mobile"
+        style={{ paddingBottom: 'var(--safe-bottom)' }}
+      >
+        <div className="mx-auto grid max-w-md grid-cols-5">
           {BOTTOM_NAV.map((item) => {
             const Icon = item.icon;
             const active = section === item.key || (item.key === 'events' && section === 'events') || (item.key === 'komika' && section === 'komika');
@@ -252,12 +256,19 @@ export function AdminPage({ router, settings }: Props) {
             const showPendingBadge = (item.key === 'open-mic' && pendingRegistrationCount > 0) || (item.key === 'events' && pendingEventCount > 0) || (item.key === 'applications' && communityPendingCount > 0);
             const isActive = active || moreActive;
             return (
-              <button key={item.key} onClick={() => navigateSection(item.key)} className={`mobile-nav-item flex min-h-[58px] flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[11px] font-semibold transition-all duration-300 ${isActive ? 'mobile-nav-item-active text-blue-700' : 'text-slate-400'}`}>
-                <span className={`mobile-nav-icon relative flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-300 ${isActive ? 'mobile-nav-icon-active bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)]' : 'bg-slate-100 text-slate-400'}`}>
-                  <Icon className="h-4.5 w-4.5" />
+              <button
+                key={item.key}
+                onClick={() => navigateSection(item.key)}
+                className={`mobile-nav-item flex flex-col items-center gap-0.5 py-2.5 transition-all duration-300 ${isActive ? 'mobile-nav-item-active' : ''}`}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <span className={`mobile-nav-icon relative flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 ${isActive ? 'mobile-nav-icon-active bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)]' : 'text-slate-400'}`}>
+                  <Icon className="h-5 w-5" />
                   {showPendingBadge && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-extrabold leading-none text-white" aria-label="Pendaftar baru menunggu konfirmasi">{item.key === 'open-mic' ? pendingRegistrationCount : item.key === 'events' ? pendingEventCount : communityPendingCount}</span>}
                 </span>
-                <span className={`mobile-nav-label ${isActive ? 'mobile-nav-label-active' : ''}`}>{item.label}</span>
+                <span className={`mobile-nav-label text-[10px] font-semibold ${isActive ? 'mobile-nav-label-active text-blue-700' : 'text-slate-400'}`}>
+                  {item.label}
+                </span>
               </button>
             );
           })}
