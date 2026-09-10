@@ -1,0 +1,1 @@
+ALTER TABLE events ADD COLUMN IF NOT EXISTS ticket_price integer NOT NULL DEFAULT 0;
