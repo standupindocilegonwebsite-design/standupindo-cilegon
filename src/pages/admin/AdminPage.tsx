@@ -158,7 +158,7 @@ export function AdminPage({ router, settings }: Props) {
   const registrantOpenMicId = section === 'registrants' ? router.path.split('/').filter(Boolean)[2] ?? '' : '';
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-slate-50">
       {/* Desktop Header */}
       <header className="sticky top-0 z-40 hidden border-b border-slate-200 bg-white lg:block">
         <div className="flex h-16 items-center justify-between px-6">
@@ -220,7 +220,7 @@ export function AdminPage({ router, settings }: Props) {
         </aside>
 
         {/* Main Content */}
-        <main className="min-w-0 flex-1 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:p-8 lg:pb-8">
+        <main className="min-w-0 flex-1 p-4 pb-safe-nav md:pb-0 lg:p-8 lg:pb-8">
           {notice && (
             <div className="mb-5 flex items-center justify-between rounded-xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 ring-1 ring-green-200">
               <span>{notice}</span>
