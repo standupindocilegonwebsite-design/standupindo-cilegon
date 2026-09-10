@@ -29,6 +29,7 @@
     @apply bg-[#F1F5FB] text-slate-900 antialiased;
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
   }
 
   #root {
