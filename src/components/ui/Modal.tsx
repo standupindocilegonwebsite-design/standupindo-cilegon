@@ -32,9 +32,9 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
   const maxW = size === 'sm' ? 'sm:max-w-sm' : size === 'lg' ? 'sm:max-w-2xl' : 'sm:max-w-md';
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <div className={`relative z-10 mt-auto flex w-full max-h-[calc(100dvh-0.5rem)] max-w-[100vw] flex-col overflow-hidden rounded-t-[1.75rem] border border-blue-300 bg-white text-slate-900 shadow-[0_26px_80px_rgba(11,31,68,0.3)] animate-scale-in sm:mt-0 sm:max-h-[min(90dvh,680px)] sm:w-auto sm:rounded-2xl ${maxW}`}>
+      <div className={`relative z-10 flex max-h-[calc(100dvh-1.5rem)] w-[calc(100%-0.5rem)] max-w-[100vw] flex-col overflow-hidden rounded-[1.5rem] border border-blue-300 bg-white text-slate-900 shadow-[0_26px_80px_rgba(11,31,68,0.3)] animate-scale-in sm:max-h-[min(90dvh,680px)] sm:w-auto sm:rounded-2xl ${maxW}`}>
         <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 bg-white px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-6 sm:pb-3 sm:pt-0">
           {title && <h3 className="text-base font-extrabold tracking-[-0.03em] text-slate-900 sm:text-xl">{title}</h3>}
           <button
