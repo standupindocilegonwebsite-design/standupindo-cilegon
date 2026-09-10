@@ -27,8 +27,8 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <div className={`relative mt-auto w-full max-h-[calc(100dvh-1rem)] ${maxW} animate-scale-in touch-pan-y overscroll-contain overflow-y-auto rounded-t-3xl border border-blue-300 bg-white p-4 text-slate-900 shadow-[0_26px_80px_rgba(11,31,68,0.3)] [-webkit-overflow-scrolling:touch] sm:mt-0 sm:max-h-[min(90dvh,680px)] sm:rounded-2xl sm:p-6`}>
-        <div className="mb-4 flex items-center justify-between gap-4 sm:mb-5">
+      <div className={`relative mt-auto w-full max-h-[calc(100dvh-1rem)] ${maxW} animate-scale-in touch-pan-y overscroll-contain overflow-y-auto rounded-t-3xl border border-blue-300 bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-slate-900 shadow-[0_26px_80px_rgba(11,31,68,0.3)] [-webkit-overflow-scrolling:touch] sm:mt-0 sm:max-h-[min(90dvh,680px)] sm:rounded-2xl sm:p-6 sm:pb-6`}>
+        <div className="sticky top-0 z-10 mb-4 flex items-center justify-between gap-4 rounded-t-3xl bg-white pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:mb-5 sm:rounded-t-2xl sm:pt-0">
           {title && <h3 className="text-lg font-extrabold tracking-[-0.03em] text-slate-900 sm:text-xl">{title}</h3>}
           <button
             onClick={onClose}

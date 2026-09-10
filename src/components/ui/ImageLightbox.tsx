@@ -26,7 +26,7 @@ export function ImageLightbox({ src, alt, open, onClose, closeAriaLabel = 'Tutup
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/85 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm animate-fade-in sm:p-6"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -42,7 +42,7 @@ export function ImageLightbox({ src, alt, open, onClose, closeAriaLabel = 'Tutup
         src={src}
         alt={alt}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[90vh] max-w-[92vw] rounded-lg object-contain shadow-2xl animate-scale-in"
+        className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded-lg object-contain shadow-2xl animate-scale-in"
       />
     </div>
   );
