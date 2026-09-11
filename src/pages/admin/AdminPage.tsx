@@ -4,7 +4,7 @@ import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventParticipant, EventTicket, Komika, OpenMic, OpenMicRegistration, SiteSettings } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
-import { formatDate, formatPrice, getEventStatus, getOpenMicStatus, slugify, waLink } from '@/lib/format';
+import { formatDate, formatPrice, getEventStatus, getOpenMicStatus, normalizeWhatsappNumber, slugify, waLink } from '@/lib/format';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ImageUpload } from '@/components/ui/ImageUpload';
@@ -1421,9 +1421,9 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
     } else if (kind === 'open-mic') {
       setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', capacity: '10', status: 'upcoming', registration_status: 'open', published: 'true' });
     } else {
-      setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', status: 'upcoming', registration_status: 'closed', published: 'true', whatsapp_number: settings.whatsapp_admin, whatsapp_message: '' });
+      setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', status: 'upcoming', registration_status: 'closed', published: 'true', whatsapp_number: '', whatsapp_message: '' });
     }
-  }, [kind, editing, settings.whatsapp_admin]);
+  }, [kind, editing]);
 
   if (!kind) return null;
   const isEdit = Boolean(editing);
@@ -1443,7 +1443,14 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
         const result = editing ? await supabase.from('open_mics').update(payload).eq('id', editing.id) : await supabase.from('open_mics').insert(payload);
         if (result.error) throw result.error;
       } else {
-        const payload = { ...base, slug: isEdit ? base.slug : slugify(base.title), published: base.published !== 'false', whatsapp_number: base.whatsapp_number || settings.whatsapp_admin };
+        const whatsappNumber = normalizeWhatsappNumber(base.whatsapp_number || '');
+        const payload = {
+          ...base,
+          slug: isEdit ? base.slug : slugify(base.title),
+          published: base.published !== 'false',
+          whatsapp_number: whatsappNumber,
+          whatsapp_message: base.whatsapp_message || null,
+        };
         const result = editing ? await supabase.from('events').update(payload).eq('id', editing.id) : await supabase.from('events').insert(payload);
         if (result.error) throw result.error;
       }

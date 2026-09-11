@@ -24,8 +24,16 @@ export function formatPrice(value: number): string {
   return 'Rp ' + value.toLocaleString('id-ID');
 }
 
+export function normalizeWhatsappNumber(number: string): string {
+  const digits = number.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('0')) return `62${digits.slice(1)}`;
+  return digits.startsWith('62') ? digits : digits;
+}
+
 export function waLink(number: string, message?: string): string {
-  const clean = number.replace(/[^0-9]/g, '');
+  const clean = normalizeWhatsappNumber(number);
+  if (!clean) return '#';
   const text = message ? `?text=${encodeURIComponent(message)}` : '';
   return `https://wa.me/${clean}${text}`;
 }
