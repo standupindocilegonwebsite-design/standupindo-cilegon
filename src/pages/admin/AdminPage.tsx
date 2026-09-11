@@ -220,7 +220,7 @@ export function AdminPage({ router, settings }: Props) {
         </aside>
 
         {/* Main Content */}
-        <main className="min-w-0 flex-1 p-4 pb-safe-nav md:pb-0 lg:p-8 lg:pb-8">
+        <main className="min-w-0 flex-1 p-4 pb-safe-nav md:pb-0 lg:p-8 lg:pb-8" style={{ paddingBottom: 'calc(7.5rem + var(--safe-bottom))' }}>
           {notice && (
             <div className="mb-5 flex items-center justify-between rounded-xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 ring-1 ring-green-200">
               <span>{notice}</span>
@@ -249,12 +249,20 @@ export function AdminPage({ router, settings }: Props) {
         <div className="mx-auto grid max-w-md grid-cols-5">
           {BOTTOM_NAV.map((item) => {
             const Icon = item.icon;
-            const active = section === item.key || (item.key === 'events' && section === 'events') || (item.key === 'komika' && section === 'komika');
-            const moreActive = item.key === 'more' && (section === 'more' || section === 'settings');
             const pendingEventCount = Object.values(eventPendingCounts).reduce((total, count) => total + count, 0);
             const communityPendingCount = communityApplications.filter((application) => application.status === 'pending').length;
             const showPendingBadge = (item.key === 'open-mic' && pendingRegistrationCount > 0) || (item.key === 'events' && pendingEventCount > 0) || (item.key === 'applications' && communityPendingCount > 0);
-            const isActive = active || moreActive;
+            const isActive = item.key === 'dashboard'
+              ? section === 'dashboard'
+              : item.key === 'open-mic'
+                ? section === 'open-mic' || section === 'registrants'
+                : item.key === 'events'
+                  ? section === 'events' || section === 'event-participants'
+                  : item.key === 'komika'
+                    ? section === 'komika'
+                    : item.key === 'more'
+                      ? section === 'more' || section === 'settings'
+                      : section === item.key;
             return (
               <button
                 key={item.key}

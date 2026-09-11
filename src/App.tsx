@@ -41,7 +41,7 @@ function ProtectedAdmin({ router, settings }: { router: Router; settings: Return
     if (router.path !== '/admin/login') router.navigate('/admin/login');
     return <AdminLoginPage router={router} />;
   }
-  return <div key={router.path} className="route-transition"><AdminPage router={router} settings={settings} /></div>;
+  return <AdminPage router={router} settings={settings} />;
 }
 
 function RoutedApp() {

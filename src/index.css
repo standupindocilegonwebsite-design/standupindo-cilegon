@@ -20,6 +20,7 @@
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
     scroll-behavior: smooth;
+    scroll-padding-bottom: calc(7.5rem + var(--safe-bottom));
     height: 100%;
   }
 
@@ -59,7 +60,7 @@
 
 @layer components {
   .pb-safe-nav {
-    padding-bottom: calc(4.2rem + var(--safe-bottom));
+    padding-bottom: calc(7.5rem + var(--safe-bottom));
   }
 
   .pt-safe-top {
