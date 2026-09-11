@@ -52,6 +52,7 @@ export interface EventItem {
   location: string;
   maps_url: string | null;
   description: string | null;
+  event_rules?: string | null;
   status: EventStatus;
   registration_status: 'open' | 'closed';
   published: boolean;

@@ -37,6 +37,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const [tickets, setTickets] = useState<EventTicket[]>([]);
   const [lineup, setLineup] = useState<{ id: string; stage_name: string; community: string | null; instagram: string | null }[]>([]);
   const [lightbox, setLightbox] = useState(false);
+  const [activeTab, setActiveTab] = useState<'about' | 'rules'>('about');
 
   useEffect(() => {
     (async () => {
@@ -86,7 +87,8 @@ export function EventDetailPage({ router, slug, settings }: Props) {
     );
   }
 
-  const waMessage = event.whatsapp_message ?? `Halo Admin Standupindo Cilegon, saya ingin membeli tiket ${event.title}.`;
+  const defaultWaMessage = `Halo Admin Standupindo Cilegon, saya ingin membeli tiket ${event.title}.`;
+  const waMessage = event.whatsapp_message?.trim() ? event.whatsapp_message.trim() : defaultWaMessage;
   const buyTicketNumber = event.whatsapp_number || settings.whatsapp_ticket || settings.whatsapp_admin;
   const cheapestTicketPrice = tickets.length > 0 ? tickets.reduce((lowest, ticket) => ticket.price < lowest.price ? ticket : lowest, tickets[0]).price : (event.ticket_price ?? 0);
   const pageUrl = `${window.location.origin}/event/${event.slug}`;
@@ -138,13 +140,46 @@ export function EventDetailPage({ router, slug, settings }: Props) {
           </div>
         </div>
 
-        {/* About */}
-        {event.description && (
-          <section>
-            <h2 className="text-xl font-bold text-slate-900 mb-3">About Event</h2>
-            <p className="text-sm leading-relaxed text-slate-600 sm:text-base whitespace-pre-line">{event.description}</p>
-          </section>
-        )}
+        <section>
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('about')}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${activeTab === 'about' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              aria-pressed={activeTab === 'about'}
+            >
+              About Event
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('rules')}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${activeTab === 'rules' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              aria-pressed={activeTab === 'rules'}
+            >
+              Peraturan
+            </button>
+          </div>
+
+          {activeTab === 'about' ? (
+            event.description ? (
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 mb-3">About Event</h2>
+                <p className="text-sm leading-relaxed text-slate-600 sm:text-base whitespace-pre-line">{event.description}</p>
+              </div>
+            ) : (
+              <EmptyState title="Informasi tentang event belum tersedia." />
+            )
+          ) : (
+            event.event_rules?.trim() ? (
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 mb-3">Peraturan</h2>
+                <p className="text-sm leading-relaxed text-slate-600 sm:text-base whitespace-pre-line">{event.event_rules}</p>
+              </div>
+            ) : (
+              <EmptyState title="Peraturan event belum tersedia." />
+            )
+          )}
+        </section>
 
         {/* Lineup */}
         {lineup.length > 0 && (
@@ -181,7 +216,9 @@ export function EventDetailPage({ router, slug, settings }: Props) {
           ) : (
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
               {tickets.map((t) => {
-                const ticketWaMsg = `Halo Admin Standupindo Cilegon, saya mau membeli tiket [${t.name}] untuk event ${event.title}. Bagaimana cara pembeliannya?`;
+                const ticketWaMsg = event.whatsapp_message?.trim()
+                  ? `${event.whatsapp_message.trim()} (Tiket: ${t.name})`
+                  : `Halo Admin Standupindo Cilegon, saya mau membeli tiket [${t.name}] untuk event ${event.title}. Bagaimana cara pembeliannya?`;
                 const hasUrl = t.ticket_url && /^https?:\/\//i.test(t.ticket_url);
                 return (
                   <div key={t.id} className="grid gap-4 border-b border-slate-100 p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-6 sm:p-5">

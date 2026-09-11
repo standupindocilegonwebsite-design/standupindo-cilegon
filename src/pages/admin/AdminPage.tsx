@@ -1421,7 +1421,7 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
     } else if (kind === 'open-mic') {
       setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', capacity: '10', status: 'upcoming', registration_status: 'open', published: 'true' });
     } else {
-      setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', status: 'upcoming', registration_status: 'closed', published: 'true', whatsapp_number: '', whatsapp_message: '' });
+      setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', status: 'upcoming', registration_status: 'closed', published: 'true', whatsapp_number: '', whatsapp_message: '', event_rules: '' });
     }
   }, [kind, editing]);
 
@@ -1449,7 +1449,8 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
           slug: isEdit ? base.slug : slugify(base.title),
           published: base.published !== 'false',
           whatsapp_number: whatsappNumber,
-          whatsapp_message: base.whatsapp_message || null,
+          whatsapp_message: base.whatsapp_message?.trim() || null,
+          event_rules: base.event_rules?.trim() || null,
         };
         const result = editing ? await supabase.from('events').update(payload).eq('id', editing.id) : await supabase.from('events').insert(payload);
         if (result.error) throw result.error;
@@ -1469,7 +1470,7 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
     ? [['full_name', 'Nama Lengkap', 'text'], ['stage_name', 'Stage Name', 'text'], ['whatsapp', 'Nomor WhatsApp (privat, tidak tampil publik)', 'text'], ['joined_at', 'Bergabung (bulan dan tahun)', 'text'], ['bio', 'Bio', 'textarea'], ['instagram_url', 'Instagram (@username)', 'text'], ['tiktok_url', 'TikTok (@username)', 'text'], ['youtube_url', 'YouTube URL', 'text'], ['specialties', 'Specialties (pisahkan koma)', 'textarea'], ['featured_order', 'Urutan tampil (opsional)', 'number'], ['status', 'Status', 'select']]
     : kind === 'open-mic'
     ? [['title', 'Title', 'text'], ['date', 'Date', 'date'], ['time', 'Time', 'text'], ['venue', 'Venue', 'text'], ['location', 'Location', 'text'], ['maps_url', 'Maps URL', 'text'], ['description', 'Description', 'textarea'], ['capacity', 'Capacity', 'number'], ['status', 'Status', 'select'], ['registration_status', 'Registration', 'select']]
-    : [['title', 'Event title', 'text'], ['date', 'Date', 'date'], ['time', 'Time', 'text'], ['venue', 'Venue', 'text'], ['location', 'Location', 'text'], ['maps_url', 'Maps URL', 'text'], ['description', 'Description', 'textarea'], ['whatsapp_number', 'WhatsApp number', 'text'], ['whatsapp_message', 'WhatsApp purchase message', 'textarea'], ['status', 'Status', 'select'], ['registration_status', 'Pendaftaran Peserta', 'select']];
+    : [['title', 'Event title', 'text'], ['date', 'Date', 'date'], ['time', 'Time', 'text'], ['venue', 'Venue', 'text'], ['location', 'Location', 'text'], ['maps_url', 'Maps URL', 'text'], ['description', 'Description', 'textarea'], ['event_rules', 'Peraturan Event', 'textarea'], ['whatsapp_number', 'WhatsApp number', 'text'], ['whatsapp_message', 'WhatsApp purchase message', 'textarea'], ['status', 'Status', 'select'], ['registration_status', 'Pendaftaran Peserta', 'select']];
 
   const selectOptions: Record<string, [string, string][]> = {
     status: kind === 'komika' ? [['active', 'Active'], ['archived', 'Archived']] : [['upcoming', 'Upcoming'], ['completed', 'Completed'], ['cancelled', 'Cancelled']],
