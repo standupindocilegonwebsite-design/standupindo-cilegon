@@ -322,9 +322,10 @@
       width: 100%;
       max-width: 80mm;
       box-sizing: border-box;
-      padding: 3mm;
-      font-size: 8pt;
+      padding: 2.5mm;
+      font-size: 6.8pt;
       overflow-wrap: anywhere;
+      margin: 0 auto;
     }
 
     .thermal-registration-sheet .print-brand {
@@ -341,14 +342,14 @@
 
     .thermal-registration-sheet h1 {
       margin-bottom: 1mm;
-      font-size: 11pt;
+      font-size: 9.5pt;
       line-height: 1.15;
       overflow-wrap: anywhere;
     }
 
     .thermal-registration-sheet p {
       margin-bottom: 0;
-      font-size: 8pt;
+      font-size: 6.5pt;
       line-height: 1.25;
     }
 
@@ -364,15 +365,15 @@
 
     .thermal-registration-sheet th,
     .thermal-registration-sheet td {
-      padding: 1.5mm 1mm;
-      font-size: 7.5pt;
-      line-height: 1.2;
+      padding: 1mm 0.7mm;
+      font-size: 6.5pt;
+      line-height: 1.15;
       overflow-wrap: anywhere;
     }
 
     .thermal-registration-sheet .print-check {
-      width: 8mm;
-      font-size: 12pt;
+      width: 6mm;
+      font-size: 6.5pt;
     }
 
     .thermal-registration-sheet th:nth-child(2),
@@ -405,9 +406,10 @@
       width: 100%;
       max-width: 80mm;
       box-sizing: border-box;
-      padding: 3mm;
-      font-size: 7.5pt;
+      padding: 2.5mm;
+      font-size: 6.7pt;
       overflow-wrap: anywhere;
+      margin: 0 auto;
     }
 
     .thermal-event-sheet .print-brand {
@@ -424,14 +426,14 @@
 
     .thermal-event-sheet h1 {
       margin-bottom: 1mm;
-      font-size: 11pt;
+      font-size: 9.5pt;
       line-height: 1.15;
       overflow-wrap: anywhere;
     }
 
     .thermal-event-sheet p {
       margin-bottom: 0;
-      font-size: 7.5pt;
+      font-size: 6.5pt;
       line-height: 1.25;
     }
 
@@ -447,15 +449,15 @@
 
     .thermal-event-sheet th,
     .thermal-event-sheet td {
-      padding: 1.5mm 1mm;
-      font-size: 7pt;
-      line-height: 1.2;
+      padding: 1mm 0.7mm;
+      font-size: 6.4pt;
+      line-height: 1.15;
       overflow-wrap: anywhere;
     }
 
     .thermal-event-sheet .print-check {
-      width: 8mm;
-      font-size: 11pt;
+      width: 6mm;
+      font-size: 6.5pt;
     }
 
     .thermal-event-sheet th:nth-child(2),

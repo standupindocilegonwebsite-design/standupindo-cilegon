@@ -1221,7 +1221,6 @@ function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit,
   const [deletePartner, setDeletePartner] = useState<Partner | null>(null);
   const [search, setSearch] = useState('');
   const [folder, setFolder] = useState<Partner['category']>('sponsor');
-  const [showBanner, setShowBanner] = useState(true);
   const eventMap = new Map(events.map((event) => [event.id, { title: event.title, date: event.date }]));
 
   const categoryLabels: Record<Partner['category'], string> = {
@@ -1277,15 +1276,6 @@ function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit,
 
   return (
     <div className="space-y-5">
-      {showBanner && (
-        <div className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-100 px-4 py-3 text-base font-bold text-slate-800">
-          <span>Konten dipublikasikan.</span>
-          <button type="button" onClick={() => setShowBanner(false)} className="flex h-7 w-7 items-center justify-center rounded-full text-slate-600 transition hover:bg-emerald-200" aria-label="Tutup banner">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
       <div className="flex items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900">Partners</h1>
