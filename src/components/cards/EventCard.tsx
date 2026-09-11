@@ -7,9 +7,10 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 
-export function EventCard({ event, router }: { event: EventItem; router: Router }) {
+export function EventCard({ event, router, price }: { event: EventItem; router: Router; price?: number | null }) {
   const [lightbox, setLightbox] = useState(false);
   const currentStatus = getEventStatus(event.status, event.date);
+  const displayPrice = price ?? event.ticket_price ?? 0;
   return (
     <>
       <article className="card card-hover group overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
@@ -33,7 +34,7 @@ export function EventCard({ event, router }: { event: EventItem; router: Router 
             <div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-blue-600" /> {formatDate(event.date)}</div>
             <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-blue-600" /> {event.time} WIB</div>
             <LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="mt-0.5" />
-            <div className="flex items-center gap-2"><Ticket className="h-4 w-4 text-blue-600" /> <span className="font-bold text-slate-900">{formatPrice(event.ticket_price ?? 0)}</span></div>
+            <div className="flex items-center gap-2"><Ticket className="h-4 w-4 text-blue-600" /> <span className="font-bold text-slate-900">{formatPrice(displayPrice)}</span></div>
           </div>
 
           {event.description && <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-500">{event.description}</p>}

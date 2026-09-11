@@ -101,14 +101,22 @@ export function AdminPage({ router, settings }: Props) {
       supabase.from('open_mics').select('*').order('date', { ascending: false }),
       supabase.from('open_mic_registrations').select('*').order('created_at', { ascending: false }),
       supabase.from('events').select('*').order('date', { ascending: false }),
-      supabase.from('komika').select('*').order('stage_name', { ascending: true }),
+      supabase.from('komika').select('*'),
       supabase.from('community_applications').select('*').order('created_at', { ascending: false }),
       supabase.from('event_participants').select('event_id, status'),
     ]);
+    const komikaRows = ((k.data as Komika[]) ?? []).sort((a, b) => {
+      const aOrder = a.featured_order ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = b.featured_order ?? Number.MAX_SAFE_INTEGER;
+
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.stage_name.localeCompare(b.stage_name, 'id', { sensitivity: 'base' });
+    });
+
     setOpenMics((m.data as OpenMic[]) ?? []);
     setRegistrations((r.data as OpenMicRegistration[]) ?? []);
     setEvents((e.data as EventItem[]) ?? []);
-    setKomika((k.data as Komika[]) ?? []);
+    setKomika(komikaRows);
     setCommunityApplications((a.data as CommunityApplication[]) ?? []);
     const pendingByEvent: Record<string, number> = {};
     (p.data as { event_id: string; status: ApplicationStatus }[] ?? []).forEach((participant) => {
@@ -1427,7 +1435,7 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
     const base = { ...form };
     try {
       if (kind === 'komika') {
-        const payload = { ...base, instagram_url: instagramProfileUrl(base.instagram_url), tiktok_url: tiktokProfileUrl(base.tiktok_url), slug: isEdit ? base.slug : slugify(base.stage_name), specialties: (base.specialties || '').split(',').map((s) => s.trim()).filter(Boolean), published: base.published !== 'false' };
+        const payload = { ...base, instagram_url: instagramProfileUrl(base.instagram_url), tiktok_url: tiktokProfileUrl(base.tiktok_url), slug: isEdit ? base.slug : slugify(base.stage_name), specialties: (base.specialties || '').split(',').map((s) => s.trim()).filter(Boolean), featured_order: base.featured_order ? Number(base.featured_order) : null, published: base.published !== 'false' };
         const result = editing ? await supabase.from('komika').update(payload).eq('id', editing.id) : await supabase.from('komika').insert(payload);
         if (result.error) throw result.error;
       } else if (kind === 'open-mic') {
@@ -1435,7 +1443,7 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
         const result = editing ? await supabase.from('open_mics').update(payload).eq('id', editing.id) : await supabase.from('open_mics').insert(payload);
         if (result.error) throw result.error;
       } else {
-        const payload = { ...base, slug: isEdit ? base.slug : slugify(base.title), published: base.published !== 'false', whatsapp_number: settings.whatsapp_admin };
+        const payload = { ...base, slug: isEdit ? base.slug : slugify(base.title), published: base.published !== 'false', whatsapp_number: base.whatsapp_number || settings.whatsapp_admin };
         const result = editing ? await supabase.from('events').update(payload).eq('id', editing.id) : await supabase.from('events').insert(payload);
         if (result.error) throw result.error;
       }
@@ -1451,7 +1459,7 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
   const requiredFields = ['title', 'full_name', 'stage_name', 'date', 'time', 'venue'];
 
   const fields: [string, string, 'text' | 'textarea' | 'select' | 'date' | 'number'][] = kind === 'komika'
-    ? [['full_name', 'Nama Lengkap', 'text'], ['stage_name', 'Stage Name', 'text'], ['whatsapp', 'Nomor WhatsApp (privat, tidak tampil publik)', 'text'], ['joined_at', 'Bergabung (bulan dan tahun)', 'text'], ['bio', 'Bio', 'textarea'], ['instagram_url', 'Instagram (@username)', 'text'], ['tiktok_url', 'TikTok (@username)', 'text'], ['youtube_url', 'YouTube URL', 'text'], ['specialties', 'Specialties (pisahkan koma)', 'textarea'], ['status', 'Status', 'select']]
+    ? [['full_name', 'Nama Lengkap', 'text'], ['stage_name', 'Stage Name', 'text'], ['whatsapp', 'Nomor WhatsApp (privat, tidak tampil publik)', 'text'], ['joined_at', 'Bergabung (bulan dan tahun)', 'text'], ['bio', 'Bio', 'textarea'], ['instagram_url', 'Instagram (@username)', 'text'], ['tiktok_url', 'TikTok (@username)', 'text'], ['youtube_url', 'YouTube URL', 'text'], ['specialties', 'Specialties (pisahkan koma)', 'textarea'], ['featured_order', 'Urutan tampil (opsional)', 'number'], ['status', 'Status', 'select']]
     : kind === 'open-mic'
     ? [['title', 'Title', 'text'], ['date', 'Date', 'date'], ['time', 'Time', 'text'], ['venue', 'Venue', 'text'], ['location', 'Location', 'text'], ['maps_url', 'Maps URL', 'text'], ['description', 'Description', 'textarea'], ['capacity', 'Capacity', 'number'], ['status', 'Status', 'select'], ['registration_status', 'Registration', 'select']]
     : [['title', 'Event title', 'text'], ['date', 'Date', 'date'], ['time', 'Time', 'text'], ['venue', 'Venue', 'text'], ['location', 'Location', 'text'], ['maps_url', 'Maps URL', 'text'], ['description', 'Description', 'textarea'], ['whatsapp_number', 'WhatsApp number', 'text'], ['whatsapp_message', 'WhatsApp purchase message', 'textarea'], ['status', 'Status', 'select'], ['registration_status', 'Pendaftaran Peserta', 'select']];

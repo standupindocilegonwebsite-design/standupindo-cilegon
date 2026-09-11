@@ -26,24 +26,30 @@ export function ImageLightbox({ src, alt, open, onClose, closeAriaLabel = 'Tutup
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm animate-fade-in sm:p-6"
+      className="fixed inset-0 z-[200] overflow-y-auto bg-slate-950/85 p-4 backdrop-blur-sm animate-fade-in sm:p-6"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
-      <button
-        onClick={onClose}
-        aria-label={closeAriaLabel}
-        className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/50"
-      >
-        <X className="h-6 w-6" />
-      </button>
-      <img
-        src={src}
-        alt={alt}
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded-lg object-contain shadow-2xl animate-scale-in"
-      />
+      <div className="relative flex min-h-full items-center justify-center py-2">
+        <button
+          onClick={onClose}
+          aria-label={closeAriaLabel}
+          className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/50"
+        >
+          <X className="h-6 w-6" />
+        </button>
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="relative max-h-[calc(100dvh-2rem)] overflow-auto rounded-lg shadow-2xl"
+        >
+          <img
+            src={src}
+            alt={alt}
+            className="block h-auto w-auto max-w-[calc(100vw-2rem)] rounded-lg object-contain animate-scale-in"
+          />
+        </div>
+      </div>
     </div>
   );
 }

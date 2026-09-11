@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Mic, CalendarDays, ArrowRight, Sparkles, Handshake } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { OpenMic, EventItem, Komika } from '@/lib/types';
+import type { OpenMic, EventItem, Komika, EventTicket } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { LOGO_URL } from '@/lib/types';
 import { OpenMicCard } from '@/components/cards/OpenMicCard';
@@ -44,23 +44,43 @@ export function HomePage({ router }: Props) {
   const [mics, setMics] = useState<OpenMic[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [komika, setKomika] = useState<Komika[]>([]);
+  const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
   const [confirmedCounts, setConfirmedCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     (async () => {
       const today = new Date().toISOString().slice(0, 10);
-      const [{ data: micData }, { data: eventData }, { data: komikaData }] = await Promise.all([
+      const [{ data: micData }, { data: eventData }, { data: komikaData }, { data: ticketData }] = await Promise.all([
         supabase.from('open_mics').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(3),
         supabase.from('events').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(3),
-        supabase.from('komika').select('id, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, status, published, created_at, updated_at').eq('published', true).eq('status', 'active').order('stage_name', { ascending: true }).limit(6),
+        supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active').limit(12),
+        supabase.from('event_tickets').select('event_id, price').eq('status', 'active').order('price', { ascending: true }),
       ]);
 
       const micsList = (micData as OpenMic[]) ?? [];
       const eventsList = (eventData as EventItem[]) ?? [];
       const komikaList = (komikaData as Komika[]) ?? [];
+      const prices: Record<string, number> = {};
+
+      (ticketData as EventTicket[] | null)?.forEach((ticket) => {
+        const current = prices[ticket.event_id];
+        if (current === undefined || ticket.price < current) {
+          prices[ticket.event_id] = ticket.price;
+        }
+      });
+
+      const rankedKomika = [...komikaList].sort((a, b) => {
+        const aOrder = a.featured_order ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = b.featured_order ?? Number.MAX_SAFE_INTEGER;
+
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return a.stage_name.localeCompare(b.stage_name, 'id', { sensitivity: 'base' });
+      }).slice(0, 6);
+
       setMics(micsList);
       setEvents(eventsList);
-      setKomika(komikaList);
+      setKomika(rankedKomika);
+      setTicketPrices(prices);
 
       if (micsList.length > 0) {
         const ids = micsList.map((m) => m.id);
@@ -168,7 +188,7 @@ export function HomePage({ router }: Props) {
               <AutoSlideRow className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
                 {events.map((e) => (
                   <div key={e.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
-                    <EventCard event={e} router={router} />
+                    <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
                   </div>
                 ))}
               </AutoSlideRow>

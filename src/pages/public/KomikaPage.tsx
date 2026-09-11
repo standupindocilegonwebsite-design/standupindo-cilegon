@@ -15,8 +15,17 @@ export function KomikaPage({ router }: { router: Router }) {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('komika').select('id, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, status, published, created_at, updated_at').eq('published', true).eq('status', 'active').order('stage_name', { ascending: true });
-      setKomika((data as Komika[]) ?? []);
+      const { data } = await supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active');
+      const komikaList = (data as Komika[]) ?? [];
+      const sortedKomika = [...komikaList].sort((a, b) => {
+        const aOrder = a.featured_order ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = b.featured_order ?? Number.MAX_SAFE_INTEGER;
+
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return a.stage_name.localeCompare(b.stage_name, 'id', { sensitivity: 'base' });
+      });
+
+      setKomika(sortedKomika);
       setLoading(false);
     })();
   }, []);

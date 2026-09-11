@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { EventItem } from '@/lib/types';
+import type { EventItem, EventTicket } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { EventCard } from '@/components/cards/EventCard';
 import { PageHeader } from '@/components/PageHeader';
@@ -12,12 +12,28 @@ import { getEventStatus } from '@/lib/format';
 export function EventPage({ router }: { router: Router }) {
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
   const [search, setSearch] = useState('');
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('events').select('*').eq('published', true).order('date', { ascending: true });
-      setEvents((data as EventItem[]) ?? []);
+      const [{ data: eventData }, { data: ticketData }] = await Promise.all([
+        supabase.from('events').select('*').eq('published', true).order('date', { ascending: true }),
+        supabase.from('event_tickets').select('event_id, price').order('price', { ascending: true }),
+      ]);
+
+      const eventsList = (eventData as EventItem[]) ?? [];
+      const prices: Record<string, number> = {};
+
+      (ticketData as EventTicket[] | null)?.forEach((ticket) => {
+        const current = prices[ticket.event_id];
+        if (current === undefined || ticket.price < current) {
+          prices[ticket.event_id] = ticket.price;
+        }
+      });
+
+      setEvents(eventsList);
+      setTicketPrices(prices);
       setLoading(false);
     })();
   }, []);
@@ -52,7 +68,7 @@ export function EventPage({ router }: { router: Router }) {
             <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
               {upcoming.map((e) => (
                 <div key={e.id} className="min-w-[270px] max-w-[270px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
-                  <EventCard event={e} router={router} />
+                  <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
                 </div>
               ))}
             </div>
@@ -65,7 +81,7 @@ export function EventPage({ router }: { router: Router }) {
             <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
               {completed.map((e) => (
                 <div key={e.id} className="min-w-[270px] max-w-[270px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
-                  <EventCard event={e} router={router} />
+                  <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
                 </div>
               ))}
             </div>

@@ -87,6 +87,8 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   }
 
   const waMessage = event.whatsapp_message ?? `Halo Admin Standupindo Cilegon, saya ingin membeli tiket ${event.title}.`;
+  const buyTicketNumber = event.whatsapp_number || settings.whatsapp_ticket || settings.whatsapp_admin;
+  const cheapestTicketPrice = tickets.length > 0 ? tickets.reduce((lowest, ticket) => ticket.price < lowest.price ? ticket : lowest, tickets[0]).price : (event.ticket_price ?? 0);
   const pageUrl = `${window.location.origin}/event/${event.slug}`;
   const currentStatus = getEventStatus(event.status, event.date);
 
@@ -122,12 +124,12 @@ export function EventDetailPage({ router, slug, settings }: Props) {
               <div className="flex items-center gap-2.5"><Calendar className="h-5 w-5 text-blue-600" /> {formatDate(event.date)}</div>
               <div className="flex items-center gap-2.5"><Clock className="h-5 w-5 text-blue-600" /> {event.time} WIB</div>
               <LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="items-center gap-2.5" />
-              {tickets.length === 0 && <div className="flex items-center gap-2.5"><Ticket className="h-5 w-5 text-blue-600" /> <span className="font-bold text-slate-900">{formatPrice(event.ticket_price ?? 0)}</span></div>}
+              <div className="flex items-center gap-2.5"><Ticket className="h-5 w-5 text-blue-600" /> <span className="font-bold text-slate-900">{formatPrice(cheapestTicketPrice)}</span></div>
             </div>
 
             {currentStatus === 'upcoming' && (
               <div className="space-y-2">
-                {tickets.length === 0 && <a href={waLink(settings.whatsapp_ticket || settings.whatsapp_admin, waMessage)} target="_blank" rel="noopener noreferrer" className="btn-primary w-full !py-3.5 text-base">
+                {tickets.length === 0 && <a href={waLink(buyTicketNumber, waMessage)} target="_blank" rel="noopener noreferrer" className="btn-primary w-full !py-3.5 text-base">
                   <MessageCircle className="h-5 w-5" /> Beli Tiket via WhatsApp
                 </a>}
                 {event.registration_status === 'open' && <button onClick={() => router.navigate(`/event/${event.slug}/daftar`)} className="btn-secondary w-full !py-3.5 text-base">Daftar sebagai Peserta</button>}
@@ -197,7 +199,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
                           <ExternalLink className="h-4 w-4" /> <span>Beli</span>
                         </a>
                       ) : (
-                        <a href={waLink(settings.whatsapp_ticket || settings.whatsapp_admin, ticketWaMsg)} target="_blank" rel="noopener noreferrer" aria-label={`Beli tiket ${t.name} melalui WhatsApp`} title="Beli melalui WhatsApp" className="btn-primary !min-h-10 !rounded-xl !px-4 !py-2.5 text-sm">
+                        <a href={waLink(buyTicketNumber, ticketWaMsg)} target="_blank" rel="noopener noreferrer" aria-label={`Beli tiket ${t.name} melalui WhatsApp`} title="Beli melalui WhatsApp" className="btn-primary !min-h-10 !rounded-xl !px-4 !py-2.5 text-sm">
                           <MessageCircle className="h-4 w-4" /> <span>Beli</span>
                         </a>
                       )

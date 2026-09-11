@@ -116,6 +116,7 @@ export interface Komika {
   youtube_url: string | null;
   specialties: string[];
   joined_at: string | null;
+  featured_order: number | null;
   status: KomikaStatus;
   published: boolean;
   created_at: string;
