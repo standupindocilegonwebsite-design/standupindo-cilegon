@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Mic, CalendarDays, ArrowRight, Sparkles, Handshake } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { OpenMic, EventItem, Komika, EventTicket } from '@/lib/types';
+import type { OpenMic, EventItem, Komika, EventTicket, Partner } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { LOGO_URL } from '@/lib/types';
 import { OpenMicCard } from '@/components/cards/OpenMicCard';
@@ -39,22 +39,81 @@ function AutoSlideRow({ children, className }: { children: ReactNode[]; classNam
   );
 }
 
+function PartnerMarqueeStrip({ partners, category }: { partners: Partner[]; category: 'sponsor' | 'support' | 'media_partner' }) {
+  if (partners.length === 0) return null;
+
+  const labels = {
+    sponsor: 'Sponsor',
+    support: 'Support',
+    media_partner: 'Media Partner',
+  } as const;
+
+  const sizeMap = {
+    sponsor: {
+      logo: 'h-20 w-20 sm:h-24 sm:w-24',
+      item: 'min-w-[170px] sm:min-w-[210px]',
+      name: 'text-base',
+    },
+    support: {
+      logo: 'h-14 w-14 sm:h-16 sm:w-16',
+      item: 'min-w-[140px] sm:min-w-[170px]',
+      name: 'text-sm',
+    },
+    media_partner: {
+      logo: 'h-12 w-12 sm:h-14 sm:w-14',
+      item: 'min-w-[130px] sm:min-w-[150px]',
+      name: 'text-xs',
+    },
+  } as const;
+
+  const leading = partners.length > 1 ? [...partners, ...partners] : partners;
+
+  return (
+    <div className="rounded-[28px] border border-white/50 bg-white/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] backdrop-blur-sm sm:p-4">
+      <div className="mb-3 flex items-center justify-center">
+        <span className="rounded-full border border-white/50 bg-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-700 sm:text-[11px]">
+          {labels[category]}
+        </span>
+      </div>
+
+      <div className="partner-marquee-shell">
+        <div className="partner-marquee-track">
+          {leading.map((partner, index) => (
+            <div key={`${partner.id}-${category}-${index}`} className={`partner-marquee-item ${sizeMap[category].item}`}>
+              <div className={`partner-marquee-logo ${sizeMap[category].logo}`}>
+                {partner.logo_url ? (
+                  <img src={partner.logo_url} alt={partner.name} className="h-full w-full object-contain" />
+                ) : (
+                  <span className="text-[10px] font-black text-slate-600 sm:text-xs">{partner.name.slice(0, 2).toUpperCase()}</span>
+                )}
+              </div>
+              <p className={`partner-marquee-name ${sizeMap[category].name}`}>{partner.name}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function HomePage({ router }: Props) {
   const [loading, setLoading] = useState(true);
   const [mics, setMics] = useState<OpenMic[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [komika, setKomika] = useState<Komika[]>([]);
+  const [partnersByCategory, setPartnersByCategory] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
   const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
   const [confirmedCounts, setConfirmedCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     (async () => {
       const today = new Date().toISOString().slice(0, 10);
-      const [{ data: micData }, { data: eventData }, { data: komikaData }, { data: ticketData }] = await Promise.all([
+      const [{ data: micData }, { data: eventData }, { data: komikaData }, { data: ticketData }, { data: partnerData }] = await Promise.all([
         supabase.from('open_mics').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(3),
         supabase.from('events').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(3),
         supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active').limit(12),
         supabase.from('event_tickets').select('event_id, price').eq('status', 'active').order('price', { ascending: true }),
+        supabase.from('partners').select('*').eq('is_published', true).order('sort_order', { ascending: true }).order('name', { ascending: true }),
       ]);
 
       const micsList = (micData as OpenMic[]) ?? [];
@@ -77,9 +136,15 @@ export function HomePage({ router }: Props) {
         return a.stage_name.localeCompare(b.stage_name, 'id', { sensitivity: 'base' });
       }).slice(0, 6);
 
+      const groupedPartners: Record<'sponsor' | 'support' | 'media_partner', Partner[]> = { sponsor: [], support: [], media_partner: [] };
+      (partnerData as Partner[] | null)?.forEach((partner) => {
+        groupedPartners[partner.category].push(partner);
+      });
+
       setMics(micsList);
       setEvents(eventsList);
       setKomika(rankedKomika);
+      setPartnersByCategory(groupedPartners);
       setTicketPrices(prices);
 
       if (micsList.length > 0) {
@@ -225,6 +290,24 @@ export function HomePage({ router }: Props) {
             )}
           </div>
         </section>
+
+        {/* PARTNERS */}
+        {(partnersByCategory.sponsor.length > 0 || partnersByCategory.support.length > 0 || partnersByCategory.media_partner.length > 0) && (
+          <section>
+            <div className="flex items-end justify-between gap-4">
+              <SectionHeader title="Our Beloved Partner" subtitle="Mereka yang turut mendukung komitmen kami." />
+              <button onClick={() => router.navigate('/more/kerja-sama')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
+                Lihat semua <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mx-auto mt-6 max-w-5xl space-y-4">
+              {(['sponsor', 'support', 'media_partner'] as const).map((category) => (
+                <PartnerMarqueeStrip key={category} partners={partnersByCategory[category]} category={category} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* CTA COLLABORATION */}
         <section>

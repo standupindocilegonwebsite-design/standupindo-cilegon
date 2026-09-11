@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Calendar, Clock, ExternalLink, MessageCircle, Ticket } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { EventItem, EventTicket, SiteSettings } from '@/lib/types';
+import type { EventItem, EventTicket, EventPartnership, Partner, SiteSettings } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -36,6 +36,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const [event, setEvent] = useState<EventItem | null>(null);
   const [tickets, setTickets] = useState<EventTicket[]>([]);
   const [lineup, setLineup] = useState<{ id: string; stage_name: string; community: string | null; instagram: string | null }[]>([]);
+  const [partnersByRole, setPartnersByRole] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
   const [lightbox, setLightbox] = useState(false);
   const [activeTab, setActiveTab] = useState<'about' | 'rules'>('about');
 
@@ -56,6 +57,38 @@ export function EventDetailPage({ router, slug, settings }: Props) {
           .eq('status', 'approved')
           .order('created_at', { ascending: true });
         setLineup((participantData as { id: string; stage_name: string; community: string | null; instagram: string | null }[]) ?? []);
+
+        const { data: partnershipData } = await supabase
+          .from('event_partnerships')
+          .select('*')
+          .eq('event_id', ev.id)
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: true });
+
+        const eventPartnerships = (partnershipData as EventPartnership[] | null) ?? [];
+        if (eventPartnerships.length > 0) {
+          const partnerIds = [...new Set(eventPartnerships.map((item) => item.partner_id))];
+          const { data: partnerData } = await supabase
+            .from('partners')
+            .select('*')
+            .in('id', partnerIds)
+            .eq('is_published', true);
+
+          const partners = (partnerData as Partner[] | null) ?? [];
+          const partnerMap = new Map(partners.map((partner) => [partner.id, partner]));
+          const groupedPartners: Record<'sponsor' | 'support' | 'media_partner', Partner[]> = { sponsor: [], support: [], media_partner: [] };
+
+          eventPartnerships.forEach((entry) => {
+            const partner = partnerMap.get(entry.partner_id);
+            if (partner) {
+              groupedPartners[entry.role].push(partner);
+            }
+          });
+
+          setPartnersByRole(groupedPartners);
+        } else {
+          setPartnersByRole({ sponsor: [], support: [], media_partner: [] });
+        }
 
         const pageUrl = `${window.location.origin}/event/${ev.slug}`;
         setOgTags(
@@ -181,7 +214,6 @@ export function EventDetailPage({ router, slug, settings }: Props) {
           )}
         </section>
 
-        {/* Lineup */}
         {lineup.length > 0 && (
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-4">Lineup</h2>
@@ -247,6 +279,58 @@ export function EventDetailPage({ router, slug, settings }: Props) {
             </div>
           )}
         </section>
+
+        {/* Partnership */}
+        {(['sponsor', 'support', 'media_partner'] as const).some((role) => partnersByRole[role].length > 0) && (
+          <section className="space-y-4 border-t border-slate-200 pt-8 sm:pt-10">
+            <h2 className="text-xl font-bold text-slate-900">Partner Event</h2>
+            <div className="space-y-4">
+              {(['sponsor', 'support', 'media_partner'] as const).map((role) => {
+                const rolePartners = partnersByRole[role];
+                if (rolePartners.length === 0) return null;
+
+                const labels = {
+                  sponsor: 'Sponsor',
+                  support: 'Support',
+                  media_partner: 'Media Partner',
+                };
+
+                const logoSize = {
+                  sponsor: 'h-20 w-20 sm:h-24 sm:w-24',
+                  support: 'h-14 w-14 sm:h-16 sm:w-16',
+                  media_partner: 'h-12 w-12 sm:h-14 sm:w-14',
+                };
+
+                return (
+                  <div key={role} className="rounded-[26px] border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
+                    <div className="mb-3 flex items-center justify-center">
+                      <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600 sm:text-[11px]">
+                        {labels[role]}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-4 sm:gap-x-8">
+                      {rolePartners.map((partner) => (
+                        <div key={partner.id} className="flex flex-col items-center justify-center text-center">
+                          <div className={`flex items-center justify-center overflow-visible ${logoSize[role]}`}>
+                            {partner.logo_url ? (
+                              <img src={partner.logo_url} alt={partner.name} className="h-full w-full object-contain" />
+                            ) : (
+                              <span className="text-[10px] font-black text-slate-600 sm:text-xs">{partner.name.slice(0, 2).toUpperCase()}</span>
+                            )}
+                          </div>
+                          <p className={`mt-2 font-bold text-slate-800 ${role === 'sponsor' ? 'text-base' : role === 'support' ? 'text-sm' : 'text-xs'}`}>
+                            {partner.name}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </div>
 
       {event.poster && (

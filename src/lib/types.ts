@@ -63,6 +63,34 @@ export interface EventItem {
   updated_at: string;
 }
 
+export interface Partner {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  website_url: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  notes: string | null;
+  category: 'sponsor' | 'support' | 'media_partner';
+  is_published: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventPartnership {
+  id: string;
+  event_id: string;
+  partner_id: string;
+  role: 'sponsor' | 'support' | 'media_partner';
+  notes: string | null;
+  pic_name: string | null;
+  pic_phone: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface EventTicket {
   id: string;
   event_id: string;

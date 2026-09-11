@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Archive, BarChart3, CalendarDays, Check, ChevronRight, Clock3, Eye, EyeOff, FolderOpen, LogOut, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Printer, Search, Settings, Ticket as TicketIcon, Trash2, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventParticipant, EventTicket, Komika, OpenMic, OpenMicRegistration, SiteSettings } from '@/lib/types';
+import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, Komika, OpenMic, OpenMicRegistration, Partner, SiteSettings } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatPrice, getEventStatus, getOpenMicStatus, normalizeWhatsappNumber, slugify, waLink } from '@/lib/format';
@@ -12,7 +12,7 @@ import { SocialIconButton } from '@/components/ui/SocialIconButton';
 import { LOGO_URL } from '@/lib/types';
 
 interface Props { router: Router; settings: SiteSettings; }
-type Section = 'dashboard' | 'open-mic' | 'registrants' | 'event-participants' | 'events' | 'applications' | 'komika' | 'settings' | 'more';
+type Section = 'dashboard' | 'open-mic' | 'registrants' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'settings' | 'more';
 
 const NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -20,6 +20,7 @@ const NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
   { key: 'events', label: 'Events', icon: CalendarDays },
   { key: 'applications', label: 'Gabung Komunitas', icon: UserPlus },
   { key: 'komika', label: 'Komika', icon: Users },
+  { key: 'partners', label: 'Partners', icon: Users },
   { key: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -28,6 +29,7 @@ const BOTTOM_NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
   { key: 'open-mic', label: 'Open Mic', icon: Mic },
   { key: 'events', label: 'Event', icon: CalendarDays },
   { key: 'komika', label: 'Komika', icon: Users },
+  { key: 'partners', label: 'Partner', icon: Users },
   { key: 'more', label: 'More', icon: MoreHorizontal },
 ];
 
@@ -86,24 +88,29 @@ export function AdminPage({ router, settings }: Props) {
   const [registrations, setRegistrations] = useState<OpenMicRegistration[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [komika, setKomika] = useState<Komika[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [eventPartnerships, setEventPartnerships] = useState<EventPartnership[]>([]);
   const [communityApplications, setCommunityApplications] = useState<CommunityApplication[]>([]);
   const [eventPendingCounts, setEventPendingCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState<'open-mic' | 'event' | 'komika' | null>(null);
-  const [editing, setEditing] = useState<OpenMic | EventItem | Komika | null>(null);
+  const [modal, setModal] = useState<'open-mic' | 'event' | 'komika' | 'partner' | null>(null);
+  const [editing, setEditing] = useState<OpenMic | EventItem | Komika | Partner | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
   const [ticketEvent, setTicketEvent] = useState<EventItem | null>(null);
+  const [partnershipEvent, setPartnershipEvent] = useState<EventItem | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [m, r, e, k, a, p] = await Promise.all([
+    const [m, r, e, k, a, p, pt, ep] = await Promise.all([
       supabase.from('open_mics').select('*').order('date', { ascending: false }),
       supabase.from('open_mic_registrations').select('*').order('created_at', { ascending: false }),
       supabase.from('events').select('*').order('date', { ascending: false }),
       supabase.from('komika').select('*'),
       supabase.from('community_applications').select('*').order('created_at', { ascending: false }),
       supabase.from('event_participants').select('event_id, status'),
+      supabase.from('partners').select('*').order('sort_order', { ascending: true }).order('name', { ascending: true }),
+      supabase.from('event_partnerships').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
     ]);
     const komikaRows = ((k.data as Komika[]) ?? []).sort((a, b) => {
       const aOrder = a.featured_order ?? Number.MAX_SAFE_INTEGER;
@@ -117,6 +124,8 @@ export function AdminPage({ router, settings }: Props) {
     setRegistrations((r.data as OpenMicRegistration[]) ?? []);
     setEvents((e.data as EventItem[]) ?? []);
     setKomika(komikaRows);
+    setPartners((pt.data as Partner[]) ?? []);
+    setEventPartnerships((ep.data as EventPartnership[]) ?? []);
     setCommunityApplications((a.data as CommunityApplication[]) ?? []);
     const pendingByEvent: Record<string, number> = {};
     (p.data as { event_id: string; status: ApplicationStatus }[] ?? []).forEach((participant) => {
@@ -139,14 +148,18 @@ export function AdminPage({ router, settings }: Props) {
     return () => { void supabase.removeChannel(channel); };
   }, [load]);
 
-  async function togglePublish(table: 'open_mics' | 'events', id: string, current: boolean) {
-    const { error } = await supabase.from(table).update({ published: !current, updated_at: new Date().toISOString() }).eq('id', id);
+  async function togglePublish(table: 'open_mics' | 'events' | 'partners', id: string, current: boolean) {
+    const payload = table === 'partners'
+      ? { is_published: !current, updated_at: new Date().toISOString() }
+      : { published: !current, updated_at: new Date().toISOString() };
+
+    const { error } = await supabase.from(table).update(payload).eq('id', id);
     if (error) { setNotice('Gagal mengubah status publish.'); return; }
     setNotice(!current ? 'Konten dipublikasikan.' : 'Konten disembunyikan.');
     await load();
   }
 
-  async function deleteRow(table: 'open_mics' | 'events' | 'komika', id: string) {
+  async function deleteRow(table: 'open_mics' | 'events' | 'komika' | 'partners', id: string) {
     if (!window.confirm('Hapus data ini? Tindakan ini tidak dapat dibatalkan.')) return;
     const { error } = await supabase.from(table).delete().eq('id', id);
     if (error) { setNotice('Gagal menghapus data.'); return; }
@@ -240,9 +253,10 @@ export function AdminPage({ router, settings }: Props) {
           {section === 'open-mic' && <OpenMicManagement rows={openMics} registrations={registrations} loading={loading} onAdd={() => { setEditing(null); setModal('open-mic'); }} onEdit={(row) => { setEditing(row); setModal('open-mic'); }} onDelete={(id) => deleteRow('open_mics', id)} onTogglePublish={(id, val) => togglePublish('open_mics', id, val)} onViewRegistrants={(m) => router.navigate(`/admin/pendaftar/${m.id}`)} />}
           {section === 'registrants' && <RegistrantsView openMicId={registrantOpenMicId} komika={komika} onBack={() => router.navigate('/admin/open-mic')} />}
           {section === 'event-participants' && <EventParticipantsView eventId={router.path.split('/').filter(Boolean)[2] ?? ''} onBack={() => router.navigate('/admin/events')} />}
-          {section === 'events' && <EventManagement rows={events} loading={loading} pendingCounts={eventPendingCounts} onAdd={() => { setEditing(null); setModal('event'); }} onEdit={(row) => { setEditing(row); setModal('event'); }} onDelete={(id) => deleteRow('events', id)} onTogglePublish={(id, val) => togglePublish('events', id, val)} onManageTickets={(row) => setTicketEvent(row)} onViewParticipants={(row) => router.navigate(`/admin/event-pendaftar/${row.id}`)} />}
+          {section === 'events' && <EventManagement rows={events} loading={loading} pendingCounts={eventPendingCounts} onAdd={() => { setEditing(null); setModal('event'); }} onEdit={(row) => { setEditing(row); setModal('event'); }} onDelete={(id) => deleteRow('events', id)} onTogglePublish={(id, val) => togglePublish('events', id, val)} onManageTickets={(row) => setTicketEvent(row)} onManagePartnerships={(row) => setPartnershipEvent(row)} onViewParticipants={(row) => router.navigate(`/admin/event-pendaftar/${row.id}`)} />}
           {section === 'applications' && <ApplicationsView community={communityApplications} onNotice={setNotice} onReload={load} />}
           {section === 'komika' && <KomikaManagement rows={komika} registrations={registrations} openMics={openMics} attendanceCounts={komikaAttendanceCounts} loading={loading} onReload={load} onAdd={() => { setEditing(null); setModal('komika'); }} onEdit={(row) => { setEditing(row); setModal('komika'); }} onDelete={(id) => deleteRow('komika', id)} />}
+          {section === 'partners' && <PartnerManagement rows={partners} events={events} partnerships={eventPartnerships} loading={loading} onAdd={() => { setEditing(null); setModal('partner'); }} onEdit={(row) => { setEditing(row); setModal('partner'); }} onDelete={(id) => deleteRow('partners', id)} onTogglePublish={(id, current) => togglePublish('partners', id, current)} />}
           {section === 'settings' && <SettingsPanel settings={settings} onSaved={load} onNotice={setNotice} />}
           {section === 'more' && <MorePage onNavigate={navigateSection} onSignOut={async () => { await signOut(); router.navigate('/admin/login'); }} onViewWebsite={() => router.navigate('/')} />}
         </main>
@@ -254,7 +268,7 @@ export function AdminPage({ router, settings }: Props) {
         aria-label="Navigasi admin mobile"
         style={{ paddingBottom: 'var(--safe-bottom)' }}
       >
-        <div className="mx-auto grid max-w-md grid-cols-5">
+        <div className="mx-auto grid max-w-xl grid-cols-6">
           {BOTTOM_NAV.map((item) => {
             const Icon = item.icon;
             const pendingEventCount = Object.values(eventPendingCounts).reduce((total, count) => total + count, 0);
@@ -268,9 +282,11 @@ export function AdminPage({ router, settings }: Props) {
                   ? section === 'events' || section === 'event-participants'
                   : item.key === 'komika'
                     ? section === 'komika'
-                    : item.key === 'more'
-                      ? section === 'more' || section === 'settings'
-                      : section === item.key;
+                    : item.key === 'partners'
+                      ? section === 'partners'
+                      : item.key === 'more'
+                        ? section === 'more' || section === 'settings'
+                        : section === item.key;
             return (
               <button
                 key={item.key}
@@ -293,6 +309,7 @@ export function AdminPage({ router, settings }: Props) {
 
       {/* Ticket Management Modal */}
       <TicketManagementModal event={ticketEvent} onClose={() => setTicketEvent(null)} onNotice={setNotice} />
+      <EventPartnershipManagementModal event={partnershipEvent} partners={partners} partnerships={eventPartnerships} onClose={() => setPartnershipEvent(null)} onNotice={setNotice} onReload={load} />
 
       {/* Form Modal */}
       <AdminFormModal kind={modal} editing={editing} saving={saving} settings={settings} onClose={() => setModal(null)} onSaving={setSaving} onSaved={async () => { setModal(null); await load(); setNotice('Perubahan berhasil disimpan.'); }} />
@@ -1087,7 +1104,7 @@ function EventParticipantsView({ eventId, onBack }: { eventId: string; onBack: (
   );
 }
 
-function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete, onTogglePublish, onManageTickets, onViewParticipants }: { rows: EventItem[]; loading: boolean; pendingCounts: Record<string, number>; onAdd: () => void; onEdit: (row: EventItem) => void; onDelete: (id: string) => void; onTogglePublish: (id: string, current: boolean) => void; onManageTickets: (row: EventItem) => void; onViewParticipants: (row: EventItem) => void }) {
+function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete, onTogglePublish, onManageTickets, onManagePartnerships, onViewParticipants }: { rows: EventItem[]; loading: boolean; pendingCounts: Record<string, number>; onAdd: () => void; onEdit: (row: EventItem) => void; onDelete: (id: string) => void; onTogglePublish: (id: string, current: boolean) => void; onManageTickets: (row: EventItem) => void; onManagePartnerships: (row: EventItem) => void; onViewParticipants: (row: EventItem) => void }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'upcoming' | 'completed' | 'cancelled'>('upcoming');
   const filteredRows = rows.filter((row) => {
@@ -1148,6 +1165,7 @@ function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete
                     <div className="flex justify-end gap-1">
                       {e.registration_status === 'open' && <button onClick={() => onViewParticipants(e)} className="rounded-lg p-2 text-slate-500 hover:bg-green-50 hover:text-green-700" title="Lihat Pendaftar"><UserPlus className="h-4 w-4" /></button>}
                       <button onClick={() => onManageTickets(e)} className="rounded-lg p-2 text-slate-500 hover:bg-amber-50 hover:text-amber-700" title="Kelola Tiket"><TicketIcon className="h-4 w-4" /></button>
+                      <button onClick={() => onManagePartnerships(e)} className="rounded-lg p-2 text-slate-500 hover:bg-violet-50 hover:text-violet-700" title="Kelola Partner"><Users className="h-4 w-4" /></button>
                       <button onClick={() => onEdit(e)} className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700" title="Edit"><Pencil className="h-4 w-4" /></button>
                       <button onClick={() => onDelete(e.id)} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-700" title="Hapus"><Trash2 className="h-4 w-4" /></button>
                     </div>
@@ -1185,6 +1203,7 @@ function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete
               <div className="mt-4 flex gap-2">
                 {e.registration_status === 'open' && <button onClick={() => onViewParticipants(e)} className="flex-1 rounded-lg bg-green-50 py-2.5 text-xs font-semibold text-green-700 transition hover:bg-green-100">Pendaftar</button>}
                 <button onClick={() => onManageTickets(e)} className="flex-1 rounded-lg bg-amber-50 py-2.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100">Tiket</button>
+                <button onClick={() => onManagePartnerships(e)} className="flex-1 rounded-lg bg-violet-50 py-2.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-100">Partner</button>
                 <button onClick={() => onEdit(e)} className="flex-1 rounded-lg bg-blue-50 py-2.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">Edit</button>
                 <button onClick={() => onDelete(e.id)} className="flex-1 rounded-lg bg-red-50 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100">Hapus</button>
               </div>
@@ -1192,6 +1211,382 @@ function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit, onDelete, onTogglePublish }: { rows: Partner[]; events: EventItem[]; partnerships: EventPartnership[]; loading: boolean; onAdd: () => void; onEdit: (row: Partner) => void; onDelete: (id: string) => void; onTogglePublish: (id: string, current: boolean) => void }) {
+  const [viewPartner, setViewPartner] = useState<Partner | null>(null);
+  const [viewImage, setViewImage] = useState<string | null>(null);
+  const [deletePartner, setDeletePartner] = useState<Partner | null>(null);
+  const [search, setSearch] = useState('');
+  const [folder, setFolder] = useState<Partner['category']>('sponsor');
+  const [showBanner, setShowBanner] = useState(true);
+  const eventMap = new Map(events.map((event) => [event.id, { title: event.title, date: event.date }]));
+
+  const categoryLabels: Record<Partner['category'], string> = {
+    sponsor: 'Sponsor',
+    support: 'Support',
+    media_partner: 'Media Partner',
+  };
+
+  const normalizedSearch = search.trim().toLowerCase();
+
+  const folderCounts = useMemo(() => ({
+    sponsor: rows.filter((row) => row.category === 'sponsor').length,
+    support: rows.filter((row) => row.category === 'support').length,
+    media_partner: rows.filter((row) => row.category === 'media_partner').length,
+  }), [rows]);
+
+  const filteredRows = useMemo(() => rows.filter((row) => {
+    const matchesFolder = row.category === folder;
+    if (!matchesFolder) return false;
+
+    if (!normalizedSearch) return true;
+
+    const haystack = [row.name, row.contact_name, row.notes ?? '', row.website_url ?? ''].join(' ').toLowerCase();
+    return haystack.includes(normalizedSearch);
+  }), [folder, normalizedSearch, rows]);
+
+  const getLinkedEvents = (partnerId: string) => partnerships
+    .filter((relationship) => relationship.partner_id === partnerId)
+    .map((relationship) => {
+      const meta = eventMap.get(relationship.event_id) ?? { title: 'Event tidak ditemukan', date: '' };
+
+      return {
+        id: relationship.id,
+        eventId: relationship.event_id,
+        title: meta.title,
+        eventDate: meta.date,
+        role: relationship.role,
+        notes: relationship.notes,
+        picName: relationship.pic_name,
+        picPhone: relationship.pic_phone,
+      };
+    })
+    .sort((a, b) => a.title.localeCompare(b.title, 'id', { sensitivity: 'base' }));
+
+  function handleDelete(partner: Partner) {
+    setDeletePartner(partner);
+  }
+
+  function getPartnerWaMessage(partner: Partner) {
+    const contactName = partner.contact_name?.trim() || 'Kontak';
+    return `Halo ${contactName}, apa kabar? Saya dari Standupindo Cilegon. Saya ingin mengajak kembali kerja sama terkait ${partner.name}. Mohon balasan jika tertarik.`;
+  }
+
+  return (
+    <div className="space-y-5">
+      {showBanner && (
+        <div className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-100 px-4 py-3 text-base font-bold text-slate-800">
+          <span>Konten dipublikasikan.</span>
+          <button type="button" onClick={() => setShowBanner(false)} className="flex h-7 w-7 items-center justify-center rounded-full text-slate-600 transition hover:bg-emerald-200" aria-label="Tutup banner">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900">Partners</h1>
+          <p className="mt-1 text-sm text-slate-500">Kelola sponsor, support, dan media partner yang tampil di website.</p>
+        </div>
+        <button onClick={onAdd} className="btn-primary"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">Tambah</span></button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        {(['sponsor', 'support', 'media_partner'] as const).map((category) => (
+          <button
+            key={category}
+            type="button"
+            onClick={() => setFolder(category)}
+            className={`flex items-center gap-3 rounded-2xl border p-3.5 text-left transition ${folder === category ? 'border-blue-200 bg-blue-50 text-blue-700 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-100'}`}
+          >
+            <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${folder === category ? 'bg-white' : 'bg-slate-50'}`}>
+              <FolderOpen className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-bold">{categoryLabels[category]}</span>
+              <span className="mt-0.5 block text-xs opacity-70">{folderCounts[category]} item</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={`Cari ${categoryLabels[folder].toLowerCase()} atau kontak...`}
+          className="input-field pl-10"
+          aria-label="Cari partner"
+        />
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">{[1,2,3].map((n) => <div key={n} className="h-24 skeleton rounded-2xl" />)}</div>
+      ) : filteredRows.length === 0 ? (
+        <AdminEmptyState title={search ? 'Partner tidak ditemukan.' : `Belum ada ${categoryLabels[folder]}.`} />
+      ) : (
+        <div className="space-y-3">
+          {filteredRows.map((partner) => {
+            const linkedEvents = getLinkedEvents(partner.id);
+
+            return (
+              <div key={partner.id} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-soft sm:p-4">
+                <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => partner.logo_url && setViewImage(partner.logo_url)}
+                    disabled={!partner.logo_url}
+                    className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-200 transition hover:ring-blue-300 disabled:cursor-default disabled:hover:ring-slate-200"
+                    aria-label={`Lihat logo ${partner.name}`}
+                  >
+                    {partner.logo_url ? <img src={partner.logo_url} alt={partner.name} className="h-full w-full object-contain p-1.5" /> : <Users className="h-8 w-8 text-slate-400" />}
+                  </button>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-lg font-black leading-tight text-slate-900">{partner.name}</p>
+                        <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">{categoryLabels[partner.category]}</p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => onTogglePublish(partner.id, partner.is_published)}
+                        className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 transition ${partner.is_published ? 'bg-green-50 text-green-700 ring-green-200 hover:bg-green-100' : 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200'}`}
+                      >
+                        {partner.is_published ? 'Published' : 'Draft'}
+                      </button>
+                    </div>
+
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {partner.website_url && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">Website</p>
+                          <a href={partner.website_url} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all text-[11px] font-medium text-blue-700 transition hover:text-blue-800">{partner.website_url}</a>
+                        </div>
+                      )}
+
+                      {partner.contact_phone && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">Nomor Kontak</p>
+                          <a href={waLink(partner.contact_phone, getPartnerWaMessage(partner))} target="_blank" rel="noopener noreferrer" className="mt-1 block text-[11px] font-medium text-green-700 transition hover:text-green-800">{partner.contact_phone}</a>
+                        </div>
+                      )}
+
+                      {partner.contact_name && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 sm:col-span-2">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">Kontak</p>
+                          <p className="mt-1 text-[11px] font-medium text-slate-700">{partner.contact_name}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {linkedEvents.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">Kategori Event</p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {linkedEvents.slice(0, 3).map((entry) => (
+                            <span key={`${partner.id}-${entry.title}-${entry.role}`} className="rounded-full bg-violet-50 px-2 py-1 text-[9px] font-semibold text-violet-700 ring-1 ring-violet-200">{entry.role} · {entry.title}</span>
+                          ))}
+                          {linkedEvents.length > 3 && <span className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-500">+{linkedEvents.length - 3}</span>}
+                        </div>
+                      </div>
+                    )}
+
+                    {partner.notes && (
+                      <div className="mt-3">
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">Catatan</p>
+                        <p className="mt-1 text-[11px] leading-5 text-slate-600">{partner.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <button onClick={() => setViewPartner(partner)} className="rounded-xl bg-violet-50 px-3 py-2.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-100">Lihat Histori</button>
+                  <button onClick={() => onEdit(partner)} className="rounded-xl bg-blue-50 px-3 py-2.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">Edit</button>
+                  <button onClick={() => handleDelete(partner)} className="rounded-xl bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100">Hapus</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {viewImage && (
+        <Modal open onClose={() => setViewImage(null)} title="Logo Partner" size="lg">
+          <div className="space-y-4">
+            <div className="flex max-h-[70vh] items-center justify-center overflow-hidden rounded-2xl bg-slate-50 ring-1 ring-slate-200">
+              <img src={viewImage} alt="Preview logo partner" className="max-h-[70vh] w-full object-contain" />
+            </div>
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setViewImage(null)} className="btn-primary">Tutup</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {deletePartner && (
+        <Modal open onClose={() => setDeletePartner(null)} title="Hapus Partner?" size="sm">
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+              <p className="text-sm leading-6 text-slate-700">
+                Yakin ingin menghapus <span className="font-extrabold text-slate-900">{deletePartner.name}</span>?
+              </p>
+              <p className="mt-2 text-xs leading-5 text-red-700">
+                Semua data histori partner di event terkait juga akan ikut terhapus.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setDeletePartner(null)} className="btn-secondary">Batal</button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDelete(deletePartner.id);
+                  setDeletePartner(null);
+                }}
+                className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700"
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {viewPartner && (
+        <Modal open onClose={() => setViewPartner(null)} title="Detail Partner" size="lg">
+          <div className="space-y-5">
+            <div className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+                {viewPartner.logo_url ? <img src={viewPartner.logo_url} alt={viewPartner.name} className="h-full w-full object-contain p-2" /> : <Users className="h-8 w-8 text-slate-400" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Partner</p>
+                    <h3 className="mt-1 text-2xl font-black text-slate-900">{viewPartner.name}</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onTogglePublish(viewPartner.id, viewPartner.is_published)}
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 transition ${viewPartner.is_published ? 'bg-green-50 text-green-700 ring-green-200 hover:bg-green-100' : 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200'}`}
+                  >
+                    {viewPartner.is_published ? 'Published' : 'Draft'}
+                  </button>
+                </div>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{viewPartner.category}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {viewPartner.website_url && (
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Website</p>
+                  <p className="mt-1 break-all text-sm font-medium text-slate-700">{viewPartner.website_url}</p>
+                </div>
+              )}
+              {viewPartner.contact_name && (
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Nama Kontak</p>
+                  <p className="mt-1 text-sm font-medium text-slate-700">{viewPartner.contact_name}</p>
+                </div>
+              )}
+              {viewPartner.contact_phone && (
+                <div className="rounded-xl border border-slate-200 bg-white p-3 sm:col-span-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Nomor Kontak</p>
+                  <a href={waLink(viewPartner.contact_phone, getPartnerWaMessage(viewPartner))} target="_blank" rel="noopener noreferrer" className="mt-1 block text-sm font-medium text-slate-700 transition hover:text-blue-700">{viewPartner.contact_phone}</a>
+                </div>
+              )}
+            </div>
+
+            {viewPartner.notes && (
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Catatan</p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">{viewPartner.notes}</p>
+              </div>
+            )}
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Histori Event</p>
+                <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-violet-200">{getLinkedEvents(viewPartner.id).length} event</span>
+              </div>
+              {getLinkedEvents(viewPartner.id).length === 0 ? (
+                <p className="text-sm text-slate-500">Belum ada event yang terhubung dengan partner ini.</p>
+              ) : (
+                <div className="space-y-2">
+                  {getLinkedEvents(viewPartner.id).map((entry) => (
+                    <div key={entry.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-bold text-slate-900">{entry.title}</p>
+                        <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-violet-200">{entry.role}</span>
+                      </div>
+                      {entry.eventDate && <p className="mt-1 text-[11px] text-slate-500">Tanggal: {formatDate(entry.eventDate)}</p>}
+                      {(entry.picName || entry.picPhone) && (
+                        <div className="mt-1 text-[11px] text-slate-500">
+                          {entry.picName && <span>PIC: {entry.picName}</span>}
+                          {entry.picPhone && <span>{entry.picName ? ' · ' : 'PIC: '}{entry.picPhone}</span>}
+                        </div>
+                      )}
+                      {entry.notes && <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-500">Dukungan / Bentuk Kerja Sama:\n{entry.notes}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => window.print()} className="btn-secondary">Print Laporan</button>
+              <button type="button" onClick={() => onEdit(viewPartner)} className="btn-secondary">Edit</button>
+              <button type="button" onClick={() => setViewPartner(null)} className="btn-primary">Tutup</button>
+            </div>
+
+            <div className="print-sheet">
+              <div className="print-brand">
+                <img src={LOGO_URL} alt="Logo Standupindo Cilegon" />
+                <div>
+                  <h1>LAPORAN PARTNER - {viewPartner.name}</h1>
+                  <p>{viewPartner.category}</p>
+                </div>
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>No.</th>
+                    <th>Nama Event</th>
+                    <th>Tanggal</th>
+                    <th>Role</th>
+                    <th>Dukungan / Bentuk Kerja Sama</th>
+                    <th>PIC</th>
+                    <th>Kontak PIC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {getLinkedEvents(viewPartner.id).map((entry, index) => (
+                    <tr key={entry.id}>
+                      <td>{index + 1}</td>
+                      <td>{entry.title}</td>
+                      <td>{entry.eventDate ? formatDate(entry.eventDate) : '-'}</td>
+                      <td>{entry.role}</td>
+                      <td>{entry.notes || '-'}</td>
+                      <td>{entry.picName || '-'}</td>
+                      <td>{entry.picPhone || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -1407,7 +1802,7 @@ function MorePage({ onNavigate, onSignOut, onViewWebsite }: { onNavigate: (s: Se
   );
 }
 
-function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | null; editing: OpenMic | EventItem | Komika | null; saving: boolean; settings: SiteSettings; onClose: () => void; onSaving: (v: boolean) => void; onSaved: () => void }) {
+function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; saving: boolean; settings: SiteSettings; onClose: () => void; onSaving: (v: boolean) => void; onSaved: () => void }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
 
@@ -1420,6 +1815,8 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
       setForm({ full_name: '', whatsapp: '', stage_name: '', photo: '', bio: '', instagram_url: '', tiktok_url: '', youtube_url: '', specialties: '', joined_at: '', status: 'active', published: 'true' });
     } else if (kind === 'open-mic') {
       setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', capacity: '10', status: 'upcoming', registration_status: 'open', published: 'true' });
+    } else if (kind === 'partner') {
+      setForm({ name: '', logo_url: '', website_url: '', contact_name: '', contact_phone: '', notes: '', category: 'sponsor', is_published: 'true', sort_order: '0' });
     } else {
       setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', status: 'upcoming', registration_status: 'closed', published: 'true', whatsapp_number: '', whatsapp_message: '', event_rules: '' });
     }
@@ -1437,6 +1834,20 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
       if (kind === 'komika') {
         const payload = { ...base, instagram_url: instagramProfileUrl(base.instagram_url), tiktok_url: tiktokProfileUrl(base.tiktok_url), slug: isEdit ? base.slug : slugify(base.stage_name), specialties: (base.specialties || '').split(',').map((s) => s.trim()).filter(Boolean), featured_order: base.featured_order ? Number(base.featured_order) : null, published: base.published !== 'false' };
         const result = editing ? await supabase.from('komika').update(payload).eq('id', editing.id) : await supabase.from('komika').insert(payload);
+        if (result.error) throw result.error;
+      } else if (kind === 'partner') {
+        const payload = {
+          ...base,
+          logo_url: base.logo_url?.trim() || null,
+          website_url: base.website_url?.trim() || null,
+          contact_name: base.contact_name?.trim() || null,
+          contact_phone: base.contact_phone?.trim() || null,
+          notes: base.notes?.trim() || null,
+          category: base.category || 'sponsor',
+          is_published: base.is_published !== 'false',
+          sort_order: Number(base.sort_order) || 0,
+        };
+        const result = editing ? await supabase.from('partners').update(payload).eq('id', editing.id) : await supabase.from('partners').insert(payload);
         if (result.error) throw result.error;
       } else if (kind === 'open-mic') {
         const payload = { ...base, slug: isEdit ? base.slug : slugify(base.title), capacity: Number(base.capacity), published: base.published !== 'false' };
@@ -1462,19 +1873,22 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
     }
   }
 
-  const title = kind === 'komika' ? 'Komika' : kind === 'event' ? 'Event' : 'Open Mic';
+  const title = kind === 'komika' ? 'Komika' : kind === 'event' ? 'Event' : kind === 'partner' ? 'Partner' : 'Open Mic';
 
-  const requiredFields = ['title', 'full_name', 'stage_name', 'date', 'time', 'venue'];
+  const requiredFields = ['title', 'full_name', 'stage_name', 'date', 'time', 'venue', 'name'];
 
   const fields: [string, string, 'text' | 'textarea' | 'select' | 'date' | 'number'][] = kind === 'komika'
     ? [['full_name', 'Nama Lengkap', 'text'], ['stage_name', 'Stage Name', 'text'], ['whatsapp', 'Nomor WhatsApp (privat, tidak tampil publik)', 'text'], ['joined_at', 'Bergabung (bulan dan tahun)', 'text'], ['bio', 'Bio', 'textarea'], ['instagram_url', 'Instagram (@username)', 'text'], ['tiktok_url', 'TikTok (@username)', 'text'], ['youtube_url', 'YouTube URL', 'text'], ['specialties', 'Specialties (pisahkan koma)', 'textarea'], ['featured_order', 'Urutan tampil (opsional)', 'number'], ['status', 'Status', 'select']]
     : kind === 'open-mic'
     ? [['title', 'Title', 'text'], ['date', 'Date', 'date'], ['time', 'Time', 'text'], ['venue', 'Venue', 'text'], ['location', 'Location', 'text'], ['maps_url', 'Maps URL', 'text'], ['description', 'Description', 'textarea'], ['capacity', 'Capacity', 'number'], ['status', 'Status', 'select'], ['registration_status', 'Registration', 'select']]
+    : kind === 'partner'
+    ? [['name', 'Nama Partner', 'text'], ['category', 'Kategori', 'select'], ['website_url', 'Website URL', 'text'], ['contact_name', 'Nama Kontak', 'text'], ['contact_phone', 'Nomor Kontak', 'text'], ['notes', 'Catatan', 'textarea'], ['sort_order', 'Urutan tampil', 'number']]
     : [['title', 'Event title', 'text'], ['date', 'Date', 'date'], ['time', 'Time', 'text'], ['venue', 'Venue', 'text'], ['location', 'Location', 'text'], ['maps_url', 'Maps URL', 'text'], ['description', 'Description', 'textarea'], ['event_rules', 'Peraturan Event', 'textarea'], ['whatsapp_number', 'WhatsApp number', 'text'], ['whatsapp_message', 'WhatsApp purchase message', 'textarea'], ['status', 'Status', 'select'], ['registration_status', 'Pendaftaran Peserta', 'select']];
 
   const selectOptions: Record<string, [string, string][]> = {
     status: kind === 'komika' ? [['active', 'Active'], ['archived', 'Archived']] : [['upcoming', 'Upcoming'], ['completed', 'Completed'], ['cancelled', 'Cancelled']],
     registration_status: [['open', 'Open'], ['closed', 'Closed']],
+    category: [['sponsor', 'Sponsor'], ['support', 'Support'], ['media_partner', 'Media Partner']],
   };
 
   return (
@@ -1489,6 +1903,9 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
         {kind === 'event' && (
           <ImageUpload label="Poster Event" folder="events" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} />
         )}
+        {kind === 'partner' && (
+          <ImageUpload label="Logo Partner" folder="partners" value={form.logo_url ?? ''} onChange={(url) => set('logo_url', url)} aspect="square" onUploadingChange={setUploading} />
+        )}
         {fields.map(([key, label, type]) => (
           <div key={key}>
             <label className="label-field" htmlFor={`admin-${key}`}>{label}</label>
@@ -1499,13 +1916,27 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
                 {(selectOptions[key] ?? []).map(([val, lbl]) => <option key={val} value={val}>{lbl}</option>)}
               </select>
             ) : (
-              <input id={`admin-${key}`} type={type === 'date' ? 'date' : type === 'number' ? 'number' : 'text'} value={form[key] ?? ''} onChange={(e) => set(key, key === 'instagram_url' ? formatInstagramHandle(e.target.value) : key === 'tiktok_url' ? formatTikTokHandle(e.target.value) : e.target.value)} placeholder={getAdminFieldPlaceholder(key)} className="input-field" required={requiredFields.includes(key)} />
+              <input
+                id={`admin-${key}`}
+                type={type === 'date' ? 'date' : type === 'number' ? 'number' : 'text'}
+                inputMode={key === 'contact_phone' ? 'numeric' : undefined}
+                value={form[key] ?? ''}
+                onChange={(e) => set(key, key === 'instagram_url' ? formatInstagramHandle(e.target.value) : key === 'tiktok_url' ? formatTikTokHandle(e.target.value) : key === 'contact_phone' ? e.target.value.replace(/\D/g, '') : e.target.value)}
+                placeholder={getAdminFieldPlaceholder(key)}
+                className="input-field"
+                required={requiredFields.includes(key)}
+              />
             )}
           </div>
         ))}
         <div className="flex items-center gap-3 pt-2">
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <input type="checkbox" checked={form.published !== 'false'} onChange={(e) => set('published', String(e.target.checked))} className="h-4 w-4 rounded border-slate-300 text-blue-600" /> Tampilkan di website
+            <input
+              type="checkbox"
+              checked={kind === 'partner' ? form.is_published !== 'false' : form.published !== 'false'}
+              onChange={(e) => set(kind === 'partner' ? 'is_published' : 'published', String(e.target.checked))}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600"
+            /> Tampilkan di website
           </label>
         </div>
         <div className="flex gap-3 pt-2">
@@ -1513,6 +1944,314 @@ function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, on
           <button type="submit" disabled={saving || uploading} className="btn-primary flex-1">{uploading ? 'Mengupload...' : saving ? 'Menyimpan...' : 'Simpan'}</button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+function EventPartnershipManagementModal({ event, partners, partnerships, onClose, onNotice, onReload }: { event: EventItem | null; partners: Partner[]; partnerships: EventPartnership[]; onClose: () => void; onNotice: (msg: string) => void; onReload: () => Promise<void> }) {
+  const [selectedPartnerId, setSelectedPartnerId] = useState('');
+  const [role, setRole] = useState<'sponsor' | 'support' | 'media_partner'>('sponsor');
+  const [notes, setNotes] = useState('');
+  const [picName, setPicName] = useState('');
+  const [picPhone, setPicPhone] = useState('');
+  const [supportType, setSupportType] = useState('Venue');
+  const [customSupportType, setCustomSupportType] = useState('');
+  const [supportDetail, setSupportDetail] = useState('');
+  const [supportItems, setSupportItems] = useState<Array<{ label: string; detail: string }>>([]);
+  const [sortOrder, setSortOrder] = useState('0');
+  const [saving, setSaving] = useState(false);
+  const [deleteEntry, setDeleteEntry] = useState<EventPartnership | null>(null);
+
+  const currentPartnerships = partnerships.filter((item) => item.event_id === event?.id);
+
+  useEffect(() => {
+    if (event) {
+      setSelectedPartnerId('');
+      setRole('sponsor');
+      setNotes('');
+      setPicName('');
+      setPicPhone('');
+      setSupportType('Venue');
+      setCustomSupportType('');
+      setSupportDetail('');
+      setSupportItems([]);
+      setSortOrder('0');
+    }
+  }, [event]);
+
+  async function savePartnership() {
+    if (!event || !selectedPartnerId) return;
+    setSaving(true);
+    const supportText = supportItems
+      .map((item) => item.detail ? `${item.label}: ${item.detail}` : item.label)
+      .join('\n')
+      .trim();
+
+    const basePayload = {
+      event_id: event.id,
+      partner_id: selectedPartnerId,
+      role,
+      notes: supportText || notes.trim() || null,
+      sort_order: Number(sortOrder) || 0,
+    };
+
+    const fullPayload = {
+      ...basePayload,
+      pic_name: picName.trim() || null,
+      pic_phone: picPhone.trim() || null,
+    };
+
+    let { error } = await supabase.from('event_partnerships').insert(fullPayload);
+
+    if (error && /pic_name|pic_phone|column/i.test(error.message)) {
+      const fallback = await supabase.from('event_partnerships').insert(basePayload);
+      error = fallback.error;
+    }
+
+    setSaving(false);
+    if (error) {
+      onNotice('Gagal menambahkan partner ke event.');
+      return;
+    }
+    setSelectedPartnerId('');
+    setRole('sponsor');
+    setNotes('');
+    setPicName('');
+    setPicPhone('');
+    setSupportType('Venue');
+    setCustomSupportType('');
+    setSupportDetail('');
+    setSupportItems([]);
+    setSortOrder('0');
+    await onReload();
+    onNotice('Partner event berhasil ditambahkan.');
+  }
+
+  function requestDeletePartnership(id: string) {
+    const target = currentPartnerships.find((item) => item.id === id);
+    if (!target) return;
+    setDeleteEntry(target);
+  }
+
+  async function confirmDeletePartnership() {
+    if (!deleteEntry) return;
+    const { error } = await supabase.from('event_partnerships').delete().eq('id', deleteEntry.id);
+    if (error) {
+      onNotice('Gagal menghapus hubungan partner.');
+      setDeleteEntry(null);
+      return;
+    }
+    await onReload();
+    setDeleteEntry(null);
+    onNotice('Hubungan partner dihapus.');
+  }
+
+  const availablePartners = partners.filter((partner) => !currentPartnerships.some((relationship) => relationship.partner_id === partner.id));
+  const supportPresets = [
+    'Venue',
+    'Cash',
+    'Sound System',
+    'Lighting',
+    'Promosi',
+    'Dokumentasi',
+    'MC',
+    'Dekorasi',
+    'Transportasi',
+    'Food & Beverage',
+    'Merchandise',
+    'Speaker / Host',
+    'Content / Social Media',
+    'Tiket',
+    'Lainnya / Other',
+  ];
+
+  function formatCurrencyInput(value: string) {
+    const digits = value.replace(/\D/g, '');
+    if (!digits) return '';
+
+    const amount = Number(digits);
+    if (!Number.isFinite(amount)) return '';
+
+    return `Rp ${new Intl.NumberFormat('id-ID').format(amount)}`;
+  }
+
+  function addSupportItem() {
+    const trimmedType = supportType === 'Lainnya / Other' ? customSupportType.trim() : supportType.trim();
+    if (!trimmedType) return;
+
+    const trimmedDetail = supportType === 'Cash' ? formatCurrencyInput(supportDetail) : supportDetail.trim();
+    const duplicate = supportItems.some((item) => item.label.toLowerCase() === trimmedType.toLowerCase() && item.detail.toLowerCase() === trimmedDetail.toLowerCase());
+
+    if (duplicate) {
+      setSupportDetail('');
+      setCustomSupportType('');
+      return;
+    }
+
+    setSupportItems((current) => [...current, { label: trimmedType, detail: trimmedDetail }]);
+    setSupportDetail('');
+    setCustomSupportType('');
+  }
+
+  return (
+    <Modal open={Boolean(event)} onClose={onClose} title={`Partner — ${event?.title ?? ''}`} size="lg">
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-600">Ringkasan</p>
+              <p className="text-sm font-semibold text-slate-800">{event?.title ?? 'Event'} · {role}</p>
+            </div>
+            <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600 ring-1 ring-slate-200">{availablePartners.length} partner tersedia</span>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="label-field" htmlFor="partnership-partner">Partner</label>
+              <select id="partnership-partner" value={selectedPartnerId} onChange={(e) => setSelectedPartnerId(e.target.value)} className="input-field">
+                <option value="">Pilih partner...</option>
+                {availablePartners.map((partner) => (
+                  <option key={partner.id} value={partner.id}>{partner.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label-field" htmlFor="partnership-role">Role</label>
+              <select id="partnership-role" value={role} onChange={(e) => setRole(e.target.value as 'sponsor' | 'support' | 'media_partner')} className="input-field">
+                <option value="sponsor">Sponsor</option>
+                <option value="support">Support</option>
+                <option value="media_partner">Media Partner</option>
+              </select>
+            </div>
+            <div>
+              <label className="label-field" htmlFor="partnership-order">Urutan tampil</label>
+              <input id="partnership-order" type="number" min={0} value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="input-field" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="label-field" htmlFor="partnership-notes">Dukungan / Bentuk Kerja Sama</label>
+              <p className="mb-2 text-xs text-slate-500">Tambah item satu per satu supaya detailnya rapi dan bisa dibaca di histori partner. Kalau ada tipe yang tidak ada di daftar, pilih “Lainnya / Other” lalu ketik sendiri.</p>
+              <div className="mb-3 grid gap-2 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)_auto]">
+                <select
+                  id="partnership-support-type"
+                  value={supportType}
+                  onChange={(e) => setSupportType(e.target.value)}
+                  className="input-field"
+                >
+                  {supportPresets.map((preset) => (
+                    <option key={preset} value={preset}>{preset}</option>
+                  ))}
+                </select>
+                {supportType === 'Lainnya / Other' ? (
+                  <input
+                    id="partnership-support-custom-type"
+                    type="text"
+                    value={customSupportType}
+                    onChange={(e) => setCustomSupportType(e.target.value)}
+                    className="input-field"
+                    placeholder="Tulis jenis dukungan lain..."
+                  />
+                ) : (
+                  <input
+                    id="partnership-support-detail"
+                    type="text"
+                    value={supportDetail}
+                    onChange={(e) => setSupportDetail(supportType === 'Cash' ? formatCurrencyInput(e.target.value) : e.target.value)}
+                    className="input-field"
+                    placeholder={supportType === 'Cash' ? 'Contoh: 5000000' : 'Contoh: 1 paket, 2 unit, dll'}
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={addSupportItem}
+                  className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                >
+                  Tambahkan
+                </button>
+              </div>
+
+              {supportItems.length > 0 && (
+                <div className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <div className="grid grid-cols-[1fr_1.5fr_auto] border-b border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                    <span>Jenis</span>
+                    <span>Keterangan</span>
+                    <span className="text-right">Aksi</span>
+                  </div>
+                  {supportItems.map((item, index) => (
+                    <div key={`${item.label}-${index}`} className="grid grid-cols-[1fr_1.5fr_auto] items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-b-0">
+                      <span className="text-sm font-semibold text-slate-700">{item.label}</span>
+                      <span className="text-sm text-slate-600">{item.detail || '—'}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSupportItems((current) => current.filter((_, idx) => idx !== index))}
+                        className="rounded-lg bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-700 transition hover:bg-red-100"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <textarea id="partnership-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="hidden" />
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button onClick={() => void savePartnership()} disabled={!selectedPartnerId || saving} className="btn-primary">{saving ? 'Menyimpan...' : 'Tambah Partner ke Event'}</button>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="text-base font-bold text-slate-900">Partner terhubung</h3>
+          {currentPartnerships.length === 0 ? (
+            <AdminEmptyState title="Belum ada partner yang ditambahkan untuk event ini." />
+          ) : (
+            currentPartnerships.map((entry) => {
+              const partner = partners.find((item) => item.id === entry.partner_id);
+              if (!partner) return null;
+              return (
+                <div key={entry.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-200">
+                      {partner.logo_url ? <img src={partner.logo_url} alt={partner.name} className="h-full w-full object-contain p-1" /> : <Users className="h-5 w-5 text-slate-400" />}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900">{partner.name}</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{entry.role}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => requestDeletePartnership(entry.id)} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100">Hapus</button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {deleteEntry && (
+        <Modal open onClose={() => setDeleteEntry(null)} title="Hapus hubungan partner?" size="sm">
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+              <p className="text-sm leading-6 text-slate-700">
+                Yakin ingin menghapus hubungan <span className="font-extrabold text-slate-900">{partners.find((item) => item.id === deleteEntry.partner_id)?.name ?? 'Partner'}</span> dari event ini?
+              </p>
+              <p className="mt-2 text-xs leading-5 text-red-700">
+                Data dukungan / bentuk kerja sama yang terkait juga akan ikut dihapus.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setDeleteEntry(null)} className="btn-secondary">Batal</button>
+              <button
+                type="button"
+                onClick={() => void confirmDeletePartnership()}
+                className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700"
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </Modal>
   );
 }
