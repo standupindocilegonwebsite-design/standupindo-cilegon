@@ -97,6 +97,7 @@ function PartnerMarqueeStrip({ partners, category }: { partners: Partner[]; cate
 }
 
 export function HomePage({ router }: Props) {
+  const revealRootRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [mics, setMics] = useState<OpenMic[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -104,6 +105,28 @@ export function HomePage({ router }: Props) {
   const [partnersByCategory, setPartnersByCategory] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
   const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
   const [confirmedCounts, setConfirmedCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const root = revealRootRef.current;
+    if (!root) return;
+    const targets = Array.from(root.querySelectorAll<HTMLElement>('[data-home-reveal]'));
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion || !('IntersectionObserver' in window)) {
+      targets.forEach((target) => target.classList.add('is-visible'));
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+
+    targets.forEach((target) => observer.observe(target));
+    return () => observer.disconnect();
+  }, [loading]);
 
   useEffect(() => {
     (async () => {
@@ -167,7 +190,7 @@ export function HomePage({ router }: Props) {
   }, []);
 
   return (
-    <div className="animate-fade-in">
+    <div ref={revealRootRef} className="animate-fade-in">
       {/* HERO */}
       <section className="hero-flag relative overflow-hidden text-white">
         <div className="hero-flag-glow hero-flag-glow-one" aria-hidden="true" />
@@ -187,8 +210,8 @@ export function HomePage({ router }: Props) {
             <h1 className="mt-4 max-w-3xl text-[2.2rem] font-extrabold leading-[1.05] tracking-[-0.04em] text-white sm:mt-5 sm:text-4xl lg:text-[4rem]">
               Dari Tawa, Jadi Karya.
             </h1>
-            <p className="mt-4 max-w-xl text-sm font-bold leading-relaxed text-[#BFDBFE] sm:text-base">
-              Satu Panggung, Banyak Cerita.
+            <p className="mt-4 max-w-2xl text-[13px] font-semibold leading-6 text-[#BFDBFE] sm:mt-5 sm:text-base sm:leading-7 lg:text-lg lg:leading-8">
+              Menjadi ruang bertemunya komika, penikmat komedi, dan insan kreatif untuk berbagi tawa, mengembangkan potensi, serta membangun ekosistem stand up comedy di Cilegon.
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:mt-7 sm:flex-row">
               <button onClick={() => router.navigate('/open-mic')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-[#0B1F44] shadow-[0_12px_24px_rgba(11,31,68,0.22)] transition-all hover:scale-[1.02] hover:shadow-[0_16px_28px_rgba(11,31,68,0.28)] active:scale-95">
@@ -205,7 +228,7 @@ export function HomePage({ router }: Props) {
 
       <div className="container-app py-8 space-y-10 sm:py-12 sm:space-y-14">
         {/* OPEN MIC TERDEKAT */}
-        <section>
+        <section data-home-reveal className="home-reveal">
           <div className="flex items-end justify-between gap-4">
             <SectionHeader title="Open Mic Terdekat" subtitle="Panggung terbuka untuk kamu tampil." />
             <button onClick={() => router.navigate('/open-mic')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
@@ -222,7 +245,7 @@ export function HomePage({ router }: Props) {
             ) : mics.length === 0 ? (
               <EmptyState title="Belum ada Open Mic yang tersedia." description="Pantau terus untuk panggung berikutnya." />
             ) : (
-              <AutoSlideRow className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
+              <AutoSlideRow className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
                 {mics.map((m) => (
                   <div key={m.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                     <OpenMicCard mic={m} confirmedCount={confirmedCounts[m.id] ?? 0} router={router} />
@@ -234,7 +257,7 @@ export function HomePage({ router }: Props) {
         </section>
 
         {/* EVENT MENDATANG */}
-        <section>
+        <section data-home-reveal className="home-reveal">
           <div className="flex items-end justify-between gap-4">
             <SectionHeader title="Event Mendatang" subtitle="Malam penuh tawa bersama komika terbaik." />
             <button onClick={() => router.navigate('/event')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
@@ -250,7 +273,7 @@ export function HomePage({ router }: Props) {
             ) : events.length === 0 ? (
               <EmptyState title="Belum ada event mendatang." />
             ) : (
-              <AutoSlideRow className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
+              <AutoSlideRow className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
                 {events.map((e) => (
                   <div key={e.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                     <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
@@ -262,7 +285,7 @@ export function HomePage({ router }: Props) {
         </section>
 
         {/* KOMIKA */}
-        <section>
+        <section data-home-reveal className="home-reveal">
           <div className="flex items-end justify-between gap-4">
             <SectionHeader title="Komika" subtitle="Kenali talent Standupindo Cilegon." />
             <button onClick={() => router.navigate('/komika')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
@@ -280,7 +303,7 @@ export function HomePage({ router }: Props) {
             ) : komika.length === 0 ? (
               <EmptyState title="Belum ada komika." />
             ) : (
-              <AutoSlideRow className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:pb-0">
+              <AutoSlideRow className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:pb-0">
                 {komika.map((k) => (
                   <div key={k.id} className="min-w-[160px] max-w-[160px] shrink-0 snap-start sm:min-w-[180px] lg:min-w-0 lg:max-w-none">
                     <KomikaCard komika={k} router={router} />
@@ -293,7 +316,7 @@ export function HomePage({ router }: Props) {
 
         {/* PARTNERS */}
         {(partnersByCategory.sponsor.length > 0 || partnersByCategory.support.length > 0 || partnersByCategory.media_partner.length > 0) && (
-          <section>
+          <section data-home-reveal className="home-reveal">
             <div className="flex items-end justify-between gap-4">
               <SectionHeader title="Our Beloved Partner" subtitle="Mereka yang turut mendukung komitmen kami." />
               <button onClick={() => router.navigate('/more/kerja-sama')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
@@ -310,7 +333,7 @@ export function HomePage({ router }: Props) {
         )}
 
         {/* CTA COLLABORATION */}
-        <section>
+        <section data-home-reveal className="home-reveal">
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 to-brand-800 px-6 py-12 text-center text-white sm:px-12 sm:py-16">
             <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3) 0, transparent 40%)' }} />
             <div className="relative mx-auto max-w-xl">

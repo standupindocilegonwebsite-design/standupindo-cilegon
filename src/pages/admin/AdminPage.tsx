@@ -1,18 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Archive, BarChart3, CalendarDays, Check, ChevronRight, Clock3, Eye, EyeOff, FolderOpen, LogOut, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Printer, Search, Settings, Ticket as TicketIcon, Trash2, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Archive, BarChart3, Bell, CalendarDays, Check, ChevronRight, Clock3, Eye, EyeOff, FolderOpen, LogOut, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Printer, Search, Settings, Ticket as TicketIcon, Trash2, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, Komika, OpenMic, OpenMicRegistration, Partner, SiteSettings } from '@/lib/types';
+import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, Komika, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatPrice, getEventStatus, getOpenMicStatus, normalizeWhatsappNumber, slugify, waLink } from '@/lib/format';
+import { generateTicketOrderWhatsAppUrl } from '@/lib/whatsapp';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
 import { LOGO_URL } from '@/lib/types';
+import { useNotifications } from '@/lib/notification-context';
+import type { NotificationSource } from '@/lib/notification-context';
 
 interface Props { router: Router; settings: SiteSettings; }
-type Section = 'dashboard' | 'open-mic' | 'registrants' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'settings' | 'more';
+type Section = 'dashboard' | 'open-mic' | 'registrants' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'settings' | 'ticket-orders' | 'more';
 
 const NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -37,6 +40,7 @@ function getSection(path: string): Section {
   const parts = path.split('/').filter(Boolean);
   if (parts[1] === 'pendaftar' && parts[2]) return 'registrants';
   if (parts[1] === 'event-pendaftar' && parts[2]) return 'event-participants';
+  if (parts[1] === 'data-penonton' || parts[1] === 'ticket-orders') return 'ticket-orders';
   const part = parts[1] as Section | undefined;
   if (part === 'more') return 'more';
   if (NAV.some((n) => n.key === part)) return part as Section;
@@ -74,6 +78,116 @@ function AdminEmptyState({ title }: { title: string }) {
   return <div className="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 ring-1 ring-slate-200/70">{title}</div>;
 }
 
+const NOTIFICATION_LABELS: Record<NotificationSource, string> = {
+  'ticket-orders': 'Data Penonton',
+  'open-mic': 'Pendaftar Open Mic',
+  'event-participants': 'Pendaftar Event',
+  applications: 'Gabung Komunitas',
+};
+
+const NOTIFICATION_ROUTES: Record<NotificationSource, Section> = {
+  'ticket-orders': 'ticket-orders',
+  'open-mic': 'open-mic',
+  'event-participants': 'events',
+  applications: 'applications',
+};
+
+function NotificationBell({
+  notifications,
+  unreadCount,
+  onNavigate,
+  onMarkAsRead,
+  onMarkAllAsRead,
+}: {
+  notifications: NotificationRecord[];
+  unreadCount: number;
+  onNavigate: (section: Section) => void;
+  onMarkAsRead: (source: NotificationSource, id: string) => Promise<void>;
+  onMarkAllAsRead: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  async function openNotification(notification: NotificationRecord) {
+    await onMarkAsRead(notification.source, notification.id);
+    setOpen(false);
+    onNavigate(NOTIFICATION_ROUTES[notification.source]);
+  }
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition ${open ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-blue-50 hover:text-blue-700'}`}
+        title="Notifikasi admin"
+        aria-label={`Notifikasi admin${unreadCount ? `, ${unreadCount} belum dibaca` : ''}`}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+      >
+        <Bell className="h-5 w-5" />
+        {unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-extrabold text-white">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+      </button>
+
+      {open && (
+        <div role="dialog" aria-label="Notifikasi admin" className="absolute right-0 top-11 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-900">Notifikasi</h3>
+              <p className="mt-0.5 text-xs text-slate-500">Aktivitas yang perlu ditinjau</p>
+            </div>
+            {notifications.length > 0 && <button type="button" onClick={() => void onMarkAllAsRead()} className="text-xs font-bold text-blue-700 hover:text-blue-900">Tandai dibaca</button>}
+          </div>
+
+          {notifications.length === 0 ? (
+            <div className="px-5 py-8 text-center">
+              <Bell className="mx-auto h-7 w-7 text-slate-300" />
+              <p className="mt-2 text-sm font-semibold text-slate-600">Tidak ada notifikasi baru</p>
+              <p className="mt-1 text-xs text-slate-400">Semua aktivitas sudah ditinjau.</p>
+            </div>
+          ) : (
+            <div className="max-h-80 overflow-y-auto p-2">
+              {notifications.map((notification) => (
+                <button
+                  key={`${notification.source}:${notification.id}`}
+                  type="button"
+                  onClick={() => void openNotification(notification)}
+                  className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-blue-50"
+                >
+                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold text-slate-800">{NOTIFICATION_LABELS[notification.source]}</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">Status: {notification.status}</span>
+                  </span>
+                  <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-300" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AttendanceBadge({ status }: { status?: AttendanceStatus }) {
   const current = status ?? 'unmarked';
   const label = current === 'attended' ? 'Hadir' : current === 'absent' ? 'Tidak Hadir' : 'Belum Dicek';
@@ -83,6 +197,7 @@ function AttendanceBadge({ status }: { status?: AttendanceStatus }) {
 
 export function AdminPage({ router, settings }: Props) {
   const { user, signOut } = useAuth();
+  const { unreadCount, notifications, counts: notificationCounts, revision, resync: resyncNotifications, markAsRead, markAllAsRead } = useNotifications();
   const section = getSection(router.path);
   const [openMics, setOpenMics] = useState<OpenMic[]>([]);
   const [registrations, setRegistrations] = useState<OpenMicRegistration[]>([]);
@@ -91,6 +206,7 @@ export function AdminPage({ router, settings }: Props) {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [eventPartnerships, setEventPartnerships] = useState<EventPartnership[]>([]);
   const [communityApplications, setCommunityApplications] = useState<CommunityApplication[]>([]);
+  const [ticketOrders, setTicketOrders] = useState<TicketOrder[]>([]);
   const [eventPendingCounts, setEventPendingCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<'open-mic' | 'event' | 'komika' | 'partner' | null>(null);
@@ -102,7 +218,7 @@ export function AdminPage({ router, settings }: Props) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [m, r, e, k, a, p, pt, ep] = await Promise.all([
+    const [m, r, e, k, a, p, pt, ep, to] = await Promise.all([
       supabase.from('open_mics').select('*').order('date', { ascending: false }),
       supabase.from('open_mic_registrations').select('*').order('created_at', { ascending: false }),
       supabase.from('events').select('*').order('date', { ascending: false }),
@@ -111,6 +227,7 @@ export function AdminPage({ router, settings }: Props) {
       supabase.from('event_participants').select('event_id, status'),
       supabase.from('partners').select('*').order('sort_order', { ascending: true }).order('name', { ascending: true }),
       supabase.from('event_partnerships').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
+      supabase.from('ticket_orders').select('*').order('created_at', { ascending: false }),
     ]);
     const komikaRows = ((k.data as Komika[]) ?? []).sort((a, b) => {
       const aOrder = a.featured_order ?? Number.MAX_SAFE_INTEGER;
@@ -127,6 +244,7 @@ export function AdminPage({ router, settings }: Props) {
     setPartners((pt.data as Partner[]) ?? []);
     setEventPartnerships((ep.data as EventPartnership[]) ?? []);
     setCommunityApplications((a.data as CommunityApplication[]) ?? []);
+    setTicketOrders((to.data as TicketOrder[]) ?? []);
     const pendingByEvent: Record<string, number> = {};
     (p.data as { event_id: string; status: ApplicationStatus }[] ?? []).forEach((participant) => {
       if (participant.status === 'pending') pendingByEvent[participant.event_id] = (pendingByEvent[participant.event_id] ?? 0) + 1;
@@ -135,18 +253,17 @@ export function AdminPage({ router, settings }: Props) {
     setLoading(false);
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
-
+  useEffect(() => { void load(); }, [load, revision]);
   useEffect(() => {
-    const channel = supabase
-      .channel('admin-registration-notifications')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'open_mic_registrations' }, () => void load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_participants' }, () => void load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'community_applications' }, () => void load())
-      .subscribe();
-
-    return () => { void supabase.removeChannel(channel); };
-  }, [load]);
+    const sourceBySection: Partial<Record<Section, NotificationSource>> = {
+      'ticket-orders': 'ticket-orders',
+      registrants: 'open-mic',
+      'event-participants': 'event-participants',
+      applications: 'applications',
+    };
+    const source = sourceBySection[section];
+    if (source) void markAllAsRead(source);
+  }, [section, markAllAsRead]);
 
   async function togglePublish(table: 'open_mics' | 'events' | 'partners', id: string, current: boolean) {
     const payload = table === 'partners'
@@ -169,13 +286,46 @@ export function AdminPage({ router, settings }: Props) {
 
   function navigateSection(next: Section) { router.navigate(next === 'dashboard' ? '/admin' : `/admin/${next}`); }
 
-  const pendingRegistrationCount = registrations.filter((registration) => registration.status === 'pending').length;
+  async function markAllNotificationsAsRead() {
+    await Promise.all((Object.keys(notificationCounts) as NotificationSource[]).map((source) => markAllAsRead(source)));
+  }
+
+  async function updateTicketOrderStatus(id: string, status: TicketOrderStatus) {
+    const { error } = await supabase.from('ticket_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) {
+      setNotice('Status pemesanan gagal diperbarui.');
+      return;
+    }
+    setNotice('Status pemesanan berhasil diperbarui.');
+    await resyncNotifications();
+    await load();
+  }
+
+  async function deleteTicketOrder(id: string) {
+    if (!window.confirm('Hapus data pemesanan tiket ini?')) return;
+    const { error } = await supabase.from('ticket_orders').delete().eq('id', id);
+    if (error) {
+      setNotice('Data pemesanan gagal dihapus.');
+      return;
+    }
+    setNotice('Data pemesanan berhasil dihapus.');
+    await resyncNotifications();
+    await load();
+  }
+
+  const pendingRegistrationCount = notificationCounts['open-mic'];
   const komikaAttendanceCounts = useMemo(() => registrations.reduce<Record<string, number>>((counts, registration) => {
     if (registration.komika_id && registration.attendance_status === 'attended') counts[registration.komika_id] = (counts[registration.komika_id] ?? 0) + 1;
     return counts;
   }, {}), [registrations]);
   const isSubpage = section !== 'dashboard' && section !== 'more';
-  const pageTitle = section === 'registrants' ? 'Pendaftar Open Mic' : section === 'event-participants' ? 'Pendaftar Event' : NAV.find((n) => n.key === section)?.label ?? 'More';
+  const pageTitle = section === 'registrants'
+    ? 'Pendaftar Open Mic'
+    : section === 'event-participants'
+      ? 'Pendaftar Event'
+      : section === 'ticket-orders'
+        ? 'Data Penonton'
+        : NAV.find((n) => n.key === section)?.label ?? 'More';
   const registrantOpenMicId = section === 'registrants' ? router.path.split('/').filter(Boolean)[2] ?? '' : '';
 
   return (
@@ -188,6 +338,7 @@ export function AdminPage({ router, settings }: Props) {
             <span className="text-sm font-extrabold text-slate-900">ADMIN <span className="text-blue-600">PANEL</span></span>
           </div>
           <div className="flex items-center gap-3">
+            <NotificationBell notifications={notifications} unreadCount={unreadCount} onNavigate={navigateSection} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllNotificationsAsRead} />
             <span className="text-sm text-slate-500">{user?.email}</span>
             <button onClick={async () => { await signOut(); router.navigate('/admin/login'); }} className="btn-ghost !px-3"><LogOut className="h-4 w-4" /> Keluar</button>
           </div>
@@ -207,10 +358,15 @@ export function AdminPage({ router, settings }: Props) {
               <span className="text-sm font-extrabold text-slate-900">Admin Panel</span>
             </div>
           )}
-          {section === 'more' && (
-            <button onClick={async () => { await signOut(); router.navigate('/admin/login'); }} className="flex items-center gap-1.5 text-sm font-semibold text-red-600">
-              <LogOut className="h-4 w-4" /> Keluar
-            </button>
+          {!isSubpage && (
+            <div className="flex items-center gap-2">
+              <NotificationBell notifications={notifications} unreadCount={unreadCount} onNavigate={navigateSection} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllNotificationsAsRead} />
+              {section === 'more' && (
+                <button onClick={async () => { await signOut(); router.navigate('/admin/login'); }} className="flex items-center gap-1.5 text-sm font-semibold text-red-600">
+                  <LogOut className="h-4 w-4" /> Keluar
+                </button>
+              )}
+            </div>
           )}
         </div>
       </header>
@@ -221,14 +377,14 @@ export function AdminPage({ router, settings }: Props) {
           <nav className="space-y-1">
             {NAV.map((item) => {
               const Icon = item.icon;
-              const pendingEventCount = Object.values(eventPendingCounts).reduce((total, count) => total + count, 0);
-              const communityPendingCount = communityApplications.filter((application) => application.status === 'pending').length;
+              const pendingEventCount = notificationCounts['event-participants'];
+              const communityPendingCount = notificationCounts.applications;
               const showPendingBadge = (item.key === 'open-mic' && pendingRegistrationCount > 0) || (item.key === 'events' && pendingEventCount > 0) || (item.key === 'applications' && communityPendingCount > 0);
               return (
                 <button key={item.key} onClick={() => navigateSection(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${section === item.key ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}>
                   <Icon className="h-5 w-5" />
                   <span className="flex-1 text-left">{item.label}</span>
-                  {showPendingBadge && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-extrabold leading-none text-white" aria-label="Pendaftar baru menunggu konfirmasi">{item.key === 'open-mic' ? pendingRegistrationCount : item.key === 'events' ? pendingEventCount : communityPendingCount}</span>}
+                  {showPendingBadge && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-extrabold leading-none text-white" aria-label="Pendaftar baru menunggu konfirmasi">{item.key === 'open-mic' ? pendingRegistrationCount : item.key === 'events' ? pendingEventCount : communityPendingCount}</span>}
                 </button>
               );
             })}
@@ -257,8 +413,9 @@ export function AdminPage({ router, settings }: Props) {
           {section === 'applications' && <ApplicationsView community={communityApplications} onNotice={setNotice} onReload={load} />}
           {section === 'komika' && <KomikaManagement rows={komika} registrations={registrations} openMics={openMics} attendanceCounts={komikaAttendanceCounts} loading={loading} onReload={load} onAdd={() => { setEditing(null); setModal('komika'); }} onEdit={(row) => { setEditing(row); setModal('komika'); }} onDelete={(id) => deleteRow('komika', id)} />}
           {section === 'partners' && <PartnerManagement rows={partners} events={events} partnerships={eventPartnerships} loading={loading} onAdd={() => { setEditing(null); setModal('partner'); }} onEdit={(row) => { setEditing(row); setModal('partner'); }} onDelete={(id) => deleteRow('partners', id)} onTogglePublish={(id, current) => togglePublish('partners', id, current)} />}
+          {section === 'ticket-orders' && <TicketOrdersPage orders={ticketOrders} events={events} loading={loading} onStatusChange={updateTicketOrderStatus} onDelete={deleteTicketOrder} />}
           {section === 'settings' && <SettingsPanel settings={settings} onSaved={load} onNotice={setNotice} />}
-          {section === 'more' && <MorePage onNavigate={navigateSection} onSignOut={async () => { await signOut(); router.navigate('/admin/login'); }} onViewWebsite={() => router.navigate('/')} />}
+          {section === 'more' && <MorePage onNavigate={navigateSection} onSignOut={async () => { await signOut(); router.navigate('/admin/login'); }} onViewWebsite={() => router.navigate('/')} ticketOrderUnreadCount={notificationCounts['ticket-orders']} />}
         </main>
       </div>
 
@@ -271,8 +428,8 @@ export function AdminPage({ router, settings }: Props) {
         <div className="mx-auto grid max-w-xl grid-cols-6">
           {BOTTOM_NAV.map((item) => {
             const Icon = item.icon;
-            const pendingEventCount = Object.values(eventPendingCounts).reduce((total, count) => total + count, 0);
-            const communityPendingCount = communityApplications.filter((application) => application.status === 'pending').length;
+            const pendingEventCount = notificationCounts['event-participants'];
+            const communityPendingCount = notificationCounts.applications;
             const showPendingBadge = (item.key === 'open-mic' && pendingRegistrationCount > 0) || (item.key === 'events' && pendingEventCount > 0) || (item.key === 'applications' && communityPendingCount > 0);
             const isActive = item.key === 'dashboard'
               ? section === 'dashboard'
@@ -296,7 +453,9 @@ export function AdminPage({ router, settings }: Props) {
               >
                 <span className={`mobile-nav-icon relative flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 ${isActive ? 'mobile-nav-icon-active bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)]' : 'text-slate-400'}`}>
                   <Icon className="h-5 w-5" />
-                  {showPendingBadge && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-extrabold leading-none text-white" aria-label="Pendaftar baru menunggu konfirmasi">{item.key === 'open-mic' ? pendingRegistrationCount : item.key === 'events' ? pendingEventCount : communityPendingCount}</span>}
+                  {showPendingBadge && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white" aria-label="Pendaftar baru menunggu konfirmasi">{item.key === 'open-mic' ? pendingRegistrationCount : item.key === 'events' ? pendingEventCount : communityPendingCount}</span>}
+                  {item.key === 'dashboard' && unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white" aria-label={`Notifikasi admin, ${unreadCount} belum dibaca`}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
+                  {item.key === 'more' && unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white" aria-label={`Notifikasi admin, ${unreadCount} belum dibaca`}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
                 </span>
                 <span className={`mobile-nav-label text-[10px] font-semibold ${isActive ? 'mobile-nav-label-active text-blue-700' : 'text-slate-400'}`}>
                   {item.label}
@@ -312,7 +471,7 @@ export function AdminPage({ router, settings }: Props) {
       <EventPartnershipManagementModal event={partnershipEvent} partners={partners} partnerships={eventPartnerships} onClose={() => setPartnershipEvent(null)} onNotice={setNotice} onReload={load} />
 
       {/* Form Modal */}
-      <AdminFormModal kind={modal} editing={editing} saving={saving} settings={settings} onClose={() => setModal(null)} onSaving={setSaving} onSaved={async () => { setModal(null); await load(); setNotice('Perubahan berhasil disimpan.'); }} />
+      <AdminFormModal kind={modal} editing={editing} saving={saving} onClose={() => setModal(null)} onSaving={setSaving} onSaved={async () => { setModal(null); await load(); setNotice('Perubahan berhasil disimpan.'); }} />
 
     </div>
   );
@@ -937,7 +1096,7 @@ function OpenMicManagement({ rows, registrations, loading, onAdd, onEdit, onDele
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-1">
-                      <button onClick={() => onViewRegistrants(m)} className="relative rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700" title="Lihat Pendaftar"><Users className="h-4 w-4" />{registrations.filter((registration) => registration.open_mic_id === m.id && registration.status === 'pending').length > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-extrabold leading-none text-white">{registrations.filter((registration) => registration.open_mic_id === m.id && registration.status === 'pending').length}</span>}</button>
+                      <button onClick={() => onViewRegistrants(m)} className="relative rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700" title="Lihat Pendaftar"><Users className="h-4 w-4" />{registrations.filter((registration) => registration.open_mic_id === m.id && registration.status === 'pending').length > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white">{registrations.filter((registration) => registration.open_mic_id === m.id && registration.status === 'pending').length}</span>}</button>
                       <button onClick={() => onEdit(m)} className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700" title="Edit"><Pencil className="h-4 w-4" /></button>
                       <button onClick={() => onDelete(m.id)} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-700" title="Hapus"><Trash2 className="h-4 w-4" /></button>
                     </div>
@@ -976,7 +1135,7 @@ function OpenMicManagement({ rows, registrations, loading, onAdd, onEdit, onDele
               </button>
             </div>
             <div className="mt-4 flex gap-2">
-              <button onClick={() => onViewRegistrants(m)} className="relative flex-1 rounded-lg bg-slate-100 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200">Pendaftar{registrations.filter((registration) => registration.open_mic_id === m.id && registration.status === 'pending').length > 0 && <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-extrabold leading-none text-white">{registrations.filter((registration) => registration.open_mic_id === m.id && registration.status === 'pending').length}</span>}</button>
+              <button onClick={() => onViewRegistrants(m)} className="relative flex-1 rounded-lg bg-slate-100 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200">Pendaftar{registrations.filter((registration) => registration.open_mic_id === m.id && registration.status === 'pending').length > 0 && <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white">{registrations.filter((registration) => registration.open_mic_id === m.id && registration.status === 'pending').length}</span>}</button>
               <button onClick={() => onEdit(m)} className="flex-1 rounded-lg bg-blue-50 py-2.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">Edit</button>
               <button onClick={() => onDelete(m.id)} className="flex-1 rounded-lg bg-red-50 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100">Hapus</button>
             </div>
@@ -1152,7 +1311,7 @@ function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete
             <tbody className="divide-y divide-slate-100">
               {loading ? <tr><td colSpan={6} className="px-5 py-10 text-center text-slate-400">Memuat data...</td></tr> : filteredRows.map((e) => (
                 <tr key={e.id} className="hover:bg-slate-50/70">
-                  <td className="px-5 py-4"><div className="flex items-center gap-3">{e.poster ? <img src={e.poster} alt={`Poster ${e.title}`} className="h-11 w-14 shrink-0 rounded-lg object-cover ring-1 ring-slate-200" /> : <div className="flex h-11 w-14 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 ring-1 ring-blue-100"><CalendarDays className="h-5 w-5" /></div>}<span className="font-semibold text-slate-800">{e.title}{e.registration_status === 'open' && pendingCounts[e.id] > 0 && <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-extrabold text-white">{pendingCounts[e.id]}</span>}</span></div></td>
+                  <td className="px-5 py-4"><div className="flex items-center gap-3">{e.poster ? <img src={e.poster} alt={`Poster ${e.title}`} className="h-11 w-14 shrink-0 rounded-lg object-cover ring-1 ring-slate-200" /> : <div className="flex h-11 w-14 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 ring-1 ring-blue-100"><CalendarDays className="h-5 w-5" /></div>}<span className="font-semibold text-slate-800">{e.title}</span></div></td>
                   <td className="px-5 py-4 text-slate-500">{formatDate(e.date)}</td>
                   <td className="px-5 py-4 text-slate-600">{e.venue}</td>
                   <td className="px-5 py-4"><StatusBadge status={getEventStatus(e.status, e.date)} /></td>
@@ -1163,7 +1322,7 @@ function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-1">
-                      {e.registration_status === 'open' && <button onClick={() => onViewParticipants(e)} className="rounded-lg p-2 text-slate-500 hover:bg-green-50 hover:text-green-700" title="Lihat Pendaftar"><UserPlus className="h-4 w-4" /></button>}
+                      {e.registration_status === 'open' && <button onClick={() => onViewParticipants(e)} className="relative rounded-lg p-2 text-slate-500 hover:bg-green-50 hover:text-green-700" title="Lihat Pendaftar"><UserPlus className="h-4 w-4" />{pendingCounts[e.id] > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white">{pendingCounts[e.id]}</span>}</button>}
                       <button onClick={() => onManageTickets(e)} className="rounded-lg p-2 text-slate-500 hover:bg-amber-50 hover:text-amber-700" title="Kelola Tiket"><TicketIcon className="h-4 w-4" /></button>
                       <button onClick={() => onManagePartnerships(e)} className="rounded-lg p-2 text-slate-500 hover:bg-violet-50 hover:text-violet-700" title="Kelola Partner"><Users className="h-4 w-4" /></button>
                       <button onClick={() => onEdit(e)} className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700" title="Edit"><Pencil className="h-4 w-4" /></button>
@@ -1193,7 +1352,7 @@ function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete
                   <p className="font-bold text-slate-900">{e.title}</p>
                   <p className="text-xs text-slate-500">{formatDate(e.date)} · {e.venue}</p>
                 </div>
-                <div className="flex items-center gap-2"><StatusBadge status={getEventStatus(e.status, e.date)} />{e.registration_status === 'open' && pendingCounts[e.id] > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-extrabold text-white">{pendingCounts[e.id]}</span>}</div>
+                <StatusBadge status={getEventStatus(e.status, e.date)} />
               </div>
               <div className="mt-3 flex items-center gap-2 text-xs">
                 <button onClick={() => onTogglePublish(e.id, e.published)} className={`flex items-center gap-1 font-semibold ${e.published ? 'text-green-600' : 'text-slate-400'}`}>
@@ -1201,7 +1360,7 @@ function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete
                 </button>
               </div>
               <div className="mt-4 flex gap-2">
-                {e.registration_status === 'open' && <button onClick={() => onViewParticipants(e)} className="flex-1 rounded-lg bg-green-50 py-2.5 text-xs font-semibold text-green-700 transition hover:bg-green-100">Pendaftar</button>}
+                {e.registration_status === 'open' && <button onClick={() => onViewParticipants(e)} className="flex-1 rounded-lg bg-green-50 py-2.5 text-xs font-semibold text-green-700 transition hover:bg-green-100">Pendaftar{pendingCounts[e.id] > 0 && <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white">{pendingCounts[e.id]}</span>}</button>}
                 <button onClick={() => onManageTickets(e)} className="flex-1 rounded-lg bg-amber-50 py-2.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100">Tiket</button>
                 <button onClick={() => onManagePartnerships(e)} className="flex-1 rounded-lg bg-violet-50 py-2.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-100">Partner</button>
                 <button onClick={() => onEdit(e)} className="flex-1 rounded-lg bg-blue-50 py-2.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">Edit</button>
@@ -1755,9 +1914,276 @@ function KomikaManagement({ rows, registrations, openMics, attendanceCounts, loa
   );
 }
 
-function MorePage({ onNavigate, onSignOut, onViewWebsite }: { onNavigate: (s: Section) => void; onSignOut: () => void; onViewWebsite: () => void }) {
-  const items: { label: string; icon: typeof BarChart3; onClick: () => void; section?: Section }[] = [
+function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }: { orders: TicketOrder[]; events: EventItem[]; loading: boolean; onStatusChange: (id: string, status: TicketOrderStatus) => void; onDelete: (id: string) => void }) {
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | TicketOrderStatus>('all');
+  const [eventFilter, setEventFilter] = useState<string>('all');
+
+  const eventMap = useMemo(() => new Map(events.map((event) => [event.id, event.title])), [events]);
+  const statusOptions: TicketOrderStatus[] = ['Menunggu Pembayaran', 'Sudah Bayar', 'Terverifikasi', 'Selesai', 'Dibatalkan'];
+
+  const filteredOrders = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return orders.filter((order) => {
+      const matchesSearch = !query || [order.order_number ?? '', order.full_name, order.email ?? '', order.ticket_category, order.notes ?? '', order.whatsapp, eventMap.get(order.event_id) ?? ''].join(' ').toLowerCase().includes(query);
+      const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+      const matchesEvent = eventFilter === 'all' || order.event_id === eventFilter;
+      return matchesSearch && matchesStatus && matchesEvent;
+    });
+  }, [eventFilter, eventMap, orders, search, statusFilter]);
+
+  function printTicketOrders() {
+    document.body.dataset.printMode = 'ticket-orders';
+    window.setTimeout(() => {
+      window.print();
+      delete document.body.dataset.printMode;
+    }, 0);
+  }
+
+  const selectedEventTitle = eventFilter === 'all' ? 'Semua Event' : eventMap.get(eventFilter) ?? 'Event tidak ditemukan';
+  const selectedStatusTitle = statusFilter === 'all' ? 'Semua Status' : statusFilter;
+
+  async function openTicketOrderWhatsApp(order: TicketOrder) {
+    const popup = window.open('about:blank', '_blank');
+    if (!popup) return;
+
+    const { data } = await supabase.from('ticket_orders').select('*').eq('id', order.id).maybeSingle();
+    const latestOrder = (data as TicketOrder | null) ?? order;
+    const eventTitle = eventMap.get(latestOrder.event_id) ?? 'Event';
+    const href = generateTicketOrderWhatsAppUrl(latestOrder.whatsapp, latestOrder, eventTitle, latestOrder.status);
+    if (href === '#') {
+      popup.close();
+      return;
+    }
+    popup.location.href = href;
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-950">Data Penonton</h1>
+          <p className="mt-1 text-sm font-medium text-slate-600">{filteredOrders.length} pemesanan sesuai filter</p>
+        </div>
+        <button type="button" onClick={printTicketOrders} disabled={loading || filteredOrders.length === 0} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-slate-700 ring-1 ring-slate-200 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40" title="Print data penonton sesuai filter" aria-label="Print data penonton sesuai filter">
+          <Printer className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Cari nama, nomor order, atau WhatsApp..."
+            className="input-field !text-slate-900 pl-10"
+            aria-label="Cari data penonton"
+          />
+        </div>
+
+        <select value={eventFilter} onChange={(event) => setEventFilter(event.target.value)} className="input-field !text-slate-900">
+          <option value="all">Semua Event</option>
+          {events.map((event) => (
+            <option key={event.id} value={event.id}>{event.title}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setStatusFilter('all')}
+          className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${statusFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'}`}
+        >
+          Semua
+        </button>
+        {statusOptions.map((status) => (
+          <button
+            key={status}
+            type="button"
+            onClick={() => setStatusFilter(status)}
+            className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${statusFilter === status ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'}`}
+          >
+            {status}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">{[1, 2, 3].map((n) => <div key={n} className="h-24 skeleton rounded-2xl" />)}</div>
+      ) : filteredOrders.length === 0 ? (
+        <AdminEmptyState title={search || statusFilter !== 'all' || eventFilter !== 'all' ? 'Data penonton tidak ditemukan.' : 'Belum ada pemesanan tiket.'} />
+      ) : (
+        <>
+          <div className="hidden overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70 lg:block">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1380px] table-auto text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="whitespace-nowrap px-4 py-3">No. Pesanan</th>
+                    <th className="whitespace-nowrap px-4 py-3">Nama</th>
+                    <th className="whitespace-nowrap px-4 py-3">Email</th>
+                    <th className="whitespace-nowrap px-4 py-3">WhatsApp</th>
+                    <th className="min-w-[180px] px-4 py-3">Event</th>
+                    <th className="whitespace-nowrap px-4 py-3">Kategori</th>
+                    <th className="whitespace-nowrap px-4 py-3">Jumlah</th>
+                    <th className="whitespace-nowrap px-4 py-3">Harga Satuan</th>
+                    <th className="whitespace-nowrap px-4 py-3">Total</th>
+                    <th className="min-w-[150px] px-4 py-3">Catatan</th>
+                    <th className="whitespace-nowrap px-4 py-3">Waktu</th>
+                    <th className="min-w-[175px] whitespace-nowrap px-4 py-3">Status</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredOrders.map((order) => (
+                    <tr key={order.id} className="hover:bg-slate-50/70">
+                      <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700">{order.order_number || '—'}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-800">{order.full_name}</td>
+                      <td className="px-4 py-3 text-slate-600">{order.email || '—'}</td>
+                      <td className="px-4 py-3">
+                        <button type="button" onClick={() => void openTicketOrderWhatsApp(order)} className="font-medium text-green-700 hover:text-green-800" title="Kirim pesan WhatsApp sesuai status terbaru" aria-label={`Kirim pesan WhatsApp untuk ${order.order_number || order.full_name}`}>
+                          {order.whatsapp}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{eventMap.get(order.event_id) ?? 'Event tidak ditemukan'}</td>
+                      <td className="px-4 py-3 text-slate-600">{order.ticket_category}</td>
+                      <td className="px-4 py-3 text-slate-600">{order.quantity}</td>
+                      <td className="px-4 py-3 text-slate-600">{formatPrice(order.unit_price)}</td>
+                      <td className="px-4 py-3 font-bold text-slate-800">{formatPrice(order.total_price)}</td>
+                      <td className="px-4 py-3 text-slate-500">{order.notes || '—'}</td>
+                      <td className="px-4 py-3 text-slate-500">{new Date(order.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                      <td className="min-w-[175px] whitespace-nowrap px-4 py-3">
+                        <select
+                          value={order.status}
+                          onChange={(event) => onStatusChange(order.id, event.target.value as TicketOrderStatus)}
+                          className="input-field !min-h-0 !w-full !min-w-[155px] !py-1.5 !text-xs !font-bold !text-slate-800"
+                          aria-label={`Status pesanan ${order.order_number || order.full_name}`}
+                        >
+                          {statusOptions.map((status) => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => onDelete(order.id)}
+                            className="rounded-lg p-2 text-red-600 transition hover:bg-red-50"
+                            title="Hapus pemesanan"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="space-y-2 lg:hidden">
+            {filteredOrders.map((order) => (
+              <div key={order.id} className="rounded-2xl bg-white p-3 shadow-soft ring-1 ring-slate-200/70">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs font-bold text-blue-700">{order.order_number || '—'}</p>
+                    <p className="mt-0.5 truncate text-base font-extrabold text-slate-950">{order.full_name}</p>
+                    <p className="mt-0.5 truncate text-xs font-semibold text-slate-600">{eventMap.get(order.event_id) ?? 'Event tidak ditemukan'}</p>
+                  </div>
+                  <button type="button" onClick={() => onDelete(order.id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50" title="Hapus pemesanan" aria-label={`Hapus pemesanan ${order.order_number || order.full_name}`}>
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-slate-700">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Email</p>
+                    <p className="mt-0.5 truncate font-semibold text-slate-800" title={order.email || '—'}>{order.email || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">WhatsApp</p>
+                    <button type="button" onClick={() => void openTicketOrderWhatsApp(order)} className="mt-0.5 block font-bold text-green-700" title="Kirim pesan WhatsApp sesuai status terbaru" aria-label={`Kirim pesan WhatsApp untuk ${order.order_number || order.full_name}`}>{order.whatsapp}</button>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Tiket</p>
+                    <p className="mt-0.5 font-semibold text-slate-800">{order.ticket_category} · {order.quantity}x</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Total</p>
+                    <p className="mt-0.5 font-extrabold text-slate-950">{formatPrice(order.total_price)}</p>
+                  </div>
+                </div>
+
+                {order.notes && (
+                  <div className="mt-2 rounded-lg bg-slate-100 px-2.5 py-2 text-xs leading-4 text-slate-700">
+                    <span className="font-bold text-slate-500">Catatan: </span>{order.notes}
+                  </div>
+                )}
+
+                <div className="mt-2.5 flex items-center gap-2">
+                  <p className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Status</p>
+                  <select
+                    value={order.status}
+                    onChange={(event) => onStatusChange(order.id, event.target.value as TicketOrderStatus)}
+                    className="input-field !min-h-0 !w-full !min-w-0 flex-1 !py-1.5 !text-xs !font-bold !text-slate-800"
+                    aria-label={`Status pesanan ${order.order_number || order.full_name}`}
+                  >
+                    {statusOptions.map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="print-sheet ticket-orders-print">
+            <div className="print-brand">
+              <img src={LOGO_URL} alt="Logo Standupindo Cilegon" />
+              <div>
+                <h1>DATA PENONTON</h1>
+                <p>Standupindo Cilegon · {selectedEventTitle} · {selectedStatusTitle}</p>
+                {search.trim() && <p>Pencarian: {search.trim()}</p>}
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr><th>No. Pesanan</th><th>Nama</th><th>Email</th><th>WhatsApp</th><th>Tiket</th><th>Jumlah</th><th>Total</th><th>Waktu</th><th>Status</th><th>Catatan</th></tr>
+              </thead>
+              <tbody>
+                {filteredOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td>{order.order_number || '-'}</td>
+                    <td>{order.full_name}</td>
+                    <td>{order.email || '-'}</td>
+                    <td>{order.whatsapp}</td>
+                    <td>{eventMap.get(order.event_id) ?? 'Event tidak ditemukan'}<br />{order.ticket_category}</td>
+                    <td>{order.quantity}</td>
+                    <td>{formatPrice(order.total_price)}</td>
+                    <td>{new Date(order.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                    <td>{order.status}</td>
+                    <td>{order.notes || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MorePage({ onNavigate, onSignOut, onViewWebsite, ticketOrderUnreadCount }: { onNavigate: (s: Section) => void; onSignOut: () => void; onViewWebsite: () => void; ticketOrderUnreadCount: number }) {
+  const items: { label: string; icon: typeof BarChart3; onClick: () => void; section?: Section; badge?: number }[] = [
     { label: 'Gabung Komunitas', icon: UserPlus, onClick: () => onNavigate('applications'), section: 'applications' },
+    { label: 'Data Penonton', icon: TicketIcon, onClick: () => onNavigate('ticket-orders'), section: 'ticket-orders', badge: ticketOrderUnreadCount },
     { label: 'Settings', icon: Settings, onClick: () => onNavigate('settings'), section: 'settings' },
     { label: 'Lihat Website', icon: ExternalLink, onClick: onViewWebsite },
   ];
@@ -1775,6 +2201,7 @@ function MorePage({ onNavigate, onSignOut, onViewWebsite }: { onNavigate: (s: Se
               <button key={item.label} onClick={item.onClick} className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-slate-50">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><Icon className="h-5 w-5" /></span>
                 <span className="flex-1 text-sm font-semibold text-slate-800">{item.label}</span>
+                {item.badge ? <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-extrabold text-white">{item.badge > 99 ? '99+' : item.badge}</span> : null}
                 <ChevronRight className="h-4 w-4 text-slate-400" />
               </button>
             );
@@ -1792,10 +2219,9 @@ function MorePage({ onNavigate, onSignOut, onViewWebsite }: { onNavigate: (s: Se
   );
 }
 
-function AdminFormModal({ kind, editing, saving, settings, onClose, onSaving, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; saving: boolean; settings: SiteSettings; onClose: () => void; onSaving: (v: boolean) => void; onSaved: () => void }) {
+function AdminFormModal({ kind, editing, saving, onClose, onSaving, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; saving: boolean; onClose: () => void; onSaving: (v: boolean) => void; onSaved: () => void }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
-
   useEffect(() => {
     if (!kind) return;
     const row = editing as Record<string, unknown> | null;

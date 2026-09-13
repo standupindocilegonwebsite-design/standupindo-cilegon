@@ -20,7 +20,7 @@ export function useRouter() {
   const navigate = useCallback((to: string) => {
     window.history.pushState({}, '', to);
     setState(parse());
-    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, []);
 
   return { path: state.path, query: state.query, navigate };

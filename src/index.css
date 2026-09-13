@@ -218,6 +218,58 @@
     @apply animate-pulse rounded-lg bg-slate-200/80;
   }
 
+  .home-reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity 700ms ease, transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+
+  .scroll-reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 650ms ease, transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+
+  .scroll-reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .home-reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .home-stagger > * {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+    transition: opacity 600ms ease, transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .home-reveal.is-visible .home-stagger > * {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .home-reveal.is-visible .home-stagger > *:nth-child(2) { transition-delay: 90ms; }
+  .home-reveal.is-visible .home-stagger > *:nth-child(3) { transition-delay: 180ms; }
+  .home-reveal.is-visible .home-stagger > *:nth-child(4) { transition-delay: 270ms; }
+  .home-reveal.is-visible .home-stagger > *:nth-child(5) { transition-delay: 360ms; }
+  .home-reveal.is-visible .home-stagger > *:nth-child(6) { transition-delay: 450ms; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home-reveal,
+    .scroll-reveal,
+    .home-stagger > *,
+    .home-reveal.is-visible .home-stagger > * {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+  }
+
   .review-summary {
     @apply divide-y divide-slate-200 rounded-2xl border border-blue-200 bg-blue-50/70 px-4 shadow-sm;
   }
@@ -255,6 +307,11 @@
 
     body[data-print-mode="komika-history"] .print-sheet:not(.komika-history-print),
     body[data-print-mode="komika-history"] .print-sheet:not(.komika-history-print) * {
+      visibility: hidden !important;
+    }
+
+    body[data-print-mode="ticket-orders"] .print-sheet:not(.ticket-orders-print),
+    body[data-print-mode="ticket-orders"] .print-sheet:not(.ticket-orders-print) * {
       visibility: hidden !important;
     }
 
@@ -310,6 +367,47 @@
       color: #FFFFFF;
       background: #0B1F44;
       font-weight: 700;
+    }
+
+    .ticket-orders-print {
+      padding: 10mm;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 8.5pt;
+    }
+
+    .ticket-orders-print .print-brand {
+      margin-bottom: 6mm;
+    }
+
+    .ticket-orders-print .print-brand img {
+      width: 18mm;
+      height: 18mm;
+    }
+
+    .ticket-orders-print h1 {
+      font-size: 18pt;
+      letter-spacing: 0.2pt;
+    }
+
+    .ticket-orders-print p {
+      margin-bottom: 1mm;
+      font-size: 8.5pt;
+      font-weight: 600;
+    }
+
+    .ticket-orders-print table {
+      table-layout: auto;
+    }
+
+    .ticket-orders-print th,
+    .ticket-orders-print td {
+      padding: 2.2mm 1.7mm;
+      font-size: 8pt;
+      line-height: 1.25;
+    }
+
+    .ticket-orders-print th {
+      white-space: nowrap;
     }
 
     .print-sheet .print-check {

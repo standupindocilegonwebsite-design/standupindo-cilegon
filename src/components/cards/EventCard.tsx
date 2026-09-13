@@ -9,18 +9,40 @@ import { ImageLightbox } from '@/components/ui/ImageLightbox';
 
 export function EventCard({ event, router, price }: { event: EventItem; router: Router; price?: number | null }) {
   const [lightbox, setLightbox] = useState(false);
+  const [posterFailed, setPosterFailed] = useState(false);
   const currentStatus = getEventStatus(event.status, event.date);
   const displayPrice = price ?? event.ticket_price ?? 0;
   return (
     <>
-      <article className="card card-hover group overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+      <article
+        onClick={(clickEvent) => {
+          if ((clickEvent.target as HTMLElement).closest('a,button')) return;
+          router.navigate(`/event/${event.slug}`);
+        }}
+        onKeyDown={(keyEvent) => {
+          if (keyEvent.key === 'Enter' || keyEvent.key === ' ') {
+            keyEvent.preventDefault();
+            router.navigate(`/event/${event.slug}`);
+          }
+        }}
+        className="card card-hover group cursor-pointer overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.04)]"
+        role="button"
+        tabIndex={0}
+      >
         <div className="relative overflow-hidden bg-slate-100">
-          {event.poster ? (
+          {event.poster && !posterFailed ? (
             <button onClick={() => setLightbox(true)} aria-label={`Lihat poster ${event.title}`} className="block h-full w-full">
-              <img src={event.poster} alt={`${event.title} poster`} loading="lazy" className="aspect-[16/10] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+              <img
+                src={event.poster}
+                alt={`${event.title} poster`}
+                onError={() => setPosterFailed(true)}
+                className="aspect-[16/10] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+              />
             </button>
           ) : (
-            <button onClick={() => router.navigate(`/event/${event.slug}`)} className="block aspect-[16/10] w-full bg-slate-200" />
+            <button onClick={() => router.navigate(`/event/${event.slug}`)} className="flex aspect-[16/10] w-full items-center justify-center bg-slate-100 text-sm font-semibold text-slate-400">
+              Poster belum tersedia
+            </button>
           )}
           <div className="absolute left-3 top-3">
             <StatusBadge status={currentStatus} />
@@ -46,7 +68,7 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
           </div>
         </div>
       </article>
-      {event.poster && (
+      {event.poster && !posterFailed && (
         <ImageLightbox src={event.poster} alt={`${event.title} poster`} open={lightbox} onClose={() => setLightbox(false)} />
       )}
     </>

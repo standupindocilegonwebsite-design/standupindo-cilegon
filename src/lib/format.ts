@@ -27,8 +27,10 @@ export function formatPrice(value: number): string {
 export function normalizeWhatsappNumber(number: string): string {
   const digits = number.replace(/\D/g, '');
   if (!digits) return '';
+  if (digits.startsWith('62')) return `62${digits.slice(2).replace(/^0+/, '')}`;
   if (digits.startsWith('0')) return `62${digits.slice(1)}`;
-  return digits.startsWith('62') ? digits : digits;
+  if (digits.startsWith('8')) return `62${digits}`;
+  return digits;
 }
 
 export function waLink(number: string, message?: string): string {
@@ -36,6 +38,17 @@ export function waLink(number: string, message?: string): string {
   if (!clean) return '#';
   const text = message ? `?text=${encodeURIComponent(message)}` : '';
   return `https://wa.me/${clean}${text}`;
+}
+
+export function createOrderNumber(eventTitle: string): string {
+  const words = eventTitle.toUpperCase().replace(/[^A-Z\s]/g, ' ').split(/\s+/).filter(Boolean);
+  const letters = words.join('');
+  const prefix = (words.length >= 3 ? words.slice(0, 3).map((word) => word[0]).join('') : letters.slice(0, 3)).padEnd(3, 'X').slice(0, 3);
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const values = new Uint32Array(6);
+  crypto.getRandomValues(values);
+  const code = Array.from(values, (value) => alphabet[value % alphabet.length]).join('');
+  return `${prefix}-${code}`;
 }
 
 export function isUpcoming(dateStr: string): boolean {

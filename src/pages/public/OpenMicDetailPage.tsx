@@ -165,10 +165,10 @@ export function OpenMicDetailPage({ router, slug }: Props) {
           {/* Poster + metadata */}
           <div className="grid gap-4 lg:grid-cols-5 lg:gap-6">
             <div className="lg:col-span-2">
-              <div className="overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200">
+              <div className="max-h-[18rem] overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200 sm:max-h-none">
                 {mic.poster ? (
                   <button onClick={() => setLightbox(true)} aria-label={`Lihat poster ${mic.title}`} className="block w-full">
-                    <img src={mic.poster} alt={`${mic.title} poster`} className="aspect-[4/3] w-full object-contain transition-transform duration-500 hover:scale-105" />
+                    <img src={mic.poster} alt={`${mic.title} poster`} className="aspect-[4/3] max-h-[18rem] w-full object-contain transition-transform duration-500 hover:scale-105 sm:max-h-none" />
                   </button>
                 ) : (
                   <div className="aspect-[4/3] w-full" />
@@ -217,14 +217,14 @@ export function OpenMicDetailPage({ router, slug }: Props) {
 
         {/* About */}
         {mic.description && (
-          <section>
+          <section data-scroll-reveal className="scroll-reveal">
             <h2 className="mb-2 text-lg font-bold text-slate-900 sm:text-xl">Tentang Open Mic</h2>
             <p className="text-sm leading-relaxed text-slate-600 sm:text-base whitespace-pre-line">{mic.description}</p>
           </section>
         )}
 
         {/* Lineup */}
-        <section>
+        <section data-scroll-reveal className="scroll-reveal">
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-900 sm:text-xl">{currentStatus === 'completed' ? 'Arsip Lineup' : 'Lineup'}</h2>
@@ -266,7 +266,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
 
         {/* Other open mics */}
         {otherMics.length > 0 && (
-          <section className="border-t border-slate-200 pt-6 sm:pt-8">
+          <section data-scroll-reveal className="scroll-reveal border-t border-slate-200 pt-6 sm:pt-8">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Open Mic lainnya</h2>
               <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-blue-700 sm:text-[11px]">

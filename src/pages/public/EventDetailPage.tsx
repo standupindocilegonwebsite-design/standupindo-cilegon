@@ -38,7 +38,6 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const [lineup, setLineup] = useState<{ id: string; stage_name: string; community: string | null; instagram: string | null }[]>([]);
   const [partnersByRole, setPartnersByRole] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
   const [lightbox, setLightbox] = useState(false);
-  const [activeTab, setActiveTab] = useState<'about' | 'rules'>('about');
 
   useEffect(() => {
     (async () => {
@@ -124,6 +123,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const waMessage = event.whatsapp_message?.trim() ? event.whatsapp_message.trim() : defaultWaMessage;
   const buyTicketNumber = event.whatsapp_number || settings.whatsapp_ticket || settings.whatsapp_admin;
   const cheapestTicketPrice = tickets.length > 0 ? tickets.reduce((lowest, ticket) => ticket.price < lowest.price ? ticket : lowest, tickets[0]).price : (event.ticket_price ?? 0);
+  const isFreeEvent = tickets.length === 0 && cheapestTicketPrice <= 0;
   const pageUrl = `${window.location.origin}/event/${event.slug}`;
   const currentStatus = getEventStatus(event.status, event.date);
 
@@ -135,10 +135,10 @@ export function EventDetailPage({ router, slug, settings }: Props) {
         {/* Poster + meta */}
         <div className="grid gap-6 lg:grid-cols-5">
           <div className="lg:col-span-2">
-            <div className="overflow-hidden rounded-2xl bg-slate-100 shadow-soft">
+            <div className="max-h-[18rem] overflow-hidden rounded-2xl bg-slate-100 shadow-soft sm:max-h-none">
               {event.poster ? (
                 <button onClick={() => setLightbox(true)} aria-label={`Lihat poster ${event.title}`} className="block w-full">
-                  <img src={event.poster} alt={`${event.title} poster`} className="aspect-[4/3] w-full object-contain transition-transform duration-500 hover:scale-105" />
+                  <img src={event.poster} alt={`${event.title} poster`} className="aspect-[4/3] max-h-[18rem] w-full object-contain transition-transform duration-500 hover:scale-105 sm:max-h-none" />
                 </button>
               ) : (
                 <div className="aspect-[4/3] w-full" />
@@ -164,7 +164,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
 
             {currentStatus === 'upcoming' && (
               <div className="space-y-2">
-                {tickets.length === 0 && <a href={waLink(buyTicketNumber, waMessage)} target="_blank" rel="noopener noreferrer" className="btn-primary w-full !py-3.5 text-base">
+                {tickets.length === 0 && !isFreeEvent && <a href={waLink(buyTicketNumber, waMessage)} target="_blank" rel="noopener noreferrer" className="btn-primary w-full !py-3.5 text-base">
                   <MessageCircle className="h-5 w-5" /> Beli Tiket via WhatsApp
                 </a>}
                 {event.registration_status === 'open' && <button onClick={() => router.navigate(`/event/${event.slug}/daftar`)} className="btn-secondary w-full !py-3.5 text-base">Daftar sebagai Peserta</button>}
@@ -173,49 +173,28 @@ export function EventDetailPage({ router, slug, settings }: Props) {
           </div>
         </div>
 
-        <section>
-          <div className="mb-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab('about')}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${activeTab === 'about' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-              aria-pressed={activeTab === 'about'}
-            >
-              About Event
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('rules')}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${activeTab === 'rules' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-              aria-pressed={activeTab === 'rules'}
-            >
-              Peraturan
-            </button>
-          </div>
-
-          {activeTab === 'about' ? (
-            event.description ? (
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 mb-3">About Event</h2>
-                <p className="text-sm leading-relaxed text-slate-600 sm:text-base whitespace-pre-line">{event.description}</p>
-              </div>
+        <section data-scroll-reveal className="scroll-reveal space-y-8">
+          <div>
+            <h2 className="mb-3 text-xl font-bold text-slate-900">About Event</h2>
+            {event.description ? (
+              <p className="text-sm leading-relaxed text-slate-600 sm:text-base whitespace-pre-line">{event.description}</p>
             ) : (
               <EmptyState title="Informasi tentang event belum tersedia." />
-            )
-          ) : (
-            event.event_rules?.trim() ? (
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 mb-3">Peraturan</h2>
-                <p className="text-sm leading-relaxed text-slate-600 sm:text-base whitespace-pre-line">{event.event_rules}</p>
-              </div>
+            )}
+          </div>
+
+          <div className="border-t border-slate-200 pt-8">
+            <h2 className="mb-3 text-xl font-bold text-slate-900">Peraturan</h2>
+            {event.event_rules?.trim() ? (
+              <p className="text-sm leading-relaxed text-slate-600 sm:text-base whitespace-pre-line">{event.event_rules}</p>
             ) : (
               <EmptyState title="Peraturan event belum tersedia." />
-            )
-          )}
+            )}
+          </div>
         </section>
 
         {lineup.length > 0 && (
-          <section>
+          <section data-scroll-reveal className="scroll-reveal">
             <h2 className="text-xl font-bold text-slate-900 mb-4">Lineup</h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {lineup.map((k) => (
@@ -235,22 +214,19 @@ export function EventDetailPage({ router, slug, settings }: Props) {
         )}
 
         {/* Tickets */}
-        <section className="border-t border-slate-200 pt-8 sm:pt-10">
+        <section data-scroll-reveal className="scroll-reveal border-t border-slate-200 pt-8 sm:pt-10">
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Akses acara</p>
-              <h2 className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">Pilih tiket</h2>
+              <h2 className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">{isFreeEvent ? 'Acara Gratis' : 'Pilih tiket'}</h2>
             </div>
             {tickets.length > 0 && <span className="text-right text-xs font-semibold text-slate-500">{tickets.length} pilihan tersedia</span>}
           </div>
           {tickets.length === 0 ? (
-            <EmptyState title="Informasi tiket segera hadir." />
+            <EmptyState title={isFreeEvent ? 'Tidak perlu membeli tiket untuk menghadiri acara ini.' : 'Informasi tiket segera hadir.'} />
           ) : (
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
               {tickets.map((t) => {
-                const ticketWaMsg = event.whatsapp_message?.trim()
-                  ? `${event.whatsapp_message.trim()} (Tiket: ${t.name})`
-                  : `Halo Admin Standupindo Cilegon, saya mau membeli tiket [${t.name}] untuk event ${event.title}. Bagaimana cara pembeliannya?`;
                 const hasUrl = t.ticket_url && /^https?:\/\//i.test(t.ticket_url);
                 return (
                   <div key={t.id} className="grid gap-4 border-b border-slate-100 p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-6 sm:p-5">
@@ -268,9 +244,9 @@ export function EventDetailPage({ router, slug, settings }: Props) {
                           <ExternalLink className="h-4 w-4" /> <span>Beli</span>
                         </a>
                       ) : (
-                        <a href={waLink(buyTicketNumber, ticketWaMsg)} target="_blank" rel="noopener noreferrer" aria-label={`Beli tiket ${t.name} melalui WhatsApp`} title="Beli melalui WhatsApp" className="btn-primary !min-h-10 !rounded-xl !px-4 !py-2.5 text-sm">
+                        <button type="button" onClick={() => router.navigate(`/event/${event.slug}/tiket/${t.id}`)} aria-label={`Isi form pembelian tiket ${t.name}`} title="Isi form pembelian tiket" className="btn-primary !min-h-10 !rounded-xl !px-4 !py-2.5 text-sm">
                           <MessageCircle className="h-4 w-4" /> <span>Beli</span>
-                        </a>
+                        </button>
                       )
                     )}
                   </div>
@@ -282,7 +258,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
 
         {/* Partnership */}
         {(['sponsor', 'support', 'media_partner'] as const).some((role) => partnersByRole[role].length > 0) && (
-          <section className="space-y-4 border-t border-slate-200 pt-8 sm:pt-10">
+          <section data-scroll-reveal className="scroll-reveal space-y-4 border-t border-slate-200 pt-8 sm:pt-10">
             <h2 className="text-xl font-bold text-slate-900">Partner Event</h2>
             <div className="space-y-4">
               {(['sponsor', 'support', 'media_partner'] as const).map((role) => {

@@ -116,7 +116,7 @@ export function ContactPage({ router, settings }: { router: Router; settings: Si
             )}
 
             {hasAffiliation && (
-              <section className="mt-6 border-t border-slate-200 pt-6 text-center" aria-labelledby="affiliation-title">
+              <section data-scroll-reveal className="scroll-reveal mt-6 border-t border-slate-200 pt-6 text-center" aria-labelledby="affiliation-title">
               <h2 id="affiliation-title" className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Bagian Dari</h2>
               <a
                 href={settings.affiliation_website as string}

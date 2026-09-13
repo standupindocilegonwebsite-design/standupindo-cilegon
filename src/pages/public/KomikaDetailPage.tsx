@@ -75,12 +75,12 @@ export function KomikaDetailPage({ router, slug }: Props) {
       <PageHeader router={router} title={komika.stage_name} />
 
       <div className="container-app py-6 sm:py-8">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_14px_32px_rgba(11,60,93,0.05)] sm:p-6">
+        <div data-scroll-reveal className="scroll-reveal rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_14px_32px_rgba(11,60,93,0.05)] sm:p-6">
           <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-7">
-            <div className="overflow-hidden rounded-[22px] bg-slate-100 ring-1 ring-slate-200">
+            <div className="max-h-[20rem] overflow-hidden rounded-[22px] bg-slate-100 ring-1 ring-slate-200 sm:max-h-none">
               {komika.photo ? (
                 <button onClick={() => setLightbox(true)} aria-label={`Lihat foto ${komika.stage_name}`} className="block h-full w-full">
-                  <img src={komika.photo} alt={komika.stage_name} className="aspect-[4/4.5] w-full object-cover transition-transform duration-500 hover:scale-105" />
+                  <img src={komika.photo} alt={komika.stage_name} className="aspect-[4/4.5] max-h-[20rem] w-full object-contain bg-slate-100 transition-transform duration-500 hover:scale-105 sm:max-h-none" />
                 </button>
               ) : (
                 <div className="flex aspect-[4/4.5] w-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50 text-5xl font-extrabold text-blue-600">

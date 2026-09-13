@@ -22,7 +22,7 @@ const FALLBACK_SETTINGS: SiteSettings = {
   tiktok_url: 'https://tiktok.com/@standupindocilegon',
   youtube_url: 'https://youtube.com/@standupindocilegon',
   address: 'Cilegon, Banten',
-  short_description: 'Satu Panggung, Banyak Cerita.',
+  short_description: 'Menjadi ruang bertemunya komika, penikmat komedi, dan insan kreatif untuk berbagi tawa, mengembangkan potensi, serta membangun ekosistem stand up comedy di Cilegon.',
   affiliation_name: 'Standupindo',
   affiliation_website: 'https://standupindo.id/',
   affiliation_logo_url: '/assets/images/image.png',

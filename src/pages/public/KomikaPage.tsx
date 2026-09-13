@@ -42,6 +42,7 @@ export function KomikaPage({ router }: { router: Router }) {
           <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari komika..." className="input-field !pl-11" aria-label="Cari komika" />
         </div>
 
+        <div data-scroll-reveal className="scroll-reveal">
         {loading ? (
           <div className="grid gap-5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"><LoadingSkeleton count={8} /></div>
         ) : filtered.length === 0 ? (
@@ -51,6 +52,7 @@ export function KomikaPage({ router }: { router: Router }) {
             {filtered.map((k) => <KomikaCard key={k.id} komika={k} router={router} />)}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

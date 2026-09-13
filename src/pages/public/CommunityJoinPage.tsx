@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { LOGO_URL } from '@/lib/types';
 import { InstagramFollowLink } from '@/components/ui/InstagramFollowLink';
+import { CommunityCombobox, CommunityOptions } from '@/components/ui/CommunityCombobox';
 
 const INTERESTS = ['Komika', 'Penulis', 'Volunteer', 'Dokumentasi', 'Event', 'Supporter', 'Lainnya'];
 
@@ -65,14 +66,14 @@ export function CommunityJoinPage({ router }: { router: Router }) {
       <div className="container-app py-6 sm:py-8">
         <div className="mx-auto max-w-xl">
           {submitted ? (
-            <div className="card p-6 text-center sm:p-8">
+            <div data-scroll-reveal className="scroll-reveal card p-6 text-center sm:p-8">
               <CheckCircle2 className="mx-auto h-10 w-10 text-green-600" />
               <h2 className="mt-3 text-xl font-extrabold text-slate-900">Pendaftaran diterima</h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">Data kamu sudah masuk. Admin akan menghubungi melalui WhatsApp setelah meninjau pendaftaran.</p>
               <button onClick={() => router.navigate('/')} className="btn-primary mt-5">Kembali ke Beranda</button>
             </div>
           ) : (
-            <form onSubmit={submit} className="card space-y-4 p-4 sm:p-6">
+            <form data-scroll-reveal onSubmit={submit} className="scroll-reveal card space-y-4 p-4 sm:p-6">
               <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
                 <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-blue-100"><img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-8 w-8 object-contain" /></span>
                 <div><h2 className="font-bold text-slate-900">Kenalan dengan kami</h2><p className="text-xs text-slate-500 sm:text-sm">Isi data singkat untuk bergabung.</p></div>
@@ -81,7 +82,7 @@ export function CommunityJoinPage({ router }: { router: Router }) {
                 <div><label className="label-field" htmlFor="join-name">Nama lengkap</label><input id="join-name" required value={form.full_name} onChange={(e) => setForm({ ...form, full_name: capitalizeName(e.target.value) })} className="input-field" placeholder="Contoh: Budi Santoso" /></div>
                 <div><label className="label-field" htmlFor="join-whatsapp">WhatsApp</label><input id="join-whatsapp" required type="tel" inputMode="numeric" pattern="[0-9]+" value={form.whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="input-field" placeholder="Contoh: 082212345678" /></div>
                 <div><label className="label-field" htmlFor="join-instagram">Instagram</label><input id="join-instagram" required value={form.instagram} onChange={(e) => setInstagram(e.target.value)} className="input-field" placeholder="Contoh: @budisantoso" /></div>
-                <div><label className="label-field" htmlFor="join-city">Domisili</label><input id="join-city" required value={form.city} onChange={(e) => setForm({ ...form, city: capitalizeName(e.target.value) })} className="input-field" placeholder="Contoh: Cilegon" /></div>
+                <div><label className="label-field" htmlFor="join-city">Komunitas / Domisili</label><CommunityCombobox id="join-city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} required placeholder="Pilih atau ketik komunitas" /><CommunityOptions id="join-city" /></div>
               </div>
               <fieldset><legend className="label-field">Minat kamu <span className="font-normal text-slate-400">(pilih minimal satu)</span></legend><div className="flex flex-wrap gap-1.5">{INTERESTS.map((interest) => <button type="button" key={interest} onClick={() => toggleInterest(interest)} className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${interests.includes(interest) ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-600 ring-slate-200 hover:ring-blue-200'}`}>{interest}</button>)}</div>{interests.includes('Lainnya') && <input required value={otherInterest} onChange={(e) => setOtherInterest(e.target.value)} className="input-field mt-3" placeholder="Contoh: Fotografer, MC, atau Tim Kreatif" aria-label="Minat lainnya" />}</fieldset>
               <InstagramFollowLink />

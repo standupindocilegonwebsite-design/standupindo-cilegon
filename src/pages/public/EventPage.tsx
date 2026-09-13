@@ -14,14 +14,16 @@ export function EventPage({ router }: { router: Router }) {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
   const [search, setSearch] = useState('');
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const [{ data: eventData }, { data: ticketData }] = await Promise.all([
+      const [{ data: eventData, error: eventError }, { data: ticketData }] = await Promise.all([
         supabase.from('events').select('*').eq('published', true).order('date', { ascending: true }),
         supabase.from('event_tickets').select('event_id, price').order('price', { ascending: true }),
       ]);
 
+      setLoadError(Boolean(eventError));
       const eventsList = (eventData as EventItem[]) ?? [];
       const prices: Record<string, number> = {};
 
@@ -52,7 +54,7 @@ export function EventPage({ router }: { router: Router }) {
           <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari event..." className="input-field !pl-11" aria-label="Cari event" />
         </div>
 
-        <section>
+        <section data-scroll-reveal className="scroll-reveal">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-xl font-bold text-slate-900">Mendatang</h2>
             <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-blue-700">{upcoming.length}</span>
@@ -62,10 +64,12 @@ export function EventPage({ router }: { router: Router }) {
               <div className="min-w-[270px] max-w-[270px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
               <div className="min-w-[270px] max-w-[270px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
             </div>
+          ) : loadError ? (
+            <EmptyState title="Event belum dapat dimuat." description="Silakan coba lagi beberapa saat." />
           ) : upcoming.length === 0 ? (
             <EmptyState title="Belum ada event mendatang." />
           ) : (
-            <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
+            <div className="flex touch-pan-x gap-4 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
               {upcoming.map((e) => (
                 <div key={e.id} className="min-w-[270px] max-w-[270px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                   <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
@@ -76,9 +80,9 @@ export function EventPage({ router }: { router: Router }) {
         </section>
 
         {completed.length > 0 && (
-          <section className="border-t border-slate-200 pt-6 sm:pt-8">
+          <section data-scroll-reveal className="scroll-reveal border-t border-slate-200 pt-6 sm:pt-8">
             <h2 className="mb-4 text-xl font-bold text-slate-900">Selesai</h2>
-            <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
+            <div className="flex touch-pan-x gap-4 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
               {completed.map((e) => (
                 <div key={e.id} className="min-w-[270px] max-w-[270px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                   <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />

@@ -1,0 +1,18 @@
+{
+  "name": "Standupindo Cilegon",
+  "short_name": "Standupindo",
+  "description": "Komunitas stand-up comedy di Cilegon.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0a1a3b",
+  "icons": [
+    {
+      "src": "/assets/images/Standupindo_CIlegon_Logo.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

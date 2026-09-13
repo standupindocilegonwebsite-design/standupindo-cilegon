@@ -25,7 +25,21 @@ export function OpenMicCard({ mic, confirmedCount, lineup = [], router }: Props)
 
   return (
     <>
-      <article className={`group overflow-hidden ${isCompleted ? 'rounded-2xl border border-slate-200 bg-slate-50/70' : 'card card-hover flex flex-col'}`}>
+      <article
+        onClick={(event) => {
+          if ((event.target as HTMLElement).closest('a,button')) return;
+          router.navigate(`/open-mic/${mic.slug}`);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            router.navigate(`/open-mic/${mic.slug}`);
+          }
+        }}
+        className={`group cursor-pointer overflow-hidden ${isCompleted ? 'rounded-2xl border border-slate-200 bg-slate-50/70' : 'card card-hover flex flex-col'}`}
+        role="button"
+        tabIndex={0}
+      >
         <div className={isCompleted ? 'flex items-stretch' : ''}>
         <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[16/10] w-[112px] shrink-0 grayscale-[0.35] sm:w-[150px]' : 'aspect-[16/10]'}`}>
           {mic.poster ? (

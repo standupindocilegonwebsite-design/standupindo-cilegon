@@ -30,7 +30,7 @@ export function KomikaCard({ komika, router }: { komika: Komika; router: Router 
               aria-label={`Lihat foto ${komika.stage_name}`}
               className="block h-full w-full"
             >
-              <img src={komika.photo} alt={komika.stage_name} loading="lazy" className="aspect-[4/3.2] w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+              <img src={komika.photo} alt={komika.stage_name} loading="lazy" className="aspect-[4/3.2] w-full object-contain bg-slate-100 transition-transform duration-500 group-hover:scale-105" />
             </button>
           ) : (
             <div className="flex aspect-[4/3.2] w-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50 text-3xl font-extrabold text-blue-600">

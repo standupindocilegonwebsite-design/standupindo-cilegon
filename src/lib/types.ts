@@ -104,6 +104,26 @@ export interface EventTicket {
   updated_at: string;
 }
 
+export type TicketOrderStatus = 'Menunggu Pembayaran' | 'Sudah Bayar' | 'Terverifikasi' | 'Selesai' | 'Dibatalkan';
+
+export interface TicketOrder {
+  id: string;
+  order_number: string | null;
+  event_id: string;
+  ticket_id: string | null;
+  full_name: string;
+  email: string | null;
+  whatsapp: string;
+  ticket_category: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  notes: string | null;
+  status: TicketOrderStatus;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CommunityApplication {
   id: string;
   full_name: string;

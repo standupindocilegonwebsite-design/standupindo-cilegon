@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { Router } from '@/lib/router';
 import { DesktopNavbar } from './nav/DesktopNavbar';
 import { MobileBottomNav } from './nav/MobileBottomNav';
@@ -28,10 +29,48 @@ const NAV = [
 ];
 
 export function AppShell({ router, settings, children }: AppShellProps) {
+  const shellRef = useRef<HTMLDivElement>(null);
   const year = new Date().getFullYear();
 
+  useEffect(() => {
+    const root = shellRef.current;
+    if (!root) return;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let observer: IntersectionObserver | null = null;
+
+    if (!reducedMotion && 'IntersectionObserver' in window) {
+      observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-visible');
+          observer?.unobserve(entry.target);
+        });
+      }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+    }
+
+    const scanTargets = () => {
+      const targets = Array.from(root.querySelectorAll<HTMLElement>('[data-scroll-reveal]'));
+      targets.forEach((target) => {
+        if (reducedMotion || !observer) {
+          target.classList.add('is-visible');
+        } else if (!target.classList.contains('is-visible')) {
+          observer.observe(target);
+        }
+      });
+    };
+
+    scanTargets();
+    const mutations = new MutationObserver(scanTargets);
+    mutations.observe(root, { childList: true, subtree: true });
+
+    return () => {
+      mutations.disconnect();
+      observer?.disconnect();
+    };
+  }, [router.path]);
+
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div ref={shellRef} className="flex min-h-screen flex-col bg-slate-50">
       <DesktopNavbar router={router} settings={settings} />
 
       <main className="flex-1 pb-safe-nav md:pb-0">{children}</main>
@@ -48,7 +87,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
                   <span className="text-blue-600">CILEGON</span>
                 </span>
               </div>
-              <p className="mt-3 max-w-md text-sm font-semibold text-slate-700">Satu Panggung, Banyak Cerita.</p>
+              <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-slate-700">Menjadi ruang bertemunya komika, penikmat komedi, dan insan kreatif untuk berbagi tawa, mengembangkan potensi, serta membangun ekosistem stand up comedy di Cilegon.</p>
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 {settings.instagram_url && (
                   <a href={settings.instagram_url} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-blue-600 hover:text-white">

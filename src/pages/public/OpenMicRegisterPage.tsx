@@ -10,6 +10,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
 import { LOGO_URL } from '@/lib/types';
 import { InstagramFollowLink } from '@/components/ui/InstagramFollowLink';
+import { CommunityCombobox, CommunityOptions } from '@/components/ui/CommunityCombobox';
 
 interface Props {
   router: Router;
@@ -203,7 +204,7 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
       <PageHeader router={router} title={`Daftar ${micTitle}`} subtitle="Isi data kamu untuk mendaftar Open Mic." />
       <div className="container-app py-8">
         <div className="mx-auto max-w-xl">
-          <form onSubmit={handleSubmit} className="card p-6 space-y-5" noValidate>
+          <form data-scroll-reveal onSubmit={handleSubmit} className="scroll-reveal card p-6 space-y-5" noValidate>
             <div className="flex items-center gap-3 border-b border-slate-100 pb-5">{micPoster ? <img src={micPoster} alt={`Poster ${micTitle}`} className="h-14 w-20 shrink-0 rounded-xl object-cover ring-1 ring-slate-200" /> : <span className="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-blue-100"><img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-9 w-9 object-contain" /></span>}<div className="min-w-0"><h2 className="truncate font-bold text-slate-900">{micTitle}</h2><p className="text-sm text-slate-500">Isi data kamu untuk mendaftar.</p></div></div>
             <div>
               <label className="label-field" htmlFor="full_name">Nama Lengkap <span className="text-red-500">*</span></label>
@@ -219,7 +220,8 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
 
             <div>
               <label className="label-field" htmlFor="community">Komunitas</label>
-              <input id="community" type="text" value={form.community} onChange={(e) => setForm({ ...form, community: e.target.value })} className="input-field" placeholder="Contoh: Standupindo Cilegon / Umum" />
+              <CommunityCombobox id="community" value={form.community} onChange={(e) => setForm({ ...form, community: e.target.value })} placeholder="Pilih atau ketik komunitas" />
+              <CommunityOptions id="community" />
             </div>
 
             <div>

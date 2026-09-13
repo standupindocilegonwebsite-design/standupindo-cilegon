@@ -3,6 +3,7 @@ import type { Router } from '@/lib/router';
 import { useRouter, matchRoute } from '@/lib/router';
 import { useSiteSettings } from '@/lib/useSiteSettings';
 import { AuthProvider } from '@/lib/auth';
+import { NotificationProvider } from '@/lib/notification-context.tsx';
 import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
 import { HomePage } from '@/pages/public/HomePage';
@@ -11,6 +12,7 @@ import { OpenMicDetailPage } from '@/pages/public/OpenMicDetailPage';
 import { OpenMicRegisterPage } from '@/pages/public/OpenMicRegisterPage';
 import { EventPage } from '@/pages/public/EventPage';
 import { EventDetailPage } from '@/pages/public/EventDetailPage';
+import { TicketOrderPage } from '@/pages/public/TicketOrderPage';
 import { KomikaPage } from '@/pages/public/KomikaPage';
 import { KomikaDetailPage } from '@/pages/public/KomikaDetailPage';
 import { MorePage } from '@/pages/public/MorePage';
@@ -36,9 +38,14 @@ function updateSeo(path: string, siteName: string) {
 
 function ProtectedAdmin({ router, settings }: { router: Router; settings: ReturnType<typeof useSiteSettings>['settings'] }) {
   const { session, loading, isAdmin } = useAuth();
+  useEffect(() => {
+    if (!loading && (!session || !isAdmin) && router.path !== '/admin/login') {
+      router.navigate('/admin/login');
+    }
+  }, [loading, session, isAdmin, router]);
+
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat panel admin...</div>;
   if (!session || !isAdmin) {
-    if (router.path !== '/admin/login') router.navigate('/admin/login');
     return <AdminLoginPage router={router} />;
   }
   return <AdminPage router={router} settings={settings} />;
@@ -54,6 +61,7 @@ function RoutedApp() {
   const openMicRegister = matchRoute(router.path, '/open-mic/[slug]/daftar');
   const openMicDetail = matchRoute(router.path, '/open-mic/[slug]');
   const eventDetail = matchRoute(router.path, '/event/[slug]');
+  const ticketOrder = matchRoute(router.path, '/event/[slug]/tiket/[ticketId]');
   const eventRegister = matchRoute(router.path, '/event/[slug]/daftar');
   const komikaDetail = matchRoute(router.path, '/komika/[slug]');
 
@@ -63,6 +71,7 @@ function RoutedApp() {
   else if (openMicRegister) content = <OpenMicRegisterPage router={router} slug={openMicRegister.slug} />;
   else if (openMicDetail) content = <OpenMicDetailPage router={router} slug={openMicDetail.slug} />;
   else if (router.path === '/event') content = <EventPage router={router} />;
+  else if (ticketOrder) content = <TicketOrderPage router={router} slug={ticketOrder.slug} ticketId={ticketOrder.ticketId} settings={settings} />;
   else if (eventRegister) content = <EventRegisterPage router={router} slug={eventRegister.slug} />;
   else if (eventDetail) content = <EventDetailPage router={router} slug={eventDetail.slug} settings={settings} />;
   else if (router.path === '/komika') content = <KomikaPage router={router} />;
@@ -80,7 +89,7 @@ function RoutedApp() {
 }
 
 function App() {
-  return <AuthProvider><RoutedApp /></AuthProvider>;
+  return <AuthProvider><NotificationProvider><RoutedApp /></NotificationProvider></AuthProvider>;
 }
 
 export default App;

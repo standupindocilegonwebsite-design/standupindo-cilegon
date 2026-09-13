@@ -26,12 +26,12 @@ export function ImageLightbox({ src, alt, open, onClose, closeAriaLabel = 'Tutup
 
   return (
     <div
-      className="fixed inset-0 z-[200] overflow-y-auto bg-slate-950/85 p-4 backdrop-blur-sm animate-fade-in sm:p-6"
+      className="fixed inset-0 z-[200] overflow-auto overscroll-contain bg-slate-950/85 p-4 backdrop-blur-sm animate-fade-in sm:p-6"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
-      <div className="relative flex min-h-full items-center justify-center py-2">
+      <div className="relative flex min-h-full min-w-full items-start justify-center py-2 sm:items-center">
         <button
           onClick={onClose}
           aria-label={closeAriaLabel}
@@ -41,12 +41,12 @@ export function ImageLightbox({ src, alt, open, onClose, closeAriaLabel = 'Tutup
         </button>
         <div
           onClick={(e) => e.stopPropagation()}
-          className="relative max-h-[calc(100dvh-2rem)] overflow-auto rounded-lg shadow-2xl"
+          className="relative max-h-[calc(100dvh-2rem)] max-w-full overflow-auto overscroll-contain rounded-lg shadow-2xl sm:max-h-[calc(100dvh-3rem)]"
         >
           <img
             src={src}
             alt={alt}
-            className="block h-auto w-auto max-w-[calc(100vw-2rem)] rounded-lg object-contain animate-scale-in"
+            className="block h-auto w-auto max-w-[calc(100vw-2rem)] select-none rounded-lg object-contain animate-scale-in touch-pan-x touch-pan-y sm:max-w-[calc(100vw-3rem)]"
           />
         </div>
       </div>
