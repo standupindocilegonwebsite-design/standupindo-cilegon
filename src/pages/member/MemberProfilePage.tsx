@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Instagram, Music2, Save, Youtube } from 'lucide-react';
+import { Instagram, Music2, Pencil, Save, UserRound, X, Youtube } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/lib/auth-context';
@@ -23,6 +23,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
   const [form, setForm] = useState({ stage_name: '', full_name: '', whatsapp: '', bio: '', instagram_url: '', tiktok_url: '', youtube_url: '', photo: '' });
 
   useEffect(() => {
@@ -96,10 +97,26 @@ export function MemberProfilePage({ router }: { router: Router }) {
 
     setSaving(false);
     if (!error) {
+      setEditingProfile(false);
       window.alert('Profil berhasil disimpan.');
     } else {
       window.alert('Gagal menyimpan profil: ' + error.message);
     }
+  }
+
+  function cancelEditing() {
+    if (!profile) return;
+    setForm({
+      stage_name: profile.stage_name ?? '',
+      full_name: profile.full_name ?? '',
+      whatsapp: profile.whatsapp ?? '',
+      bio: profile.bio ?? '',
+      instagram_url: profile.instagram_url ?? '',
+      tiktok_url: profile.tiktok_url ?? '',
+      youtube_url: profile.youtube_url ?? '',
+      photo: profile.photo ?? '',
+    });
+    setEditingProfile(false);
   }
 
   if (loading) {
@@ -132,18 +149,34 @@ export function MemberProfilePage({ router }: { router: Router }) {
 
       <div className="container-app py-6 sm:py-8">
         <div className="mx-auto max-w-2xl space-y-5">
-          <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
+          <div className="overflow-hidden rounded-[28px] border border-blue-800 bg-blue-700 p-4 shadow-[0_14px_32px_rgba(29,78,216,0.2)] sm:p-5">
             <div className="flex items-center gap-4">
-              <ImageUpload label="Foto Profil" folder="komika" value={form.photo} onChange={(url) => setForm({ ...form, photo: url })} aspect="portrait" avatar onPreview={() => setPreviewPhoto(true)} />
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">Member Profile</p>
-                <h2 className="mt-1 text-2xl font-black tracking-[-0.04em] text-slate-900">{profileSummary}</h2>
+              {editingProfile ? (
+                <ImageUpload label="Foto Profil" folder="komika" value={form.photo} onChange={(url) => setForm({ ...form, photo: url })} aspect="portrait" avatar onPreview={() => setPreviewPhoto(true)} />
+              ) : (
+                <button type="button" onClick={() => form.photo && setPreviewPhoto(true)} className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/15 text-white ring-2 ring-white/70" aria-label={form.photo ? 'Lihat foto profil' : undefined}>
+                  {form.photo ? <img src={form.photo} alt="Foto profil" className="h-full w-full object-cover" /> : <UserRound className="h-8 w-8" />}
+                </button>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-100">Member Profile</p>
+                <h2 className="mt-1 truncate text-2xl font-black tracking-[-0.04em] text-white">{profileSummary}</h2>
               </div>
+              {editingProfile ? (
+                <button type="button" onClick={cancelEditing} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/20" title="Batal mengedit">
+                  <X className="h-4 w-4" /> Batal
+                </button>
+              ) : (
+                <button type="button" onClick={() => setEditingProfile(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-extrabold text-blue-700 shadow-[0_6px_14px_rgba(15,23,42,0.16)] transition hover:bg-blue-50">
+                  <Pencil className="h-3.5 w-3.5" /> Edit Profile
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
-            <div className="space-y-4">
+          {editingProfile ? (
+            <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
+              <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                 <label className="label-field" htmlFor="full_name">Nama lengkap</label>
@@ -184,8 +217,30 @@ export function MemberProfilePage({ router }: { router: Router }) {
               <button type="button" onClick={handleSave} disabled={saving} className="btn-primary w-full !py-3.5">
                 {saving ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Menyimpan...</> : <><Save className="h-4 w-4" /> Simpan Profil</>}
               </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Informasi akun</p><h3 className="mt-1 text-lg font-extrabold text-slate-950">Detail Profil</h3></div>
+                <UserRound className="h-5 w-5 text-slate-300" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3"><p className="mb-1 text-xs font-bold text-slate-500">Nama lengkap</p><p className="text-sm font-bold text-slate-900">{form.full_name || '-'}</p></div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3"><p className="mb-1 text-xs font-bold text-slate-500">Nama panggung</p><p className="text-sm font-bold text-slate-900">{form.stage_name || '-'}</p></div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3"><p className="mb-1 text-xs font-bold text-slate-500">Nomor WhatsApp</p><p className="text-sm font-bold text-slate-900">{form.whatsapp || '-'}</p></div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3"><p className="mb-1 text-xs font-bold text-slate-500">Bio</p><p className="whitespace-pre-line text-sm font-medium leading-6 text-slate-700">{form.bio || '-'}</p></div>
+              </div>
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <p className="label-field">Media sosial</p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Instagram className="h-4 w-4 text-pink-500" /> {handleValue(form.instagram_url, 'instagram') || '-'}</p>
+                  <p className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Music2 className="h-4 w-4 text-slate-700" /> {handleValue(form.tiktok_url, 'tiktok') || '-'}</p>
+                  <p className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Youtube className="h-4 w-4 text-red-500" /> {handleValue(form.youtube_url, 'youtube') || '-'}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       {form.photo && <ImageLightbox src={form.photo} alt={profileSummary} open={previewPhoto} onClose={() => setPreviewPhoto(false)} closeAriaLabel="Tutup foto profil" />}

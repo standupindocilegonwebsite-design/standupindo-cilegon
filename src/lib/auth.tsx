@@ -9,7 +9,11 @@ type RoleSource = string | string[] | undefined;
 
 function readUserRoles(user: User | null): string[] {
   const meta = (user?.app_metadata ?? {}) as Record<string, unknown>;
-  const candidates: RoleSource[] = [meta.role, meta.roles, meta.user_roles];
+  const candidates: RoleSource[] = [
+    meta.role as RoleSource,
+    meta.roles as RoleSource,
+    meta.user_roles as RoleSource,
+  ];
   const roles = new Set<string>();
 
   for (const candidate of candidates) {
@@ -64,7 +68,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (async () => { setSession(sess); })();
     });
 
-    return () => sub.subscription.unsubscribe();
+    const refreshRoleSession = () => {
+      if (document.visibilityState === 'visible') {
+        void supabase.auth.refreshSession().catch((error) => console.error('failed to refresh auth session', error));
+      }
+    };
+    const refreshInterval = window.setInterval(refreshRoleSession, 30000);
+    document.addEventListener('visibilitychange', refreshRoleSession);
+    window.addEventListener('focus', refreshRoleSession);
+
+    return () => {
+      sub.subscription.unsubscribe();
+      window.clearInterval(refreshInterval);
+      document.removeEventListener('visibilitychange', refreshRoleSession);
+      window.removeEventListener('focus', refreshRoleSession);
+    };
   }, []);
 
   const user = session?.user ?? null;

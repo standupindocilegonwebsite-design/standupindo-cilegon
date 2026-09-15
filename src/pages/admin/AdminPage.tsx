@@ -2191,21 +2191,43 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }:
 
 function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId, onReload, onNotice }: { openMics: OpenMic[]; komika: Komika[]; assignments: EvaluatorAssignment[]; currentUserId: string | null; onReload: () => Promise<void>; onNotice: (message: string) => void }) {
   const [openMicId, setOpenMicId] = useState<string>('');
+  const [scope, setScope] = useState<'all' | 'selected'>('all');
+  const [openMicSearch, setOpenMicSearch] = useState('');
+  const [openMicPickerOpen, setOpenMicPickerOpen] = useState(false);
   const [evaluatorUserId, setEvaluatorUserId] = useState('');
+  const [evaluatorSearch, setEvaluatorSearch] = useState('');
+  const [evaluatorPickerOpen, setEvaluatorPickerOpen] = useState(false);
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
   const [saving, setSaving] = useState(false);
-  const evaluatorProfiles = komika.filter((profile) => profile.user_id);
+  const [deleteAssignment, setDeleteAssignment] = useState<EvaluatorAssignment | null>(null);
+  const [assignmentSearch, setAssignmentSearch] = useState('');
+  const assignedEvaluatorIds = new Set(assignments.filter((assignment) => assignment.status === 'active' && (scope === 'all' || assignment.open_mic_id === null || assignment.open_mic_id === openMicId)).map((assignment) => assignment.evaluator_user_id));
+  const evaluatorProfiles = komika
+    .filter((profile) => profile.user_id && !assignedEvaluatorIds.has(profile.user_id))
+    .sort((a, b) => a.stage_name.localeCompare(b.stage_name, 'id', { sensitivity: 'base' }));
+  const filteredEvaluatorProfiles = evaluatorProfiles.filter((profile) => `${profile.stage_name} ${profile.full_name}`.toLowerCase().includes(evaluatorSearch.trim().toLowerCase()));
+  const selectedEvaluator = komika.find((profile) => profile.user_id === evaluatorUserId);
+  const selectedOpenMic = openMics.find((mic) => mic.id === openMicId);
+  const filteredOpenMics = openMics
+    .filter((mic) => mic.title.toLowerCase().includes(openMicSearch.trim().toLowerCase()))
+    .sort((a, b) => a.title.localeCompare(b.title, 'id', { sensitivity: 'base' }));
+  const visibleAssignments = assignments.filter((assignment) => {
+    const mic = openMics.find((row) => row.id === assignment.open_mic_id);
+    const evaluator = komika.find((profile) => profile.user_id === assignment.evaluator_user_id);
+    const searchText = `${mic?.title ?? 'Semua Open Mic'} ${evaluator?.stage_name ?? ''} ${evaluator?.full_name ?? ''} ${assignment.status}`.toLowerCase();
+    return searchText.includes(assignmentSearch.trim().toLowerCase());
+  });
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!openMicId.trim() || !evaluatorUserId.trim()) {
-      onNotice('Pilih Open Mic dan nama evaluator.');
+    if ((scope === 'selected' && !openMicId.trim()) || !evaluatorUserId.trim()) {
+      onNotice(`${scope === 'selected' ? 'Pilih Open Mic dan ' : ''}nama evaluator.`);
       return;
     }
 
     setSaving(true);
     const { error } = await supabase.from('evaluator_assignments').insert({
-      open_mic_id: openMicId,
+      open_mic_id: scope === 'all' ? null : openMicId,
       evaluator_user_id: evaluatorUserId,
       assigned_by: currentUserId,
       status,
@@ -2217,20 +2239,29 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
       return;
     }
 
+    const { data: roleData, error: roleError } = await supabase.functions.invoke('admin-manage-members', {
+      body: { action: 'update-role', user_id: evaluatorUserId, role: 'evaluator' },
+    });
+
     setOpenMicId('');
+    setScope('all');
+    setOpenMicSearch('');
+    setOpenMicPickerOpen(false);
     setEvaluatorUserId('');
+    setEvaluatorSearch('');
+    setEvaluatorPickerOpen(false);
     setStatus('active');
-    onNotice('Assignment evaluator berhasil disimpan.');
+    onNotice(roleError || roleData?.error ? 'Assignment tersimpan, tetapi role akun belum berubah. Coba ubah role dari menu Akun Member.' : 'Assignment evaluator berhasil disimpan dan akun ditetapkan sebagai Evaluator.');
     await onReload();
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm('Hapus assignment evaluator ini?')) return;
     const { error } = await supabase.from('evaluator_assignments').delete().eq('id', id);
     if (error) {
       onNotice('Gagal menghapus assignment evaluator.');
       return;
     }
+    setDeleteAssignment(null);
     onNotice('Assignment evaluator berhasil dihapus.');
     await onReload();
   }
@@ -2245,28 +2276,89 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
       <form onSubmit={handleSubmit} className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="md:col-span-1">
-            <label className="label-field" htmlFor="eval-open-mic">Open Mic</label>
-            <select id="eval-open-mic" value={openMicId} onChange={(e) => setOpenMicId(e.target.value)} className="input-field">
-              <option value="">Pilih Open Mic</option>
-              {openMics.map((mic) => <option key={mic.id} value={mic.id}>{mic.title}</option>)}
-            </select>
+            <span className="label-field">Cakupan assignment</span>
+            <div className="grid gap-2">
+              <label className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 transition ${scope === 'all' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-200' : 'border-slate-200 bg-white hover:border-blue-200'}`}>
+                <input type="radio" name="evaluator-scope" value="all" checked={scope === 'all'} onChange={() => { setScope('all'); setOpenMicPickerOpen(false); }} className="mt-0.5 h-4 w-4 text-blue-600" />
+                <span><span className="block text-sm font-bold text-slate-900">Semua Open Mic</span><span className="mt-0.5 block text-xs text-slate-500">Termasuk Open Mic baru</span></span>
+              </label>
+              <label className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 transition ${scope === 'selected' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-200' : 'border-slate-200 bg-white hover:border-blue-200'}`}>
+                <input type="radio" name="evaluator-scope" value="selected" checked={scope === 'selected'} onChange={() => setScope('selected')} className="mt-0.5 h-4 w-4 text-blue-600" />
+                <span><span className="block text-sm font-bold text-slate-900">Open Mic tertentu</span><span className="mt-0.5 block text-xs text-slate-500">Pilih satu Open Mic</span></span>
+              </label>
+            </div>
           </div>
 
           <div className="md:col-span-1">
-            <label className="label-field" htmlFor="eval-komika">Evaluator</label>
-            <select id="eval-komika" value={evaluatorUserId} onChange={(e) => setEvaluatorUserId(e.target.value)} className="input-field">
-              <option value="">Pilih nama komika</option>
-              {evaluatorProfiles.map((profile) => <option key={profile.id} value={profile.user_id ?? ''}>{profile.stage_name} · {profile.full_name}</option>)}
-            </select>
-            {evaluatorProfiles.length === 0 && <p className="mt-1.5 text-xs text-amber-600">Belum ada profil komika yang terhubung ke akun member.</p>}
+            <label className="label-field" htmlFor="eval-open-mic">Open Mic pilihan</label>
+            <div className="relative">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="eval-open-mic"
+                  value={scope === 'all' ? 'Semua Open Mic' : selectedOpenMic?.title ?? openMicSearch}
+                  onChange={(e) => { setOpenMicId(''); setOpenMicSearch(e.target.value); setOpenMicPickerOpen(true); }}
+                  onFocus={() => scope === 'selected' && setOpenMicPickerOpen(true)}
+                  disabled={scope === 'all'}
+                  className="input-field !pr-10 !pl-10 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                  placeholder="Cari Open Mic..."
+                  autoComplete="off"
+                />
+                <button type="button" onClick={() => setOpenMicPickerOpen((value) => !value)} disabled={scope === 'all'} className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50" aria-label="Buka pilihan Open Mic">
+                  <ChevronRight className={`h-4 w-4 transition-transform ${openMicPickerOpen ? 'rotate-90 text-blue-600' : ''}`} />
+                </button>
+              </div>
+              {openMicPickerOpen && scope === 'selected' && <>
+                <button type="button" className="fixed inset-0 z-20 cursor-default" onClick={() => setOpenMicPickerOpen(false)} aria-label="Tutup pilihan Open Mic" />
+                <div className="absolute left-0 right-0 top-full z-30 mt-2 max-h-64 overflow-y-auto rounded-2xl border border-blue-100 bg-white p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
+                  {filteredOpenMics.map((mic) => <button key={mic.id} type="button" onClick={() => { setOpenMicId(mic.id); setOpenMicSearch(''); setOpenMicPickerOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-slate-800 transition hover:bg-blue-50">{mic.title}{mic.id === openMicId && <Check className="h-4 w-4 shrink-0 text-blue-600" />}</button>)}
+                  {filteredOpenMics.length === 0 && <p className="px-3 py-3 text-sm text-slate-500">Open Mic tidak ditemukan.</p>}
+                </div>
+              </>}
+            </div>
           </div>
 
           <div className="md:col-span-1">
-            <label className="label-field" htmlFor="eval-status">Status</label>
-            <select id="eval-status" value={status} onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')} className="input-field">
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+            <label className="label-field" htmlFor="eval-komika">Akun Evaluator</label>
+            <div className="relative">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="eval-komika"
+                  value={selectedEvaluator ? selectedEvaluator.stage_name : evaluatorSearch}
+                  onChange={(e) => { setEvaluatorUserId(''); setEvaluatorSearch(e.target.value); setEvaluatorPickerOpen(true); }}
+                  onFocus={() => setEvaluatorPickerOpen(true)}
+                  className="input-field !pr-10 !pl-10"
+                  placeholder="Cari akun evaluator..."
+                  autoComplete="off"
+                />
+                <button type="button" onClick={() => setEvaluatorPickerOpen((value) => !value)} className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100" aria-label="Buka pilihan evaluator">
+                  <ChevronRight className={`h-4 w-4 transition-transform ${evaluatorPickerOpen ? 'rotate-90 text-blue-600' : ''}`} />
+                </button>
+              </div>
+              {evaluatorPickerOpen && <>
+                <button type="button" className="fixed inset-0 z-20 cursor-default" onClick={() => setEvaluatorPickerOpen(false)} aria-label="Tutup pilihan evaluator" />
+                <div className="absolute left-0 right-0 top-full z-30 mt-2 max-h-64 overflow-y-auto rounded-2xl border border-blue-100 bg-white p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
+                  {filteredEvaluatorProfiles.map((profile) => <button key={profile.id} type="button" onClick={() => { setEvaluatorUserId(profile.user_id ?? ''); setEvaluatorSearch(''); setEvaluatorPickerOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-blue-50"><span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-800">{profile.stage_name}</span><span className="block truncate text-xs text-slate-500">{profile.full_name}</span></span>{profile.user_id === evaluatorUserId && <Check className="h-4 w-4 shrink-0 text-blue-600" />}</button>)}
+                  {filteredEvaluatorProfiles.length === 0 && <p className="px-3 py-3 text-sm text-slate-500">{evaluatorProfiles.length === 0 ? 'Semua akun yang tersedia sudah terdaftar.' : 'Akun evaluator tidak ditemukan.'}</p>}
+                </div>
+              </>}
+            </div>
+            {evaluatorProfiles.length === 0 && <p className="mt-1.5 text-xs text-amber-600">Semua akun evaluator sudah terdaftar untuk cakupan ini.</p>}
+          </div>
+
+          <div className="md:col-span-1">
+            <span className="label-field">Status Assignment</span>
+            <label className="flex min-h-[50px] cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 transition hover:border-blue-300">
+              <span>
+                <span className="block text-sm font-bold text-slate-900">{status === 'active' ? 'Aktif' : 'Nonaktif'}</span>
+                <span className="block text-xs text-slate-500">{status === 'active' ? 'Bisa membuka evaluasi' : 'Akses evaluasi dimatikan'}</span>
+              </span>
+              <span className={`relative h-6 w-11 rounded-full transition-colors ${status === 'active' ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+                <input id="eval-status" type="checkbox" checked={status === 'active'} onChange={(e) => setStatus(e.target.checked ? 'active' : 'inactive')} className="peer sr-only" />
+                <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
+              </span>
+            </label>
           </div>
         </div>
 
@@ -2278,29 +2370,50 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
       </form>
 
       <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
-        <h2 className="text-lg font-extrabold text-slate-900">Daftar assignment</h2>
+        <h2 className="text-lg font-extrabold text-slate-900">Daftar Assignment</h2>
+        <div className="relative mt-4">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input value={assignmentSearch} onChange={(e) => setAssignmentSearch(e.target.value)} className="input-field !pl-10" placeholder="Cari Open Mic atau evaluator..." aria-label="Cari assignment" />
+        </div>
         <div className="mt-4 space-y-3">
           {assignments.length === 0 ? (
             <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Belum ada assignment evaluator.</div>
-          ) : assignments.map((assignment) => {
+          ) : visibleAssignments.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500">Assignment tidak ditemukan.</div>
+          ) : visibleAssignments.map((assignment) => {
             const mic = openMics.find((row) => row.id === assignment.open_mic_id);
             return (
               <div key={assignment.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="font-bold text-slate-900">{mic?.title ?? 'Open Mic tidak ditemukan'}</p>
-                  <p className="mt-1 text-xs text-slate-500">Evaluator: {komika.find((profile) => profile.user_id === assignment.evaluator_user_id)?.stage_name ?? 'Profil komika tidak ditemukan'}</p>
+                  <p className="text-base font-extrabold text-slate-950">{mic?.title ?? (assignment.open_mic_id === null ? 'Semua Open Mic' : 'Open Mic Tidak Ditemukan')}</p>
+                  <p className="mt-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Evaluator</p>
+                  <p className="mt-0.5 text-sm font-bold text-slate-800">{komika.find((profile) => profile.user_id === assignment.evaluator_user_id)?.stage_name ?? 'Profil Komika Tidak Ditemukan'}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${assignment.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}>
-                    {assignment.status}
+                  {assignment.open_mic_id === null && <span className="inline-flex items-center gap-1 rounded-full bg-blue-700 px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white"><Check className="h-3 w-3" /> Semua</span>}
+                  <span className={`rounded-full px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] ${assignment.status === 'active' ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-white'}`}>
+                    {assignment.status === 'active' ? 'Aktif' : 'Nonaktif'}
                   </span>
-                  <button onClick={() => void handleDelete(assignment.id)} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700">Hapus</button>
+                  <button type="button" onClick={() => setDeleteAssignment(assignment)} className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 transition hover:bg-red-600 hover:text-white" title="Hapus assignment" aria-label="Hapus assignment">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             );
           })}
         </div>
       </div>
+
+      <Modal open={Boolean(deleteAssignment)} onClose={() => setDeleteAssignment(null)} title="Hapus Assignment" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-slate-600">Hapus assignment untuk <span className="font-bold text-slate-900">{deleteAssignment?.open_mic_id === null ? 'Semua Open Mic' : openMics.find((mic) => mic.id === deleteAssignment?.open_mic_id)?.title ?? 'Open Mic ini'}</span>?</p>
+          <p className="rounded-xl bg-amber-50 px-3 py-2.5 text-xs font-medium leading-5 text-amber-800">Evaluator tidak lagi dapat membuka evaluasi dari assignment ini.</p>
+          <div className="flex gap-3">
+            <button type="button" onClick={() => setDeleteAssignment(null)} className="btn-secondary flex-1">Batal</button>
+            <button type="button" onClick={() => deleteAssignment && void handleDelete(deleteAssignment.id)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow-[0_8px_18px_rgba(220,38,38,0.2)] transition hover:bg-red-700"><Trash2 className="h-4 w-4" /> Hapus</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -2435,56 +2548,62 @@ function AdminFormModal({ kind, editing, saving, onClose, onSaving, onSaved }: {
   };
 
   return (
-    <Modal open={Boolean(kind)} onClose={onClose} title={`${isEdit ? 'Edit' : 'Tambah'} ${title}`} size="lg">
+    <Modal open={Boolean(kind)} onClose={onClose} title={`${isEdit ? 'Edit' : 'Tambah'} ${title}`} size={kind === 'event' || kind === 'open-mic' ? 'xl' : 'lg'}>
       <form onSubmit={submit} className="space-y-4 overflow-y-auto pr-1 sm:max-h-[75vh] sm:min-h-0">
-        {kind === 'komika' && (
-          <ImageUpload label="Foto Komika" folder="komika" value={form.photo ?? ''} onChange={(url) => set('photo', url)} aspect="portrait" onUploadingChange={setUploading} />
-        )}
-        {kind === 'open-mic' && (
-          <ImageUpload label="Poster / Foto Open Mic" folder="open-mic" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} />
-        )}
-        {kind === 'event' && (
-          <ImageUpload label="Poster Event" folder="events" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} />
-        )}
-        {kind === 'partner' && (
-          <ImageUpload label="Logo Partner" folder="partners" value={form.logo_url ?? ''} onChange={(url) => set('logo_url', url)} aspect="square" onUploadingChange={setUploading} />
-        )}
-        {fields.map(([key, label, type]) => (
-          <div key={key}>
-            <label className="label-field" htmlFor={`admin-${key}`}>{label}</label>
-            {type === 'textarea' ? (
-              <textarea id={`admin-${key}`} value={form[key] ?? ''} onChange={(e) => set(key, e.target.value)} placeholder={getAdminFieldPlaceholder(key)} className="input-field min-h-[88px]" />
-            ) : type === 'select' ? (
-              <select id={`admin-${key}`} value={form[key] ?? ''} onChange={(e) => set(key, e.target.value)} className="input-field">
-                {(selectOptions[key] ?? []).map(([val, lbl]) => <option key={val} value={val}>{lbl}</option>)}
-              </select>
-            ) : (
-              <input
-                id={`admin-${key}`}
-                type={type === 'date' ? 'date' : type === 'number' ? 'number' : 'text'}
-                inputMode={key === 'contact_phone' ? 'numeric' : undefined}
-                value={form[key] ?? ''}
-                onChange={(e) => set(key, key === 'instagram_url' ? formatInstagramHandle(e.target.value) : key === 'tiktok_url' ? formatTikTokHandle(e.target.value) : key === 'contact_phone' ? e.target.value.replace(/\D/g, '') : e.target.value)}
-                placeholder={getAdminFieldPlaceholder(key)}
-                className="input-field"
-                required={requiredFields.includes(key)}
-              />
+        <div className="lg:grid lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.5fr)] lg:items-start lg:gap-6">
+          <div className="lg:sticky lg:top-0">
+            {kind === 'komika' && (
+              <ImageUpload label="Foto Komika" folder="komika" value={form.photo ?? ''} onChange={(url) => set('photo', url)} aspect="portrait" onUploadingChange={setUploading} />
+            )}
+            {kind === 'open-mic' && (
+              <ImageUpload label="Poster / Foto Open Mic" folder="open-mic" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} />
+            )}
+            {kind === 'event' && (
+              <ImageUpload label="Poster Event" folder="events" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} />
+            )}
+            {kind === 'partner' && (
+              <ImageUpload label="Logo Partner" folder="partners" value={form.logo_url ?? ''} onChange={(url) => set('logo_url', url)} aspect="square" onUploadingChange={setUploading} />
             )}
           </div>
-        ))}
-        <div className="flex items-center gap-3 pt-2">
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <input
-              type="checkbox"
-              checked={kind === 'partner' ? form.is_published !== 'false' : form.published !== 'false'}
-              onChange={(e) => set(kind === 'partner' ? 'is_published' : 'published', String(e.target.checked))}
-              className="h-4 w-4 rounded border-slate-300 text-blue-600"
-            /> Tampilkan di website
-          </label>
-        </div>
-        <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="btn-secondary flex-1">Batal</button>
-          <button type="submit" disabled={saving || uploading} className="btn-primary flex-1">{uploading ? 'Mengupload...' : saving ? 'Menyimpan...' : 'Simpan'}</button>
+          <div className="mt-4 space-y-4 lg:mt-0 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
+            {fields.map(([key, label, type]) => (
+              <div key={key} className={type === 'textarea' ? 'lg:col-span-2' : ''}>
+                <label className="label-field" htmlFor={`admin-${key}`}>{label}</label>
+                {type === 'textarea' ? (
+                  <textarea id={`admin-${key}`} value={form[key] ?? ''} onChange={(e) => set(key, e.target.value)} placeholder={getAdminFieldPlaceholder(key)} className="input-field min-h-[88px]" />
+                ) : type === 'select' ? (
+                  <select id={`admin-${key}`} value={form[key] ?? ''} onChange={(e) => set(key, e.target.value)} className="input-field">
+                    {(selectOptions[key] ?? []).map(([val, lbl]) => <option key={val} value={val}>{lbl}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    id={`admin-${key}`}
+                    type={type === 'date' ? 'date' : type === 'number' ? 'number' : 'text'}
+                    inputMode={key === 'contact_phone' ? 'numeric' : undefined}
+                    value={form[key] ?? ''}
+                    onChange={(e) => set(key, key === 'instagram_url' ? formatInstagramHandle(e.target.value) : key === 'tiktok_url' ? formatTikTokHandle(e.target.value) : key === 'contact_phone' ? e.target.value.replace(/\D/g, '') : e.target.value)}
+                    placeholder={getAdminFieldPlaceholder(key)}
+                    className="input-field"
+                    required={requiredFields.includes(key)}
+                  />
+                )}
+              </div>
+            ))}
+            <div className="flex items-center gap-3 pt-2 lg:col-span-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={kind === 'partner' ? form.is_published !== 'false' : form.published !== 'false'}
+                  onChange={(e) => set(kind === 'partner' ? 'is_published' : 'published', String(e.target.checked))}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                /> Tampilkan di website
+              </label>
+            </div>
+            <div className="flex gap-3 pt-2 lg:col-span-2">
+              <button type="button" onClick={onClose} className="btn-secondary flex-1">Batal</button>
+              <button type="submit" disabled={saving || uploading} className="btn-primary flex-1">{uploading ? 'Mengupload...' : saving ? 'Menyimpan...' : 'Simpan'}</button>
+            </div>
+          </div>
         </div>
       </form>
     </Modal>
@@ -2652,10 +2771,8 @@ function EventPartnershipManagementModal({ event, partners, partnerships, onClos
             <div>
               <label className="label-field" htmlFor="partnership-partner">Partner</label>
               <select id="partnership-partner" value={selectedPartnerId} onChange={(e) => setSelectedPartnerId(e.target.value)} className="input-field">
-                <option value="">Pilih partner...</option>
-                {availablePartners.map((partner) => (
-                  <option key={partner.id} value={partner.id}>{partner.name}</option>
-                ))}
+                <option value="">Pilih partner</option>
+                {availablePartners.map((partner) => <option key={partner.id} value={partner.id}>{partner.name}</option>)}
               </select>
             </div>
             <div>

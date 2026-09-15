@@ -1,4 +1,4 @@
-import { ArrowLeftRight, CircleHelp, KeyRound, LogOut, ShieldCheck, UserRound, Star } from 'lucide-react';
+import { ArrowLeftRight, CircleHelp, KeyRound, LogOut, ShieldCheck } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/lib/auth-context';
@@ -7,8 +7,6 @@ export function MemberMorePage({ router }: { router: Router }) {
   const { signOut } = useAuth();
 
   const items = [
-    { label: 'Profil', icon: UserRound, onClick: () => router.navigate('/member/profile') },
-    { label: 'Evaluasi', icon: Star, onClick: () => router.navigate('/member/evaluations') },
     { label: 'Akun', icon: KeyRound, onClick: () => router.navigate('/member/settings') },
     { label: 'Peran', icon: ShieldCheck, onClick: () => router.navigate('/member/roles') },
     { label: 'Bantuan', icon: CircleHelp, onClick: () => router.navigate('/member/help') },

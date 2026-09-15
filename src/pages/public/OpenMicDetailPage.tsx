@@ -1,6 +1,6 @@
 import { formatDate, getOpenMicStatus } from '@/lib/format';
 import { useEffect, useState } from 'react';
-import { Calendar, Check, Clock, Copy, Instagram, Mic, Send } from 'lucide-react';
+import { Calendar, Check, CheckCircle2, Clock, Copy, Info, Instagram, Mic, Send, Ticket } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { OpenMic, OpenMicRegistration } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -218,8 +218,16 @@ export function OpenMicDetailPage({ router, slug }: Props) {
         {/* About */}
         {mic.description && (
           <section data-scroll-reveal className="scroll-reveal is-visible">
-            <h2 className="mb-2 text-lg font-bold text-slate-900 sm:text-xl">Tentang Open Mic</h2>
-            <p className="text-sm leading-relaxed text-slate-600 sm:text-base whitespace-pre-line">{mic.description}</p>
+            <div className="overflow-hidden rounded-2xl border border-slate-200 border-l-4 border-l-blue-600 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+              <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-[0_5px_12px_rgba(37,99,235,0.2)]"><Info className="h-4 w-4" /></span>
+                <div>
+                  <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Informasi panggung</p>
+                  <h2 className="text-lg font-extrabold text-slate-950 sm:text-xl">Tentang Open Mic</h2>
+                </div>
+              </div>
+              <p className="px-4 py-4 text-sm font-medium leading-7 text-slate-800 whitespace-pre-line sm:px-5 sm:text-base">{mic.description}</p>
+            </div>
           </section>
         )}
 
@@ -228,38 +236,51 @@ export function OpenMicDetailPage({ router, slug }: Props) {
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-900 sm:text-xl">{currentStatus === 'completed' ? 'Arsip Lineup' : 'Lineup'}</h2>
-              <p className="mt-1 text-sm text-slate-500">{confirmed.length} Komika{currentStatus === 'completed' ? ' hadir' : ''}</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">{confirmed.length} Komika {currentStatus === 'completed' ? 'tampil' : 'terdaftar'}</p>
             </div>
             <button onClick={() => void shareLineup()} aria-label="Bagikan lineup" title="Bagikan lineup" className="inline-flex shrink-0 items-center justify-center rounded-full bg-blue-50 p-2.5 text-blue-700 transition hover:bg-blue-100 active:scale-[0.98]">
               <Send className="h-4 w-4" />
             </button>
           </div>
           {confirmed.length === 0 ? (
-            <EmptyState title={currentStatus === 'completed' ? 'Belum ada lineup yang ditandai hadir.' : 'Belum ada lineup yang terkonfirmasi.'} description={currentStatus === 'completed' ? 'Lineup arsip akan muncul setelah kehadiran ditandai admin.' : 'Lineup akan muncul setelah pendaftar dikonfirmasi admin.'} />
+            <EmptyState title={currentStatus === 'completed' ? 'Belum ada lineup yang ditandai tampil.' : 'Belum ada lineup yang terkonfirmasi.'} description={currentStatus === 'completed' ? 'Lineup arsip akan muncul setelah penampilan ditandai admin.' : 'Lineup akan muncul setelah pendaftar dikonfirmasi admin.'} />
           ) : (
-            <div className="space-y-2">
-              {confirmed.map((r) => {
-                const ig = normalizeInstagram(r.instagram);
-                return (
-                  <div key={r.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm sm:px-4">
-                    <div className="flex min-w-0 items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="truncate text-sm font-bold text-slate-900 sm:text-base">{r.stage_name}</h3>
-                        {r.community && <p className="truncate text-xs text-slate-500">{r.community}</p>}
-                        {ig && (
-                          <a href={ig.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex max-w-full items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-900">
-                            <Instagram className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{ig.label}</span>
-                          </a>
-                        )}
-                      </div>
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-[11px] font-semibold text-green-700 ring-1 ring-inset ring-green-200">
-                        <Check className="h-3 w-3" /> {currentStatus === 'completed' ? 'Hadir' : 'Terkonfirmasi'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+              <table className="w-full min-w-[500px] table-fixed text-left">
+                <thead className="border-b border-slate-200/80 bg-slate-50/70 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                  <tr>
+                    <th className="w-[38%] px-3 py-2.5 sm:px-4">Komika</th>
+                    <th className="w-[37%] px-3 py-2.5 sm:px-4">Instagram</th>
+                    <th className="w-[25%] px-3 py-2.5 text-center sm:px-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100/80">
+                  {confirmed.map((r) => {
+                    const ig = normalizeInstagram(r.instagram);
+                    return (
+                      <tr key={r.id} className="text-sm transition-colors hover:bg-slate-50/60">
+                        <td className="px-3 py-3 sm:px-4">
+                          <p className="truncate font-bold text-slate-900">{r.stage_name}</p>
+                          {r.community && <p className="truncate text-xs text-slate-500">{r.community}</p>}
+                        </td>
+                        <td className="px-3 py-3 sm:px-4">
+                          {ig ? (
+                            <a href={ig.url} target="_blank" rel="noopener noreferrer" className="group/instagram inline-flex max-w-full items-center gap-2 text-xs font-semibold text-slate-700 transition-colors hover:text-[#9f1857]">
+                              <Instagram className="h-4 w-4 shrink-0 text-[#c13584] transition-transform group-hover/instagram:scale-110" />
+                              <span className="truncate">{ig.label}</span>
+                            </a>
+                          ) : <span className="text-xs text-slate-400">-</span>}
+                        </td>
+                        <td className="px-3 py-3 text-center sm:px-4">
+                          <span className={`inline-flex ${currentStatus === 'completed' ? 'text-green-600' : 'text-blue-600'}`} title={currentStatus === 'completed' ? 'Tampil' : 'Terdaftar'} aria-label={currentStatus === 'completed' ? 'Tampil' : 'Terdaftar'}>
+                            {currentStatus === 'completed' ? <CheckCircle2 className="h-5 w-5" /> : <Ticket className="h-5 w-5" />}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </section>

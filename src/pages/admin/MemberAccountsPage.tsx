@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, KeyRound, Search, UserPlus, Users, X } from 'lucide-react';
+import { Check, ChevronDown, KeyRound, Power, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
 import type { Komika } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { Modal } from '@/components/ui/Modal';
 
 interface MemberAccount {
   id: string;
   email?: string;
   created_at: string;
   active: boolean;
-  role: string;
+  role: 'member' | 'evaluator';
   profile?: { stage_name: string; full_name: string; photo: string | null; status: string } | null;
 }
 
@@ -22,8 +23,12 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
   const [accounts, setAccounts] = useState<MemberAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [roleUpdatingId, setRoleUpdatingId] = useState<string | null>(null);
+  const [accountSearch, setAccountSearch] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<MemberAccount | null>(null);
   const selectedKomika = komika.find((profile) => profile.id === komikaId);
   const filteredKomika = useMemo(() => komika.filter((profile) => profile.stage_name.toLowerCase().includes(komikaSearch.trim().toLowerCase()) || profile.full_name.toLowerCase().includes(komikaSearch.trim().toLowerCase())), [komika, komikaSearch]);
+  const filteredAccounts = accounts.filter((account) => `${account.profile?.stage_name ?? ''} ${account.profile?.full_name ?? ''} ${account.email ?? ''}`.toLowerCase().includes(accountSearch.trim().toLowerCase()));
 
   async function loadAccounts() {
     setAccountsLoading(true);
@@ -44,13 +49,23 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
 
   async function deleteAccount(account: MemberAccount) {
     const label = account.profile?.stage_name ?? account.email ?? 'akun ini';
-    if (!window.confirm(`Hapus akun ${label}? Profil komika dan riwayatnya tetap disimpan, tetapi akun ini tidak dapat login lagi.`)) return;
     setTogglingId(account.id);
     const { data, error } = await supabase.functions.invoke('admin-manage-members', { body: { action: 'delete', user_id: account.id } });
     setTogglingId(null);
     if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Akun member gagal dihapus.'); return; }
     setAccounts((current) => current.filter((item) => item.id !== account.id));
+    setDeleteTarget(null);
     onNotice(`Akun ${label} berhasil dihapus.`);
+  }
+
+  async function updateRole(account: MemberAccount, role: 'member' | 'evaluator') {
+    if (role === account.role) return;
+    setRoleUpdatingId(account.id);
+    const { data, error } = await supabase.functions.invoke('admin-manage-members', { body: { action: 'update-role', user_id: account.id, role } });
+    setRoleUpdatingId(null);
+    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Peran akun gagal diubah.'); return; }
+    setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, role: data?.user?.role === 'evaluator' ? 'evaluator' : 'member' } : item));
+    onNotice(`${account.email ?? 'Akun member'} sekarang berperan sebagai ${role === 'evaluator' ? 'evaluator' : 'member'}.`);
   }
 
   useEffect(() => { void loadAccounts(); }, []);
@@ -127,10 +142,32 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
 
       <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-6">
         <div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-extrabold text-slate-900">Daftar Akun Member</h2><p className="mt-1 text-sm text-slate-500">Pantau akun dan aktifkan atau nonaktifkan akses login.</p></div><span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{accounts.length > 0 ? `${accounts.length} akun` : 'Belum ada'}</span></div>
+        <div className="relative mt-4">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input value={accountSearch} onChange={(event) => setAccountSearch(event.target.value)} className="input-field !pl-10" placeholder="Cari nama, email, atau nama panggung..." aria-label="Cari akun member" />
+        </div>
         <div className="mt-4 space-y-2.5">
-          {accountsLoading ? <div className="h-20 animate-pulse rounded-2xl bg-slate-100" /> : accounts.length === 0 ? <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm ring-1 ring-slate-200"><Users className="h-6 w-6" /></span><p className="mt-3 text-sm font-bold text-slate-700">Belum ada akun member</p><p className="mt-1 max-w-xs text-xs leading-5 text-slate-500">Akun member yang dibuat akan muncul di daftar ini.</p></div> : accounts.map((account) => <div key={account.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-sm font-black text-slate-700">{account.profile?.photo ? <img src={account.profile.photo} alt="" className="h-full w-full object-cover" /> : (account.profile?.stage_name ?? account.email ?? 'M').charAt(0).toUpperCase()}</div><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{account.profile?.stage_name ?? 'Profil belum terhubung'}</p><p className="truncate text-xs text-slate-500">{account.profile?.full_name ?? account.email}</p><p className="truncate text-xs text-slate-400">{account.email}</p></div></div><div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end"><span className={`rounded-md border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${account.active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-slate-100 text-slate-600'}`}>{account.active ? 'Aktif' : 'Nonaktif'}</span><button type="button" onClick={() => void toggleAccount(account)} disabled={togglingId === account.id} className={`rounded-lg border px-3 py-2 text-xs font-bold transition disabled:opacity-50 ${account.active ? 'border-slate-300 bg-white text-slate-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700' : 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700'}`}>{togglingId === account.id ? 'Memproses...' : account.active ? 'Nonaktifkan' : 'Aktifkan'}</button><button type="button" onClick={() => void deleteAccount(account)} disabled={togglingId === account.id} className="rounded-lg border border-red-600 bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-50">Hapus</button></div></div>)}
+          {accountsLoading ? <div className="h-20 animate-pulse rounded-2xl bg-slate-100" /> : accounts.length === 0 ? <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm ring-1 ring-slate-200"><Users className="h-6 w-6" /></span><p className="mt-3 text-sm font-bold text-slate-700">Belum ada akun member</p><p className="mt-1 max-w-xs text-xs leading-5 text-slate-500">Akun member yang dibuat akan muncul di daftar ini.</p></div> : filteredAccounts.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-500">Akun member tidak ditemukan.</div> : filteredAccounts.map((account) => (
+            <div key={account.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-sm font-black text-slate-700">{account.profile?.photo ? <img src={account.profile.photo} alt="" className="h-full w-full object-cover" /> : (account.profile?.stage_name ?? account.email ?? 'M').charAt(0).toUpperCase()}</div><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{account.profile?.stage_name ?? 'Profil belum terhubung'}</p><p className="truncate text-xs text-slate-500">{account.profile?.full_name ?? account.email}</p><p className="truncate text-xs text-slate-400">{account.email}</p></div></div>
+              <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end"><select value={account.role === 'evaluator' ? 'evaluator' : 'member'} onChange={(event) => void updateRole(account, event.target.value as 'member' | 'evaluator')} disabled={roleUpdatingId === account.id} className="rounded-lg border border-blue-200 bg-white px-2.5 py-2 text-xs font-bold text-blue-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-50" aria-label={`Peran ${account.profile?.stage_name ?? account.email ?? 'akun'}`}><option value="member">Member</option><option value="evaluator">Evaluator</option></select><span className={`rounded-md border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${account.active ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-600 bg-slate-700 text-white'}`}>{account.active ? 'Aktif' : 'Nonaktif'}</span><button type="button" onClick={() => void toggleAccount(account)} disabled={togglingId === account.id || roleUpdatingId === account.id} className={`flex h-10 w-10 items-center justify-center rounded-xl shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${account.active ? 'bg-amber-500 text-white shadow-amber-500/20 hover:bg-amber-600 focus:ring-amber-500' : 'bg-emerald-600 text-white shadow-emerald-600/20 hover:bg-emerald-700 focus:ring-emerald-600'}`} title={account.active ? 'Nonaktifkan akun' : 'Aktifkan akun'} aria-label={account.active ? `Nonaktifkan ${account.email ?? 'akun'}` : `Aktifkan ${account.email ?? 'akun'}`}><Power className="h-4 w-4" /></button><button type="button" onClick={() => setDeleteTarget(account)} disabled={togglingId === account.id || roleUpdatingId === account.id} className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm shadow-red-600/20 transition hover:-translate-y-0.5 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" title="Hapus akun" aria-label={`Hapus ${account.email ?? 'akun'}`}><Trash2 className="h-4 w-4" /></button></div>
+            </div>
+          ))}
         </div>
       </section>
+
+      <Modal open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} title="Hapus Akun Member" size="sm">
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 p-3.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white"><Trash2 className="h-4 w-4" /></span>
+            <div><p className="text-sm font-extrabold text-slate-900">Yakin ingin menghapus akun ini?</p><p className="mt-1 text-xs leading-5 text-slate-600">Akun <span className="font-bold text-slate-900">{deleteTarget?.profile?.stage_name ?? deleteTarget?.email ?? 'member'}</span> tidak dapat login lagi. Profil komika dan riwayatnya tetap disimpan.</p></div>
+          </div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" onClick={() => setDeleteTarget(null)} className="btn-secondary w-full sm:w-auto">Batal</button>
+            <button type="button" onClick={() => deleteTarget && void deleteAccount(deleteTarget)} disabled={Boolean(togglingId)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_8px_18px_rgba(220,38,38,0.2)] transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"><Trash2 className="h-4 w-4" /> Hapus Akun</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

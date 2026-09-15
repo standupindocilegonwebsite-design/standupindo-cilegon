@@ -24,8 +24,28 @@ serve(async (request) => {
   if (authError || !authData.user || !hasRole(authData.user.app_metadata as Record<string, unknown> | undefined, 'admin')) return json({ error: 'Hanya admin yang dapat mengelola akun member.' }, 403);
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
-  let body: { action?: 'list' | 'toggle' | 'delete'; user_id?: string; active?: boolean };
+  let body: { action?: 'list' | 'toggle' | 'delete' | 'update-role'; user_id?: string; active?: boolean; role?: 'member' | 'evaluator' };
   try { body = await request.json(); } catch { return json({ error: 'Data permintaan tidak valid.' }, 400); }
+
+  if (body.action === 'update-role') {
+    if (!body.user_id || !body.role) return json({ error: 'Akun dan peran harus dipilih.' }, 400);
+    const { data: target, error: targetError } = await adminClient.auth.admin.getUserById(body.user_id);
+    if (targetError || !target.user) return json({ error: 'Akun member tidak ditemukan.' }, 404);
+    if (hasRole(target.user.app_metadata as Record<string, unknown> | undefined, 'admin')) return json({ error: 'Peran akun admin tidak dapat diubah dari menu ini.' }, 400);
+
+    const appMetadata = { ...(target.user.app_metadata as Record<string, unknown> | undefined) };
+    if (body.role === 'evaluator') {
+      appMetadata.role = 'member';
+      appMetadata.roles = ['member', 'evaluator'];
+    } else {
+      appMetadata.role = 'member';
+      appMetadata.roles = ['member'];
+    }
+    delete appMetadata.user_roles;
+    const { data, error } = await adminClient.auth.admin.updateUserById(body.user_id, { app_metadata: appMetadata });
+    if (error || !data.user) return json({ error: error?.message ?? 'Peran akun gagal diubah.' }, 400);
+    return json({ user: { id: data.user.id, role: body.role, roles: appMetadata.roles } });
+  }
 
   if (body.action === 'toggle') {
     if (!body.user_id || typeof body.active !== 'boolean') return json({ error: 'Data status akun tidak lengkap.' }, 400);
@@ -66,6 +86,6 @@ serve(async (request) => {
 
   return json({ members: memberUsers.map((user) => {
     const profile = profileMap.get(user.id);
-    return { id: user.id, email: user.email, created_at: user.created_at, active: !user.banned_until || new Date(user.banned_until) <= new Date(), role: user.app_metadata?.role, profile };
+    return { id: user.id, email: user.email, created_at: user.created_at, active: !user.banned_until || new Date(user.banned_until) <= new Date(), role: hasRole(user.app_metadata, 'evaluator') ? 'evaluator' : 'member', profile };
   }) });
 });

@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { CircleHelp, ExternalLink, ShieldCheck, UserRound } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/lib/auth-context';
+import { supabase } from '@/lib/supabase';
 import { useSiteSettings } from '@/lib/useSiteSettings';
 import { waLink } from '@/lib/format';
 
@@ -9,6 +11,9 @@ export function MemberInfoPage({ router, kind }: { router: Router; kind: 'roles'
   const { roles } = useAuth();
   const { settings } = useSiteSettings();
   const isHelp = kind === 'help';
+  useEffect(() => {
+    if (!isHelp) void supabase.auth.refreshSession();
+  }, [isHelp]);
   const title = isHelp ? 'Bantuan Member' : 'Peran & Hak Akses';
   const items = isHelp ? [
     ['Bagaimana cara mendaftar Open Mic?', 'Buka menu Open Mic, pilih acara yang tersedia, lalu lanjutkan pendaftaran menggunakan profil komika kamu.'],

@@ -177,7 +177,7 @@ export type EvaluationStatus = 'draft' | 'submitted';
 
 export interface EvaluatorAssignment {
   id: string;
-  open_mic_id: string;
+  open_mic_id: string | null;
   evaluator_user_id: string;
   assigned_by: string | null;
   status: 'active' | 'inactive';

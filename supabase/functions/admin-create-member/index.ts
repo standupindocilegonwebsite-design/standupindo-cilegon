@@ -48,7 +48,7 @@ serve(async (request) => {
     email,
     password,
     email_confirm: true,
-    app_metadata: { role: 'member' },
+    app_metadata: { role: 'member', roles: ['member'] },
   });
   if (createError || !created.user) return response({ error: createError?.message ?? 'Akun gagal dibuat.' }, 400);
 

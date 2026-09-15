@@ -6,7 +6,7 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
 export function Modal({ open, onClose, title, children, size = 'md' }: ModalProps) {
@@ -23,7 +23,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
   }, [open, onClose]);
 
   if (!open) return null;
-  const maxW = size === 'sm' ? 'sm:max-w-sm' : size === 'lg' ? 'sm:max-w-2xl' : 'sm:max-w-md';
+  const maxW = size === 'sm' ? 'sm:max-w-sm' : size === 'lg' ? 'sm:max-w-2xl' : size === 'xl' ? 'sm:max-w-5xl' : 'sm:max-w-md';
 
   return (
     <div className="fixed inset-0 z-[200] overflow-y-auto p-3 sm:p-4" role="dialog" aria-modal="true">

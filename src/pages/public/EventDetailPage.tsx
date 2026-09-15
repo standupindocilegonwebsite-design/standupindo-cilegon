@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Calendar, Clock, ExternalLink, MessageCircle, Ticket } from 'lucide-react';
+import { Calendar, ClipboardList, Clock, ExternalLink, Info, MessageCircle, Ticket } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { EventItem, EventTicket, EventPartnership, Partner, SiteSettings } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -38,6 +38,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const [lineup, setLineup] = useState<{ id: string; stage_name: string; community: string | null; instagram: string | null }[]>([]);
   const [partnersByRole, setPartnersByRole] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
   const [lightbox, setLightbox] = useState(false);
+  const [infoTab, setInfoTab] = useState<'about' | 'rules'>('about');
 
   useEffect(() => {
     (async () => {
@@ -173,23 +174,41 @@ export function EventDetailPage({ router, slug, settings }: Props) {
           </div>
         </div>
 
-        <section data-scroll-reveal className="scroll-reveal space-y-8">
-          <div>
-            <h2 className="mb-3 text-xl font-bold text-slate-900">About Event</h2>
-            {event.description ? (
-              <p className="text-sm leading-relaxed text-slate-600 sm:text-base whitespace-pre-line">{event.description}</p>
-            ) : (
-              <EmptyState title="Informasi tentang event belum tersedia." />
-            )}
-          </div>
+        <section data-scroll-reveal className="scroll-reveal">
+          <div className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+            <div className="flex gap-1 bg-slate-100 p-1" role="tablist" aria-label="Informasi event">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={infoTab === 'about'}
+              onClick={() => setInfoTab('about')}
+              className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-left transition-all sm:justify-start sm:px-4 ${infoTab === 'about' ? 'bg-blue-600 text-white shadow-[0_6px_14px_rgba(37,99,235,0.24)]' : 'text-slate-700 hover:bg-white'}`}
+            >
+              <Info className="h-4 w-4 shrink-0" />
+              <span className="truncate text-xs font-extrabold sm:text-sm">About Event</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={infoTab === 'rules'}
+              onClick={() => setInfoTab('rules')}
+              className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-left transition-all sm:justify-start sm:px-4 ${infoTab === 'rules' ? 'bg-blue-600 text-white shadow-[0_6px_14px_rgba(37,99,235,0.24)]' : 'text-slate-700 hover:bg-white'}`}
+            >
+              <ClipboardList className="h-4 w-4 shrink-0" />
+              <span className="truncate text-xs font-extrabold sm:text-sm">Peraturan</span>
+            </button>
+            </div>
 
-          <div className="border-t border-slate-200 pt-8">
-            <h2 className="mb-3 text-xl font-bold text-slate-900">Peraturan</h2>
-            {event.event_rules?.trim() ? (
-              <p className="text-sm leading-relaxed text-slate-600 sm:text-base whitespace-pre-line">{event.event_rules}</p>
-            ) : (
-              <EmptyState title="Peraturan event belum tersedia." />
-            )}
+            <div role="tabpanel" className="border-t border-slate-200 bg-white p-4 sm:p-6">
+              <h2 className="text-lg font-extrabold text-slate-900 sm:text-xl">{infoTab === 'about' ? 'About Event' : 'Peraturan'}</h2>
+              <div className="mt-3 text-sm leading-relaxed text-slate-700 sm:text-base">
+                {infoTab === 'about' ? (
+                  event.description ? <p className="whitespace-pre-line">{event.description}</p> : <EmptyState title="Informasi tentang event belum tersedia." />
+                ) : (
+                  event.event_rules?.trim() ? <p className="whitespace-pre-line">{event.event_rules}</p> : <EmptyState title="Peraturan event belum tersedia." />
+                )}
+              </div>
+            </div>
           </div>
         </section>
 
