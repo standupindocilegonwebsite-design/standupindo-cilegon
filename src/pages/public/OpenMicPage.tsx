@@ -76,7 +76,7 @@ export function OpenMicPage({ router }: { router: Router }) {
           />
         </div>
 
-        <section data-scroll-reveal className="scroll-reveal">
+        <section data-scroll-reveal className="scroll-reveal is-visible">
           <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-blue-600" /><h2 className="text-xl font-extrabold text-slate-900">Mendatang</h2><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">{upcoming.length}</span></div>
           {loading ? (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"><LoadingSkeleton count={3} /></div>
@@ -89,14 +89,16 @@ export function OpenMicPage({ router }: { router: Router }) {
           )}
         </section>
 
-        {completed.length > 0 && (
-          <section data-scroll-reveal className="scroll-reveal">
-            <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-slate-400" /><h2 className="text-xl font-extrabold text-slate-900">Selesai</h2><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{completed.length}</span></div>
+        <section data-scroll-reveal className="scroll-reveal is-visible border-t border-slate-200 pt-6 sm:pt-8">
+          <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-slate-400" /><h2 className="text-xl font-extrabold text-slate-900">Selesai</h2><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{completed.length}</span></div>
+          {completed.length === 0 ? (
+            <EmptyState title="Belum ada Open Mic yang selesai." description="Riwayat Open Mic akan muncul di sini setelah acaranya selesai." />
+          ) : (
             <div className="grid gap-3 lg:grid-cols-2">
               {completed.map((m) => <OpenMicCard key={m.id} mic={m} confirmedCount={counts[m.id] ?? 0} lineup={lineups[m.id]} router={router} />)}
             </div>
-          </section>
-        )}
+          )}
+        </section>
       </div>
     </div>
   );

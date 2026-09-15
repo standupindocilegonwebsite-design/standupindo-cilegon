@@ -23,6 +23,17 @@ import { CommunityJoinPage } from '@/pages/public/CommunityJoinPage';
 import { EventRegisterPage } from '@/pages/public/EventRegisterPage';
 import { AdminLoginPage } from '@/pages/admin/AdminLoginPage';
 import { AdminPage } from '@/pages/admin/AdminPage';
+import { MemberLoginPage } from '@/pages/member/MemberLoginPage';
+import { MemberDashboardPage } from '@/pages/member/MemberDashboardPage';
+import { MemberProfilePage } from '@/pages/member/MemberProfilePage';
+import { MemberEvaluationPage } from '@/pages/member/MemberEvaluationPage';
+import { MemberMorePage } from '@/pages/member/MemberMorePage';
+import { MemberAccountSettingsPage } from '@/pages/member/MemberAccountSettingsPage';
+import { MemberInfoPage } from '@/pages/member/MemberInfoPage';
+import { EvaluatorDashboardPage } from '@/pages/evaluator/EvaluatorDashboardPage';
+import { MemberBottomNav } from '@/components/nav/MemberBottomNav';
+import { MemberDesktopNav } from '@/components/nav/MemberDesktopNav';
+import { EvaluatorEvaluationPage } from '@/pages/evaluator/EvaluatorEvaluationPage';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 function updateSeo(path: string, siteName: string) {
@@ -31,6 +42,8 @@ function updateSeo(path: string, siteName: string) {
     '/open-mic': `Open Mic — ${siteName}`,
     '/event': `Event — ${siteName}`,
     '/komika': `Komika — ${siteName}`,
+    '/member': `Member — ${siteName}`,
+    '/member/profile': `Profile Member — ${siteName}`,
     '/more': `More — ${siteName}`,
   };
   document.title = titles[path] ?? siteName;
@@ -51,12 +64,87 @@ function ProtectedAdmin({ router, settings }: { router: Router; settings: Return
   return <AdminPage router={router} settings={settings} />;
 }
 
+function ProtectedMember({ router }: { router: Router }) {
+  const { session, loading, isMember } = useAuth();
+
+  useEffect(() => {
+    if (!loading && (!session || !isMember) && router.path !== '/member/login') {
+      router.navigate('/member/login');
+    }
+  }, [loading, session, isMember, router]);
+
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat area member...</div>;
+  if (!session || !isMember) {
+    return <MemberLoginPage router={router} />;
+  }
+
+  if (router.path === '/member') return <MemberDashboardPage router={router} />;
+  const memberOpenMicPath = router.path.replace(/^\/member/, '') || '/';
+  const memberPublicRouter: Router = {
+    ...router,
+    navigate: (to) => router.navigate(to.startsWith('/open-mic') ? `/member${to}` : to),
+  };
+  if (router.path === '/member/open-mic') return <OpenMicPage router={memberPublicRouter} />;
+  const memberOpenMicRegister = matchRoute(memberOpenMicPath, '/open-mic/[slug]/daftar');
+  if (memberOpenMicRegister) return <OpenMicRegisterPage router={memberPublicRouter} slug={memberOpenMicRegister.slug} />;
+  const memberOpenMicDetail = matchRoute(memberOpenMicPath, '/open-mic/[slug]');
+  if (memberOpenMicDetail) return <OpenMicDetailPage router={memberPublicRouter} slug={memberOpenMicDetail.slug} />;
+  if (router.path === '/member/profile') return <MemberProfilePage router={router} />;
+  if (router.path === '/member/evaluations') return <MemberEvaluationPage router={router} />;
+  if (router.path === '/member/more') return <MemberMorePage router={router} />;
+  if (router.path === '/member/settings') return <MemberAccountSettingsPage router={router} />;
+  if (router.path === '/member/roles') return <MemberInfoPage router={router} kind="roles" />;
+  if (router.path === '/member/help') return <MemberInfoPage router={router} kind="help" />;
+
+  return <MemberDashboardPage router={router} />;
+}
+
+function ProtectedEvaluator({ router }: { router: Router }) {
+  const { session, loading, isEvaluator, isAdmin } = useAuth();
+
+  useEffect(() => {
+    if (!loading && (!session || (!isEvaluator && !isAdmin)) && router.path !== '/member/login') {
+      router.navigate('/member/login');
+    }
+  }, [loading, session, isEvaluator, isAdmin, router]);
+
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat area evaluator...</div>;
+  if (!session || (!isEvaluator && !isAdmin)) {
+    return <MemberLoginPage router={router} />;
+  }
+
+  const evaluatorMatch = matchRoute(router.path, '/evaluator/[id]');
+  if (evaluatorMatch) return <EvaluatorEvaluationPage router={router} openMicId={evaluatorMatch.id} />;
+  return <EvaluatorDashboardPage router={router} />;
+}
+
 function RoutedApp() {
   const router = useRouter();
   const { settings } = useSiteSettings();
+  const { session, loading, isMember } = useAuth();
   useEffect(() => { updateSeo(router.path, settings.site_name); }, [router.path, settings.site_name]);
 
   if (router.path.startsWith('/admin')) return <ProtectedAdmin router={router} settings={settings} />;
+  if (router.path === '/member/login' || router.path.startsWith('/member')) {
+    const memberContent = router.path === '/member/login'
+      ? (loading
+        ? <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat area member...</div>
+        : session && isMember
+          ? <ProtectedMember router={router} />
+          : <MemberLoginPage router={router} />)
+      : <ProtectedMember router={router} />;
+
+    return (
+      <>
+        <div className="flex min-h-screen flex-col bg-slate-50">
+          {router.path !== '/member/login' && <MemberDesktopNav router={router} />}
+          <main className="flex-1 pb-safe-nav md:pb-0">{memberContent}</main>
+          {router.path !== '/member/login' && <MemberBottomNav router={router} />}
+        </div>
+      </>
+    );
+  }
+  if (router.path === '/evaluator' || router.path.startsWith('/evaluator/')) return <ProtectedEvaluator router={router} />;
 
   const openMicRegister = matchRoute(router.path, '/open-mic/[slug]/daftar');
   const openMicDetail = matchRoute(router.path, '/open-mic/[slug]');

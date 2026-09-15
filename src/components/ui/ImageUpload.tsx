@@ -10,12 +10,15 @@ interface ImageUploadProps {
   aspect?: 'square' | 'portrait' | 'landscape' | 'auto';
   required?: boolean;
   onUploadingChange?: (uploading: boolean) => void;
+  compact?: boolean;
+  avatar?: boolean;
+  onPreview?: () => void;
 }
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
 
-export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', required = false, onUploadingChange }: ImageUploadProps) {
+export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', required = false, onUploadingChange, compact = false, avatar = false, onPreview }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -73,12 +76,34 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', r
 
   return (
     <div>
-      <label className="label-field">
+      {!avatar && <label className="label-field">
         {label}
         {required && <span className="ml-1 text-red-500">*</span>}
-      </label>
+      </label>}
 
-      {value ? (
+      {avatar ? (
+        <div className="relative h-20 w-20">
+          <button type="button" onClick={() => value && onPreview ? onPreview() : inputRef.current?.click()} disabled={uploading} className="group flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-blue-50 text-blue-600 ring-2 ring-blue-100 transition hover:ring-blue-300 disabled:opacity-60" aria-label={value ? 'Lihat foto profil' : 'Pilih foto profil'}>
+            {value ? <img src={value} alt="Foto profil" className="h-full w-full object-cover" /> : <ImageIcon className="h-8 w-8" />}
+          </button>
+          <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading} className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-md transition hover:bg-blue-700 disabled:opacity-60" aria-label={value ? 'Ganti foto profil' : 'Pilih foto profil'}><Upload className="h-3.5 w-3.5" /></button>
+          {uploading && <span className="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/70"><span className="h-5 w-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" /></span>}
+        </div>
+      ) : compact ? (
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+            {value ? <img src={value} alt="Preview foto profil" className="h-full w-full object-cover" /> : <ImageIcon className="h-6 w-6 text-slate-300" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-700">Foto profil</p>
+            <p className="mt-0.5 text-xs text-slate-500">JPG, PNG, WEBP · Maks. 5 MB</p>
+            <div className="mt-2 flex gap-2">
+              <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-50">{uploading ? 'Mengupload...' : value ? 'Ganti Foto' : 'Upload Foto'}</button>
+              {value && <button type="button" onClick={handleRemove} disabled={uploading} className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:opacity-50">Hapus</button>}
+            </div>
+          </div>
+        </div>
+      ) : value ? (
         <div className="space-y-3">
           <div className={`relative overflow-hidden rounded-xl ring-1 ring-slate-200 ${aspectClass} bg-slate-50`}>
             <img src={value} alt="Preview" className="h-full w-full object-cover" />

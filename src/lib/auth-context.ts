@@ -5,8 +5,12 @@ export interface AuthContextValue {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  roles: string[];
   isAdmin: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  isMember: boolean;
+  isEvaluator: boolean;
+  isAuthenticated: boolean;
+  signIn: (email: string, password: string, options?: { requireRole?: 'admin' | 'member' | 'evaluator' | 'any' }) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 

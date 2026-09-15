@@ -217,14 +217,14 @@ export function OpenMicDetailPage({ router, slug }: Props) {
 
         {/* About */}
         {mic.description && (
-          <section data-scroll-reveal className="scroll-reveal">
+          <section data-scroll-reveal className="scroll-reveal is-visible">
             <h2 className="mb-2 text-lg font-bold text-slate-900 sm:text-xl">Tentang Open Mic</h2>
             <p className="text-sm leading-relaxed text-slate-600 sm:text-base whitespace-pre-line">{mic.description}</p>
           </section>
         )}
 
         {/* Lineup */}
-        <section data-scroll-reveal className="scroll-reveal">
+        <section data-scroll-reveal className="scroll-reveal is-visible">
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-900 sm:text-xl">{currentStatus === 'completed' ? 'Arsip Lineup' : 'Lineup'}</h2>
@@ -266,7 +266,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
 
         {/* Other open mics */}
         {otherMics.length > 0 && (
-          <section data-scroll-reveal className="scroll-reveal border-t border-slate-200 pt-6 sm:pt-8">
+          <section data-scroll-reveal className="scroll-reveal is-visible border-t border-slate-200 pt-6 sm:pt-8">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Open Mic lainnya</h2>
               <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-blue-700 sm:text-[11px]">

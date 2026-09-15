@@ -154,6 +154,7 @@ export interface EventParticipant {
 
 export interface Komika {
   id: string;
+  user_id?: string | null;
   full_name: string;
   whatsapp: string | null;
   stage_name: string;
@@ -168,6 +169,38 @@ export interface Komika {
   featured_order: number | null;
   status: KomikaStatus;
   published: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type EvaluationStatus = 'draft' | 'submitted';
+
+export interface EvaluatorAssignment {
+  id: string;
+  open_mic_id: string;
+  evaluator_user_id: string;
+  assigned_by: string | null;
+  status: 'active' | 'inactive';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Evaluation {
+  id: string;
+  open_mic_id: string;
+  evaluator_user_id: string;
+  performer_registration_id: string;
+  performer_komika_id: string | null;
+  material_score: number | null;
+  punchline_score: number | null;
+  delivery_score: number | null;
+  timing_score: number | null;
+  stage_presence_score: number | null;
+  crowd_interaction_score: number | null;
+  strengths: string | null;
+  improvements: string | null;
+  notes: string | null;
+  status: EvaluationStatus;
   created_at: string;
   updated_at: string;
 }

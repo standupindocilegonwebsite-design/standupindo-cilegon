@@ -2,6 +2,7 @@ import { getOpenMicStatus } from '@/lib/format';
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Mic } from 'lucide-react';
 import type { Router } from '@/lib/router';
+import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -26,9 +27,19 @@ interface FormState {
   notes: string;
 }
 
+interface MemberProfile {
+  id: string;
+  full_name: string;
+  stage_name: string;
+  community: string | null;
+  whatsapp: string | null;
+  instagram_url: string | null;
+}
+
 const EMPTY: FormState = { full_name: '', stage_name: '', community: '', instagram: '', whatsapp: '', notes: '' };
 
 export function OpenMicRegisterPage({ router, slug }: Props) {
+  const { user, isMember } = useAuth();
   const [loading, setLoading] = useState(true);
   const [micId, setMicId] = useState<string | null>(null);
   const [micTitle, setMicTitle] = useState('');
@@ -42,6 +53,8 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
   const [result, setResult] = useState<{ registration_id: string } | null>(null);
   const [serverError, setServerError] = useState('');
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [memberProfile, setMemberProfile] = useState<MemberProfile | null>(null);
+  const [memberOpenMicNumber, setMemberOpenMicNumber] = useState<number | null>(null);
 
   function formatFullName(value: string): string {
     return value.replace(/\s+/g, ' ').replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
@@ -60,7 +73,19 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('open_mics').select('id, title, poster, capacity, registration_status, status, date').eq('slug', slug).eq('published', true).maybeSingle();
+      const [{ data }, { data: profileData }] = await Promise.all([
+        supabase.from('open_mics').select('id, title, poster, capacity, registration_status, status, date').eq('slug', slug).eq('published', true).maybeSingle(),
+        isMember && user?.id
+          ? supabase.from('komika').select('id, full_name, stage_name, whatsapp, instagram_url').eq('user_id', user.id).maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+      const profile = profileData as MemberProfile | null;
+      if (profile) {
+        const { count } = await supabase.from('open_mic_registrations').select('id', { count: 'exact', head: true }).eq('komika_id', profile.id).eq('attendance_status', 'attended');
+        setMemberOpenMicNumber((count ?? 0) + 1);
+        setMemberProfile(profile);
+        setForm((current) => ({ ...current, full_name: profile.full_name, stage_name: profile.stage_name, community: 'Standupindo Cilegon', whatsapp: profile.whatsapp ?? '', instagram: formatInstagramInput(profile.instagram_url ?? '') }));
+      }
       const m = data as { id: string; title: string; poster: string | null; capacity: number; registration_status: string; status: 'upcoming' | 'completed' | 'cancelled'; date: string } | null;
       if (m) {
         setMicId(m.id);
@@ -73,7 +98,11 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
       }
       setLoading(false);
     })();
-  }, [slug]);
+  }, [isMember, slug, user?.id]);
+
+  useEffect(() => {
+    if (memberProfile && micId && !closed && filled < capacity && !result) setReviewOpen(true);
+  }, [capacity, closed, filled, memberProfile, micId, result]);
 
   function validate(): boolean {
     const e: Partial<Record<keyof FormState, string>> = {};
@@ -111,6 +140,7 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
       instagram: form.instagram.trim() || null,
       whatsapp: form.whatsapp.trim() || null,
       notes: form.notes.trim() || null,
+      komika_id: memberProfile?.id ?? null,
       status: 'pending',
     };
 
@@ -204,27 +234,33 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
       <PageHeader router={router} title={`Daftar ${micTitle}`} subtitle="Isi data kamu untuk mendaftar Open Mic." />
       <div className="container-app py-8">
         <div className="mx-auto max-w-xl">
-          <form data-scroll-reveal onSubmit={handleSubmit} className="scroll-reveal card p-6 space-y-5" noValidate>
+          <form data-scroll-reveal onSubmit={handleSubmit} className="scroll-reveal is-visible card p-6 space-y-5" noValidate>
             <div className="flex items-center gap-3 border-b border-slate-100 pb-5">{micPoster ? <img src={micPoster} alt={`Poster ${micTitle}`} className="h-14 w-20 shrink-0 rounded-xl object-cover ring-1 ring-slate-200" /> : <span className="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-blue-100"><img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-9 w-9 object-contain" /></span>}<div className="min-w-0"><h2 className="truncate font-bold text-slate-900">{micTitle}</h2><p className="text-sm text-slate-500">Isi data kamu untuk mendaftar.</p></div></div>
-            <div>
+            {memberProfile ? (
+              <div className="space-y-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-700">Profil pendaftar</p><h3 className="mt-1 text-lg font-black text-slate-900">{memberProfile.stage_name}</h3><p className="text-sm text-slate-600">{memberProfile.full_name}</p></div>
+                <div className="grid gap-2 text-sm sm:grid-cols-2"><div className="rounded-xl bg-white/80 px-3 py-2"><span className="block text-xs text-slate-500">Komunitas</span><strong className="text-slate-800">Standupindo Cilegon</strong></div><div className="rounded-xl bg-white/80 px-3 py-2"><span className="block text-xs text-slate-500">WhatsApp</span><strong className="text-slate-800">{memberProfile.whatsapp || 'Belum diisi'}</strong></div><div className="rounded-xl bg-white/80 px-3 py-2 sm:col-span-2"><span className="block text-xs text-slate-500">Instagram</span><strong className="text-slate-800">{form.instagram || 'Belum diisi'}</strong></div></div>
+                <p className="text-xs leading-5 text-blue-700">Data diambil dari profil member kamu. Periksa kembali sebelum mengirim.</p>
+              </div>
+            ) : <div>
               <label className="label-field" htmlFor="full_name">Nama Lengkap <span className="text-red-500">*</span></label>
               <input id="full_name" type="text" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: formatFullName(e.target.value) })} className="input-field" placeholder="Contoh: Budi Santoso" />
               {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
-            </div>
+            </div>}
 
-            <div>
+            {!memberProfile && <div>
               <label className="label-field" htmlFor="stage_name">Nama Panggung <span className="text-red-500">*</span></label>
               <input id="stage_name" type="text" value={form.stage_name} onChange={(e) => setForm({ ...form, stage_name: e.target.value })} className="input-field" placeholder="Contoh: Budi Ngakak" />
               {errors.stage_name && <p className="mt-1 text-xs text-red-600">{errors.stage_name}</p>}
-            </div>
+            </div>}
 
-            <div>
+            {!memberProfile && <div>
               <label className="label-field" htmlFor="community">Komunitas</label>
               <CommunityCombobox id="community" value={form.community} onChange={(e) => setForm({ ...form, community: e.target.value })} placeholder="Pilih atau ketik komunitas" />
               <CommunityOptions id="community" />
-            </div>
+            </div>}
 
-            <div>
+            {!memberProfile && <div>
               <label className="label-field" htmlFor="instagram">Instagram</label>
               <input
                 id="instagram"
@@ -234,9 +270,9 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
                 className="input-field"
                 placeholder="Contoh: @budisantoso"
               />
-            </div>
+            </div>}
 
-            <div>
+            {!memberProfile && <div>
               <label className="label-field" htmlFor="whatsapp">Nomor WhatsApp <span className="font-normal text-slate-400">(opsional)</span></label>
               <input id="whatsapp" type="tel" inputMode="numeric" pattern="[0-9]*" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value.replace(/\D/g, '') })} className={`input-field ${errors.whatsapp ? '!border-red-400 !ring-1 !ring-red-400' : ''}`} placeholder="Contoh: 082212345678" />
               {errors.whatsapp ? (
@@ -244,12 +280,12 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
               ) : (
                 <p className="mt-1 text-xs text-slate-400">Dianjurkan diisi agar admin lebih mudah mengonfirmasi pendaftaran.</p>
               )}
-            </div>
+            </div>}
 
-            <div>
+            {!memberProfile && <div>
               <label className="label-field" htmlFor="notes">Catatan</label>
               <textarea id="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="input-field min-h-[88px] resize-y" placeholder="Contoh: Materi 5 menit, coba materi baru, pertama kali open mic" />
-            </div>
+            </div>}
 
             {serverError && (
               <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
@@ -271,6 +307,8 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
       <Modal open={reviewOpen} onClose={() => setReviewOpen(false)} title="Periksa Data Pendaftaran" size="md">
         <div className="space-y-4">
           <p className="text-sm text-slate-500">Pastikan data berikut sudah benar sebelum dikirim.</p>
+          {memberProfile && memberOpenMicNumber && <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-blue-600 to-sky-500 px-4 py-4 text-white shadow-[0_12px_28px_rgba(37,99,235,0.2)]"><div className="absolute -right-5 -top-8 h-24 w-24 rounded-full bg-white/10" /><div className="relative flex items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25"><Mic className="h-5 w-5" /></span><div className="min-w-0"><p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-100">Perjalanan Komika</p><p className="mt-1 text-xl font-black leading-tight">Open Mic kamu ke-{memberOpenMicNumber}</p><p className="mt-1 text-xs font-medium text-blue-100">Satu langkah lagi menuju panggung. Gas terus!</p></div></div></div>}
+          {memberProfile && <div><label className="label-field" htmlFor="member-registration-notes">Catatan <span className="font-normal text-slate-400">(opsional)</span></label><textarea id="member-registration-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="input-field min-h-[88px] resize-y" placeholder="Contoh: Materi 5 menit atau coba materi baru" /></div>}
           <div className="review-summary">
             <div className="review-row"><span className="review-label">Nama Lengkap</span><span className="review-value">{form.full_name}</span></div>
             <div className="review-row"><span className="review-label">Nama Panggung</span><span className="review-value">{form.stage_name}</span></div>

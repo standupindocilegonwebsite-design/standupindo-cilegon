@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, BarChart3, Bell, CalendarDays, Check, ChevronRight, Clock3, Eye, EyeOff, FolderOpen, LogOut, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Printer, Search, Settings, Ticket as TicketIcon, Trash2, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, Komika, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
+import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatPrice, getEventStatus, getOpenMicStatus, normalizeWhatsappNumber, slugify, waLink } from '@/lib/format';
@@ -12,10 +12,11 @@ import { ImageUpload } from '@/components/ui/ImageUpload';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
 import { LOGO_URL } from '@/lib/types';
 import { useNotifications } from '@/lib/notification-context';
-import type { NotificationSource } from '@/lib/notification-context';
+import type { NotificationRecord, NotificationSource } from '@/lib/notification-context';
+import { MemberAccountsPage } from '@/pages/admin/MemberAccountsPage';
 
 interface Props { router: Router; settings: SiteSettings; }
-type Section = 'dashboard' | 'open-mic' | 'registrants' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'settings' | 'ticket-orders' | 'more';
+type Section = 'dashboard' | 'open-mic' | 'registrants' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'evaluator' | 'settings' | 'ticket-orders' | 'more';
 
 const NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -23,7 +24,10 @@ const NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
   { key: 'events', label: 'Events', icon: CalendarDays },
   { key: 'applications', label: 'Gabung Komunitas', icon: UserPlus },
   { key: 'komika', label: 'Komika', icon: Users },
+  { key: 'member-accounts', label: 'Akun Member', icon: UserPlus },
   { key: 'partners', label: 'Partners', icon: Users },
+  { key: 'evaluator', label: 'Evaluator', icon: Users },
+  { key: 'ticket-orders', label: 'Data Penonton', icon: TicketIcon },
   { key: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -207,6 +211,7 @@ export function AdminPage({ router, settings }: Props) {
   const [eventPartnerships, setEventPartnerships] = useState<EventPartnership[]>([]);
   const [communityApplications, setCommunityApplications] = useState<CommunityApplication[]>([]);
   const [ticketOrders, setTicketOrders] = useState<TicketOrder[]>([]);
+  const [evaluatorAssignments, setEvaluatorAssignments] = useState<EvaluatorAssignment[]>([]);
   const [eventPendingCounts, setEventPendingCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<'open-mic' | 'event' | 'komika' | 'partner' | null>(null);
@@ -218,7 +223,7 @@ export function AdminPage({ router, settings }: Props) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [m, r, e, k, a, p, pt, ep, to] = await Promise.all([
+    const [m, r, e, k, a, p, pt, ep, to, ea] = await Promise.all([
       supabase.from('open_mics').select('*').order('date', { ascending: false }),
       supabase.from('open_mic_registrations').select('*').order('created_at', { ascending: false }),
       supabase.from('events').select('*').order('date', { ascending: false }),
@@ -228,6 +233,7 @@ export function AdminPage({ router, settings }: Props) {
       supabase.from('partners').select('*').order('sort_order', { ascending: true }).order('name', { ascending: true }),
       supabase.from('event_partnerships').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
       supabase.from('ticket_orders').select('*').order('created_at', { ascending: false }),
+      supabase.from('evaluator_assignments').select('*').order('created_at', { ascending: false }),
     ]);
     const komikaRows = ((k.data as Komika[]) ?? []).sort((a, b) => {
       const aOrder = a.featured_order ?? Number.MAX_SAFE_INTEGER;
@@ -245,6 +251,7 @@ export function AdminPage({ router, settings }: Props) {
     setEventPartnerships((ep.data as EventPartnership[]) ?? []);
     setCommunityApplications((a.data as CommunityApplication[]) ?? []);
     setTicketOrders((to.data as TicketOrder[]) ?? []);
+    setEvaluatorAssignments((ea.data as EvaluatorAssignment[]) ?? []);
     const pendingByEvent: Record<string, number> = {};
     (p.data as { event_id: string; status: ApplicationStatus }[] ?? []).forEach((participant) => {
       if (participant.status === 'pending') pendingByEvent[participant.event_id] = (pendingByEvent[participant.event_id] ?? 0) + 1;
@@ -412,7 +419,9 @@ export function AdminPage({ router, settings }: Props) {
           {section === 'events' && <EventManagement rows={events} loading={loading} pendingCounts={eventPendingCounts} onAdd={() => { setEditing(null); setModal('event'); }} onEdit={(row) => { setEditing(row); setModal('event'); }} onDelete={(id) => deleteRow('events', id)} onTogglePublish={(id, val) => togglePublish('events', id, val)} onManageTickets={(row) => setTicketEvent(row)} onManagePartnerships={(row) => setPartnershipEvent(row)} onViewParticipants={(row) => router.navigate(`/admin/event-pendaftar/${row.id}`)} />}
           {section === 'applications' && <ApplicationsView community={communityApplications} onNotice={setNotice} onReload={load} />}
           {section === 'komika' && <KomikaManagement rows={komika} registrations={registrations} openMics={openMics} attendanceCounts={komikaAttendanceCounts} loading={loading} onReload={load} onAdd={() => { setEditing(null); setModal('komika'); }} onEdit={(row) => { setEditing(row); setModal('komika'); }} onDelete={(id) => deleteRow('komika', id)} />}
+          {section === 'member-accounts' && <MemberAccountsPage komika={komika} onNotice={setNotice} />}
           {section === 'partners' && <PartnerManagement rows={partners} events={events} partnerships={eventPartnerships} loading={loading} onAdd={() => { setEditing(null); setModal('partner'); }} onEdit={(row) => { setEditing(row); setModal('partner'); }} onDelete={(id) => deleteRow('partners', id)} onTogglePublish={(id, current) => togglePublish('partners', id, current)} />}
+          {section === 'evaluator' && <EvaluatorAssignmentView openMics={openMics} komika={komika} assignments={evaluatorAssignments} currentUserId={user?.id ?? null} onReload={load} onNotice={setNotice} />}
           {section === 'ticket-orders' && <TicketOrdersPage orders={ticketOrders} events={events} loading={loading} onStatusChange={updateTicketOrderStatus} onDelete={deleteTicketOrder} />}
           {section === 'settings' && <SettingsPanel settings={settings} onSaved={load} onNotice={setNotice} />}
           {section === 'more' && <MorePage onNavigate={navigateSection} onSignOut={async () => { await signOut(); router.navigate('/admin/login'); }} onViewWebsite={() => router.navigate('/')} ticketOrderUnreadCount={notificationCounts['ticket-orders']} />}
@@ -2180,10 +2189,128 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }:
   );
 }
 
+function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId, onReload, onNotice }: { openMics: OpenMic[]; komika: Komika[]; assignments: EvaluatorAssignment[]; currentUserId: string | null; onReload: () => Promise<void>; onNotice: (message: string) => void }) {
+  const [openMicId, setOpenMicId] = useState<string>('');
+  const [evaluatorUserId, setEvaluatorUserId] = useState('');
+  const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  const [saving, setSaving] = useState(false);
+  const evaluatorProfiles = komika.filter((profile) => profile.user_id);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!openMicId.trim() || !evaluatorUserId.trim()) {
+      onNotice('Pilih Open Mic dan nama evaluator.');
+      return;
+    }
+
+    setSaving(true);
+    const { error } = await supabase.from('evaluator_assignments').insert({
+      open_mic_id: openMicId,
+      evaluator_user_id: evaluatorUserId,
+      assigned_by: currentUserId,
+      status,
+    });
+    setSaving(false);
+
+    if (error) {
+      onNotice('Gagal menambah assignment evaluator: ' + error.message);
+      return;
+    }
+
+    setOpenMicId('');
+    setEvaluatorUserId('');
+    setStatus('active');
+    onNotice('Assignment evaluator berhasil disimpan.');
+    await onReload();
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm('Hapus assignment evaluator ini?')) return;
+    const { error } = await supabase.from('evaluator_assignments').delete().eq('id', id);
+    if (error) {
+      onNotice('Gagal menghapus assignment evaluator.');
+      return;
+    }
+    onNotice('Assignment evaluator berhasil dihapus.');
+    await onReload();
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-extrabold text-slate-900">Evaluator Assignment</h1>
+        <p className="mt-1 text-sm text-slate-500">Tetapkan evaluator ke Open Mic berdasarkan profil komika yang sudah terhubung ke akun.</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="md:col-span-1">
+            <label className="label-field" htmlFor="eval-open-mic">Open Mic</label>
+            <select id="eval-open-mic" value={openMicId} onChange={(e) => setOpenMicId(e.target.value)} className="input-field">
+              <option value="">Pilih Open Mic</option>
+              {openMics.map((mic) => <option key={mic.id} value={mic.id}>{mic.title}</option>)}
+            </select>
+          </div>
+
+          <div className="md:col-span-1">
+            <label className="label-field" htmlFor="eval-komika">Evaluator</label>
+            <select id="eval-komika" value={evaluatorUserId} onChange={(e) => setEvaluatorUserId(e.target.value)} className="input-field">
+              <option value="">Pilih nama komika</option>
+              {evaluatorProfiles.map((profile) => <option key={profile.id} value={profile.user_id ?? ''}>{profile.stage_name} · {profile.full_name}</option>)}
+            </select>
+            {evaluatorProfiles.length === 0 && <p className="mt-1.5 text-xs text-amber-600">Belum ada profil komika yang terhubung ke akun member.</p>}
+          </div>
+
+          <div className="md:col-span-1">
+            <label className="label-field" htmlFor="eval-status">Status</label>
+            <select id="eval-status" value={status} onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')} className="input-field">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <button type="submit" disabled={saving} className="btn-primary">
+            {saving ? 'Menyimpan...' : 'Simpan Assignment'}
+          </button>
+        </div>
+      </form>
+
+      <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
+        <h2 className="text-lg font-extrabold text-slate-900">Daftar assignment</h2>
+        <div className="mt-4 space-y-3">
+          {assignments.length === 0 ? (
+            <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Belum ada assignment evaluator.</div>
+          ) : assignments.map((assignment) => {
+            const mic = openMics.find((row) => row.id === assignment.open_mic_id);
+            return (
+              <div key={assignment.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-bold text-slate-900">{mic?.title ?? 'Open Mic tidak ditemukan'}</p>
+                  <p className="mt-1 text-xs text-slate-500">Evaluator: {komika.find((profile) => profile.user_id === assignment.evaluator_user_id)?.stage_name ?? 'Profil komika tidak ditemukan'}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${assignment.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}>
+                    {assignment.status}
+                  </span>
+                  <button onClick={() => void handleDelete(assignment.id)} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700">Hapus</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MorePage({ onNavigate, onSignOut, onViewWebsite, ticketOrderUnreadCount }: { onNavigate: (s: Section) => void; onSignOut: () => void; onViewWebsite: () => void; ticketOrderUnreadCount: number }) {
   const items: { label: string; icon: typeof BarChart3; onClick: () => void; section?: Section; badge?: number }[] = [
     { label: 'Gabung Komunitas', icon: UserPlus, onClick: () => onNavigate('applications'), section: 'applications' },
     { label: 'Data Penonton', icon: TicketIcon, onClick: () => onNavigate('ticket-orders'), section: 'ticket-orders', badge: ticketOrderUnreadCount },
+    { label: 'Akun Member', icon: UserPlus, onClick: () => onNavigate('member-accounts'), section: 'member-accounts' },
+    { label: 'Evaluator', icon: Users, onClick: () => onNavigate('evaluator'), section: 'evaluator' },
     { label: 'Settings', icon: Settings, onClick: () => onNavigate('settings'), section: 'settings' },
     { label: 'Lihat Website', icon: ExternalLink, onClick: onViewWebsite },
   ];

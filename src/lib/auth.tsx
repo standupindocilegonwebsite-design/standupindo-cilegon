@@ -3,12 +3,41 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { AuthContext } from './auth-context';
 
-type AdminRole = string | null;
+type RoleRequirement = 'admin' | 'member' | 'evaluator' | 'any';
 
-function readAdminRole(user: User | null): AdminRole {
-  const meta = user?.app_metadata as Record<string, unknown> | undefined;
-  if (meta && typeof meta.role === 'string') return meta.role;
-  return null;
+type RoleSource = string | string[] | undefined;
+
+function readUserRoles(user: User | null): string[] {
+  const meta = (user?.app_metadata ?? {}) as Record<string, unknown>;
+  const candidates: RoleSource[] = [meta.role, meta.roles, meta.user_roles];
+  const roles = new Set<string>();
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const cleaned = candidate.trim().toLowerCase();
+      if (cleaned) roles.add(cleaned);
+      continue;
+    }
+
+    if (Array.isArray(candidate)) {
+      candidate.forEach((entry) => {
+        if (typeof entry === 'string') {
+          const cleaned = entry.trim().toLowerCase();
+          if (cleaned) roles.add(cleaned);
+        }
+      });
+    }
+  }
+
+  return Array.from(roles);
+}
+
+function matchesRequiredRole(roles: string[], requiredRole: RoleRequirement): boolean {
+  if (requiredRole === 'any') return true;
+  if (requiredRole === 'admin') return roles.includes('admin');
+  if (requiredRole === 'member') return roles.includes('member') || roles.includes('evaluator') || roles.includes('admin');
+  if (requiredRole === 'evaluator') return roles.includes('evaluator') || roles.includes('admin');
+  return true;
 }
 
 function mapAuthError(message: string): string {
@@ -39,19 +68,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const user = session?.user ?? null;
-  const adminRole = readAdminRole(user);
-  const isAdmin = adminRole === 'admin';
+  const roles = readUserRoles(user);
+  const isAdmin = roles.includes('admin');
+  const isEvaluator = roles.includes('evaluator');
+  const isMember = roles.includes('member') || isEvaluator || isAdmin;
+  const isAuthenticated = Boolean(session);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, options: { requireRole?: RoleRequirement } = {}) => {
+    const requiredRole = options.requireRole ?? 'any';
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      console.error('admin sign-in failed', error.message);
+      console.error('sign-in failed', error.message);
       return { error: mapAuthError(error.message) };
     }
-    if (readAdminRole(data.user) !== 'admin') {
+
+    const nextRoles = readUserRoles(data.user);
+    if (!matchesRequiredRole(nextRoles, requiredRole)) {
       await supabase.auth.signOut();
-      return { error: 'Login berhasil, tetapi akun ini belum memiliki akses admin. Hubungi administrator.' };
+      if (requiredRole === 'admin') {
+        return { error: 'Login berhasil, tetapi akun ini belum memiliki akses admin. Hubungi administrator.' };
+      }
+      if (requiredRole === 'member') {
+        return { error: 'Login berhasil, tetapi akun ini belum memiliki akses member. Hubungi administrator.' };
+      }
+      if (requiredRole === 'evaluator') {
+        return { error: 'Login berhasil, tetapi akun ini belum memiliki akses evaluator. Hubungi administrator.' };
+      }
+      return { error: 'Login berhasil, tetapi akun ini tidak memiliki izin akses yang cukup.' };
     }
+
     setSession(data.session);
     return { error: null };
   };
@@ -62,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, isAdmin, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, roles, isAdmin, isMember, isEvaluator, isAuthenticated, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
