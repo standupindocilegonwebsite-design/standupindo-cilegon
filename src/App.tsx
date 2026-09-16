@@ -50,15 +50,15 @@ function updateSeo(path: string, siteName: string) {
 }
 
 function ProtectedAdmin({ router, settings }: { router: Router; settings: ReturnType<typeof useSiteSettings>['settings'] }) {
-  const { session, loading, isAdmin } = useAuth();
+  const { session, loading, isAdminApp } = useAuth();
   useEffect(() => {
-    if (!loading && (!session || !isAdmin) && router.path !== '/admin/login') {
+    if (!loading && (!session || !isAdminApp) && router.path !== '/admin/login') {
       router.navigate('/admin/login');
     }
-  }, [loading, session, isAdmin, router]);
+  }, [loading, session, isAdminApp, router]);
 
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat panel admin...</div>;
-  if (!session || !isAdmin) {
+  if (!session || !isAdminApp) {
     return <AdminLoginPage router={router} />;
   }
   return <AdminPage router={router} settings={settings} />;

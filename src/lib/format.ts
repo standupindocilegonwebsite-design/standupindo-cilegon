@@ -36,7 +36,7 @@ export function normalizeWhatsappNumber(number: string): string {
 export function waLink(number: string, message?: string): string {
   const clean = normalizeWhatsappNumber(number);
   if (!clean) return '#';
-  const text = message ? `?text=${encodeURIComponent(message)}` : '';
+  const text = `?text=${encodeURIComponent(message ?? 'Halo Admin Standupindo Cilegon, saya ingin menghubungi terkait pendaftaran Open Mic.')}`;
   return `https://wa.me/${clean}${text}`;
 }
 

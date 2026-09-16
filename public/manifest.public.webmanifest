@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "Stand Up Indo Cilegon",
+  "short_name": "Stand Up Indo",
+  "description": "Komunitas stand-up comedy di Cilegon.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0a1a3b",
+  "icons": [
+    {
+      "src": "/assets/images/pwa-public.png",
+      "sizes": "448x448",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

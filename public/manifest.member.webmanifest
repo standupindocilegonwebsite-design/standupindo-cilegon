@@ -1,0 +1,19 @@
+{
+  "id": "/member",
+  "name": "Stand Up Indo Cilegon Member",
+  "short_name": "Stand Up Member",
+  "description": "Member Area Stand Up Indo Cilegon.",
+  "start_url": "/member/login",
+  "scope": "/member/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/assets/images/pwa-member.png",
+      "sizes": "448x448",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

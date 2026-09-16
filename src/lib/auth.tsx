@@ -88,6 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const user = session?.user ?? null;
   const roles = readUserRoles(user);
   const isAdmin = roles.includes('admin');
+  const isOpenMicAdmin = roles.includes('open_mic_admin');
+  const isEventAdmin = roles.includes('event_admin');
+  const isAdminApp = isAdmin || isOpenMicAdmin || isEventAdmin;
   const isEvaluator = roles.includes('evaluator');
   const isMember = roles.includes('member') || isEvaluator || isAdmin;
   const isAuthenticated = Boolean(session);
@@ -125,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, roles, isAdmin, isMember, isEvaluator, isAuthenticated, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, roles, isAdmin, isAdminApp, isOpenMicAdmin, isEventAdmin, isMember, isEvaluator, isAuthenticated, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

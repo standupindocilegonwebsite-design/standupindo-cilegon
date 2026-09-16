@@ -39,36 +39,44 @@ function updateAppBadge(count: number) {
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isOpenMicAdmin, isEventAdmin } = useAuth();
+  const activeSources = useMemo<NotificationSource[]>(() => isAdmin
+    ? SOURCES
+    : isOpenMicAdmin
+      ? ['open-mic']
+      : isEventAdmin
+        ? ['ticket-orders', 'event-participants']
+        : [], [isAdmin, isEventAdmin, isOpenMicAdmin]);
   const [records, setRecords] = useState<Map<string, NotificationRecord>>(new Map());
   const [revision, setRevision] = useState(0);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
 
   const resync = useCallback(async () => {
-    if (!isAdmin) {
+    if (activeSources.length === 0) {
       setRecords(new Map());
       return;
     }
-    const results = await Promise.all([
-      supabase.from('ticket_orders').select('id, status'),
-      supabase.from('open_mic_registrations').select('id, status'),
-      supabase.from('event_participants').select('id, status'),
-      supabase.from('community_applications').select('id, status'),
-    ]);
+    const results = await Promise.all(activeSources.map((source) => source === 'ticket-orders'
+      ? supabase.from('ticket_orders').select('id, status')
+      : source === 'open-mic'
+        ? supabase.from('open_mic_registrations').select('id, status')
+        : source === 'event-participants'
+          ? supabase.from('event_participants').select('id, status')
+          : supabase.from('community_applications').select('id, status')));
     if (results.some((result) => result.error)) return;
     const next = new Map<string, NotificationRecord>();
     results.forEach((result, index) => {
-      const source = SOURCES[index];
+      const source = activeSources[index];
       (result.data as { id: string; status: string }[]).forEach((row) => {
         if (isAttentionStatus(source, row.status) && !isRead(source, row.id)) next.set(`${source}:${row.id}`, { ...row, source });
       });
     });
     setRecords(next);
     setRevision((value) => value + 1);
-  }, [isAdmin]);
+  }, [activeSources, isAdmin]);
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (activeSources.length === 0) {
       setRecords(new Map());
       setRealtimeConnected(false);
       return;
@@ -88,25 +96,24 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
 
     void resync();
-    const channel = supabase
-      .channel('global-admin-notifications')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ticket_orders' }, (payload) => {
+    const channel = supabase.channel(`admin-notifications-${activeSources.join('-')}`);
+    if (activeSources.includes('ticket-orders')) channel.on('postgres_changes', { event: '*', schema: 'public', table: 'ticket_orders' }, (payload) => {
         applyRow('ticket-orders', (payload.eventType === 'DELETE' ? payload.old : payload.new) as { id: string; status: string });
         broadcast?.postMessage({ type: 'notification-changed' });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'open_mic_registrations' }, (payload) => {
+      });
+    if (activeSources.includes('open-mic')) channel.on('postgres_changes', { event: '*', schema: 'public', table: 'open_mic_registrations' }, (payload) => {
         applyRow('open-mic', (payload.eventType === 'DELETE' ? payload.old : payload.new) as { id: string; status: string });
         broadcast?.postMessage({ type: 'notification-changed' });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_participants' }, (payload) => {
+      });
+    if (activeSources.includes('event-participants')) channel.on('postgres_changes', { event: '*', schema: 'public', table: 'event_participants' }, (payload) => {
         applyRow('event-participants', (payload.eventType === 'DELETE' ? payload.old : payload.new) as { id: string; status: string });
         broadcast?.postMessage({ type: 'notification-changed' });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'community_applications' }, (payload) => {
+      });
+    if (activeSources.includes('applications')) channel.on('postgres_changes', { event: '*', schema: 'public', table: 'community_applications' }, (payload) => {
         applyRow('applications', (payload.eventType === 'DELETE' ? payload.old : payload.new) as { id: string; status: string });
         broadcast?.postMessage({ type: 'notification-changed' });
-      })
-      .subscribe((status) => setRealtimeConnected(status === 'SUBSCRIBED'));
+      });
+    channel.subscribe((status) => setRealtimeConnected(status === 'SUBSCRIBED'));
 
     const onBroadcast = (event: MessageEvent<{ type?: string }>) => {
       if (event.data?.type === 'notification-changed' || event.data?.type === 'notification-read') void resync();
@@ -119,7 +126,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       void supabase.removeChannel(channel);
       setRealtimeConnected(false);
     };
-  }, [isAdmin, resync]);
+  }, [activeSources, isAdmin, resync]);
 
   const markAsRead = useCallback(async (source: NotificationSource, id: string) => {
     const stored = readStoredIds();

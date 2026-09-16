@@ -1,0 +1,19 @@
+{
+  "id": "/admin",
+  "name": "Stand Up Indo Cilegon Admin",
+  "short_name": "Stand Up Admin",
+  "description": "Workspace operasional Stand Up Indo Cilegon.",
+  "start_url": "/admin/login",
+  "scope": "/admin/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0a1a3b",
+  "icons": [
+    {
+      "src": "/assets/images/pwa-admin.png",
+      "sizes": "448x448",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

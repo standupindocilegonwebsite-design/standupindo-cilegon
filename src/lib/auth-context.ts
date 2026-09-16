@@ -7,6 +7,9 @@ export interface AuthContextValue {
   loading: boolean;
   roles: string[];
   isAdmin: boolean;
+  isAdminApp: boolean;
+  isOpenMicAdmin: boolean;
+  isEventAdmin: boolean;
   isMember: boolean;
   isEvaluator: boolean;
   isAuthenticated: boolean;

@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+.open-mic-roster-pendaftar section > div:first-child .bg-emerald-50 {
+  display: none;
+}
+
+.open-mic-roster-pendaftar section > div:first-child .bg-slate-100 {
+  display: none;
+}
+
 @layer base {
   :root {
     --brand-navy: #0B1F44;
