@@ -13,7 +13,7 @@ export interface AuthContextValue {
   isMember: boolean;
   isEvaluator: boolean;
   isAuthenticated: boolean;
-  signIn: (email: string, password: string, options?: { requireRole?: 'admin' | 'member' | 'evaluator' | 'any' }) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string, options?: { requireRole?: 'admin-app' | 'admin' | 'member' | 'evaluator' | 'any' }) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 

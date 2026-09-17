@@ -3,7 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { AuthContext } from './auth-context';
 
-type RoleRequirement = 'admin' | 'member' | 'evaluator' | 'any';
+type RoleRequirement = 'admin-app' | 'admin' | 'member' | 'evaluator' | 'any';
 
 type RoleSource = string | string[] | undefined;
 
@@ -38,8 +38,9 @@ function readUserRoles(user: User | null): string[] {
 
 function matchesRequiredRole(roles: string[], requiredRole: RoleRequirement): boolean {
   if (requiredRole === 'any') return true;
+  if (requiredRole === 'admin-app') return roles.includes('admin') || roles.includes('open_mic_admin') || roles.includes('event_admin');
   if (requiredRole === 'admin') return roles.includes('admin');
-  if (requiredRole === 'member') return roles.includes('member') || roles.includes('evaluator') || roles.includes('admin');
+  if (requiredRole === 'member') return roles.includes('member') || roles.includes('evaluator');
   if (requiredRole === 'evaluator') return roles.includes('evaluator') || roles.includes('admin');
   return true;
 }
@@ -59,10 +60,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let sessionResolved = false;
+    const sessionTimeout = window.setTimeout(() => {
+      if (sessionResolved) return;
+      sessionResolved = true;
+      console.error('timed out while restoring auth session');
+      setSession(null);
+      setLoading(false);
+    }, 3000);
+
     supabase.auth.getSession()
-      .then(({ data }) => setSession(data.session))
-      .catch((error) => console.error('failed to restore auth session', error))
-      .finally(() => setLoading(false));
+      .then(({ data }) => {
+        if (sessionResolved) return;
+        sessionResolved = true;
+        setSession(data.session);
+        setLoading(false);
+        window.clearTimeout(sessionTimeout);
+      })
+      .catch((error) => {
+        console.error('failed to restore auth session', error);
+        setLoading(false);
+      })
+      .finally(() => {
+        if (sessionResolved) return;
+        sessionResolved = true;
+        window.clearTimeout(sessionTimeout);
+        setLoading(false);
+      });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
       (async () => { setSession(sess); })();
@@ -70,7 +94,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const refreshRoleSession = () => {
       if (document.visibilityState === 'visible') {
-        void supabase.auth.refreshSession().catch((error) => console.error('failed to refresh auth session', error));
+        void supabase.auth.getSession()
+          .then(({ data }) => data.session ? supabase.auth.refreshSession() : null)
+          .catch((error) => console.error('failed to refresh auth session', error));
       }
     };
     const refreshInterval = window.setInterval(refreshRoleSession, 30000);
@@ -79,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       sub.subscription.unsubscribe();
+      window.clearTimeout(sessionTimeout);
       window.clearInterval(refreshInterval);
       document.removeEventListener('visibilitychange', refreshRoleSession);
       window.removeEventListener('focus', refreshRoleSession);
@@ -109,8 +136,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (requiredRole === 'admin') {
         return { error: 'Login berhasil, tetapi akun ini belum memiliki akses admin. Hubungi administrator.' };
       }
+      if (requiredRole === 'admin-app') {
+        return { error: 'Akun Member tidak dapat masuk ke halaman Admin. Gunakan halaman Login Member.' };
+      }
       if (requiredRole === 'member') {
-        return { error: 'Login berhasil, tetapi akun ini belum memiliki akses member. Hubungi administrator.' };
+        return { error: 'Akun Admin tidak dapat masuk ke halaman Member. Gunakan halaman Login Admin.' };
       }
       if (requiredRole === 'evaluator') {
         return { error: 'Login berhasil, tetapi akun ini belum memiliki akses evaluator. Hubungi administrator.' };

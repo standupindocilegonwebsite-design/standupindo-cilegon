@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { Router } from '@/lib/router';
 import { useRouter, matchRoute } from '@/lib/router';
 import { useSiteSettings } from '@/lib/useSiteSettings';
@@ -51,13 +51,24 @@ function updateSeo(path: string, siteName: string) {
 
 function ProtectedAdmin({ router, settings }: { router: Router; settings: ReturnType<typeof useSiteSettings>['settings'] }) {
   const { session, loading, isAdminApp } = useAuth();
+  const [authWaitExpired, setAuthWaitExpired] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setAuthWaitExpired(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setAuthWaitExpired(true), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [loading]);
   useEffect(() => {
     if (!loading && (!session || !isAdminApp) && router.path !== '/admin/login') {
       router.navigate('/admin/login');
     }
   }, [loading, session, isAdminApp, router]);
 
-  if (loading) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat panel admin...</div>;
+  if (loading && !authWaitExpired) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat panel admin...</div>;
   if (!session || !isAdminApp) {
     return <AdminLoginPage router={router} />;
   }
@@ -66,6 +77,17 @@ function ProtectedAdmin({ router, settings }: { router: Router; settings: Return
 
 function ProtectedMember({ router }: { router: Router }) {
   const { session, loading, isMember } = useAuth();
+  const [authWaitExpired, setAuthWaitExpired] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setAuthWaitExpired(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setAuthWaitExpired(true), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [loading]);
 
   useEffect(() => {
     if (!loading && (!session || !isMember) && router.path !== '/member/login') {
@@ -73,7 +95,7 @@ function ProtectedMember({ router }: { router: Router }) {
     }
   }, [loading, session, isMember, router]);
 
-  if (loading) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat area member...</div>;
+  if (loading && !authWaitExpired) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat area member...</div>;
   if (!session || !isMember) {
     return <MemberLoginPage router={router} />;
   }
@@ -101,6 +123,17 @@ function ProtectedMember({ router }: { router: Router }) {
 
 function ProtectedEvaluator({ router }: { router: Router }) {
   const { session, loading, isEvaluator, isAdmin } = useAuth();
+  const [authWaitExpired, setAuthWaitExpired] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setAuthWaitExpired(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setAuthWaitExpired(true), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [loading]);
 
   useEffect(() => {
     if (!loading && (!session || (!isEvaluator && !isAdmin)) && router.path !== '/member/login') {
@@ -108,7 +141,7 @@ function ProtectedEvaluator({ router }: { router: Router }) {
     }
   }, [loading, session, isEvaluator, isAdmin, router]);
 
-  if (loading) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat area evaluator...</div>;
+  if (loading && !authWaitExpired) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat area evaluator...</div>;
   if (!session || (!isEvaluator && !isAdmin)) {
     return <MemberLoginPage router={router} />;
   }
@@ -144,7 +177,15 @@ function RoutedApp() {
       </>
     );
   }
-  if (router.path === '/evaluator' || router.path.startsWith('/evaluator/')) return <ProtectedEvaluator router={router} />;
+  if (router.path === '/evaluator' || router.path.startsWith('/evaluator/')) {
+    return (
+      <div className="flex min-h-screen flex-col bg-slate-50">
+        <MemberDesktopNav router={router} />
+        <main className="flex-1 pb-safe-nav md:pb-0"><ProtectedEvaluator router={router} /></main>
+        <MemberBottomNav router={router} />
+      </div>
+    );
+  }
 
   const openMicRegister = matchRoute(router.path, '/open-mic/[slug]/daftar');
   const openMicDetail = matchRoute(router.path, '/open-mic/[slug]');

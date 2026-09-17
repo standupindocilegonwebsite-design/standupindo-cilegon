@@ -53,6 +53,7 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
   const [result, setResult] = useState<{ registration_id: string } | null>(null);
   const [serverError, setServerError] = useState('');
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [alreadyRegisteredOpen, setAlreadyRegisteredOpen] = useState(false);
   const [memberProfile, setMemberProfile] = useState<MemberProfile | null>(null);
   const [memberOpenMicNumber, setMemberOpenMicNumber] = useState<number | null>(null);
 
@@ -124,34 +125,47 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
   async function confirmSubmit() {
     setSubmitting(true);
 
-    // Generate registration id: OM<seq>-<4digit>
-    const { data: seqData } = await supabase.rpc('next_open_mic_reg_seq');
-    const seq = (seqData as number) ?? 1;
-    const seqPadded = String(seq).padStart(4, '0');
-    const omNum = micTitle.match(/#?(\d+)/)?.[1] ?? '00';
-    const registrationId = `OM${omNum}-${seqPadded}`;
-
-    const payload = {
-      registration_id: registrationId,
-      open_mic_id: micId,
-      full_name: form.full_name.trim(),
-      stage_name: form.stage_name.trim(),
-      community: form.community.trim() || null,
-      instagram: form.instagram.trim() || null,
-      whatsapp: form.whatsapp.trim() || null,
-      notes: form.notes.trim() || null,
-      komika_id: memberProfile?.id ?? null,
-      status: 'pending',
-    };
-
-    const { error } = await supabase.from('open_mic_registrations').insert(payload);
-    setSubmitting(false);
-    setReviewOpen(false);
-    if (error) {
-      setServerError('Terjadi kesalahan saat mengirim pendaftaran. Silakan coba lagi.');
+    if (memberProfile) {
+      const { data: memberRegistrationId, error: memberRegistrationError } = await supabase.rpc('register_member_open_mic', {
+        p_open_mic_id: micId,
+        p_notes: form.notes.trim() || null,
+      });
+      setSubmitting(false);
+      setReviewOpen(false);
+      if (memberRegistrationError) {
+        console.error('failed to submit member Open Mic registration', memberRegistrationError);
+        if (memberRegistrationError.message.includes('sudah terdaftar')) {
+          setAlreadyRegisteredOpen(true);
+        } else {
+          setServerError('Terjadi kesalahan saat mengirim pendaftaran. Silakan coba lagi.');
+        }
+        return;
+      }
+      setResult({ registration_id: String(memberRegistrationId) });
       return;
     }
-    setResult({ registration_id: registrationId });
+
+    const { data: publicRegistrationId, error: publicRegistrationError } = await supabase.rpc('register_public_open_mic', {
+      p_open_mic_id: micId,
+      p_full_name: form.full_name.trim(),
+      p_stage_name: form.stage_name.trim(),
+      p_community: form.community.trim() || null,
+      p_instagram: form.instagram.trim() || null,
+      p_whatsapp: form.whatsapp.trim() || null,
+      p_notes: form.notes.trim() || null,
+    });
+    setSubmitting(false);
+    setReviewOpen(false);
+    if (publicRegistrationError) {
+      console.error('failed to submit public Open Mic registration', publicRegistrationError);
+      if (publicRegistrationError.message.includes('sudah terdaftar')) {
+        setAlreadyRegisteredOpen(true);
+      } else {
+        setServerError('Terjadi kesalahan saat mengirim pendaftaran. Silakan coba lagi.');
+      }
+      return;
+    }
+    setResult({ registration_id: String(publicRegistrationId) });
   }
 
   if (loading) {
@@ -231,7 +245,7 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader router={router} title={`Daftar ${micTitle}`} subtitle="Isi data kamu untuk mendaftar Open Mic." />
+      <PageHeader router={router} title={`Daftar ${micTitle}`} subtitle={memberProfile ? 'Daftar langsung menggunakan profil member kamu.' : 'Isi data kamu untuk mendaftar Open Mic.'} />
       <div className="container-app py-8">
         <div className="mx-auto max-w-xl">
           <form data-scroll-reveal onSubmit={handleSubmit} className="scroll-reveal is-visible card p-6 space-y-5" noValidate>
@@ -298,7 +312,7 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
               {submitting ? (
                 <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Memproses...</>
               ) : (
-                <><Mic className="h-5 w-5" /> Kirim Pendaftaran</>
+                <><Mic className="h-5 w-5" /> {memberProfile ? 'Daftar dengan Profil Member' : 'Kirim Pendaftaran'}</>
               )}
             </button>
           </form>
@@ -322,6 +336,18 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
             <button type="button" onClick={() => setReviewOpen(false)} disabled={submitting} className="btn-secondary flex-1">Edit Data</button>
             <button type="button" onClick={() => { void confirmSubmit(); }} disabled={submitting} className="btn-primary flex-1">{submitting ? 'Mengirim...' : 'Kirim Pendaftaran'}</button>
           </div>
+        </div>
+      </Modal>
+      <Modal open={alreadyRegisteredOpen} onClose={() => setAlreadyRegisteredOpen(false)} title="Sudah Terdaftar" size="sm">
+        <div className="space-y-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+            <CheckCircle2 className="h-6 w-6" />
+          </div>
+          <div>
+            <h3 className="text-lg font-extrabold text-slate-900">Kamu sudah terdaftar di Open Mic ini</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-500">Pendaftaran kamu masih menunggu konfirmasi admin atau sudah masuk ke lineup.</p>
+          </div>
+          <button type="button" onClick={() => router.navigate(`/open-mic/${slug}`)} className="btn-primary w-full">Lihat Detail Open Mic</button>
         </div>
       </Modal>
     </div>

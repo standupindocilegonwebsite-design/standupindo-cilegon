@@ -41,10 +41,10 @@ export function OpenMicCard({ mic, confirmedCount, lineup = [], router }: Props)
         tabIndex={0}
       >
         <div className={isCompleted ? 'flex items-stretch' : ''}>
-        <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[16/10] w-[112px] shrink-0 grayscale-[0.35] sm:w-[150px]' : 'aspect-[16/10]'}`}>
+        <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[16/10] w-[112px] shrink-0 sm:w-[150px]' : 'aspect-[16/10]'}`}>
           {mic.poster ? (
             <button onClick={() => setLightbox(true)} aria-label={`Lihat poster ${mic.title}`} className="block h-full w-full">
-              <img src={mic.poster} alt={`${mic.title} poster`} loading="lazy" className={`h-full w-full transition-transform duration-500 ${isCompleted ? 'object-cover group-hover:scale-105' : 'object-contain hover:scale-105'}`} />
+              <img src={mic.poster} alt={`${mic.title} poster`} loading="lazy" className={`h-full w-full transition-transform duration-500 ${isCompleted ? 'object-cover grayscale group-hover:scale-105' : 'object-contain hover:scale-105'}`} />
             </button>
           ) : (
             <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className="flex h-full w-full items-center justify-center text-slate-300"><Users className="h-8 w-8" /></button>

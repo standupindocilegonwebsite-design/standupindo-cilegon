@@ -6,8 +6,11 @@ import { useAuth } from '@/lib/auth-context';
 
 type MemberNotification = { id: string; title: string; description: string; href: string; kind: 'registration' | 'event' | 'evaluation' };
 
-function storageKey(userId: string) { return `standupindo-member-read-notifications:${userId}`; }
-function readIds(userId: string): string[] { try { return JSON.parse(localStorage.getItem(storageKey(userId)) || '[]') as string[]; } catch { return []; } }
+async function fetchReadIds(userId: string): Promise<Set<string>> {
+  const { data, error } = await supabase.from('member_notification_reads').select('notification_key').eq('user_id', userId);
+  if (error) return new Set();
+  return new Set((data ?? []).map((item) => String(item.notification_key)));
+}
 
 export function MemberNotificationBell({ router }: { router: Router }) {
   const { user } = useAuth();
@@ -22,17 +25,18 @@ export function MemberNotificationBell({ router }: { router: Router }) {
     const { data: profile } = await supabase.from('komika').select('id').eq('user_id', user.id).maybeSingle();
     if (!profile?.id) { setItems([]); setLoading(false); return; }
 
-    const [{ data: registrations }, { data: evaluations }, { data: eventParticipants }] = await Promise.all([
-      supabase.from('open_mic_registrations').select('id, registration_id, open_mic_id, status, open_mics(title)').eq('komika_id', profile.id).in('status', ['confirmed', 'rejected', 'cancelled']).order('updated_at', { ascending: false }).limit(10),
+    const [{ data: registrations }, { data: evaluations }, { data: eventParticipants }, readSet] = await Promise.all([
+      supabase.from('open_mic_registrations').select('id, registration_id, open_mic_id, status, open_mics(title, slug)').eq('komika_id', profile.id).in('status', ['confirmed', 'rejected', 'cancelled']).order('updated_at', { ascending: false }).limit(10),
       supabase.from('evaluations').select('id, open_mic_id, performer_registration_id, status, open_mics(title)').eq('performer_komika_id', profile.id).eq('status', 'submitted').order('updated_at', { ascending: false }).limit(10),
       supabase.from('event_participants').select('id, registration_id, event_id, status, events(title)').eq('komika_id', profile.id).in('status', ['approved', 'rejected']).order('created_at', { ascending: false }).limit(10),
+      fetchReadIds(user.id),
     ]);
 
-    const registrationItems = ((registrations ?? []) as Array<{ id: string; registration_id: string; status: string; open_mics?: { title?: string } | null }>).map((row) => ({
+    const registrationItems = ((registrations ?? []) as Array<{ id: string; registration_id: string; status: string; open_mics?: { title?: string; slug?: string } | null }>).map((row) => ({
       id: `registration:${row.id}:${row.status}`,
       title: `Pendaftaran ${row.status === 'confirmed' ? 'dikonfirmasi' : row.status === 'rejected' ? 'ditolak' : 'dibatalkan'}`,
       description: `${row.open_mics?.title ?? row.registration_id}`,
-      href: '/member/open-mic', kind: 'registration' as const,
+      href: row.status === 'confirmed' && row.open_mics?.slug ? `/member/open-mic/${row.open_mics.slug}#lineup` : '/member/open-mic', kind: 'registration' as const,
     }));
     const eventItems = ((eventParticipants ?? []) as Array<{ id: string; registration_id: string; status: string; events?: { title?: string } | null }>).map((row) => ({
       id: `event:${row.id}:${row.status}`,
@@ -47,8 +51,7 @@ export function MemberNotificationBell({ router }: { router: Router }) {
       href: '/member/evaluations', kind: 'evaluation' as const,
     }));
 
-    const read = new Set(readIds(user.id));
-    setItems([...registrationItems, ...eventItems, ...evaluationItems].filter((item) => !read.has(item.id)));
+    setItems([...registrationItems, ...eventItems, ...evaluationItems].filter((item) => !readSet.has(item.id)));
     setLoading(false);
   }
 
@@ -80,19 +83,21 @@ export function MemberNotificationBell({ router }: { router: Router }) {
   const unreadCount = items.length;
   const groupedLabel = useMemo(() => unreadCount > 99 ? '99+' : String(unreadCount), [unreadCount]);
 
-  function markRead(item: MemberNotification) {
+  async function markRead(item: MemberNotification) {
     if (!user?.id) return;
-    const next = [...new Set([...readIds(user.id), item.id])];
-    localStorage.setItem(storageKey(user.id), JSON.stringify(next));
-    setItems((current) => current.filter((entry) => entry.id !== item.id));
+    const { error } = await supabase.from('member_notification_reads').upsert({ user_id: user.id, notification_key: item.id, read_at: new Date().toISOString() }, { onConflict: 'user_id,notification_key' });
+    if (!error) {
+      setItems((current) => current.filter((entry) => entry.id !== item.id));
+    }
     setOpen(false);
     router.navigate(item.href);
   }
 
-  function markAllRead() {
-    if (!user?.id) return;
-    localStorage.setItem(storageKey(user.id), JSON.stringify([...new Set([...readIds(user.id), ...items.map((item) => item.id)])]));
-    setItems([]);
+  async function markAllRead() {
+    if (!user?.id || items.length === 0) return;
+    const payload = items.map((item) => ({ user_id: user.id, notification_key: item.id, read_at: new Date().toISOString() }));
+    const { error } = await supabase.from('member_notification_reads').upsert(payload, { onConflict: 'user_id,notification_key' });
+    if (!error) setItems([]);
   }
 
   return (

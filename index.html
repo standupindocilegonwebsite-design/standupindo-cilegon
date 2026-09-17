@@ -2,15 +2,19 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/jpeg" href="/assets/images/Standupindo_CIlegon_Logo.jpeg" />
+    <link id="app-icon" rel="icon" type="image/png" href="/assets/images/favicon.png?v=3" />
     <script>
       (() => {
         const path = window.location.pathname;
-        const manifest = path.startsWith('/admin')
+        const isAdmin = path.startsWith('/admin');
+        const isMember = path.startsWith('/member');
+        const manifest = isAdmin
           ? '/manifest.admin.webmanifest'
-          : path.startsWith('/member')
+          : isMember
             ? '/manifest.member.webmanifest'
             : '/manifest.public.webmanifest';
+        const icon = document.getElementById('app-icon');
+        if (icon) icon.setAttribute('href', '/assets/images/favicon.png?v=3');
         const link = document.createElement('link');
         link.rel = 'manifest';
         link.href = manifest;

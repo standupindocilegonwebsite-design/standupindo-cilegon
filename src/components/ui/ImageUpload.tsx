@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Upload, X, ImageIcon, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { PhotoCropper } from '@/components/ui/PhotoCropper';
 
 interface ImageUploadProps {
   label: string;
@@ -23,6 +24,7 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', r
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  const [pendingCropSrc, setPendingCropSrc] = useState<string | null>(null);
 
   const aspectClass = aspect === 'square' ? 'aspect-square' : aspect === 'portrait' ? 'aspect-[3/4]' : aspect === 'landscape' ? 'aspect-video' : 'aspect-[4/3]';
 
@@ -36,23 +38,8 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', r
     const vErr = validate(file);
     if (vErr) { setError(vErr); return; }
     setError('');
-    setUploading(true);
-    onUploadingChange?.(true);
-    try {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
-      const path = `${folder}/${fileName}`;
-      const { error: upErr } = await supabase.storage.from('standupindo-media').upload(path, file, { cacheControl: '3600', upsert: false });
-      if (upErr) throw upErr;
-      const { data } = supabase.storage.from('standupindo-media').getPublicUrl(path);
-      onChange(data.publicUrl);
-    } catch (err) {
-      console.error('upload failed', err);
-      setError('Gagal mengupload gambar. Silakan coba lagi.');
-    } finally {
-      setUploading(false);
-      onUploadingChange?.(false);
-    }
+    const objectUrl = URL.createObjectURL(file);
+    setPendingCropSrc(objectUrl);
   }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -148,6 +135,22 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', r
           <AlertCircle className="h-4 w-4 shrink-0" /> {error}
           <button onClick={() => setError('')} className="ml-auto text-red-400 hover:text-red-600"><X className="h-3.5 w-3.5" /></button>
         </div>
+      )}
+
+      {pendingCropSrc && (
+        <PhotoCropper
+          src={pendingCropSrc}
+          folder={folder}
+          onSave={(url) => {
+            onChange(url);
+            setPendingCropSrc(null);
+            if (pendingCropSrc.startsWith('blob:')) URL.revokeObjectURL(pendingCropSrc);
+          }}
+          onCancel={() => {
+            setPendingCropSrc(null);
+            if (pendingCropSrc.startsWith('blob:')) URL.revokeObjectURL(pendingCropSrc);
+          }}
+        />
       )}
 
       <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFile} className="hidden" />

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import type { Komika } from '@/lib/types';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
+import { SocialIconButton } from '@/components/ui/SocialIconButton';
 
 function handleValue(value: string, prefix: string): string {
   return value.trim().replace(new RegExp(`^https?://(www\\.)?${prefix}\\.com/`, 'i'), '').replace(/^@/, '').replace(/\/.*$/, '').replace(/\s/g, '');
@@ -22,6 +23,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
   const [profile, setProfile] = useState<Komika | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [form, setForm] = useState({ stage_name: '', full_name: '', whatsapp: '', bio: '', instagram_url: '', tiktok_url: '', youtube_url: '', photo: '' });
@@ -33,27 +35,36 @@ export function MemberProfilePage({ router }: { router: Router }) {
     }
 
     (async () => {
-      const { data } = await supabase
-        .from('komika')
-        .select('*')
-        .or(`user_id.eq.${user.id},id.eq.${user.id}`)
-        .maybeSingle();
+      setProfileError('');
+      try {
+        const { data, error } = await supabase
+          .from('komika')
+          .select('*')
+          .or(`user_id.eq.${user.id},id.eq.${user.id}`)
+          .limit(1)
+          .maybeSingle();
 
-      const row = data as Komika | null;
-      setProfile(row);
-      if (row) {
-        setForm({
-          stage_name: row.stage_name ?? '',
-          full_name: row.full_name ?? '',
-          whatsapp: row.whatsapp ?? '',
-          bio: row.bio ?? '',
-          instagram_url: row.instagram_url ?? '',
-          tiktok_url: row.tiktok_url ?? '',
-          youtube_url: row.youtube_url ?? '',
-          photo: row.photo ?? '',
-        });
+        if (error) throw error;
+        const row = data as Komika | null;
+        setProfile(row);
+        if (row) {
+          setForm({
+            stage_name: row.stage_name ?? '',
+            full_name: row.full_name ?? '',
+            whatsapp: row.whatsapp ?? '',
+            bio: row.bio ?? '',
+            instagram_url: row.instagram_url ?? '',
+            tiktok_url: row.tiktok_url ?? '',
+            youtube_url: row.youtube_url ?? '',
+            photo: row.photo ?? '',
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load member profile', error);
+        setProfileError('Data profil gagal dimuat. Silakan coba buka halaman ini lagi.');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
   }, [user?.id]);
 
@@ -136,7 +147,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
         <PageHeader router={router} title="Profil Member" subtitle="Data profil belum tersedia." />
         <div className="container-app py-8">
           <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
-            Profil member belum terhubung ke akun kamu. Silakan hubungi admin untuk mengaitkan profil komika.
+            {profileError || 'Profil member belum terhubung ke akun kamu. Silakan hubungi admin untuk mengaitkan profil komika.'}
           </div>
         </div>
       </div>
@@ -149,28 +160,42 @@ export function MemberProfilePage({ router }: { router: Router }) {
 
       <div className="container-app py-6 sm:py-8">
         <div className="mx-auto max-w-2xl space-y-5">
-          <div className="overflow-hidden rounded-[28px] border border-blue-800 bg-blue-700 p-4 shadow-[0_14px_32px_rgba(29,78,216,0.2)] sm:p-5">
-            <div className="flex items-center gap-4">
-              {editingProfile ? (
-                <ImageUpload label="Foto Profil" folder="komika" value={form.photo} onChange={(url) => setForm({ ...form, photo: url })} aspect="portrait" avatar onPreview={() => setPreviewPhoto(true)} />
-              ) : (
-                <button type="button" onClick={() => form.photo && setPreviewPhoto(true)} className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/15 text-white ring-2 ring-white/70" aria-label={form.photo ? 'Lihat foto profil' : undefined}>
-                  {form.photo ? <img src={form.photo} alt="Foto profil" className="h-full w-full object-cover" /> : <UserRound className="h-8 w-8" />}
-                </button>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-100">Member Profile</p>
-                <h2 className="mt-1 truncate text-2xl font-black tracking-[-0.04em] text-white">{profileSummary}</h2>
+          <div className="rounded-[28px] border border-blue-700 bg-blue-700 p-3 text-white shadow-[0_14px_32px_rgba(11,60,93,0.12)] sm:p-4">
+            <div className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-4">
+              <div className="overflow-hidden rounded-2xl border border-white/35 bg-white/15 ring-1 ring-white/30">
+                {editingProfile ? (
+                  <div className="p-1">
+                    <ImageUpload label="Foto Profil" folder="komika" value={form.photo} onChange={(url) => setForm({ ...form, photo: url })} aspect="portrait" avatar onPreview={() => setPreviewPhoto(true)} />
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => form.photo && setPreviewPhoto(true)} className="block h-full w-full" aria-label={form.photo ? 'Lihat foto profil' : undefined}>
+                    {form.photo ? <img src={form.photo} alt="Foto profil" className="aspect-[4/4.5] w-full object-cover bg-slate-100" /> : <div className="flex aspect-[4/4.5] w-full items-center justify-center bg-white text-blue-600"><UserRound className="h-9 w-9" /></div>}
+                  </button>
+                )}
               </div>
-              {editingProfile ? (
-                <button type="button" onClick={cancelEditing} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/20" title="Batal mengedit">
-                  <X className="h-4 w-4" /> Batal
-                </button>
-              ) : (
-                <button type="button" onClick={() => setEditingProfile(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-extrabold text-blue-700 shadow-[0_6px_14px_rgba(15,23,42,0.16)] transition hover:bg-blue-50">
-                  <Pencil className="h-3.5 w-3.5" /> Edit Profile
-                </button>
-              )}
+
+              <div className="space-y-3 border-l border-white/25 pl-3 sm:space-y-4 sm:pl-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-100">Member Profile</p>
+                    <h2 className="mt-1 text-xl font-black tracking-[-0.03em] text-white sm:text-2xl">{profileSummary}</h2>
+                  </div>
+                  {editingProfile ? (
+                    <button type="button" onClick={cancelEditing} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100" title="Batal mengedit">
+                      <X className="h-4 w-4" /> Batal
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => setEditingProfile(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-extrabold text-blue-700 transition hover:bg-blue-50">
+                      <Pencil className="h-3.5 w-3.5" /> Edit Profile
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 [&_a]:border-white/30 [&_a]:bg-white/10 [&_a]:text-white">
+                  <SocialIconButton instagram={form.instagram_url} tiktok={form.tiktok_url} youtube={form.youtube_url} />
+                </div>
+
+              </div>
             </div>
           </div>
 

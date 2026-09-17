@@ -12,6 +12,7 @@ export function MemberDashboardPage({ router }: { router: Router }) {
   const [openMics, setOpenMics] = useState<OpenMic[]>([]);
   const [registrations, setRegistrations] = useState<OpenMicRegistration[]>([]);
   const [loading, setLoading] = useState(true);
+  const [displayName, setDisplayName] = useState('Member');
 
   useEffect(() => {
     if (!user?.id) {
@@ -32,12 +33,15 @@ export function MemberDashboardPage({ router }: { router: Router }) {
           .limit(5),
         supabase
           .from('komika')
-          .select('id')
+          .select('id, stage_name')
           .or(`user_id.eq.${user.id},id.eq.${user.id}`)
           .maybeSingle(),
       ]);
 
       const memberKomikaId = profileData?.id ?? null;
+      const nextDisplayName = profileData?.stage_name?.trim() || user?.email?.split('@')[0] || 'Member';
+      setDisplayName(nextDisplayName);
+
       let regData: OpenMicRegistration[] = [];
       if (memberKomikaId) {
         const { data } = await supabase
@@ -66,30 +70,30 @@ export function MemberDashboardPage({ router }: { router: Router }) {
       <div className="container-app py-6 sm:py-8">
         <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-4">
-            <div className="rounded-[28px] border border-blue-100 bg-gradient-to-br from-blue-600 via-blue-500 to-sky-500 p-5 text-white shadow-[0_18px_45px_rgba(59,130,246,0.25)]">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-100">Member</p>
-                  <h2 className="mt-2 text-2xl font-black tracking-[-0.04em]">Halo, {user?.email?.split('@')[0] ?? 'Member'}</h2>
-                  <p className="mt-2 inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-white ring-1 ring-white/20">{upcomingMic ? `Open Mic kamu ke-${nextOpenMicNumber}` : attendedCount > 0 ? `Sudah tampil ${attendedCount} kali` : 'Siap untuk Open Mic pertama'}</p>
+            <div className="rounded-[22px] border border-blue-100 bg-gradient-to-br from-blue-600 via-blue-500 to-sky-500 p-4 text-white shadow-[0_12px_30px_rgba(59,130,246,0.2)] sm:p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-100">Member</p>
+                  <h2 className="mt-2 text-2xl font-black leading-tight tracking-[-0.04em] sm:text-[2rem]">Halo, {displayName}</h2>
+                  <p className="mt-2 inline-flex rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold text-white ring-1 ring-white/20">{upcomingMic ? `Open Mic kamu ke-${nextOpenMicNumber}` : attendedCount > 0 ? `Sudah tampil ${attendedCount} kali` : 'Siap untuk Open Mic pertama'}</p>
                 </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/30">
-                  <UserRound className="h-6 w-6" />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/30">
+                  <UserRound className="h-5 w-5" />
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
-                  <p className="text-[11px] uppercase tracking-[0.15em] text-blue-100">Open Mic</p>
-                  <p className="mt-2 text-xl font-black">{registrations.length}</p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                <div className="rounded-xl bg-white/10 p-2.5 ring-1 ring-white/10">
+                  <p className="text-[10px] uppercase tracking-[0.15em] text-blue-100">Open Mic</p>
+                  <p className="mt-1 text-xl font-black">{registrations.length}</p>
                 </div>
-                <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
-                  <p className="text-[11px] uppercase tracking-[0.15em] text-blue-100">Status</p>
-                  <p className="mt-2 text-xl font-black">{latestRegistration?.status ?? 'Belum'}</p>
+                <div className="rounded-xl bg-white/10 p-2.5 ring-1 ring-white/10">
+                  <p className="text-[10px] uppercase tracking-[0.15em] text-blue-100">Status</p>
+                  <p className="mt-1 text-xl font-black">{latestRegistration?.status ?? 'Belum'}</p>
                 </div>
-                <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/10">
-                  <p className="text-[11px] uppercase tracking-[0.15em] text-blue-100">Tampil</p>
-                  <p className="mt-2 text-xl font-black">{attendedCount}</p>
+                <div className="rounded-xl bg-white/10 p-2.5 ring-1 ring-white/10">
+                  <p className="text-[10px] uppercase tracking-[0.15em] text-blue-100">Tampil</p>
+                  <p className="mt-1 text-xl font-black">{attendedCount}</p>
                 </div>
               </div>
             </div>

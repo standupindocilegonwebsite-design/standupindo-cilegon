@@ -98,6 +98,12 @@ export function OpenMicDetailPage({ router, slug }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, [mic]);
 
+  useEffect(() => {
+    if (!loading && window.location.hash === '#lineup') {
+      document.getElementById('lineup')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [loading]);
+
   if (loading) {
     return (
       <div className="animate-fade-in">
@@ -232,7 +238,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
         )}
 
         {/* Lineup */}
-        <section data-scroll-reveal className="scroll-reveal is-visible">
+        <section id="lineup" data-scroll-reveal className="scroll-reveal is-visible scroll-mt-24">
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-900 sm:text-xl">{currentStatus === 'completed' ? 'Arsip Lineup' : 'Lineup'}</h2>

@@ -65,7 +65,7 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
     setRoleUpdatingId(null);
     if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Peran akun gagal diubah.'); return; }
     setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, role: data?.user?.role === 'evaluator' ? 'evaluator' : 'member' } : item));
-    onNotice(`${account.email ?? 'Akun member'} sekarang berperan sebagai ${role === 'evaluator' ? 'evaluator' : 'member'}.`);
+    onNotice(`${account.email ?? 'Akun member'} sekarang memiliki role ${role === 'evaluator' ? 'Member + Evaluator' : 'Member'}.`);
   }
 
   useEffect(() => { void loadAccounts(); }, []);

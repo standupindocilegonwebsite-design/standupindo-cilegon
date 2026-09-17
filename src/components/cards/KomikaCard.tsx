@@ -1,14 +1,10 @@
-import { useState } from 'react';
 import type { Komika } from '@/lib/types';
 import type { Router } from '@/lib/router';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
-import { ImageLightbox } from '@/components/ui/ImageLightbox';
 
 export function KomikaCard({ komika, router }: { komika: Komika; router: Router }) {
-  const [lightbox, setLightbox] = useState(false);
   return (
-    <>
-      <article
+    <article
         onClick={() => router.navigate(`/komika/${komika.slug}`)}
         className="card card-hover group cursor-pointer overflow-hidden"
         role="button"
@@ -22,18 +18,9 @@ export function KomikaCard({ komika, router }: { komika: Komika; router: Router 
       >
         <div className="relative overflow-hidden bg-slate-100">
           {komika.photo ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setLightbox(true);
-              }}
-              aria-label={`Lihat foto ${komika.stage_name}`}
-              className="block h-full w-full"
-            >
-              <img src={komika.photo} alt={komika.stage_name} loading="lazy" className="aspect-[4/3.2] w-full object-contain bg-slate-100 transition-transform duration-500 group-hover:scale-105" />
-            </button>
+            <img src={komika.photo} alt={komika.stage_name} loading="lazy" className="pointer-events-none aspect-[4/4.5] w-full object-cover bg-slate-100 transition-transform duration-500 group-hover:scale-105" />
           ) : (
-            <div className="flex aspect-[4/3.2] w-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50 text-3xl font-extrabold text-blue-600">
+            <div className="flex aspect-[4/4.5] w-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50 text-3xl font-extrabold text-blue-600">
               {komika.stage_name.charAt(0)}
             </div>
           )}
@@ -52,9 +39,5 @@ export function KomikaCard({ komika, router }: { komika: Komika; router: Router 
           )}
         </div>
       </article>
-      {komika.photo && (
-        <ImageLightbox src={komika.photo} alt={komika.stage_name} open={lightbox} onClose={() => setLightbox(false)} />
-      )}
-    </>
   );
 }

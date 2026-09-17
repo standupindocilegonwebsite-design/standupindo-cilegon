@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, CheckCircle2, MessageCircle, Ticket } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { EventItem, EventTicket, SiteSettings } from '@/lib/types';
+import { LOGO_URL, type EventItem, type EventTicket, type SiteSettings } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { Modal } from '@/components/ui/Modal';

@@ -18,7 +18,7 @@ export function AdminLoginPage({ router }: { router: Router }) {
     setLoading(true);
     try {
       const result = await Promise.race([
-        signIn(email, password),
+        signIn(email, password, { requireRole: 'admin-app' }),
         new Promise<{ error: string }>((resolve) => {
           window.setTimeout(() => resolve({ error: 'Permintaan login terlalu lama. Periksa koneksi lalu coba lagi.' }), 15000);
         }),

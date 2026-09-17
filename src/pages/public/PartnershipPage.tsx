@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Handshake, ArrowRight } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { Partner, SiteSettings } from '@/lib/types';
@@ -17,6 +17,10 @@ const TYPES = [
 
 function PartnerMarqueeStrip({ partners, category }: { partners: Partner[]; category: 'sponsor' | 'support' | 'media_partner' }) {
   if (partners.length === 0) return null;
+
+  const [dragging, setDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const dragStartRef = useRef({ x: 0, offset: 0 });
 
   const labels = {
     sponsor: 'Sponsor',
@@ -44,6 +48,22 @@ function PartnerMarqueeStrip({ partners, category }: { partners: Partner[]; cate
 
   const leading = partners.length > 1 ? [...partners, ...partners] : partners;
 
+  function startDrag(event: React.PointerEvent<HTMLDivElement>) {
+    dragStartRef.current = { x: event.clientX, offset: dragOffset };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragging(true);
+  }
+
+  function moveDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging) return;
+    setDragOffset(dragStartRef.current.offset + event.clientX - dragStartRef.current.x);
+  }
+
+  function endDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setDragging(false);
+  }
+
   return (
     <div className="rounded-[28px] border border-white/50 bg-white/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] backdrop-blur-sm sm:p-4">
       <div className="mb-3 flex items-center justify-center">
@@ -52,8 +72,8 @@ function PartnerMarqueeStrip({ partners, category }: { partners: Partner[]; cate
         </span>
       </div>
 
-      <div className="partner-marquee-shell">
-        <div className="partner-marquee-track">
+      <div className={`partner-marquee-shell ${dragging ? 'is-dragging' : ''}`} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
+        <div className="partner-marquee-track" style={dragging ? { transform: `translateX(${dragOffset}px)` } : undefined}>
           {leading.map((partner, index) => (
             <div key={`${partner.id}-${category}-${index}`} className={`partner-marquee-item ${sizeMap[category].item}`}>
               <div className={`partner-marquee-logo ${sizeMap[category].logo}`}>
@@ -139,7 +159,13 @@ export function PartnershipPage({ router, settings }: { router: Router; settings
                 </div>
               </div>
 
-              <div className="mt-8 space-y-4">
+              <div className="mt-8 mb-5 text-center">
+                <h2 className="text-xl font-black tracking-[-0.03em] text-slate-900">Yang Pernah Mendukung</h2>
+                <p className="mt-1 text-sm text-slate-500">Our Beloved Partner</p>
+                <p className="mt-1 text-sm text-slate-500">Mereka yang turut mendukung komitmen kami.</p>
+              </div>
+
+              <div className="space-y-4">
                 {(['sponsor', 'support', 'media_partner'] as const).map((category) => (
                   <PartnerMarqueeStrip key={category} partners={partnersByCategory[category]} category={category} />
                 ))}
