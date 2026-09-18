@@ -107,7 +107,11 @@
   }
 
   .admin-login-page {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--brand-navy) 86%, #071746), var(--brand-primary));
+    background: linear-gradient(135deg, #172554 0%, #312e81 42%, #581c87 72%, #7e22ce 100%);
+  }
+
+  .member-login-page {
+    background: linear-gradient(135deg, #172554 0%, #1d4ed8 52%, #2563eb 100%);
   }
 
   .btn-secondary {

@@ -39,12 +39,12 @@ export function MemberLoginPage({ router }: { router: Router }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-sky-50 px-4">
+    <div className="member-login-page flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md animate-scale-in">
         <div className="mb-6 text-center">
-          <img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="mx-auto h-16 w-16 rounded-2xl object-contain shadow-lg ring-2 ring-white" />
-          <h1 className="mt-4 text-xl font-extrabold text-slate-900">Member Area</h1>
-          <p className="mt-1 text-sm text-slate-600">Masuk untuk melihat profil dan performa kamu.</p>
+          <img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="mx-auto h-16 w-16 rounded-2xl object-contain shadow-lg ring-2 ring-white/20" />
+          <h1 className="mt-4 text-xl font-extrabold text-white">Member Area</h1>
+          <p className="mt-1 text-sm text-blue-100">Masuk untuk melihat profil dan performa kamu.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-200 space-y-4">
