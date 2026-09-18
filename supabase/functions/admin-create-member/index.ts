@@ -13,6 +13,13 @@ function response(body: Record<string, unknown>, status = 200) {
   });
 }
 
+function hasRole(metadata: Record<string, unknown> | undefined, role: string): boolean {
+  if (!metadata) return false;
+  return [metadata.role, metadata.roles, metadata.user_roles].some((candidate) => typeof candidate === 'string'
+    ? candidate.trim().toLowerCase() === role
+    : Array.isArray(candidate) && candidate.some((item) => typeof item === 'string' && item.trim().toLowerCase() === role));
+}
+
 serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return response({ error: 'Method not allowed.' }, 405);
@@ -27,8 +34,9 @@ serve(async (request) => {
 
   const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
   const { data: authData, error: authError } = await userClient.auth.getUser();
-  if (authError || !authData.user || authData.user.app_metadata?.role !== 'admin') {
-    return response({ error: 'Hanya admin yang dapat membuat akun member.' }, 403);
+  const appMetadata = authData.user?.app_metadata as Record<string, unknown> | undefined;
+  if (authError || !authData.user || (!hasRole(appMetadata, 'admin') && !hasRole(appMetadata, 'open_mic_admin'))) {
+    return response({ error: 'Hanya Admin Penuh atau Admin Open Mic yang dapat membuat akun member.' }, 403);
   }
 
   let body: { email?: string; password?: string; komika_id?: string | null };

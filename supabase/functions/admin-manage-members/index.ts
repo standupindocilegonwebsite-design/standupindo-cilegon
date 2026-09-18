@@ -21,7 +21,8 @@ serve(async (request) => {
 
   const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
   const { data: authData, error: authError } = await userClient.auth.getUser();
-  if (authError || !authData.user || !hasRole(authData.user.app_metadata as Record<string, unknown> | undefined, 'admin')) return json({ error: 'Hanya admin yang dapat mengelola akun member.' }, 403);
+  const appMetadata = authData.user?.app_metadata as Record<string, unknown> | undefined;
+  if (authError || !authData.user || (!hasRole(appMetadata, 'admin') && !hasRole(appMetadata, 'open_mic_admin'))) return json({ error: 'Hanya Admin Penuh atau Admin Open Mic yang dapat mengelola akun member.' }, 403);
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
   let body: { action?: 'list' | 'toggle' | 'delete' | 'update-role'; user_id?: string; active?: boolean; role?: 'member' | 'evaluator' };
