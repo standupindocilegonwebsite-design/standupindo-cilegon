@@ -6,15 +6,17 @@ import { formatDate, getOpenMicStatus } from '@/lib/format';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
+import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
 
 interface Props {
   mic: OpenMic;
+  openMicNumber?: number;
   confirmedCount: number;
   lineup?: string[];
   router: Router;
 }
 
-export function OpenMicCard({ mic, confirmedCount, lineup = [], router }: Props) {
+export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], router }: Props) {
   const [lightbox, setLightbox] = useState(false);
   const filled = confirmedCount;
   const total = mic.capacity;
@@ -36,7 +38,7 @@ export function OpenMicCard({ mic, confirmedCount, lineup = [], router }: Props)
             router.navigate(`/open-mic/${mic.slug}`);
           }
         }}
-        className={`group cursor-pointer overflow-hidden ${isCompleted ? 'rounded-2xl border border-slate-200 bg-slate-50/70' : 'card card-hover flex flex-col'}`}
+        className={`group cursor-pointer overflow-hidden ${isCompleted ? 'rounded-2xl border border-slate-300 bg-white shadow-[0_8px_20px_rgba(15,23,42,0.08)]' : 'card card-hover flex flex-col'}`}
         role="button"
         tabIndex={0}
       >
@@ -55,17 +57,20 @@ export function OpenMicCard({ mic, confirmedCount, lineup = [], router }: Props)
         </div>
 
         <div className={`flex min-w-0 flex-1 flex-col ${isCompleted ? 'p-3.5 sm:p-4' : 'p-4'}`}>
-          <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className="text-left"><h3 className="line-clamp-2 text-base font-extrabold leading-tight text-slate-900 transition group-hover:text-blue-700 sm:text-lg">{mic.title}</h3></button>
+          <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className="text-left">{openMicNumber !== undefined && <p className="mb-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Open Mic #{openMicNumber}</p>}<h3 className="line-clamp-2 text-base font-extrabold leading-tight text-slate-900 transition group-hover:text-blue-700 sm:text-lg">{mic.title}</h3></button>
 
-          <div className="mt-2 space-y-1.5 text-sm text-slate-500">
+          <div className="mt-2 space-y-1.5 text-sm text-slate-600">
             <div className="flex items-start gap-2"><Calendar className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> <span>{formatDate(mic.date)}</span></div>
             <div className="flex items-start gap-2"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> <span>{mic.time} WIB</span></div>
             <LocationLink venue={mic.venue} location={mic.location} mapsUrl={mic.maps_url} className="mt-0.5 min-w-0" />
           </div>
 
           {isCompleted ? (
-            <div className="mt-3 border-t border-slate-200 pt-2.5"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Lineup</p><p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-600">{lineup.length > 0 ? lineup.join(' · ') : 'Belum ada data lineup'}</p></div>
+            <div className="mt-3 border-t border-slate-300 pt-2.5"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Lineup</p><p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-700">{lineup.length > 0 ? lineup.join(' · ') : 'Belum ada data lineup'}</p></div>
           ) : <p className="mt-3 text-sm font-semibold text-slate-700">{filled} Komika</p>}
+          <div className={isCompleted ? 'mt-3' : 'mt-1'}>
+            <NoSmokeAreaNotice />
+          </div>
 
           <div className={`flex gap-2 ${isCompleted ? 'mt-auto pt-3' : 'mt-4'}`}>
             <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className={`btn-secondary flex-1 ${isCompleted ? '!rounded-lg !px-2.5 !py-2 text-[11px] sm:!text-xs' : '!px-3 !py-2 text-[12px] sm:!text-sm'} font-semibold`}>{isCompleted ? 'Detail' : 'Lihat Detail'}</button>

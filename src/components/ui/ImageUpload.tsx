@@ -14,12 +14,13 @@ interface ImageUploadProps {
   compact?: boolean;
   avatar?: boolean;
   onPreview?: () => void;
+  skipCrop?: boolean;
 }
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
 
-export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', required = false, onUploadingChange, compact = false, avatar = false, onPreview }: ImageUploadProps) {
+export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', required = false, onUploadingChange, compact = false, avatar = false, onPreview, skipCrop = false }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -38,6 +39,22 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', r
     const vErr = validate(file);
     if (vErr) { setError(vErr); return; }
     setError('');
+    if (skipCrop) {
+      setUploading(true);
+      onUploadingChange?.(true);
+      const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const uploadPath = `${folder}/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage.from('standupindo-media').upload(uploadPath, file, { cacheControl: '3600', upsert: false, contentType: file.type });
+      if (uploadError) {
+        setError('Foto gagal diupload. Coba pilih foto lain.');
+      } else {
+        const { data } = supabase.storage.from('standupindo-media').getPublicUrl(uploadPath);
+        onChange(data.publicUrl);
+      }
+      setUploading(false);
+      onUploadingChange?.(false);
+      return;
+    }
     const objectUrl = URL.createObjectURL(file);
     setPendingCropSrc(objectUrl);
   }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, CheckCircle2, ChevronRight, ClipboardCheck } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { supabase } from '@/lib/supabase';
@@ -17,13 +17,26 @@ export function MemberNotificationBell({ router }: { router: Router }) {
   const [items, setItems] = useState<MemberNotification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [channelRevision, setChannelRevision] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const requestRevision = useRef(0);
 
-  async function loadNotifications() {
-    if (!user?.id) return;
+  const loadNotifications = useCallback(async () => {
+    if (!user?.id) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    const requestId = ++requestRevision.current;
     setLoading(true);
     const { data: profile } = await supabase.from('komika').select('id').eq('user_id', user.id).maybeSingle();
-    if (!profile?.id) { setItems([]); setLoading(false); return; }
+    if (!profile?.id) {
+      if (requestId === requestRevision.current) {
+        setItems([]);
+        setLoading(false);
+      }
+      return;
+    }
 
     const [{ data: registrations }, { data: evaluations }, { data: eventParticipants }, readSet] = await Promise.all([
       supabase.from('open_mic_registrations').select('id, registration_id, open_mic_id, status, open_mics(title, slug)').eq('komika_id', profile.id).in('status', ['confirmed', 'rejected', 'cancelled']).order('updated_at', { ascending: false }).limit(10),
@@ -51,20 +64,42 @@ export function MemberNotificationBell({ router }: { router: Router }) {
       href: '/member/evaluations', kind: 'evaluation' as const,
     }));
 
-    setItems([...registrationItems, ...eventItems, ...evaluationItems].filter((item) => !readSet.has(item.id)));
-    setLoading(false);
-  }
+    if (requestId === requestRevision.current) {
+      setItems([...registrationItems, ...eventItems, ...evaluationItems].filter((item) => !readSet.has(item.id)));
+      setLoading(false);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     void loadNotifications();
     if (!user?.id) return undefined;
+    let active = true;
     const channel = supabase.channel(`member-notifications-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'open_mic_registrations' }, () => void loadNotifications())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_participants' }, () => void loadNotifications())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evaluations' }, () => void loadNotifications())
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [user?.id]);
+      .subscribe((status) => {
+        if (active && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED')) {
+          setChannelRevision((revision) => revision + 1);
+        }
+      });
+    const refreshOnResume = () => {
+      if (document.visibilityState === 'visible') {
+        void loadNotifications();
+        setChannelRevision((revision) => revision + 1);
+      }
+    };
+    window.addEventListener('pageshow', refreshOnResume);
+    window.addEventListener('focus', refreshOnResume);
+    document.addEventListener('visibilitychange', refreshOnResume);
+    return () => {
+      active = false;
+      window.removeEventListener('pageshow', refreshOnResume);
+      window.removeEventListener('focus', refreshOnResume);
+      document.removeEventListener('visibilitychange', refreshOnResume);
+      void supabase.removeChannel(channel);
+    };
+  }, [channelRevision, loadNotifications, user?.id]);
 
   useEffect(() => {
     if (!open) return undefined;

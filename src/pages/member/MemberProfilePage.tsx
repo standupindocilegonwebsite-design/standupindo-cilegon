@@ -8,6 +8,7 @@ import type { Komika } from '@/lib/types';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
+import { safeExternalUrl } from '@/lib/format';
 
 function handleValue(value: string, prefix: string): string {
   return value.trim().replace(new RegExp(`^https?://(www\\.)?${prefix}\\.com/`, 'i'), '').replace(/^@/, '').replace(/\/.*$/, '').replace(/\s/g, '');
@@ -26,7 +27,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
   const [profileError, setProfileError] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
-  const [form, setForm] = useState({ stage_name: '', full_name: '', whatsapp: '', bio: '', instagram_url: '', tiktok_url: '', youtube_url: '', photo: '' });
+  const [form, setForm] = useState({ stage_name: '', full_name: '', whatsapp: '', bio: '', karya_url: '', instagram_url: '', tiktok_url: '', youtube_url: '', photo: '' });
 
   useEffect(() => {
     if (!user?.id) {
@@ -53,6 +54,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
             full_name: row.full_name ?? '',
             whatsapp: row.whatsapp ?? '',
             bio: row.bio ?? '',
+            karya_url: row.karya_url ?? '',
             instagram_url: row.instagram_url ?? '',
             tiktok_url: row.tiktok_url ?? '',
             youtube_url: row.youtube_url ?? '',
@@ -75,6 +77,11 @@ export function MemberProfilePage({ router }: { router: Router }) {
 
   async function handleSave() {
     if (!user?.id) return;
+    const karyaUrl = safeExternalUrl(form.karya_url);
+    if (form.karya_url.trim() && !karyaUrl) {
+      window.alert('Link Karya Saya harus menggunakan URL http:// atau https:// yang valid.');
+      return;
+    }
     setSaving(true);
 
     const { data: komikaRow } = await supabase
@@ -94,6 +101,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
       stage_name: form.stage_name.trim(),
       whatsapp: form.whatsapp.replace(/\D/g, '') || null,
       bio: form.bio.trim() || null,
+      karya_url: karyaUrl,
       instagram_url: profileUrl(form.instagram_url, 'instagram'),
       tiktok_url: profileUrl(form.tiktok_url, 'tiktok'),
       youtube_url: profileUrl(form.youtube_url, 'youtube'),
@@ -122,6 +130,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
       full_name: profile.full_name ?? '',
       whatsapp: profile.whatsapp ?? '',
       bio: profile.bio ?? '',
+      karya_url: profile.karya_url ?? '',
       instagram_url: profile.instagram_url ?? '',
       tiktok_url: profile.tiktok_url ?? '',
       youtube_url: profile.youtube_url ?? '',
@@ -223,6 +232,12 @@ export function MemberProfilePage({ router }: { router: Router }) {
                 <textarea id="bio" value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} rows={5} className="input-field !min-h-[120px]" placeholder="Ceritakan singkat tentang kamu..." />
               </div>
 
+              <div>
+                <label className="label-field" htmlFor="karya_url">Karya Saya</label>
+                <input id="karya_url" type="url" value={form.karya_url} onChange={(e) => setForm({ ...form, karya_url: e.target.value })} className="input-field" placeholder="https://youtube.com/..." />
+                <p className="mt-1.5 text-xs text-slate-500">Tambahkan satu link karya yang ingin dilihat publik.</p>
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="label-field" htmlFor="instagram_url"><span className="inline-flex items-center gap-2"><Instagram className="h-4 w-4 text-pink-500" /> Instagram</span></label>
@@ -255,6 +270,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3"><p className="mb-1 text-xs font-bold text-slate-500">Nama panggung</p><p className="text-sm font-bold text-slate-900">{form.stage_name || '-'}</p></div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3"><p className="mb-1 text-xs font-bold text-slate-500">Nomor WhatsApp</p><p className="text-sm font-bold text-slate-900">{form.whatsapp || '-'}</p></div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3"><p className="mb-1 text-xs font-bold text-slate-500">Bio</p><p className="whitespace-pre-line text-sm font-medium leading-6 text-slate-700">{form.bio || '-'}</p></div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3"><p className="mb-1 text-xs font-bold text-slate-500">Karya Saya</p>{safeExternalUrl(form.karya_url) ? <a href={safeExternalUrl(form.karya_url) ?? undefined} target="_blank" rel="noopener noreferrer" className="break-all text-sm font-semibold text-blue-700 hover:text-blue-800">{form.karya_url}</a> : <p className="text-sm font-medium text-slate-700">-</p>}</div>
               </div>
               <div className="mt-5 border-t border-slate-100 pt-4">
                 <p className="label-field">Media sosial</p>

@@ -66,6 +66,7 @@ export function EvaluatorEvaluationPage({ router, openMicId }: { router: Router;
           .select('*')
           .eq('open_mic_id', openMicId)
           .eq('attendance_status', 'attended')
+          .not('komika_id', 'is', null)
           .order('created_at', { ascending: false }),
         supabase
           .from('evaluator_assignments')

@@ -28,6 +28,10 @@ import { MemberDashboardPage } from '@/pages/member/MemberDashboardPage';
 import { MemberProfilePage } from '@/pages/member/MemberProfilePage';
 import { MemberEvaluationPage } from '@/pages/member/MemberEvaluationPage';
 import { MemberMorePage } from '@/pages/member/MemberMorePage';
+import { MemberOpenMicHistoryPage } from '@/pages/member/MemberOpenMicHistoryPage';
+import { MemberMaterialsPage } from '@/pages/member/MemberMaterialsPage';
+import { MemberMaterialSetlistsPage } from '@/pages/member/MemberMaterialSetlistsPage';
+import { MemberMaterialDetailPage } from '@/pages/member/MemberMaterialDetailPage';
 import { MemberAccountSettingsPage } from '@/pages/member/MemberAccountSettingsPage';
 import { MemberInfoPage } from '@/pages/member/MemberInfoPage';
 import { EvaluatorDashboardPage } from '@/pages/evaluator/EvaluatorDashboardPage';
@@ -35,6 +39,7 @@ import { MemberBottomNav } from '@/components/nav/MemberBottomNav';
 import { MemberDesktopNav } from '@/components/nav/MemberDesktopNav';
 import { EvaluatorEvaluationPage } from '@/pages/evaluator/EvaluatorEvaluationPage';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { AppCredit } from '@/components/AppCredit';
 
 function updateSeo(path: string, siteName: string) {
   const titles: Record<string, string> = {
@@ -77,17 +82,6 @@ function ProtectedAdmin({ router, settings }: { router: Router; settings: Return
 
 function ProtectedMember({ router }: { router: Router }) {
   const { session, loading, isMember } = useAuth();
-  const [authWaitExpired, setAuthWaitExpired] = useState(false);
-
-  useEffect(() => {
-    if (!loading) {
-      setAuthWaitExpired(false);
-      return;
-    }
-
-    const timeout = window.setTimeout(() => setAuthWaitExpired(true), 3000);
-    return () => window.clearTimeout(timeout);
-  }, [loading]);
 
   useEffect(() => {
     if (!loading && (!session || !isMember) && router.path !== '/member/login') {
@@ -95,7 +89,7 @@ function ProtectedMember({ router }: { router: Router }) {
     }
   }, [loading, session, isMember, router]);
 
-  if (loading && !authWaitExpired) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat area member...</div>;
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat area member...</div>;
   if (!session || !isMember) {
     return <MemberLoginPage router={router} />;
   }
@@ -114,6 +108,12 @@ function ProtectedMember({ router }: { router: Router }) {
   if (router.path === '/member/profile') return <MemberProfilePage router={router} />;
   if (router.path === '/member/evaluations') return <MemberEvaluationPage router={router} />;
   if (router.path === '/member/more') return <MemberMorePage router={router} />;
+  if (router.path === '/member/open-mic-history') return <MemberOpenMicHistoryPage router={router} />;
+  if (router.path === '/member/materials/new') return <MemberMaterialsPage router={router} />;
+  if (router.path === '/member/materials/setlists') return <MemberMaterialSetlistsPage router={router} />;
+  const memberMaterialDetail = matchRoute(router.path, '/member/materials/[id]');
+  if (memberMaterialDetail) return <MemberMaterialDetailPage router={router} id={memberMaterialDetail.id} />;
+  if (router.path === '/member/materials') return <MemberMaterialsPage router={router} />;
   if (router.path === '/member/settings') return <MemberAccountSettingsPage router={router} />;
   if (router.path === '/member/roles') return <MemberInfoPage router={router} kind="roles" />;
   if (router.path === '/member/help') return <MemberInfoPage router={router} kind="help" />;
@@ -172,6 +172,11 @@ function RoutedApp() {
         <div className="flex min-h-screen flex-col bg-slate-50">
           {router.path !== '/member/login' && <MemberDesktopNav router={router} />}
           <main className="flex-1 pb-safe-nav md:pb-0">{memberContent}</main>
+          {router.path !== '/member/login' && (
+            <footer className="border-t border-slate-200 bg-white px-4 py-2 pb-[calc(4.5rem+var(--safe-bottom))] md:py-4 md:pb-4">
+              <AppCredit />
+            </footer>
+          )}
           {router.path !== '/member/login' && <MemberBottomNav router={router} />}
         </div>
       </>
@@ -182,6 +187,9 @@ function RoutedApp() {
       <div className="flex min-h-screen flex-col bg-slate-50">
         <MemberDesktopNav router={router} />
         <main className="flex-1 pb-safe-nav md:pb-0"><ProtectedEvaluator router={router} /></main>
+        <footer className="border-t border-slate-200 bg-white px-4 py-2 pb-[calc(4.5rem+var(--safe-bottom))] md:py-4 md:pb-4">
+          <AppCredit />
+        </footer>
         <MemberBottomNav router={router} />
       </div>
     );

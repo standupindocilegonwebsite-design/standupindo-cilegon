@@ -1,4 +1,4 @@
-import { formatDate, getOpenMicStatus } from '@/lib/format';
+import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { useEffect, useState } from 'react';
 import { Calendar, Check, CheckCircle2, Clock, Copy, Info, Instagram, Mic, Send, Ticket } from 'lucide-react';
 import type { Router } from '@/lib/router';
@@ -13,6 +13,7 @@ import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { Modal } from '@/components/ui/Modal';
 import { ShareButton } from '@/components/ui/ShareButton';
+import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
 
 interface Props {
   router: Router;
@@ -36,7 +37,9 @@ export function OpenMicDetailPage({ router, slug }: Props) {
   const [mic, setMic] = useState<OpenMic | null>(null);
   const [confirmed, setConfirmed] = useState<OpenMicRegistration[]>([]);
   const [otherMics, setOtherMics] = useState<OpenMic[]>([]);
+  const [numberedMics, setNumberedMics] = useState<OpenMic[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [otherLineups, setOtherLineups] = useState<Record<string, string[]>>({});
   const [lightbox, setLightbox] = useState(false);
   const [shareFallbackOpen, setShareFallbackOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -49,9 +52,18 @@ export function OpenMicDetailPage({ router, slug }: Props) {
 
       if (m) {
         const isArchive = getOpenMicStatus(m.status, m.date) === 'completed';
-        const [regRes, otherRes] = await Promise.all([
+        const [regRes, otherRes, allMicsRes] = await Promise.all([
           publicLineupQuery(m.id, isArchive),
-          supabase.from('open_mics').select('*').eq('published', true).eq('status', 'upcoming').neq('id', m.id).order('date', { ascending: true }).limit(2),
+          supabase
+            .from('open_mics')
+            .select('*')
+            .eq('published', true)
+            .eq('status', 'upcoming')
+            .neq('id', m.id)
+            .order('date', { ascending: false })
+            .order('created_at', { ascending: false })
+            .limit(2),
+          supabase.from('open_mics').select('*').eq('published', true),
         ]);
 
         const regs = (regRes.data as OpenMicRegistration[]) ?? [];
@@ -59,12 +71,20 @@ export function OpenMicDetailPage({ router, slug }: Props) {
 
         const others = (otherRes.data as OpenMic[]) ?? [];
         setOtherMics(others);
+        setNumberedMics((allMicsRes.data as OpenMic[]) ?? [m]);
         if (others.length > 0) {
           const ids = others.map((o) => o.id);
-          const { data: otherRegs } = await supabase.from('open_mic_registrations').select('open_mic_id').in('open_mic_id', ids).eq('status', 'confirmed').neq('attendance_status', 'absent');
           const c: Record<string, number> = {};
-          (otherRegs ?? []).forEach((r: { open_mic_id: string }) => { c[r.open_mic_id] = (c[r.open_mic_id] ?? 0) + 1; });
+          const names: Record<string, string[]> = {};
+          const otherResults = await Promise.all(others.map((other) => publicLineupQuery(other.id, getOpenMicStatus(other.status, other.date) === 'completed')));
+          otherResults.forEach((result, index) => {
+            const rows = (result.data as OpenMicRegistration[]) ?? [];
+            const openMicId = others[index].id;
+            c[openMicId] = rows.length;
+            names[openMicId] = rows.map((row) => row.stage_name).filter(Boolean);
+          });
           setCounts(c);
+          setOtherLineups(names);
         }
 
         const pageUrl = `${window.location.origin}/open-mic/${m.slug}`;
@@ -129,10 +149,12 @@ export function OpenMicDetailPage({ router, slug }: Props) {
   const isFull = filled >= total;
   const currentStatus = getOpenMicStatus(mic.status, mic.date);
   const closed = mic.registration_status === 'closed' || currentStatus !== 'upcoming';
+  const registrationStatus = currentStatus === 'upcoming' && mic.registration_status === 'open' ? 'open' : 'closed';
   const pageUrl = `${window.location.origin}/open-mic/${mic.slug}`;
   const lineupText = confirmed.map((r) => `• ${r.stage_name}`).join('\n');
   const shareTitle = `${mic.title} — Standupindo Cilegon`;
   const shareImage = mic.poster;
+  const openMicNumbers = getOpenMicNumbers(numberedMics.length > 0 ? numberedMics : [mic]);
   const shareText = [`Lineup ${mic.title}`, 'Standupindo Cilegon', '', 'Komika:', lineupText || 'Belum ada komika yang dikonfirmasi.', '', `📍 ${mic.venue}${mic.location ? `, ${mic.location}` : ''}`, `📅 ${formatDate(mic.date)}`, '', 'Lihat lineup lengkap:'].join('\n');
 
   async function shareLineup() {
@@ -164,7 +186,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader router={router} title={mic.title} />
+      <PageHeader router={router} title={`${mic.title} · Open Mic #${openMicNumbers.get(mic.id) ?? ''}`} />
 
       <div className="container-app py-6 space-y-6 sm:py-8 sm:space-y-8">
         <div className="rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_10px_28px_rgba(11,60,93,0.04)] sm:p-4">
@@ -185,7 +207,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={currentStatus} />
-                  <StatusBadge status={mic.registration_status === 'open' ? 'open' : 'closed'} />
+                  <StatusBadge status={registrationStatus} />
                 </div>
                 <ShareButton
                   title={`${mic.title} — Standupindo Cilegon`}
@@ -201,6 +223,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
               </div>
 
               <p className="text-sm font-bold text-slate-900 sm:text-base">{filled} Komika</p>
+              <NoSmokeAreaNotice detail context="open-mic" />
 
               {currentStatus === 'upcoming' && !closed && !isFull && (
                 <button onClick={() => router.navigate(`/open-mic/${mic.slug}/daftar`)} className="btn-primary w-full !py-2.75 text-sm sm:!py-3 sm:text-base">
@@ -301,7 +324,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
               </span>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
-              {otherMics.map((m) => <OpenMicCard key={m.id} mic={m} confirmedCount={counts[m.id] ?? 0} router={router} />)}
+              {otherMics.map((m) => <OpenMicCard key={m.id} mic={m} openMicNumber={openMicNumbers.get(m.id)} confirmedCount={counts[m.id] ?? 0} lineup={otherLineups[m.id]} router={router} />)}
             </div>
           </section>
         )}

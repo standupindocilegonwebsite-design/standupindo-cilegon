@@ -65,9 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (sessionResolved) return;
       sessionResolved = true;
       console.error('timed out while restoring auth session');
-      setSession(null);
       setLoading(false);
-    }, 3000);
+    }, 10000);
 
     supabase.auth.getSession()
       .then(({ data }) => {
@@ -89,7 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
-      (async () => { setSession(sess); })();
+      setSession(sess);
+      setLoading(false);
     });
 
     const refreshRoleSession = () => {
@@ -163,4 +163,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
-

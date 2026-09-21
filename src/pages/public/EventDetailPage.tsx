@@ -11,6 +11,7 @@ import { SocialIconButton } from '@/components/ui/SocialIconButton';
 import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
+import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
 import { formatDate, formatPrice, getEventStatus, waLink } from '@/lib/format';
 
 interface Props {
@@ -162,6 +163,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
               <LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="items-center gap-2.5" />
               <div className="flex items-center gap-2.5"><Ticket className="h-5 w-5 text-blue-600" /> <span className="font-bold text-slate-900">{formatPrice(cheapestTicketPrice)}</span></div>
             </div>
+            <NoSmokeAreaNotice detail context="event" />
 
             {currentStatus === 'upcoming' && (
               <div className="space-y-2">

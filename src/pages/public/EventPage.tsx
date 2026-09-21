@@ -42,7 +42,14 @@ export function EventPage({ router }: { router: Router }) {
 
   const filtered = useMemo(() => events.filter((e) => !search || e.title.toLowerCase().includes(search.toLowerCase())), [events, search]);
   const upcoming = filtered.filter((e) => getEventStatus(e.status, e.date) === 'upcoming');
-  const completed = filtered.filter((e) => getEventStatus(e.status, e.date) === 'completed');
+  const completed = filtered
+    .filter((e) => getEventStatus(e.status, e.date) === 'completed')
+    .sort((a, b) => {
+      const dateOrder = b.date.localeCompare(a.date);
+      if (dateOrder !== 0) return dateOrder;
+      return (b.created_at ?? '').localeCompare(a.created_at ?? '') || b.id.localeCompare(a.id);
+    })
+    .slice(0, 5);
 
   return (
     <div className="animate-fade-in">
@@ -67,7 +74,7 @@ export function EventPage({ router }: { router: Router }) {
           ) : loadError ? (
             <EmptyState title="Event belum dapat dimuat." description="Silakan coba lagi beberapa saat." />
           ) : upcoming.length === 0 ? (
-            <EmptyState title="Belum ada event mendatang." />
+            <EmptyState title="Belum ada event mendatang." noSmokeArea />
           ) : (
             <div className="flex touch-pan-x gap-4 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
               {upcoming.map((e) => (
@@ -81,10 +88,10 @@ export function EventPage({ router }: { router: Router }) {
 
         {completed.length > 0 && (
           <section data-scroll-reveal className="scroll-reveal border-t border-slate-200 pt-6 sm:pt-8">
-            <h2 className="mb-4 text-xl font-bold text-slate-900">Selesai</h2>
-            <div className="flex touch-pan-x gap-4 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
+            <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-slate-400" /><h2 className="text-xl font-extrabold text-slate-900">Selesai</h2><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{completed.length}</span></div>
+            <div className="grid gap-3 lg:grid-cols-2">
               {completed.map((e) => (
-                <div key={e.id} className="min-w-[270px] max-w-[270px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
+                <div key={e.id}>
                   <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
                 </div>
               ))}

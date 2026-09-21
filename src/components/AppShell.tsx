@@ -5,6 +5,7 @@ import { MobileBottomNav } from './nav/MobileBottomNav';
 import type { SiteSettings } from '@/lib/types';
 import { Instagram, Youtube, MapPin, MessageCircle } from 'lucide-react';
 import { waLink } from '@/lib/format';
+import { AppCredit } from './AppCredit';
 
 function TikTokIcon({ className }: { className?: string }) {
   return (
@@ -76,7 +77,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
       <main className="flex-1 pb-safe-nav md:pb-0">{children}</main>
 
       {/* Footer (desktop + mobile compact) */}
-      <footer className="border-t border-slate-200 bg-white">
+      <footer className="border-t border-slate-200 bg-white pb-14 md:pb-0">
         <div className="container-app py-10">
           <div className="grid gap-8 md:grid-cols-4">
             <div className="md:col-span-2">
@@ -145,6 +146,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
           <div className="mt-8 border-t border-slate-100 pt-5 text-center text-xs text-slate-400">
             &copy; {year} {settings.site_name}. <span className="text-blue-600">Komunitas Stand Up Comedy Cilegon.</span>
           </div>
+          <AppCredit className="mt-3" />
         </div>
       </footer>
 

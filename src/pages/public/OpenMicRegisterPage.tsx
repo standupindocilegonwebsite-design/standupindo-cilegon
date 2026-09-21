@@ -53,6 +53,8 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
   const [result, setResult] = useState<{ registration_id: string } | null>(null);
   const [serverError, setServerError] = useState('');
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [rulesAccepted, setRulesAccepted] = useState(false);
   const [alreadyRegisteredOpen, setAlreadyRegisteredOpen] = useState(false);
   const [memberProfile, setMemberProfile] = useState<MemberProfile | null>(null);
   const [memberOpenMicNumber, setMemberOpenMicNumber] = useState<number | null>(null);
@@ -102,8 +104,13 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
   }, [isMember, slug, user?.id]);
 
   useEffect(() => {
-    if (memberProfile && micId && !closed && filled < capacity && !result) setReviewOpen(true);
-  }, [capacity, closed, filled, memberProfile, micId, result]);
+    if (memberProfile && micId && !closed && filled < capacity && !result) {
+      if (!isMember) {
+        if (rulesAccepted) setReviewOpen(true);
+        else setRulesOpen(true);
+      }
+    }
+  }, [capacity, closed, filled, isMember, memberProfile, micId, result, rulesAccepted]);
 
   function validate(): boolean {
     const e: Partial<Record<keyof FormState, string>> = {};
@@ -119,6 +126,16 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
     setServerError('');
     if (!validate() || !micId) return;
     if (filled >= capacity) { setServerError('Slot sudah penuh. Maaf, pendaftaran tidak bisa dilanjutkan.'); return; }
+    if (!isMember && !rulesAccepted) {
+      setRulesOpen(true);
+      return;
+    }
+    setReviewOpen(true);
+  }
+
+  function continueToReview() {
+    if (!rulesAccepted) return;
+    setRulesOpen(false);
     setReviewOpen(true);
   }
 
@@ -335,6 +352,56 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
           <div className="flex gap-3">
             <button type="button" onClick={() => setReviewOpen(false)} disabled={submitting} className="btn-secondary flex-1">Edit Data</button>
             <button type="button" onClick={() => { void confirmSubmit(); }} disabled={submitting} className="btn-primary flex-1">{submitting ? 'Mengirim...' : 'Kirim Pendaftaran'}</button>
+          </div>
+        </div>
+      </Modal>
+      <Modal open={rulesOpen} onClose={() => setRulesOpen(false)} title="Peraturan Open Mic" size="md">
+        <div className="space-y-3">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-700 via-blue-700 to-indigo-800 px-4 py-3.5 text-white shadow-[0_10px_24px_rgba(37,99,235,0.18)]">
+            <div className="pointer-events-none absolute -right-5 -top-8 h-20 w-20 rounded-full border-[10px] border-white/10" />
+            <div className="relative flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25"><Mic className="h-5 w-5" /></span>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-100">SEBELUM NAIK PANGGUNG</p>
+                <h3 className="mt-0.5 text-base font-black tracking-tight">PERATURAN OPEN MIC</h3>
+              </div>
+            </div>
+            <p className="relative mt-3 border-t border-white/15 pt-2.5 text-xs leading-5 text-blue-50">Sebelum mendaftar, harap membaca dan memahami peraturan berikut:</p>
+          </div>
+          <ol className="list-decimal space-y-1.5 pl-5 text-[13px] leading-5.5 text-slate-700">
+            <li className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-[0_2px_8px_rgba(15,23,42,0.03)] marker:font-black marker:text-blue-600">Daftar dengan data yang benar dan hadir tepat waktu sesuai ketentuan panitia.</li>
+            <li className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-[0_2px_8px_rgba(15,23,42,0.03)] marker:font-black marker:text-blue-600">Ikuti urutan dan durasi tampil yang telah ditentukan. Hormati tanda light atau arahan MC/host.</li>
+            <li className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-[0_2px_8px_rgba(15,23,42,0.03)] marker:font-black marker:text-blue-600">Bawakan materi sendiri. Dilarang sengaja membawakan materi milik komika lain tanpa izin.</li>
+            <li className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-[0_2px_8px_rgba(15,23,42,0.03)] marker:font-black marker:text-blue-600">Hormati komika yang sedang tampil. Hindari obrolan keras, keributan, atau heckling.</li>
+            <li className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-[0_2px_8px_rgba(15,23,42,0.03)] marker:font-black marker:text-blue-600">Jaga sikap, venue, dan peralatan yang digunakan selama acara.</li>
+            <li className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-[0_2px_8px_rgba(15,23,42,0.03)] marker:font-black marker:text-blue-600">Berikan dan terima feedback dengan baik. Open Mic adalah ruang untuk mencoba, gagal, memperbaiki, dan berkembang bersama.</li>
+            <li className="rounded-xl border border-slate-100 bg-white px-3 py-2 shadow-[0_2px_8px_rgba(15,23,42,0.03)] marker:font-black marker:text-blue-600">Jika berhalangan hadir setelah mendaftar, segera informasikan kepada panitia.</li>
+          </ol>
+          <div className="relative overflow-hidden rounded-2xl bg-slate-950 p-3.5 text-white shadow-[0_12px_28px_rgba(15,23,42,0.18)]">
+            <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rotate-12 rounded-[2rem] bg-amber-300/90" />
+            <div className="pointer-events-none absolute -bottom-10 -left-8 h-24 w-24 rounded-full border-[10px] border-white/10" />
+            <div className="relative flex items-center gap-3">
+              <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-lg">
+                <img src="/assets/images/standup-indo-logo.png" alt="Logo Stand Up Indo" className="h-full w-full object-contain" />
+              </div>
+              <div className="min-w-0">
+                <span className="inline-flex rounded-full bg-amber-300 px-2 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-slate-950">KEPRESANDO</span>
+                <p className="mt-1 text-sm font-black uppercase leading-tight tracking-[0.04em] text-white">JAGA AREA TETAP BEBAS ASAP</p>
+              </div>
+            </div>
+            <div className="relative mt-3 border-t border-white/15 pt-2.5">
+              <p className="text-xs leading-5 text-slate-200"><span className="font-black text-amber-300">🚭 DILARANG MEROKOK</span>, menggunakan vape, pod, atau produk sejenis di area Open Mic dan penonton. Silakan merokok atau vaping di area yang telah ditentukan atau menjauh dari area acara.</p>
+            </div>
+          </div>
+          <p className="text-xs leading-5 text-slate-600">Dengan mendaftar, kamu dianggap telah membaca dan menyetujui peraturan Open Mic yang berlaku.</p>
+          <div className="-mx-3 space-y-2 border-t border-slate-200 bg-white px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-semibold leading-5 text-slate-700">
+              <input type="checkbox" checked={rulesAccepted} onChange={(event) => setRulesAccepted(event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600" />
+              <span>Saya sudah membaca dan memahami peraturan Open Mic.</span>
+            </label>
+            <button type="button" onClick={continueToReview} disabled={!rulesAccepted} className="btn-primary w-full py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50">
+              Lanjut ke Pendaftaran
+            </button>
           </div>
         </div>
       </Modal>

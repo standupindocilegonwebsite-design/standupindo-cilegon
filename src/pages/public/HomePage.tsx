@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Mic, CalendarDays, ArrowRight, Sparkles, Handshake } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { OpenMic, EventItem, Komika, EventTicket, Partner } from '@/lib/types';
@@ -10,6 +10,7 @@ import { KomikaCard } from '@/components/cards/KomikaCard';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { getOpenMicNumbers } from '@/lib/format';
 
 interface Props {
   router: Router;
@@ -105,6 +106,7 @@ export function HomePage({ router }: Props) {
   const [partnersByCategory, setPartnersByCategory] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
   const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
   const [confirmedCounts, setConfirmedCounts] = useState<Record<string, number>>({});
+  const openMicNumbers = useMemo(() => getOpenMicNumbers(mics), [mics]);
 
   useEffect(() => {
     const root = revealRootRef.current;
@@ -132,7 +134,7 @@ export function HomePage({ router }: Props) {
     (async () => {
       const today = new Date().toISOString().slice(0, 10);
       const [{ data: micData }, { data: eventData }, { data: komikaData }, { data: ticketData }, { data: partnerData }] = await Promise.all([
-        supabase.from('open_mics').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(3),
+        supabase.from('open_mics').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }),
         supabase.from('events').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(3),
         supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active').limit(12),
         supabase.from('event_tickets').select('event_id, price').eq('status', 'active').order('price', { ascending: true }),
@@ -243,12 +245,12 @@ export function HomePage({ router }: Props) {
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
               </div>
             ) : mics.length === 0 ? (
-              <EmptyState title="Belum ada Open Mic yang tersedia." description="Pantau terus untuk panggung berikutnya." />
+              <EmptyState title="Belum ada Open Mic yang tersedia." description="Pantau terus untuk panggung berikutnya." noSmokeArea />
             ) : (
               <AutoSlideRow className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
-                {mics.map((m) => (
+                {mics.slice(0, 3).map((m) => (
                   <div key={m.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
-                    <OpenMicCard mic={m} confirmedCount={confirmedCounts[m.id] ?? 0} router={router} />
+                    <OpenMicCard mic={m} openMicNumber={openMicNumbers.get(m.id)} confirmedCount={confirmedCounts[m.id] ?? 0} router={router} />
                   </div>
                 ))}
               </AutoSlideRow>
@@ -271,7 +273,7 @@ export function HomePage({ router }: Props) {
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
               </div>
             ) : events.length === 0 ? (
-              <EmptyState title="Belum ada event mendatang." />
+              <EmptyState title="Belum ada event mendatang." noSmokeArea />
             ) : (
               <AutoSlideRow className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
                 {events.map((e) => (

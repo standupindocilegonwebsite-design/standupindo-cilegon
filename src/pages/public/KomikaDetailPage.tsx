@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ArrowUpRight, Sparkles } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { Komika } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
+import { safeExternalUrl } from '@/lib/format';
 
 interface Props {
   router: Router;
@@ -33,7 +35,7 @@ export function KomikaDetailPage({ router, slug }: Props) {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, status, published, created_at, updated_at').eq('slug', slug).eq('published', true).maybeSingle();
+      const { data } = await supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, karya_url, instagram_url, tiktok_url, youtube_url, specialties, status, published, created_at, updated_at').eq('slug', slug).eq('published', true).maybeSingle();
       const k = data as Komika | null;
       setKomika(k);
 
@@ -69,6 +71,7 @@ export function KomikaDetailPage({ router, slug }: Props) {
   }
 
   const pageUrl = `${window.location.origin}/komika/${komika.slug}`;
+  const karyaUrl = safeExternalUrl(komika.karya_url);
 
   return (
     <div className="animate-fade-in">
@@ -119,6 +122,26 @@ export function KomikaDetailPage({ router, slug }: Props) {
                   <h2 className="text-base font-bold text-slate-900 sm:text-lg">Tentang</h2>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600 whitespace-pre-line sm:text-base">{komika.bio}</p>
                 </div>
+              )}
+
+              {karyaUrl && (
+                <a
+                  href={karyaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center justify-between gap-4 rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 via-white to-indigo-50 p-3.5 shadow-[0_8px_20px_rgba(37,99,235,0.08)] transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_12px_24px_rgba(37,99,235,0.14)] sm:p-4"
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-[0_6px_14px_rgba(37,99,235,0.25)]">
+                      <Sparkles className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-600">Karya Saya</span>
+                      <span className="mt-0.5 block truncate text-sm font-extrabold text-slate-900 sm:text-base">Lihat Karyaku</span>
+                    </span>
+                  </span>
+                  <ArrowUpRight className="h-5 w-5 shrink-0 text-blue-600 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                </a>
               )}
             </div>
           </div>

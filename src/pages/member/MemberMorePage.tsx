@@ -1,4 +1,4 @@
-import { ArrowLeftRight, CircleHelp, KeyRound, LogOut, ShieldCheck } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, CircleHelp, History, KeyRound, LogOut, ShieldCheck } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/lib/auth-context';
@@ -7,6 +7,8 @@ export function MemberMorePage({ router }: { router: Router }) {
   const { signOut } = useAuth();
 
   const items = [
+    { label: 'Buku Materi', description: 'Simpan dan kembangkan materi stand-up kamu', icon: BookOpen, onClick: () => router.navigate('/member/materials') },
+    { label: 'Riwayat Open Mic', description: 'Lihat dan kirim riwayat penampilan', icon: History, onClick: () => router.navigate('/member/open-mic-history') },
     { label: 'Akun', icon: KeyRound, onClick: () => router.navigate('/member/settings') },
     { label: 'Peran', icon: ShieldCheck, onClick: () => router.navigate('/member/roles') },
     { label: 'Bantuan', icon: CircleHelp, onClick: () => router.navigate('/member/help') },
@@ -45,7 +47,10 @@ export function MemberMorePage({ router }: { router: Router }) {
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 ring-1 ring-blue-100 transition group-hover:bg-white">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <span className="flex-1 text-sm font-bold text-slate-800">{item.label}</span>
+                  <span className="flex-1">
+                    <span className="block text-sm font-bold text-slate-800">{item.label}</span>
+                    {'description' in item && item.description && <span className="mt-0.5 block text-xs text-slate-500">{item.description}</span>}
+                  </span>
                   <span className="text-xl leading-none text-slate-300 transition group-hover:text-blue-600">›</span>
                 </button>
               );

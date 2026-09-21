@@ -7,6 +7,7 @@ import { OpenMicCard } from '@/components/cards/OpenMicCard';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { getOpenMicNumbers } from '@/lib/format';
 
 export function OpenMicPage({ router }: { router: Router }) {
   const [loading, setLoading] = useState(true);
@@ -14,6 +15,7 @@ export function OpenMicPage({ router }: { router: Router }) {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [lineups, setLineups] = useState<Record<string, string[]>>({});
   const [search, setSearch] = useState('');
+  const openMicNumbers = useMemo(() => getOpenMicNumbers(mics), [mics]);
 
   useEffect(() => {
     (async () => {
@@ -32,7 +34,8 @@ export function OpenMicPage({ router }: { router: Router }) {
           .select('open_mic_id, stage_name, attendance_status')
           .in('open_mic_id', ids)
           .eq('status', 'confirmed')
-          .neq('attendance_status', 'absent');
+          .neq('attendance_status', 'absent')
+          .order('created_at', { ascending: true });
         const c: Record<string, number> = {};
         const names: Record<string, string[]> = {};
         (regs ?? []).forEach((r: { open_mic_id: string; stage_name: string; attendance_status: string }) => {
@@ -57,7 +60,14 @@ export function OpenMicPage({ router }: { router: Router }) {
   }, [mics, search]);
 
   const upcoming = filtered.filter((m) => m.status === 'upcoming' && m.date >= today);
-  const completed = filtered.filter((m) => m.status === 'completed' || m.date < today);
+  const completed = filtered
+    .filter((m) => m.status === 'completed' || m.date < today)
+    .sort((a, b) => {
+      const dateOrder = b.date.localeCompare(a.date);
+      if (dateOrder !== 0) return dateOrder;
+      return (b.created_at ?? '').localeCompare(a.created_at ?? '') || b.id.localeCompare(a.id);
+    })
+    .slice(0, 5);
 
   return (
     <div className="animate-fade-in">
@@ -81,10 +91,10 @@ export function OpenMicPage({ router }: { router: Router }) {
           {loading ? (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"><LoadingSkeleton count={3} /></div>
           ) : upcoming.length === 0 ? (
-            <EmptyState title="Belum ada Open Mic mendatang." description="Pantau terus untuk panggung berikutnya." />
+            <EmptyState title="Belum ada Open Mic mendatang." description="Pantau terus untuk panggung berikutnya." noSmokeArea />
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
-              {upcoming.map((m) => <OpenMicCard key={m.id} mic={m} confirmedCount={counts[m.id] ?? 0} lineup={lineups[m.id]} router={router} />)}
+              {upcoming.map((m) => <OpenMicCard key={m.id} mic={m} openMicNumber={openMicNumbers.get(m.id)} confirmedCount={counts[m.id] ?? 0} lineup={lineups[m.id]} router={router} />)}
             </div>
           )}
         </section>
@@ -92,10 +102,10 @@ export function OpenMicPage({ router }: { router: Router }) {
         <section data-scroll-reveal className="scroll-reveal is-visible border-t border-slate-200 pt-6 sm:pt-8">
           <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-slate-400" /><h2 className="text-xl font-extrabold text-slate-900">Selesai</h2><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{completed.length}</span></div>
           {completed.length === 0 ? (
-            <EmptyState title="Belum ada Open Mic yang selesai." description="Riwayat Open Mic akan muncul di sini setelah acaranya selesai." />
+            <EmptyState title="Belum ada Open Mic yang selesai." description="Riwayat Open Mic akan muncul di sini setelah acaranya selesai." noSmokeArea />
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
-              {completed.map((m) => <OpenMicCard key={m.id} mic={m} confirmedCount={counts[m.id] ?? 0} lineup={lineups[m.id]} router={router} />)}
+              {completed.map((m) => <OpenMicCard key={m.id} mic={m} openMicNumber={openMicNumbers.get(m.id)} confirmedCount={counts[m.id] ?? 0} lineup={lineups[m.id]} router={router} />)}
             </div>
           )}
         </section>

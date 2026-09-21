@@ -1,7 +1,17 @@
+import type { OpenMic } from '@/lib/types';
+
 const MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
+
+export function getOpenMicNumbers(openMics: OpenMic[]): Map<string, number> {
+  return new Map(
+    [...openMics]
+      .sort((first, second) => first.date.localeCompare(second.date) || first.created_at.localeCompare(second.created_at) || first.id.localeCompare(second.id))
+      .map((mic, index) => [mic.id, index + 1]),
+  );
+}
 
 export function getOpenMicStatus(status: 'upcoming' | 'completed' | 'cancelled', date: string): 'upcoming' | 'completed' | 'cancelled' {
   if (status === 'cancelled' || status === 'completed') return status;
@@ -63,4 +73,15 @@ export function slugify(text: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+export function safeExternalUrl(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? '';
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }

@@ -161,6 +161,7 @@ export interface Komika {
   slug: string;
   photo: string | null;
   bio: string | null;
+  karya_url: string | null;
   instagram_url: string | null;
   tiktok_url: string | null;
   youtube_url: string | null;
@@ -171,6 +172,71 @@ export interface Komika {
   published: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type MemberOpenMicHistoryStatus = 'pending' | 'approved' | 'rejected';
+
+export interface MemberOpenMicHistorySubmission {
+  id: string;
+  user_id: string;
+  komika_id: string;
+  title: string;
+  organizer_name: string;
+  event_date: string;
+  venue: string;
+  city: string | null;
+  notes: string | null;
+  proof_url: string | null;
+  status: MemberOpenMicHistoryStatus;
+  admin_note: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Material {
+  id: string;
+  user_id: string;
+  title: string;
+  theme: string;
+  estimated_duration: number;
+  content: string;
+  previous_content: string | null;
+  previous_updated_at: string | null;
+  rating: number | null;
+  personal_note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterialNode {
+  id: string;
+  material_id: string;
+  parent_id: string | null;
+  type: string;
+  title: string;
+  content: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterialSetlist {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterialSetlistItem {
+  id: string;
+  setlist_id: string;
+  material_id: string;
+  sort_order: number;
+  created_at: string;
+  material?: Material;
 }
 
 export type EvaluationStatus = 'draft' | 'submitted';

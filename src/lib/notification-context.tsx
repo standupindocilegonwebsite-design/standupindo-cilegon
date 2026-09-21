@@ -50,6 +50,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [records, setRecords] = useState<Map<string, NotificationRecord>>(new Map());
   const [revision, setRevision] = useState(0);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [channelRevision, setChannelRevision] = useState(0);
 
   const resync = useCallback(async () => {
     if (activeSources.length === 0) {
@@ -73,7 +74,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     });
     setRecords(next);
     setRevision((value) => value + 1);
-  }, [activeSources, isAdmin]);
+  }, [activeSources]);
 
   useEffect(() => {
     if (activeSources.length === 0) {
@@ -113,20 +114,38 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         applyRow('applications', (payload.eventType === 'DELETE' ? payload.old : payload.new) as { id: string; status: string });
         broadcast?.postMessage({ type: 'notification-changed' });
       });
-    channel.subscribe((status) => setRealtimeConnected(status === 'SUBSCRIBED'));
+    let active = true;
+    channel.subscribe((status) => {
+      if (!active) return;
+      setRealtimeConnected(status === 'SUBSCRIBED');
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        setChannelRevision((value) => value + 1);
+        void resync();
+      }
+    });
 
     const onBroadcast = (event: MessageEvent<{ type?: string }>) => {
       if (event.data?.type === 'notification-changed' || event.data?.type === 'notification-read') void resync();
     };
+    const resyncOnResume = () => {
+      if (document.visibilityState === 'visible') void resync();
+    };
     broadcast?.addEventListener('message', onBroadcast);
+    window.addEventListener('pageshow', resyncOnResume);
+    window.addEventListener('focus', resyncOnResume);
+    document.addEventListener('visibilitychange', resyncOnResume);
 
     return () => {
+      active = false;
       broadcast?.removeEventListener('message', onBroadcast);
       broadcast?.close();
+      window.removeEventListener('pageshow', resyncOnResume);
+      window.removeEventListener('focus', resyncOnResume);
+      document.removeEventListener('visibilitychange', resyncOnResume);
       void supabase.removeChannel(channel);
       setRealtimeConnected(false);
     };
-  }, [activeSources, isAdmin, resync]);
+  }, [activeSources, channelRevision, resync]);
 
   const markAsRead = useCallback(async (source: NotificationSource, id: string) => {
     const stored = readStoredIds();
