@@ -7,6 +7,7 @@ import { KomikaCard } from '@/components/cards/KomikaCard';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { normalizeSpecialties } from '@/lib/format';
 
 export function KomikaPage({ router }: { router: Router }) {
   const [loading, setLoading] = useState(true);
@@ -30,7 +31,10 @@ export function KomikaPage({ router }: { router: Router }) {
     })();
   }, []);
 
-  const filtered = useMemo(() => komika.filter((k) => !search || k.stage_name.toLowerCase().includes(search.toLowerCase()) || k.specialties.some((s) => s.toLowerCase().includes(search.toLowerCase()))), [komika, search]);
+  const filtered = useMemo(() => komika.filter((k) => {
+    const specialties = normalizeSpecialties(k.specialties);
+    return !search || k.stage_name.toLowerCase().includes(search.toLowerCase()) || specialties.some((s) => s.toLowerCase().includes(search.toLowerCase()));
+  }), [komika, search]);
 
   return (
     <div className="animate-fade-in">

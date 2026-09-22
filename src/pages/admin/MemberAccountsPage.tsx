@@ -10,6 +10,7 @@ interface MemberAccount {
   created_at: string;
   active: boolean;
   role: 'member' | 'evaluator';
+  evaluator_enabled?: boolean;
   profile?: { stage_name: string; full_name: string; photo: string | null; status: string } | null;
 }
 
@@ -26,9 +27,11 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
   const [roleUpdatingId, setRoleUpdatingId] = useState<string | null>(null);
   const [accountSearch, setAccountSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<MemberAccount | null>(null);
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
   const selectedKomika = komika.find((profile) => profile.id === komikaId);
   const filteredKomika = useMemo(() => komika.filter((profile) => profile.stage_name.toLowerCase().includes(komikaSearch.trim().toLowerCase()) || profile.full_name.toLowerCase().includes(komikaSearch.trim().toLowerCase())), [komika, komikaSearch]);
   const filteredAccounts = accounts.filter((account) => `${account.profile?.stage_name ?? ''} ${account.profile?.full_name ?? ''} ${account.email ?? ''}`.toLowerCase().includes(accountSearch.trim().toLowerCase()));
+  const visibleAccounts = accountSearch.trim() || showAllAccounts ? filteredAccounts : filteredAccounts.slice(0, 4);
 
   async function loadAccounts() {
     setAccountsLoading(true);
@@ -64,7 +67,7 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
     const { data, error } = await supabase.functions.invoke('admin-manage-members', { body: { action: 'update-role', user_id: account.id, role } });
     setRoleUpdatingId(null);
     if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Peran akun gagal diubah.'); return; }
-    setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, role: data?.user?.role === 'evaluator' ? 'evaluator' : 'member' } : item));
+    setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, role: data?.user?.role === 'evaluator' ? 'evaluator' : 'member', evaluator_enabled: data?.user?.role === 'evaluator' } : item));
     onNotice(`${account.email ?? 'Akun member'} sekarang memiliki role ${role === 'evaluator' ? 'Member + Evaluator' : 'Member'}.`);
   }
 
@@ -147,12 +150,13 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
           <input value={accountSearch} onChange={(event) => setAccountSearch(event.target.value)} className="input-field !pl-10" placeholder="Cari nama, email, atau nama panggung..." aria-label="Cari akun member" />
         </div>
         <div className="mt-4 space-y-2.5">
-          {accountsLoading ? <div className="h-20 animate-pulse rounded-2xl bg-slate-100" /> : accounts.length === 0 ? <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm ring-1 ring-slate-200"><Users className="h-6 w-6" /></span><p className="mt-3 text-sm font-bold text-slate-700">Belum ada akun member</p><p className="mt-1 max-w-xs text-xs leading-5 text-slate-500">Akun member yang dibuat akan muncul di daftar ini.</p></div> : filteredAccounts.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-500">Akun member tidak ditemukan.</div> : filteredAccounts.map((account) => (
+          {accountsLoading ? <div className="h-20 animate-pulse rounded-2xl bg-slate-100" /> : accounts.length === 0 ? <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm ring-1 ring-slate-200"><Users className="h-6 w-6" /></span><p className="mt-3 text-sm font-bold text-slate-700">Belum ada akun member</p><p className="mt-1 max-w-xs text-xs leading-5 text-slate-500">Akun member yang dibuat akan muncul di daftar ini.</p></div> : filteredAccounts.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-500">Akun member tidak ditemukan.</div> : visibleAccounts.map((account) => (
             <div key={account.id} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-center gap-2.5"><div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 text-xs font-black text-slate-700">{account.profile?.photo ? <img src={account.profile.photo} alt="" className="h-full w-full object-cover" /> : (account.profile?.stage_name ?? account.email ?? 'M').charAt(0).toUpperCase()}</div><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{account.profile?.stage_name ?? 'Profil belum terhubung'}</p><p className="truncate text-[11px] text-slate-500">{account.profile?.full_name ?? account.email}</p><p className="truncate text-[11px] text-slate-400">{account.email}</p></div></div>
               <div className="flex flex-wrap items-center justify-between gap-1.5 sm:justify-end"><select value={account.role === 'evaluator' ? 'evaluator' : 'member'} onChange={(event) => void updateRole(account, event.target.value as 'member' | 'evaluator')} disabled={roleUpdatingId === account.id} className="rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-[11px] font-bold text-blue-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-50" aria-label={`Peran ${account.profile?.stage_name ?? account.email ?? 'akun'}`}><option value="member">Member</option><option value="evaluator">Evaluator</option></select><span className={`rounded-md border px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${account.active ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-600 bg-slate-700 text-white'}`}>{account.active ? 'Aktif' : 'Nonaktif'}</span><button type="button" onClick={() => void toggleAccount(account)} disabled={togglingId === account.id || roleUpdatingId === account.id} className={`flex h-8 w-8 items-center justify-center rounded-lg shadow-sm transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${account.active ? 'bg-amber-500 text-white shadow-amber-500/20 hover:bg-amber-600 focus:ring-amber-500' : 'bg-emerald-600 text-white shadow-emerald-600/20 hover:bg-emerald-700 focus:ring-emerald-600'}`} title={account.active ? 'Nonaktifkan akun' : 'Aktifkan akun'} aria-label={account.active ? `Nonaktifkan ${account.email ?? 'akun'}` : `Aktifkan ${account.email ?? 'akun'}`}><Power className="h-3.5 w-3.5" /></button><button type="button" onClick={() => setDeleteTarget(account)} disabled={togglingId === account.id || roleUpdatingId === account.id} className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-600/20 transition hover:-translate-y-0.5 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" title="Hapus akun" aria-label={`Hapus ${account.email ?? 'akun'}`}><Trash2 className="h-3.5 w-3.5" /></button></div>
             </div>
           ))}
+          {!accountSearch.trim() && filteredAccounts.length > 4 && <button type="button" onClick={() => setShowAllAccounts((current) => !current)} className="mx-auto flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-50" aria-expanded={showAllAccounts}>{showAllAccounts ? 'Tampilkan lebih sedikit' : `Tampilkan ${filteredAccounts.length - 4} akun lainnya`}<ChevronDown className={`h-4 w-4 transition-transform ${showAllAccounts ? 'rotate-180' : ''}`} /></button>}
         </div>
       </section>
 

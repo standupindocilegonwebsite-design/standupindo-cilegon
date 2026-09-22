@@ -11,7 +11,7 @@ const LINKS = [
   { to: '/member/more', label: 'More', icon: Menu },
 ];
 
-export function MemberDesktopNav({ router }: { router: Router }) {
+export function MemberDesktopNav({ router, sticky = true, compact = false }: { router: Router; sticky?: boolean; compact?: boolean }) {
   const { isEvaluator } = useAuth();
   const links = isEvaluator ? [...LINKS.slice(0, 2), { to: '/evaluator', label: 'Evaluator', icon: ClipboardCheck }, ...LINKS.slice(2)] : LINKS;
   const isActive = (to: string) => {
@@ -20,15 +20,15 @@ export function MemberDesktopNav({ router }: { router: Router }) {
   };
 
   return (
-    <header className="relative sticky top-0 z-40 overflow-visible border-b border-blue-800/60 bg-blue-700 shadow-[0_6px_24px_rgba(29,78,216,0.22)] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-blue-300">
-      <div className="container-app flex h-16 items-center justify-between md:h-[4.5rem]">
+    <header className={`${sticky ? 'sticky top-0' : 'relative'} z-40 overflow-visible border-b border-blue-800/60 bg-blue-700 shadow-[0_6px_24px_rgba(29,78,216,0.22)] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-blue-300`}>
+      <div className={`container-app flex items-center justify-between ${compact ? 'h-14 md:h-16' : 'h-16 md:h-[4.5rem]'}`}>
         <button onClick={() => router.navigate('/member')} className="group flex min-w-0 items-center gap-2.5 sm:gap-3" aria-label="Member Area">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white shadow-[0_5px_14px_rgba(15,23,42,0.14)] transition-transform duration-200 group-hover:scale-[1.03] sm:h-10 sm:w-10">
-            <img src="/assets/images/Standupindo_CIlegon_Logo.jpeg" alt="Standupindo Cilegon" className="h-7 w-7 rounded-lg object-contain sm:h-8 sm:w-8" />
+          <span className={`flex shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white shadow-[0_5px_14px_rgba(15,23,42,0.14)] transition-transform duration-200 group-hover:scale-[1.03] ${compact ? 'h-8 w-8 sm:h-9 sm:w-9' : 'h-9 w-9 sm:h-10 sm:w-10'}`}>
+            <img src="/assets/images/Standupindo_CIlegon_Logo.jpeg" alt="Standupindo Cilegon" className={`${compact ? 'h-6 w-6 sm:h-7 sm:w-7' : 'h-7 w-7 sm:h-8 sm:w-8'} rounded-lg object-contain`} />
           </span>
           <span className="flex min-w-0 flex-col text-left leading-tight">
-            <span className="text-[13px] font-black tracking-[0.02em] text-white sm:text-[15px]">MEMBER <span className="text-blue-100">AREA</span></span>
-            <span className="mt-0.5 truncate text-[9px] font-bold tracking-[0.12em] text-blue-100 sm:text-[10px]">STANDUPINDO CILEGON</span>
+            <span className={`${compact ? 'text-[12px] sm:text-[14px]' : 'text-[13px] sm:text-[15px]'} font-black tracking-[0.02em] text-white`}>MEMBER <span className="text-blue-100">AREA</span></span>
+            <span className={`${compact ? 'text-[8px] sm:text-[9px]' : 'text-[9px] sm:text-[10px]'} mt-0.5 truncate font-bold tracking-[0.12em] text-blue-100`}>STANDUPINDO CILEGON</span>
           </span>
         </button>
 

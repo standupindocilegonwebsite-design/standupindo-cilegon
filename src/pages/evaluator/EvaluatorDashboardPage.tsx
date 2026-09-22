@@ -50,7 +50,7 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
       setAssignments(uniqueAssignments);
       const assignedMicIds = uniqueAssignments.map((item) => item.open_mic!.id);
       if (assignedMicIds.length > 0) {
-        const [{ data: registrationRows }, { data: evaluationRows }] = await Promise.all([
+        const [{ data: registrationRows }, { data: evaluationRows }, { data: ownProfile }] = await Promise.all([
           supabase
           .from('open_mic_registrations')
           .select('id, open_mic_id, full_name, stage_name, community, komika_id')
@@ -63,8 +63,9 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
             .eq('evaluator_user_id', user.id)
             .eq('status', 'submitted')
             .in('open_mic_id', assignedMicIds),
+          supabase.from('komika').select('id').eq('user_id', user.id).maybeSingle(),
         ]);
-        const eligibleRegistrations = (registrationRows ?? []).filter((row) => row.community?.toLowerCase().includes('standupindo cilegon'));
+        const eligibleRegistrations = (registrationRows ?? []).filter((row) => row.community?.toLowerCase().includes('standupindo cilegon') && row.komika_id !== ownProfile?.id);
         const eligibleRegistrationIdsByMic = eligibleRegistrations.reduce<Record<string, Set<string>>>((result, row) => {
           if (!result[row.open_mic_id]) result[row.open_mic_id] = new Set();
           result[row.open_mic_id].add(row.id);

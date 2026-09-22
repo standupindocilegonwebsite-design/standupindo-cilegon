@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Calendar, ClipboardList, Clock, ExternalLink, Info, MessageCircle, Ticket } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { EventItem, EventTicket, EventPartnership, Partner, SiteSettings } from '@/lib/types';
@@ -32,6 +32,42 @@ function setOgTags(title: string, description: string, image: string, url: strin
   set('og:url', url);
 }
 
+function EventPartnerMarquee({ partners, logoSize, role }: { partners: Partner[]; logoSize: string; role: 'sponsor' | 'support' | 'media_partner' }) {
+  const shellRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef({ x: 0, scrollLeft: 0 });
+  const [dragging, setDragging] = useState(false);
+
+  function startDrag(event: React.PointerEvent<HTMLDivElement>) {
+    const shell = shellRef.current;
+    if (!shell) return;
+    shell.setPointerCapture(event.pointerId);
+    dragStart.current = { x: event.clientX, scrollLeft: shell.scrollLeft };
+    setDragging(true);
+  }
+
+  function moveDrag(event: React.PointerEvent<HTMLDivElement>) {
+    const shell = shellRef.current;
+    if (!shell || !dragging) return;
+    shell.scrollLeft = dragStart.current.scrollLeft - (event.clientX - dragStart.current.x);
+  }
+
+  function endDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setDragging(false);
+  }
+
+  return <div ref={shellRef} className={`event-partner-marquee-shell ${dragging ? 'is-dragging' : ''}`} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
+    <div className={`event-partner-marquee-track ${role === 'support' ? 'event-partner-marquee-track-right' : ''}`}>
+      {[...partners, ...partners].map((partner, index) => <div key={`${partner.id}-${index}`} className="flex w-32 shrink-0 flex-col items-center justify-center px-3 text-center sm:w-40">
+        <div className={`flex items-center justify-center overflow-visible ${logoSize}`}>
+          {partner.logo_url ? <img src={partner.logo_url} alt={partner.name} draggable={false} className="h-full w-full select-none object-contain" /> : <span className="text-[10px] font-black text-slate-600 sm:text-xs">{partner.name.slice(0, 2).toUpperCase()}</span>}
+        </div>
+        <p className={`mt-2 font-bold text-slate-800 ${role === 'sponsor' ? 'text-base' : role === 'support' ? 'text-sm' : 'text-xs'}`}>{partner.name}</p>
+      </div>)}
+    </div>
+  </div>;
+}
+
 export function EventDetailPage({ router, slug, settings }: Props) {
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState<EventItem | null>(null);
@@ -40,6 +76,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const [partnersByRole, setPartnersByRole] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
   const [lightbox, setLightbox] = useState(false);
   const [infoTab, setInfoTab] = useState<'about' | 'rules'>('about');
+  const [infoExpanded, setInfoExpanded] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -157,11 +194,11 @@ export function EventDetailPage({ router, slug, settings }: Props) {
                 image={event.poster}
               />
             </div>
-            <div className="space-y-2.5 text-sm text-slate-600">
-              <div className="flex items-center gap-2.5"><Calendar className="h-5 w-5 text-blue-600" /> {formatDate(event.date)}</div>
-              <div className="flex items-center gap-2.5"><Clock className="h-5 w-5 text-blue-600" /> {event.time} WIB</div>
-              <LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="items-center gap-2.5" />
-              <div className="flex items-center gap-2.5"><Ticket className="h-5 w-5 text-blue-600" /> <span className="font-bold text-slate-900">{formatPrice(cheapestTicketPrice)}</span></div>
+            <div className="space-y-0 overflow-hidden rounded-2xl border border-slate-200 bg-white text-sm text-slate-600 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
+              <div className="flex items-center gap-2.5 px-3.5 py-3"><Calendar className="h-5 w-5 shrink-0 text-blue-600" /> <span>{formatDate(event.date)}</span></div>
+              <div className="flex items-center gap-2.5 border-t border-slate-100 px-3.5 py-3"><Clock className="h-5 w-5 shrink-0 text-blue-600" /> <span>{event.time} WIB</span></div>
+              <div className="border-t border-slate-100"><LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="items-center gap-2.5 !rounded-none !border-0 !shadow-none !px-3.5 !py-3" /></div>
+              <div className="flex items-center gap-2.5 border-t border-slate-100 px-3.5 py-3"><Ticket className="h-5 w-5 shrink-0 text-blue-600" /> <span className="font-bold text-slate-900">{formatPrice(cheapestTicketPrice)}</span></div>
             </div>
             <NoSmokeAreaNotice detail context="event" />
 
@@ -183,7 +220,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
               type="button"
               role="tab"
               aria-selected={infoTab === 'about'}
-              onClick={() => setInfoTab('about')}
+              onClick={() => { if (infoTab === 'about') setInfoExpanded((current) => !current); else { setInfoTab('about'); setInfoExpanded(true); } }}
               className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-left transition-all sm:justify-start sm:px-4 ${infoTab === 'about' ? 'bg-blue-600 text-white shadow-[0_6px_14px_rgba(37,99,235,0.24)]' : 'text-slate-700 hover:bg-white'}`}
             >
               <Info className="h-4 w-4 shrink-0" />
@@ -193,7 +230,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
               type="button"
               role="tab"
               aria-selected={infoTab === 'rules'}
-              onClick={() => setInfoTab('rules')}
+              onClick={() => { if (infoTab === 'rules') setInfoExpanded((current) => !current); else { setInfoTab('rules'); setInfoExpanded(true); } }}
               className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-left transition-all sm:justify-start sm:px-4 ${infoTab === 'rules' ? 'bg-blue-600 text-white shadow-[0_6px_14px_rgba(37,99,235,0.24)]' : 'text-slate-700 hover:bg-white'}`}
             >
               <ClipboardList className="h-4 w-4 shrink-0" />
@@ -202,14 +239,16 @@ export function EventDetailPage({ router, slug, settings }: Props) {
             </div>
 
             <div role="tabpanel" className="border-t border-slate-200 bg-white p-4 sm:p-6">
-              <h2 className="text-lg font-extrabold text-slate-900 sm:text-xl">{infoTab === 'about' ? 'About Event' : 'Peraturan'}</h2>
-              <div className="mt-3 text-sm leading-relaxed text-slate-700 sm:text-base">
-                {infoTab === 'about' ? (
-                  event.description ? <p className="whitespace-pre-line">{event.description}</p> : <EmptyState title="Informasi tentang event belum tersedia." />
-                ) : (
-                  event.event_rules?.trim() ? <p className="whitespace-pre-line">{event.event_rules}</p> : <EmptyState title="Peraturan event belum tersedia." />
-                )}
-              </div>
+              {infoExpanded && <div role="tabpanel" className="border-t border-slate-200 bg-white p-4 sm:p-6">
+                <h2 className="text-lg font-extrabold text-slate-900 sm:text-xl">{infoTab === 'about' ? 'About Event' : 'Peraturan'}</h2>
+                <div className="mt-3 text-sm leading-relaxed text-slate-700 sm:text-base">
+                  {infoTab === 'about' ? (
+                    event.description ? <p className="whitespace-pre-line">{event.description}</p> : <EmptyState title="Informasi tentang event belum tersedia." />
+                  ) : (
+                    event.event_rules?.trim() ? <p className="whitespace-pre-line">{event.event_rules}</p> : <EmptyState title="Peraturan event belum tersedia." />
+                  )}
+                </div>
+              </div>}
             </div>
           </div>
         </section>
@@ -299,29 +338,14 @@ export function EventDetailPage({ router, slug, settings }: Props) {
                 };
 
                 return (
-                  <div key={role} className="rounded-[26px] border border-slate-200 bg-slate-50/60 p-3 sm:p-4">
+                  <div key={role} className={`rounded-[26px] border p-3 shadow-[0_8px_22px_rgba(15,23,42,0.04)] sm:p-4 ${role === 'sponsor' ? 'border-blue-200 bg-blue-50/40' : role === 'support' ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-white'}`}>
                     <div className="mb-3 flex items-center justify-center">
-                      <span className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600 sm:text-[11px]">
+                      <span className={`rounded-full border bg-white px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] sm:text-[11px] ${role === 'sponsor' ? 'border-blue-200 text-blue-700' : role === 'support' ? 'border-emerald-200 text-emerald-700' : 'border-slate-300 text-slate-600'}`}>
                         {labels[role]}
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-4 sm:gap-x-8">
-                      {rolePartners.map((partner) => (
-                        <div key={partner.id} className="flex flex-col items-center justify-center text-center">
-                          <div className={`flex items-center justify-center overflow-visible ${logoSize[role]}`}>
-                            {partner.logo_url ? (
-                              <img src={partner.logo_url} alt={partner.name} className="h-full w-full object-contain" />
-                            ) : (
-                              <span className="text-[10px] font-black text-slate-600 sm:text-xs">{partner.name.slice(0, 2).toUpperCase()}</span>
-                            )}
-                          </div>
-                          <p className={`mt-2 font-bold text-slate-800 ${role === 'sponsor' ? 'text-base' : role === 'support' ? 'text-sm' : 'text-xs'}`}>
-                            {partner.name}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+                    <EventPartnerMarquee partners={rolePartners} logoSize={logoSize[role]} role={role} />
                   </div>
                 );
               })}

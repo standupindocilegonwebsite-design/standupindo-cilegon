@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
-import { safeExternalUrl } from '@/lib/format';
+import { normalizeSpecialties, safeExternalUrl } from '@/lib/format';
 
 interface Props {
   router: Router;
@@ -35,11 +35,32 @@ export function KomikaDetailPage({ router, slug }: Props) {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, karya_url, instagram_url, tiktok_url, youtube_url, specialties, status, published, created_at, updated_at').eq('slug', slug).eq('published', true).maybeSingle();
-      const k = data as Komika | null;
-      setKomika(k);
+      try {
+        const { data: slugData } = await supabase
+          .from('komika')
+          .select('id, full_name, stage_name, slug, photo, bio, karya_url, instagram_url, tiktok_url, youtube_url, specialties, status, published, created_at, updated_at')
+          .eq('slug', slug);
 
-      if (k) {
+        let k = (slugData as Komika[] | null)?.find((item) => item.slug === slug) ?? null;
+
+        if (!k) {
+          const { data: fallbackData } = await supabase
+            .from('komika')
+            .select('id, full_name, stage_name, slug, photo, bio, karya_url, instagram_url, tiktok_url, youtube_url, specialties, status, published, created_at, updated_at')
+            .limit(200);
+
+          const rows = (fallbackData as Komika[] | null) ?? [];
+          k = rows.find((item) => item.slug === slug && item.published && item.status === 'active') ?? null;
+        }
+
+        if (!k || k.published !== true || k.status !== 'active') {
+          setKomika(null);
+          setLoading(false);
+          return;
+        }
+
+        setKomika(k);
+
         const pageUrl = `${window.location.origin}/komika/${k.slug}`;
         setOgTags(
           `${k.stage_name} — Standupindo Cilegon`,
@@ -47,8 +68,12 @@ export function KomikaDetailPage({ router, slug }: Props) {
           k.photo ?? `${window.location.origin}/assets/images/Standupindo_CIlegon_Logo.jpeg`,
           pageUrl,
         );
+      } catch (error) {
+        console.error('KomikaDetailPage query crashed', error);
+        setKomika(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
   }, [slug]);
 
@@ -72,6 +97,7 @@ export function KomikaDetailPage({ router, slug }: Props) {
 
   const pageUrl = `${window.location.origin}/komika/${komika.slug}`;
   const karyaUrl = safeExternalUrl(komika.karya_url);
+  const specialties = normalizeSpecialties(komika.specialties);
 
   return (
     <div className="animate-fade-in">
@@ -80,13 +106,13 @@ export function KomikaDetailPage({ router, slug }: Props) {
       <div className="container-app py-6 sm:py-8">
         <div data-scroll-reveal className="scroll-reveal rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_14px_32px_rgba(11,60,93,0.05)] sm:p-6">
           <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-7">
-            <div className="max-h-[20rem] overflow-hidden rounded-[22px] bg-slate-100 ring-1 ring-slate-200 sm:max-h-none">
+            <div className="max-h-[16rem] overflow-hidden rounded-[22px] bg-slate-100 ring-1 ring-slate-200 sm:max-h-[20rem] lg:max-h-none">
               {komika.photo ? (
                 <button onClick={() => setLightbox(true)} aria-label={`Lihat foto ${komika.stage_name}`} className="block h-full w-full">
-                  <img src={komika.photo} alt={komika.stage_name} className="aspect-[4/4.5] max-h-[20rem] w-full object-contain bg-slate-100 transition-transform duration-500 hover:scale-105 sm:max-h-none" />
+                  <img src={komika.photo} alt={komika.stage_name} className="aspect-[4/3] max-h-[16rem] w-full object-contain bg-slate-100 transition-transform duration-500 hover:scale-105 sm:aspect-[4/4.5] sm:max-h-[20rem] lg:max-h-none" />
                 </button>
               ) : (
-                <div className="flex aspect-[4/4.5] w-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50 text-5xl font-extrabold text-blue-600">
+                <div className="flex aspect-[4/3] w-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50 text-5xl font-extrabold text-blue-600 sm:aspect-[4/4.5]">
                   {komika.stage_name.charAt(0)}
                 </div>
               )}
@@ -111,9 +137,9 @@ export function KomikaDetailPage({ router, slug }: Props) {
                 <SocialIconButton instagram={komika.instagram_url} tiktok={komika.tiktok_url} youtube={komika.youtube_url} />
               </div>
 
-              {komika.specialties.length > 0 && (
+              {specialties.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {komika.specialties.map((s) => <span key={s} className="chip">{s}</span>)}
+                  {specialties.map((s) => <span key={s} className="chip">{s}</span>)}
                 </div>
               )}
 

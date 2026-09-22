@@ -82,6 +82,16 @@ function ProtectedAdmin({ router, settings }: { router: Router; settings: Return
 
 function ProtectedMember({ router }: { router: Router }) {
   const { session, loading, isMember } = useAuth();
+  const [authWaitExpired, setAuthWaitExpired] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setAuthWaitExpired(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setAuthWaitExpired(true), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [loading]);
 
   useEffect(() => {
     if (!loading && (!session || !isMember) && router.path !== '/member/login') {
@@ -89,7 +99,7 @@ function ProtectedMember({ router }: { router: Router }) {
     }
   }, [loading, session, isMember, router]);
 
-  if (loading) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat area member...</div>;
+  if (loading && !authWaitExpired) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat area member...</div>;
   if (!session || !isMember) {
     return <MemberLoginPage router={router} />;
   }
@@ -170,7 +180,7 @@ function RoutedApp() {
     return (
       <>
         <div className="flex min-h-screen flex-col bg-slate-50">
-          {router.path !== '/member/login' && <MemberDesktopNav router={router} />}
+          {router.path !== '/member/login' && <MemberDesktopNav router={router} compact={router.path.startsWith('/member/materials/')} />}
           <main className="flex-1 pb-safe-nav md:pb-0">{memberContent}</main>
           {router.path !== '/member/login' && (
             <footer className="border-t border-slate-200 bg-white px-4 py-2 pb-[calc(4.5rem+var(--safe-bottom))] md:py-4 md:pb-4">

@@ -107,7 +107,7 @@
   }
 
   .admin-login-page {
-    background: linear-gradient(135deg, #172554 0%, #312e81 42%, #581c87 72%, #7e22ce 100%);
+    background: #5b21b6;
   }
 
   .member-login-page {
@@ -237,6 +237,54 @@
     letter-spacing: -0.02em;
     white-space: nowrap;
     color: #0f172a;
+  }
+
+  .event-partner-marquee-shell {
+    position: relative;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-radius: 1rem;
+    background: rgba(248,250,252,0.7);
+    cursor: grab;
+    scrollbar-width: none;
+    touch-action: pan-x;
+  }
+
+  .event-partner-marquee-shell::-webkit-scrollbar {
+    display: none;
+  }
+
+  .event-partner-marquee-shell:active {
+    cursor: grabbing;
+  }
+
+  .event-partner-marquee-track {
+    display: flex;
+    width: max-content;
+    animation: event-partner-marquee-left 7s linear infinite;
+    will-change: transform;
+    padding: 0.5rem 0;
+    pointer-events: none;
+  }
+
+  .event-partner-marquee-shell:hover .event-partner-marquee-track,
+  .event-partner-marquee-shell:active .event-partner-marquee-track,
+  .event-partner-marquee-shell.is-dragging .event-partner-marquee-track {
+    animation-play-state: paused;
+  }
+
+  .event-partner-marquee-track-right {
+    animation-name: event-partner-marquee-right;
+  }
+
+  @keyframes event-partner-marquee-left {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  @keyframes event-partner-marquee-right {
+    from { transform: translateX(-50%); }
+    to { transform: translateX(0); }
   }
 
   @keyframes partner-marquee {

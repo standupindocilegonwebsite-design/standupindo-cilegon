@@ -1,8 +1,11 @@
 import type { Komika } from '@/lib/types';
 import type { Router } from '@/lib/router';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
+import { normalizeSpecialties } from '@/lib/format';
 
 export function KomikaCard({ komika, router }: { komika: Komika; router: Router }) {
+  const specialties = normalizeSpecialties(komika.specialties);
+
   return (
     <article
         onClick={() => router.navigate(`/komika/${komika.slug}`)}
@@ -30,9 +33,9 @@ export function KomikaCard({ komika, router }: { komika: Komika; router: Router 
           <div className="mt-2">
             <SocialIconButton instagram={komika.instagram_url} tiktok={komika.tiktok_url} youtube={komika.youtube_url} size="sm" />
           </div>
-          {komika.specialties.length > 0 && (
+          {specialties.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
-              {komika.specialties.map((s) => (
+              {specialties.map((s) => (
                 <span key={s} className="chip-neutral">{s}</span>
               ))}
             </div>
