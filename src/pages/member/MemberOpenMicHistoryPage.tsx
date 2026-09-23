@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, CalendarDays, CheckCircle2, Clock3, ExternalLink, MapPin, XCircle } from 'lucide-react';
+import { AlertCircle, CalendarDays, CheckCircle2, Clock3, ExternalLink, MapPin, Trash2, XCircle } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { MemberOpenMicHistorySubmission } from '@/lib/types';
 import { PageHeader } from '@/components/PageHeader';
@@ -13,7 +13,7 @@ type FormState = { title: string; organizer_name: string; event_date: string; ve
 
 const emptyForm: FormState = { title: '', organizer_name: '', event_date: '', venue: '', city: '', notes: '', proof_url: '' };
 
-function SubmissionCard({ item }: { item: MemberOpenMicHistorySubmission }) {
+function SubmissionCard({ item, deleting, onDelete }: { item: MemberOpenMicHistorySubmission; deleting: boolean; onDelete: (item: MemberOpenMicHistorySubmission) => void }) {
   const status = item.status === 'approved'
     ? { label: 'Disetujui', icon: CheckCircle2, className: 'bg-emerald-50 text-emerald-700' }
     : item.status === 'rejected'
@@ -34,7 +34,10 @@ function SubmissionCard({ item }: { item: MemberOpenMicHistorySubmission }) {
         <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{item.venue}{item.city ? `, ${item.city}` : ''}</span>
       </div>
       {item.admin_note && item.status === 'rejected' && <p className="mt-2 rounded-xl bg-red-50 p-2.5 text-xs text-red-700">{item.admin_note}</p>}
-      {item.proof_url && <a href={item.proof_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline">Lihat bukti <ExternalLink className="h-3 w-3" /></a>}
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+        {item.proof_url && <a href={item.proof_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline">Lihat bukti <ExternalLink className="h-3 w-3" /></a>}
+        {item.status === 'rejected' && <button type="button" disabled={deleting} onClick={() => onDelete(item)} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-60" aria-label={deleting ? 'Menghapus pengajuan' : 'Hapus pengajuan'} title={deleting ? 'Menghapus pengajuan' : 'Hapus pengajuan'}><Trash2 className="h-3.5 w-3.5" /></button>}
+      </div>
     </div>
   );
 }
@@ -47,6 +50,7 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function loadHistory() {
     if (!user?.id) return;
@@ -111,6 +115,21 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
     await loadHistory();
   }
 
+  async function deleteRejectedSubmission(item: MemberOpenMicHistorySubmission) {
+    if (item.status !== 'rejected' || !window.confirm(`Hapus pengajuan "${item.title}"?`)) return;
+    setDeletingId(item.id);
+    setError('');
+    setSuccess('');
+    const { error: deleteError } = await supabase.from('member_open_mic_history_submissions').delete().eq('id', item.id).eq('user_id', user?.id ?? '');
+    setDeletingId(null);
+    if (deleteError) {
+      setError('Pengajuan gagal dihapus. Coba lagi beberapa saat.');
+      return;
+    }
+    setSuccess('Pengajuan ditolak berhasil dihapus.');
+    await loadHistory();
+  }
+
   return (
     <div className="animate-fade-in">
       <PageHeader router={router} title="Riwayat Open Mic" subtitle="Catat penampilanmu, baik di Standupindo maupun di luar komunitas." />
@@ -137,7 +156,7 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
               <button disabled={saving} type="submit" className="w-full rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white disabled:opacity-60">{saving ? 'Mengirim...' : 'Kirim untuk review'}</button>
               </div></div>
             </form>
-            {(pendingSubmissions.length > 0 || rejectedSubmissions.length > 0) && <section className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4"><div className="flex items-center justify-between"><h2 className="text-sm font-extrabold text-slate-900">Status pengajuan</h2><span className="text-[10px] font-semibold text-slate-400">Jam terbang · bukan evaluasi</span></div><div className="mt-3 space-y-2">{[...pendingSubmissions, ...rejectedSubmissions].map((item) => <SubmissionCard key={item.id} item={item} />)}</div></section>}
+            {(pendingSubmissions.length > 0 || rejectedSubmissions.length > 0) && <section className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4"><div className="flex items-center justify-between"><h2 className="text-sm font-extrabold text-slate-900">Status pengajuan</h2><span className="text-[10px] font-semibold text-slate-400">Jam terbang · bukan evaluasi</span></div><div className="mt-3 space-y-2">{[...pendingSubmissions, ...rejectedSubmissions].map((item) => <SubmissionCard key={item.id} item={item} deleting={deletingId === item.id} onDelete={deleteRejectedSubmission} />)}</div></section>}
         </div>
       </div>
     </div>

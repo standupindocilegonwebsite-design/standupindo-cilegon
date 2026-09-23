@@ -27,6 +27,7 @@ import { MemberLoginPage } from '@/pages/member/MemberLoginPage';
 import { MemberDashboardPage } from '@/pages/member/MemberDashboardPage';
 import { MemberProfilePage } from '@/pages/member/MemberProfilePage';
 import { MemberEvaluationPage } from '@/pages/member/MemberEvaluationPage';
+import { MemberPerformanceHistoryPage } from '@/pages/member/MemberPerformanceHistoryPage';
 import { MemberMorePage } from '@/pages/member/MemberMorePage';
 import { MemberOpenMicHistoryPage } from '@/pages/member/MemberOpenMicHistoryPage';
 import { MemberMaterialsPage } from '@/pages/member/MemberMaterialsPage';
@@ -117,6 +118,7 @@ function ProtectedMember({ router }: { router: Router }) {
   if (memberOpenMicDetail) return <OpenMicDetailPage router={memberPublicRouter} slug={memberOpenMicDetail.slug} />;
   if (router.path === '/member/profile') return <MemberProfilePage router={router} />;
   if (router.path === '/member/evaluations') return <MemberEvaluationPage router={router} />;
+  if (router.path === '/member/evaluations/history') return <MemberPerformanceHistoryPage router={router} />;
   if (router.path === '/member/more') return <MemberMorePage router={router} />;
   if (router.path === '/member/open-mic-history') return <MemberOpenMicHistoryPage router={router} />;
   if (router.path === '/member/materials/new') return <MemberMaterialsPage router={router} />;

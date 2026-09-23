@@ -9,7 +9,7 @@ export function KomikaCard({ komika, router }: { komika: Komika; router: Router 
   return (
     <article
         onClick={() => router.navigate(`/komika/${komika.slug}`)}
-        className="card card-hover group cursor-pointer overflow-hidden"
+        className="card card-hover group cursor-pointer overflow-hidden border-2 border-blue-200 bg-white shadow-[0_0_0_1px_rgba(59,130,246,0.16),0_10px_24px_rgba(59,130,246,0.14)]"
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {

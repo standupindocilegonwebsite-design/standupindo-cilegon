@@ -161,9 +161,9 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
                 />
                 {search && <button type="button" onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Hapus pencarian"><X className="h-4 w-4" /></button>}
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-0.5">
+              <div className="grid grid-cols-3 rounded-xl border border-slate-300 bg-white p-1">
                 {([{ value: 'all', label: 'Semua' }, { value: 'pending', label: 'Belum selesai' }, { value: 'completed', label: 'Sudah selesai' }] as const).map((option) => (
-                  <button key={option.value} type="button" onClick={() => setProgressFilter(option.value)} className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${progressFilter === option.value ? 'bg-blue-600 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700'}`}>
+                  <button key={option.value} type="button" onClick={() => setProgressFilter(option.value)} className={`min-w-0 rounded-lg px-2 py-2 text-xs font-bold transition ${progressFilter === option.value ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-blue-700'}`}>
                     {option.label}
                   </button>
                 ))}

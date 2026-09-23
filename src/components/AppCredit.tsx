@@ -1,3 +1,3 @@
 export function AppCredit({ className = '' }: { className?: string }) {
-  return <p className={`text-center text-[11px] font-medium tracking-wide text-slate-400 ${className}`}>Made for komika — by @herilikuk</p>;
+  return <p className={`text-center text-[9px] font-normal uppercase tracking-[0.1em] text-slate-300 ${className}`}>MADE FOR KOMIKA — BY @HERILIKUK</p>;
 }

@@ -143,6 +143,26 @@
     @apply hover:-translate-y-1 hover:shadow-[0_16px_38px_rgba(37,99,235,0.18)] hover:ring-blue-300;
   }
 
+  .open-mic-roster-performers > div:first-child,
+  .open-mic-roster-pendaftar > div:nth-child(3) {
+    @apply rounded-[22px] border border-blue-500 bg-gradient-to-br from-blue-700 via-blue-600 to-sky-500 p-4 text-white shadow-[0_10px_24px_rgba(37,99,235,0.2)] sm:p-5;
+  }
+
+  .open-mic-roster-performers > div:first-child h1,
+  .open-mic-roster-pendaftar > div:nth-child(3) h1 {
+    color: white !important;
+  }
+
+  .open-mic-roster-performers > div:first-child p,
+  .open-mic-roster-pendaftar > div:nth-child(3) p {
+    color: #eff6ff !important;
+  }
+
+  .open-mic-roster-performers > div:first-child > div:first-child > p:first-child,
+  .open-mic-roster-pendaftar > div:nth-child(3) > div:first-child > p:first-child {
+    color: #dbeafe !important;
+  }
+
   .input-field {
     @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 transition-all duration-200 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/25;
   }

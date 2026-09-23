@@ -149,12 +149,14 @@ function NotificationBell({
   onNavigate,
   onMarkAsRead,
   onMarkAllAsRead,
+  inverse = false,
 }: {
   notifications: NotificationRecord[];
   unreadCount: number;
   onNavigate: (section: Section) => void;
   onMarkAsRead: (source: NotificationSource, id: string) => Promise<void>;
   onMarkAllAsRead: () => Promise<void>;
+  inverse?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -188,7 +190,7 @@ function NotificationBell({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition ${open ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-blue-50 hover:text-blue-700'}`}
+        className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition ${inverse ? (open ? 'bg-white/20 text-white' : 'text-white hover:bg-white/15') : (open ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-blue-50 hover:text-blue-700')}`}
         title="Notifikasi admin"
         aria-label={`Notifikasi admin${unreadCount ? `, ${unreadCount} belum dibaca` : ''}`}
         aria-expanded={open}
@@ -199,7 +201,7 @@ function NotificationBell({
       </button>
 
       {open && (
-        <div role="dialog" aria-label="Notifikasi admin" className="absolute right-0 top-11 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+        <div role="dialog" aria-label="Notifikasi admin" className="fixed left-2 right-2 top-16 z-50 max-h-[calc(100dvh-5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:absolute sm:left-auto sm:right-0 sm:top-11 sm:w-[min(22rem,calc(100vw-2rem))] sm:max-h-none">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <div>
               <h3 className="text-sm font-extrabold text-slate-900">Notifikasi</h3>
@@ -256,7 +258,6 @@ export function AdminPage({ router, settings }: Props) {
   const visibleNav = getWorkspaceNav(isAdmin, isOpenMicAdmin, isEventAdmin);
   const visibleBottomNav = getWorkspaceBottomNav(isAdmin, isOpenMicAdmin, isEventAdmin);
   const workspaceTitle = isOpenMicAdmin ? 'OPEN MIC WORKSPACE' : isEventAdmin ? 'EVENT WORKSPACE' : 'ADMIN PANEL';
-  const workspaceTone = isOpenMicAdmin ? 'border-amber-200 bg-amber-50 text-amber-800' : isEventAdmin ? 'border-indigo-200 bg-indigo-50 text-indigo-800' : '';
   const [openMics, setOpenMics] = useState<OpenMic[]>([]);
   const [registrations, setRegistrations] = useState<OpenMicRegistration[]>([]);
     const [events, setEvents] = useState<EventItem[]>([]); // This line is unchanged
@@ -273,7 +274,6 @@ export function AdminPage({ router, settings }: Props) {
   const [editing, setEditing] = useState<OpenMic | EventItem | Komika | Partner | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
-  const [returnSection, setReturnSection] = useState<Section>('dashboard');
   const [deleteTarget, setDeleteTarget] = useState<{ table: 'open_mics' | 'events' | 'komika' | 'partners'; id: string } | null>(null);
   const [ticketDeleteTarget, setTicketDeleteTarget] = useState<string | null>(null);
   const [ticketEvent, setTicketEvent] = useState<EventItem | null>(null);
@@ -361,13 +361,7 @@ export function AdminPage({ router, settings }: Props) {
   }
 
   function navigateSection(next: Section) {
-    if (section === 'more' && next !== 'more') setReturnSection('more');
     router.navigate(next === 'dashboard' ? '/admin' : `/admin/${next}`);
-  }
-
-  function navigateBack() {
-    const target = returnSection === 'more' ? 'more' : isAdmin ? 'dashboard' : isOpenMicAdmin ? 'open-mic' : 'events';
-    router.navigate(target === 'dashboard' ? '/admin' : `/admin/${target}`);
   }
 
   async function markAllNotificationsAsRead() {
@@ -409,32 +403,20 @@ export function AdminPage({ router, settings }: Props) {
     if (registration.komika_id && registration.attendance_status === 'attended') counts[registration.komika_id] = (counts[registration.komika_id] ?? 0) + 1;
     return counts;
   }, {}), [registrations]);
-  const isSubpage = section !== 'dashboard' && section !== 'more';
-  const pageTitle = section === 'registrants'
-    ? 'Pendaftar Open Mic'
-    : section === 'event-participants'
-      ? 'Pendaftar Event'
-      : section === 'profile-settings'
-        ? 'Pengaturan Profil'
-      : section === 'ticket-orders'
-        ? 'Data Penonton'
-      : section === 'open-mic-history'
-        ? 'Riwayat Open Mic Member'
-        : NAV.find((n) => n.key === section)?.label ?? 'More';
   const registrantOpenMicId = section === 'registrants' ? router.path.split('/').filter(Boolean)[2] ?? '' : '';
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       {/* Desktop Header */}
-      <header className={`sticky top-0 z-40 hidden border-b border-slate-200 bg-white lg:block ${isAdmin ? '' : workspaceTone}`}>
+      <header className="sticky top-0 z-40 hidden border-b border-blue-800 bg-blue-700 text-white lg:block">
         <div className="flex h-16 items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-9 w-9 rounded-lg object-contain" />
-            <span className="text-sm font-extrabold text-slate-900">{isAdmin ? <>ADMIN <span className="text-blue-600">PANEL</span></> : workspaceTitle}</span>
+            <img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-9 w-9 rounded-lg bg-white p-1 object-contain" />
+            <span className="text-sm font-extrabold text-white">{isAdmin ? <>ADMIN <span className="text-amber-300">PANEL</span></> : workspaceTitle}</span>
           </div>
           <div className="flex items-center gap-3">
-            <NotificationBell notifications={notifications} unreadCount={unreadCount} onNavigate={navigateSection} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllNotificationsAsRead} />
-            <span className="text-sm text-slate-500">{user?.email}</span>
+            <NotificationBell inverse notifications={notifications} unreadCount={unreadCount} onNavigate={navigateSection} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllNotificationsAsRead} />
+            <span className="text-sm text-blue-100">{user?.email}</span>
             <button type="button" onClick={async () => { await signOut(); router.navigate('/admin/login'); }} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-red-700" title="Keluar dari Admin Panel">
               <LogOut className="h-4 w-4" />
               Keluar
@@ -444,23 +426,15 @@ export function AdminPage({ router, settings }: Props) {
       </header>
 
       {/* Mobile Header */}
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white lg:hidden">
+      <header className="sticky top-0 z-40 border-b border-blue-800 bg-blue-700 text-white lg:hidden">
         <div className="flex h-14 items-center justify-between px-4">
-          {isSubpage ? (
-            <button onClick={() => section === 'registrants' ? router.navigate(isAdmin ? '/admin/open-mic' : '/admin/open-mic-list') : section === 'event-participants' ? router.navigate('/admin/events') : section === 'profile-settings' ? router.navigate('/admin/more') : navigateBack()} className="flex items-center gap-1.5 text-sm font-semibold text-slate-600">
-              <ArrowLeft className="h-5 w-5" /> <span className="text-slate-900">{pageTitle}</span>
-            </button>
-          ) : (
-            <div className="flex items-center gap-2.5">
-              <img src={LOGO_URL} alt="Logo" className="h-7 w-7 rounded-lg object-contain" />
-              <span className="text-sm font-extrabold text-slate-900">{isAdmin ? 'Admin Panel' : workspaceTitle}</span>
-            </div>
-          )}
-          {!isSubpage && (
-            <div className="flex items-center gap-2">
-              <NotificationBell notifications={notifications} unreadCount={unreadCount} onNavigate={navigateSection} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllNotificationsAsRead} />
-            </div>
-          )}
+          <div className="flex min-w-0 items-center gap-2.5">
+            <img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-7 w-7 shrink-0 rounded-lg bg-white p-1 object-contain" />
+            <span className="truncate text-sm font-extrabold tracking-tight text-white">{isAdmin ? 'ADMIN PANEL' : workspaceTitle}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <NotificationBell inverse notifications={notifications} unreadCount={unreadCount} onNavigate={navigateSection} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllNotificationsAsRead} />
+          </div>
         </div>
       </header>
 
@@ -638,7 +612,7 @@ function MemberOpenMicHistoryReview({ rows, komika, onNotice, onReload }: { rows
   }
 
   async function updateStatus(status: MemberOpenMicHistoryStatus) {
-    if (!selected) return;
+    if (!selected || selected.status !== 'pending') return;
     setSaving(true);
     const { error } = await supabase.from('member_open_mic_history_submissions').update({
       status,
@@ -656,7 +630,7 @@ function MemberOpenMicHistoryReview({ rows, komika, onNotice, onReload }: { rows
 
   return (
     <div className="space-y-5">
-      <div><h1 className="text-2xl font-extrabold text-slate-900">Riwayat Open Mic Member</h1><p className="mt-1 text-sm text-slate-500">Review penampilan yang dikirim member untuk ditampilkan di riwayat mereka.</p></div>
+      <WorkspacePageHeader title="Riwayat Open Mic Member" subtitle="Review penampilan yang dikirim member untuk ditampilkan di riwayat mereka." />
       <div className="grid grid-cols-3 gap-2">{folders.map((item) => <button key={item.key} onClick={() => setFolder(item.key)} className={`rounded-2xl border p-3 text-left transition ${folder === item.key ? 'border-blue-200 bg-blue-50 text-blue-700 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-100'}`}><span className="block text-xs font-semibold uppercase tracking-wide opacity-70">{item.label}</span><span className="mt-1 block text-2xl font-extrabold">{counts[item.key]}</span></button>)}</div>
       <div className="relative">
         <button type="button" onClick={() => setMemberPickerOpen((open) => !open)} className={`flex w-full items-center gap-3 rounded-2xl border bg-white px-3.5 py-3 text-left shadow-sm transition ${memberPickerOpen ? 'border-blue-400 ring-4 ring-blue-100' : 'border-slate-200 hover:border-blue-300'}`}>
@@ -687,17 +661,17 @@ function MemberOpenMicHistoryReview({ rows, komika, onNotice, onReload }: { rows
       </div>
       <Modal open={Boolean(selected)} onClose={() => setSelected(null)} title="Detail Riwayat Open Mic" size="lg">
         {selected && <div className="space-y-4 text-sm">
-          <div className="rounded-2xl bg-gradient-to-br from-blue-700 via-blue-600 to-sky-500 p-4 text-white shadow-[0_10px_24px_rgba(37,99,235,0.18)]">
+          <div className={`rounded-2xl bg-gradient-to-br p-4 text-white shadow-[0_10px_24px_rgba(37,99,235,0.18)] ${selected.status === 'rejected' ? 'from-red-700 via-red-600 to-rose-500' : 'from-blue-700 via-blue-600 to-sky-500'}`}>
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">Review jam terbang member</p>
             <div className="mt-1 flex items-start justify-between gap-3"><div><h4 className="text-lg font-black">{komikaById.get(selected.komika_id)?.stage_name ?? selected.komika_id}</h4><p className="mt-0.5 text-xs text-blue-100">{selected.title} · {selected.organizer_name}</p></div><span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase">{selected.status}</span></div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {[['Tanggal', selected.event_date], ['Venue', selected.venue], ['Kota', selected.city || '-'], ['Dikirim', selected.created_at ? new Date(selected.created_at).toLocaleString('id-ID') : '-']].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 font-semibold text-slate-700">{value}</p></div>)}
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {[['Tanggal', formatDate(selected.event_date)], ['Venue', selected.venue], ['Kota', selected.city || '-'], ['Dikirim', selected.created_at ? new Date(selected.created_at).toLocaleString('id-ID') : '-']].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2"><p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-0.5 text-xs font-semibold leading-5 text-slate-700">{value}</p></div>)}
           </div>
           {selected.proof_url && <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"><div className="flex items-center justify-between px-3 py-2"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Bukti penampilan</p><a href={selected.proof_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:underline">Buka penuh <ExternalLink className="h-3.5 w-3.5" /></a></div><a href={selected.proof_url} target="_blank" rel="noreferrer" className="block max-h-64 bg-slate-100"><img src={selected.proof_url} alt={`Bukti ${selected.title}`} className="mx-auto max-h-64 w-full object-contain" /></a></div>}
           {selected.notes && <div className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Catatan Member</p><p className="mt-1 whitespace-pre-wrap text-slate-700">{selected.notes}</p></div>}
-          <div><label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Catatan Admin <span className="font-normal normal-case text-slate-400">(opsional)</span></label><textarea value={note} onChange={(event) => setNote(event.target.value)} rows={2} placeholder="Tambahkan catatan untuk member..." className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" /></div>
-          <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3"><button disabled={saving} onClick={() => void updateStatus('rejected')} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 disabled:opacity-50">Tolak</button><button disabled={saving} onClick={() => void updateStatus('approved')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm disabled:opacity-50">Setujui</button></div>
+          <div><label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Catatan Admin <span className="font-normal normal-case text-slate-400">(opsional)</span></label><textarea value={note} onChange={(event) => setNote(event.target.value)} readOnly={selected.status !== 'pending'} rows={2} placeholder="Tambahkan catatan untuk member..." className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none read-only:bg-slate-50 read-only:text-slate-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" /></div>
+          {selected.status === 'pending' && <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3"><button disabled={saving} onClick={() => void updateStatus('rejected')} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 disabled:opacity-50">Tolak</button><button disabled={saving} onClick={() => void updateStatus('approved')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm disabled:opacity-50">Setujui</button></div>}
         </div>}
       </Modal>
     </div>
@@ -841,11 +815,7 @@ function OperationalDashboard({ kind, openMics, registrations, events, eventPend
 
   return (
     <div className="space-y-5 lg:space-y-6">
-      <div className={`rounded-[24px] border p-5 sm:p-6 ${isOpenMic ? 'border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50' : 'border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-blue-50'}`}>
-        <p className={`text-[11px] font-extrabold uppercase tracking-[0.18em] ${isOpenMic ? 'text-amber-700' : 'text-indigo-700'}`}>{isOpenMic ? 'Operasional Open Mic' : 'Operasional Event'}</p>
-        <h1 className="mt-2 text-2xl font-black tracking-[-0.03em] text-slate-950">{isOpenMic ? 'Siapkan panggung berikutnya.' : 'Jaga setiap event tetap siap.'}</h1>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">{isOpenMic ? 'Kelola jadwal, pendaftar, dan kehadiran komika dari satu ruang kerja.' : 'Kelola event, tiket, dan peserta dengan alur kerja yang ringkas.'}</p>
-      </div>
+      <WorkspacePageHeader eyebrow={isOpenMic ? 'Open Mic Workspace' : 'Event Workspace'} title={isOpenMic ? 'Siapkan panggung berikutnya.' : 'Jaga setiap event tetap siap.'} subtitle={isOpenMic ? 'Kelola jadwal, pendaftar, dan kehadiran komika dari satu ruang kerja.' : 'Kelola event, tiket, dan peserta dengan alur kerja yang ringkas.'} />
 
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
         {isOpenMic ? <>
@@ -871,6 +841,10 @@ function OperationalDashboard({ kind, openMics, registrations, events, eventPend
       </div>
     </div>
   );
+}
+
+function WorkspacePageHeader({ title, subtitle, eyebrow = 'Open Mic Workspace' }: { title: string; subtitle: string; eyebrow?: string }) {
+  return <div className="rounded-[22px] border border-blue-500 bg-gradient-to-br from-blue-700 via-blue-600 to-sky-500 p-4 text-white shadow-[0_10px_24px_rgba(37,99,235,0.2)] sm:p-5"><p className="!text-blue-100 text-[10px] font-extrabold uppercase tracking-[0.16em] sm:text-[11px]">{eyebrow}</p><h1 className="!text-white mt-1.5 text-xl font-black tracking-tight sm:text-2xl">{title}</h1><p className="!text-blue-50 mt-1 text-xs font-medium leading-5 sm:text-sm">{subtitle}</p></div>;
 }
 
 function OpenMicRosterView({ mode, openMics, registrations, loading, onReload }: { mode: 'registrants' | 'performers'; openMics: OpenMic[]; registrations: OpenMicRegistration[]; loading: boolean; onReload: () => Promise<void> }) {
@@ -957,6 +931,26 @@ function RosterStatusCards({ active, incomingCount, confirmedCount, onChange }: 
   return <div className="grid grid-cols-2 gap-2"><button type="button" onClick={() => onChange('incoming')} className={`flex min-h-16 items-center gap-2 rounded-xl border px-3 py-2 text-left transition sm:min-h-0 sm:py-2.5 ${active === 'incoming' ? 'border-amber-300 bg-amber-50 text-amber-900 shadow-sm' : 'border-slate-200 bg-white text-slate-500 hover:border-amber-200'}`}><span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-black ${active === 'incoming' ? 'bg-amber-200 text-amber-900' : 'bg-slate-100 text-slate-500'}`}>{incomingCount}</span><span className="min-w-0"><span className="block truncate text-[10px] font-extrabold uppercase tracking-[0.04em]">Menunggu</span><span className="block truncate text-[10px] font-medium opacity-75">Perlu ditinjau</span></span></button><button type="button" onClick={() => onChange('confirmed')} className={`flex min-h-16 items-center gap-2 rounded-xl border px-3 py-2 text-left transition sm:min-h-0 sm:py-2.5 ${active === 'confirmed' ? 'border-blue-300 bg-blue-50 text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-500 hover:border-blue-200'}`}><span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-black ${active === 'confirmed' ? 'bg-blue-200 text-blue-900' : 'bg-slate-100 text-slate-500'}`}>{confirmedCount}</span><span className="min-w-0"><span className="block truncate text-[10px] font-extrabold uppercase tracking-[0.04em]">Dikonfirmasi</span><span className="block truncate text-[10px] font-medium opacity-75">Siap diproses</span></span></button></div>;
 }
 
+function OpenMicFilterDropdown({ openMics, value, onChange, allLabel }: { openMics: OpenMic[]; value: string; onChange: (value: string) => void; allLabel: string }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const selectedLabel = openMics.find((openMic) => openMic.id === value)?.title ?? allLabel;
+  const visibleOpenMics = openMics.filter((openMic) => !query.trim() || `${openMic.title} ${openMic.venue}`.toLowerCase().includes(query.trim().toLowerCase()));
+
+  return <div className="relative">
+    <button type="button" onClick={() => setOpen((current) => !current)} className={`input-field flex w-full items-center justify-between gap-2 text-left ${open ? 'border-blue-500 ring-2 ring-blue-100' : ''}`} aria-expanded={open} aria-haspopup="listbox">
+      <span className="min-w-0 truncate text-sm font-medium text-slate-800">{selectedLabel}</span>
+      <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180 text-blue-700' : ''}`} />
+    </button>
+    {open && <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_14px_30px_rgba(15,23,42,0.16)]" role="listbox">
+      <div className="relative mb-1.5"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} className="input-field h-10 pl-9 text-sm" placeholder="Cari Open Mic..." aria-label="Cari Open Mic" /></div>
+      <button type="button" onClick={() => { onChange('all'); setQuery(''); setOpen(false); }} className={`flex w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold ${value === 'all' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}>{allLabel}</button>
+      {visibleOpenMics.map((openMic) => <button type="button" key={openMic.id} onClick={() => { onChange(openMic.id); setQuery(''); setOpen(false); }} className={`flex w-full flex-col rounded-xl px-3 py-2 text-left transition ${value === openMic.id ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`} role="option" aria-selected={value === openMic.id}><span className="truncate text-sm font-semibold">{openMic.title}</span><span className="truncate text-[11px] text-slate-500">{formatDate(openMic.date)} · {openMic.venue}</span></button>)}
+      {!visibleOpenMics.length && <p className="px-3 py-2.5 text-sm text-slate-500">Open Mic tidak ditemukan.</p>}
+    </div>}
+  </div>;
+}
+
 function PolishedOpenMicRosterView({ mode, openMics, registrations, komika, loading, onReload }: { mode: 'registrants' | 'performers'; openMics: OpenMic[]; registrations: OpenMicRegistration[]; komika: Komika[]; loading: boolean; onReload: () => Promise<void> }) {
   const [selectedOpenMicId, setSelectedOpenMicId] = useState('all');
   const [search, setSearch] = useState('');
@@ -976,6 +970,7 @@ function PolishedOpenMicRosterView({ mode, openMics, registrations, komika, load
   const isPerformerView = mode === 'performers';
   const today = new Date().toISOString().slice(0, 10);
   const openMicNumbers = useMemo(() => getOpenMicNumbers(openMics.filter((m) => m.published)), [openMics]);
+  const filterOpenMics = openMics.filter((openMic) => isPerformerView ? (folder === 'upcoming' ? openMic.date >= today : openMic.date < today) : openMic.date >= today);
   useEffect(() => { setCollapsed(new Set()); }, [openMics]);
   const groups = openMics.map((openMic) => {
     const allRows = registrations.filter((row) => row.open_mic_id === openMic.id);
@@ -1022,7 +1017,7 @@ function PolishedOpenMicRosterView({ mode, openMics, registrations, komika, load
     <div className={`space-y-4 ${isPerformerView ? 'open-mic-roster-performers' : 'open-mic-roster-pendaftar'}`}>
       {!isPerformerView && <><RosterStatusCards active={statusFolder} incomingCount={registrations.filter((row) => row.status !== 'confirmed' && row.attendance_status !== 'attended').length} confirmedCount={registrations.filter((row) => row.status === 'confirmed' && row.attendance_status !== 'attended').length} onChange={setStatusFolder} /><p className="-mt-1 text-xs font-semibold text-slate-500">Menampilkan pendaftar yang {statusFolder === 'incoming' ? 'menunggu konfirmasi admin.' : 'sudah dikonfirmasi admin.'}</p></>}
       <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-blue-700 sm:text-[11px]">Open Mic Workspace</p><h1 className="mt-1 text-xl font-extrabold text-slate-950 sm:text-2xl">{isPerformerView ? 'Performer Open Mic' : 'Pendaftar Open Mic'}</h1><p className="mt-1 text-xs text-slate-500 sm:text-sm">{isPerformerView ? 'Peserta yang sudah hadir dan tampil.' : 'Kelola pendaftar langsung per Open Mic.'}</p></div><button type="button" onClick={() => void onReload()} disabled={loading} className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-wait disabled:opacity-60" title="Refresh data pendaftar" aria-label="Refresh data pendaftar"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /><span className="hidden sm:inline">Refresh</span></button></div>
-      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-500">Langkah 2</p><h2 className="text-sm font-extrabold text-slate-900">{isPerformerView ? 'Pilih periode performer' : 'Pilih Open Mic mendatang'}</h2></div>{isPerformerView && <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1"><button type="button" onClick={() => setFolder('upcoming')} className={`rounded-xl px-3 py-2.5 text-sm font-bold ${folder === 'upcoming' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Saat Ini</button><button type="button" onClick={() => setFolder('completed')} className={`rounded-xl px-3 py-2.5 text-sm font-bold ${folder === 'completed' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Selesai</button></div>}<div><label className="mb-1.5 block text-xs font-bold text-slate-600" htmlFor="open-mic-filter">Open Mic</label><select id="open-mic-filter" value={selectedOpenMicId} onChange={(event) => setSelectedOpenMicId(event.target.value)} className="input-field"><option value="all">{isPerformerView ? 'Semua Open Mic' : 'Semua Open Mic Mendatang'}</option>{openMics.filter((openMic) => isPerformerView ? (folder === 'upcoming' ? openMic.date >= today : openMic.date < today) : openMic.date >= today).map((openMic) => <option key={openMic.id} value={openMic.id}>{openMic.title} · {formatDate(openMic.date)} · {openMic.venue}</option>)}</select></div><div><p className="mb-1.5 text-xs font-bold text-slate-600">Rentang tanggal <span className="font-normal text-slate-400">(opsional)</span></p><div className="grid gap-2 sm:grid-cols-2"><label className="relative"><span className="sr-only">Tanggal mulai</span><span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-xs font-semibold text-slate-400">Dari</span><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="input-field pl-12" /></label><label className="relative"><span className="sr-only">Tanggal selesai</span><span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-xs font-semibold text-slate-400">Sampai</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} className="input-field pl-14" /></label></div></div><div><label className="mb-1.5 block text-xs font-bold text-slate-600" htmlFor="registrant-search">{isPerformerView ? 'Cari performer' : 'Cari pendaftar'}</label><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input id="registrant-search" value={search} onChange={(event) => setSearch(event.target.value)} className="input-field pl-10" placeholder={isPerformerView ? 'Nama performer atau nomor pendaftaran' : 'Nama, stage name, atau nomor pendaftaran'} /></div></div></section>
+      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-500">Langkah 2</p><h2 className="text-sm font-extrabold text-slate-900">{isPerformerView ? 'Pilih periode performer' : 'Pilih Open Mic mendatang'}</h2></div>{isPerformerView && <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1"><button type="button" onClick={() => setFolder('upcoming')} className={`rounded-xl px-3 py-2.5 text-sm font-bold ${folder === 'upcoming' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Saat Ini</button><button type="button" onClick={() => setFolder('completed')} className={`rounded-xl px-3 py-2.5 text-sm font-bold ${folder === 'completed' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Selesai</button></div>}<div><label className="mb-1.5 block text-xs font-bold text-slate-600" htmlFor="open-mic-filter">Open Mic</label><OpenMicFilterDropdown openMics={filterOpenMics} value={selectedOpenMicId} onChange={setSelectedOpenMicId} allLabel={isPerformerView ? 'Semua Open Mic' : 'Semua Open Mic Mendatang'} /></div><div><p className="mb-1.5 text-xs font-bold text-slate-600">Rentang tanggal <span className="font-normal text-slate-400">(opsional)</span></p><div className="grid grid-cols-2 gap-2"><label className="relative"><span className="sr-only">Tanggal mulai</span><span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-xs font-semibold text-slate-400">Dari</span><input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="input-field pl-12" /></label><label className="relative"><span className="sr-only">Tanggal selesai</span><span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-xs font-semibold text-slate-400">Sampai</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} className="input-field pl-14" /></label></div></div><div><label className="mb-1.5 block text-xs font-bold text-slate-600" htmlFor="registrant-search">{isPerformerView ? 'Cari performer' : 'Cari pendaftar'}</label><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input id="registrant-search" value={search} onChange={(event) => setSearch(event.target.value)} className="input-field pl-10" placeholder={isPerformerView ? 'Nama performer atau nomor pendaftaran' : 'Nama, stage name, atau nomor pendaftaran'} /></div></div></section>
       {loading ? <div className="space-y-2">{[1, 2].map((item) => <div key={item} className="h-24 animate-pulse rounded-2xl bg-slate-100" />)}</div> : groups.length === 0 ? <AdminEmptyState title={isPerformerView ? 'Belum ada performer.' : 'Belum ada pendaftar.'} /> : <div className="space-y-3">{groups.map(({ openMic, allRows, rows }) => { const isCollapsed = collapsed.has(openMic.id); const canAdd = !isPerformerView && openMic.date >= today; const pendingCount = allRows.filter((row) => row.status === 'pending').length; const confirmedCount = allRows.filter((row) => row.status === 'confirmed' && row.attendance_status !== 'attended').length; const attendedCount = allRows.filter((row) => row.attendance_status === 'attended').length; return <section key={openMic.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="flex items-center gap-3 bg-slate-50/80 p-3.5 sm:p-4"><button type="button" onClick={() => setCollapsed((current) => { const next = new Set(current); if (next.has(openMic.id)) next.delete(openMic.id); else next.add(openMic.id); return next; })} className="flex min-w-0 flex-1 items-center gap-3 text-left"><span className="flex h-11 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-blue-50 text-blue-700 ring-1 ring-slate-200">{openMic.poster ? <img src={openMic.poster} alt="" className="h-full w-full object-cover" /> : <Mic className="h-5 w-5" />}</span><span className="min-w-0"><span className="block text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Open Mic #{openMicNumbers.get(openMic.id)}</span><span className="block truncate text-base font-extrabold text-slate-900">{openMic.title}</span><span className="mt-0.5 block truncate text-xs text-slate-500">{formatDate(openMic.date)} · {openMic.venue}</span><span className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold"><span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">{rows.length} aktif</span>{pendingCount > 0 && <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-700">{pendingCount} menunggu</span>}{confirmedCount > 0 && <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">{confirmedCount} terkonfirmasi</span>}{attendedCount > 0 && <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">{attendedCount} performer</span>}</span></span><ChevronRight className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} /></button>{canAdd && <button type="button" onClick={() => setCreateTarget(openMic)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white" title="Tambah pendaftar" aria-label="Tambah pendaftar"><Plus className="h-4 w-4" /></button>}</div>{!isCollapsed && <div className="divide-y divide-slate-100">{rows.length === 0 ? <div className="p-5 text-center text-sm text-slate-500">Belum ada pendaftar aktif.</div> : rows.map((row) => { const isConfirmed = row.status === 'confirmed'; return <div key={row.id} className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${row.attendance_status === 'attended' ? 'bg-emerald-50 text-emerald-700' : row.status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}><UserCheck className="h-4 w-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-900">{row.stage_name || row.full_name}</p><p className="truncate text-xs text-slate-500">{row.full_name} · {row.registration_id}</p></div>{!isPerformerView && <div className="flex shrink-0 items-center gap-1"><button type="button" onClick={() => setPendingAction({ row, type: isConfirmed ? 'reject' : 'confirm' })} className={`flex h-9 w-9 items-center justify-center rounded-lg ${isConfirmed ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`} title={isConfirmed ? 'Tolak pendaftar' : 'Konfirmasi pendaftar'} aria-label={isConfirmed ? 'Tolak pendaftar' : 'Konfirmasi pendaftar'}>{isConfirmed ? <X className="h-4 w-4" /> : <Check className="h-4 w-4" />}</button>{isConfirmed && <button type="button" onClick={() => setPendingAction({ row, type: 'attend' })} className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700" title="Tandai hadir" aria-label="Tandai hadir"><UserCheck className="h-4 w-4" /></button>}<button type="button" onClick={() => setPendingAction({ row, type: 'delete' })} className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-700" title="Hapus pendaftar" aria-label="Hapus pendaftar"><Trash2 className="h-4 w-4" /></button></div>}</div>; })}</div>}</section>; })}</div>}
       {createTarget && <Modal open={Boolean(createTarget)} onClose={() => setCreateTarget(null)} title={`Tambah Pendaftar · ${createTarget.title}`} size="md"><form onSubmit={createManual} className="space-y-4"><p className="text-sm text-slate-500">Pilih anggota Komika bila pendaftar memiliki profil resmi. Pilih umum untuk pendaftar tanpa profil member.</p><div className="grid grid-cols-2 gap-2"><button type="button" onClick={() => { setCreateMode('general'); setCreateForm({ komika_id: '', full_name: '', stage_name: '', community: '', instagram: '', whatsapp: '', notes: '' }); setKomikaSearch(''); }} className={`rounded-xl border px-3 py-3 text-sm font-bold ${createMode === 'general' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-100' : 'border-slate-200 text-slate-600'}`}>Pendaftar Umum</button><button type="button" onClick={() => setCreateMode('member')} className={`rounded-xl border px-3 py-3 text-sm font-bold ${createMode === 'member' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-100' : 'border-slate-200 text-slate-600'}`}>Anggota Komika</button></div>{createMode === 'member' && <div className="relative"><label className="label-field" htmlFor="p-komika-search">Cari Anggota Komika</label><Search className="absolute left-3 top-[2.65rem] h-4 w-4 text-slate-400" /><input id="p-komika-search" value={komikaSearch} onFocus={() => setKomikaSearchFocused(true)} onBlur={() => setTimeout(() => setKomikaSearchFocused(false), 150)} onChange={(event) => { setKomikaSearch(event.target.value); setCreateForm({ ...createForm, komika_id: '' }); }} className="input-field pl-10" placeholder="Ketik nama atau stage name" autoComplete="off" />{komikaSearchFocused && <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">{komika.filter((item) => `${item.full_name} ${item.stage_name}`.toLowerCase().includes(komikaSearch.trim().toLowerCase())).map((item) => <button key={item.id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setCreateForm({ komika_id: item.id, full_name: item.full_name, stage_name: item.stage_name, community: 'Standupindo Cilegon', instagram: formatInstagramHandle(item.instagram_url ?? ''), whatsapp: item.whatsapp ?? '', notes: '' }); setKomikaSearch(''); setKomikaSearchFocused(false); }} className="flex min-h-12 w-full flex-col items-start justify-center rounded-lg px-3 py-2 text-left hover:bg-blue-50"><span className="text-sm font-bold text-slate-900">{item.full_name}</span><span className="text-xs text-slate-500">{item.stage_name}</span></button>)}</div>}{createForm.komika_id && <p className="mt-1 text-xs font-semibold text-green-700">Terpilih: {createForm.full_name} — {createForm.stage_name}</p>}</div>}<div className="grid gap-4 sm:grid-cols-2"><div><label className="label-field" htmlFor="p-full-name">Nama lengkap</label><input id="p-full-name" required value={createForm.full_name} onChange={(event) => setCreateForm({ ...createForm, full_name: event.target.value })} className="input-field" /></div><div><label className="label-field" htmlFor="p-stage-name">Nama panggung</label><input id="p-stage-name" required value={createForm.stage_name} onChange={(event) => setCreateForm({ ...createForm, stage_name: event.target.value })} className="input-field" /></div><div><label className="label-field" htmlFor="p-community">Komunitas</label><input id="p-community" value={createForm.community} onChange={(event) => setCreateForm({ ...createForm, community: event.target.value })} className="input-field" /></div><div><label className="label-field" htmlFor="p-whatsapp">WhatsApp</label><input id="p-whatsapp" value={createForm.whatsapp} onChange={(event) => setCreateForm({ ...createForm, whatsapp: event.target.value })} className="input-field" /></div></div><div><label className="label-field" htmlFor="p-notes">Catatan</label><textarea id="p-notes" value={createForm.notes} onChange={(event) => setCreateForm({ ...createForm, notes: event.target.value })} className="input-field min-h-24" /></div><div className="flex gap-2"><button type="button" onClick={() => setCreateTarget(null)} className="btn-secondary flex-1">Batal</button><button type="submit" disabled={saving || (createMode === 'member' && !createForm.komika_id)} className="btn-primary flex-1">{saving ? 'Menyimpan...' : 'Simpan Pendaftar'}</button></div></form></Modal>}
       {notice && <Modal open={Boolean(notice)} onClose={() => setNotice('')} title="Pendaftar" size="sm"><div className="space-y-4"><div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold leading-6 text-amber-800">{notice}</div><button type="button" onClick={() => setNotice('')} className="btn-primary w-full">Mengerti</button></div></Modal>}
@@ -1516,6 +1511,7 @@ function getAdminFieldPlaceholder(key: string): string | undefined {
 function OpenMicManagement({ rows, registrations, loading, showRegistrants = true, onAdd, onEdit, onDelete, onTogglePublish, onViewRegistrants }: { rows: OpenMic[]; registrations: OpenMicRegistration[]; loading: boolean; showRegistrants?: boolean; onAdd: () => void; onEdit: (row: OpenMic) => void; onDelete: (id: string) => void; onTogglePublish: (id: string, current: boolean) => void; onViewRegistrants: (m: OpenMic) => void }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'upcoming' | 'completed' | 'cancelled'>('upcoming');
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const searchedRows = rows.filter((row) => {
     const query = search.trim().toLowerCase();
     return !query || row.title.toLowerCase().includes(query) || row.venue.toLowerCase().includes(query);
@@ -1531,7 +1527,7 @@ function OpenMicManagement({ rows, registrations, loading, showRegistrants = tru
   return (
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3">
-        <div><h1 className="text-2xl font-extrabold text-slate-900">Open Mic</h1><p className="mt-1 text-sm text-slate-500">Kelola Open Mic yang tampil di website.</p></div>
+        <WorkspacePageHeader title="Open Mic" subtitle="Kelola Open Mic yang tampil di website." />
         <button onClick={onAdd} className="btn-primary"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">Tambah</span></button>
       </div>
 
@@ -1605,7 +1601,7 @@ function OpenMicManagement({ rows, registrations, loading, showRegistrants = tru
                   <p className="truncate text-xs text-slate-500">{formatDate(m.date)} · {m.venue}</p>
                 </div>
               </div>
-              <StatusBadge status={getOpenMicStatus(m.status, m.date)} />
+              <div className="flex shrink-0 items-start gap-1.5"><StatusBadge status={getOpenMicStatus(m.status, m.date)} /><button type="button" onClick={() => setExpandedRows((current) => { const next = new Set(current); if (next.has(m.id)) next.delete(m.id); else next.add(m.id); return next; })} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-blue-700" aria-label={expandedRows.has(m.id) ? `Sembunyikan aksi ${m.title}` : `Tampilkan aksi ${m.title}`} aria-expanded={expandedRows.has(m.id)} title={expandedRows.has(m.id) ? 'Sembunyikan aksi' : 'Tampilkan aksi'}><ChevronDown className={`h-4 w-4 transition-transform ${expandedRows.has(m.id) ? 'rotate-180' : ''}`} /></button></div>
             </div>
             <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
               <span>Kapasitas: <strong className="text-slate-700">{m.capacity}</strong></span>
@@ -1614,11 +1610,11 @@ function OpenMicManagement({ rows, registrations, loading, showRegistrants = tru
                 {m.published ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />} {m.published ? 'Published' : 'Draft'}
               </button>
             </div>
-            <div className="mt-4 flex gap-2">
+            {expandedRows.has(m.id) && <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3">
               {showRegistrants && <button onClick={() => onViewRegistrants(m)} className="relative flex-1 rounded-lg bg-slate-100 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200">Pendaftar{registrations.filter((registration) => registration.open_mic_id === m.id && registration.status === 'pending').length > 0 && <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white">{registrations.filter((registration) => registration.open_mic_id === m.id && registration.status === 'pending').length}</span>}</button>}
-              <button onClick={() => onEdit(m)} className="flex-1 rounded-lg bg-blue-50 py-2.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">Edit</button>
-              <button onClick={() => onDelete(m.id)} className="flex-1 rounded-lg bg-red-50 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100">Hapus</button>
-            </div>
+              <button type="button" onClick={() => onEdit(m)} className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition hover:bg-blue-100" title="Edit Open Mic" aria-label={`Edit ${m.title}`}><Pencil className="h-4 w-4" /></button>
+              <button type="button" onClick={() => onDelete(m.id)} className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-700 transition hover:bg-red-100" title="Hapus Open Mic" aria-label={`Hapus ${m.title}`}><Trash2 className="h-4 w-4" /></button>
+            </div>}
           </div>
         ))}
       </div>
@@ -2915,10 +2911,7 @@ function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, isAdmin, isOp
   ];
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-900">More</h1>
-        <p className="mt-1 text-sm text-slate-500">Menu lainnya.</p>
-      </div>
+      <WorkspacePageHeader title="More" subtitle="Menu lainnya." />
       <div className="overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
         <div className="divide-y divide-slate-100">
           {items.filter((item) => !item.section || canAccessSection(item.section, isAdmin, isOpenMicAdmin, isEventAdmin)).map((item) => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { cloneElement, isValidElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Mic, CalendarDays, ArrowRight, Sparkles, Handshake } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { OpenMic, EventItem, Komika, EventTicket, Partner } from '@/lib/types';
@@ -16,26 +16,34 @@ interface Props {
   router: Router;
 }
 
-function AutoSlideRow({ children, className }: { children: ReactNode[]; className: string }) {
+function AutoSlideRow({ children, className, intervalMs = 5000, highlightActive = false, highlightTone = 'blue' }: { children: ReactNode[]; className: string; intervalMs?: number; highlightActive?: boolean; highlightTone?: 'blue' | 'amber' }) {
   const rowRef = useRef<HTMLDivElement>(null);
+  const activeIndexRef = useRef(0);
   const [paused, setPaused] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    activeIndexRef.current = 0;
+    setActiveIndex(0);
+  }, [children.length]);
 
   useEffect(() => {
     const row = rowRef.current;
     if (!row || children.length < 2 || window.matchMedia('(min-width: 1024px)').matches || paused) return;
     const timer = window.setInterval(() => {
-      const firstItem = row.firstElementChild as HTMLElement | null;
-      if (!firstItem) return;
-      const gap = Number.parseFloat(window.getComputedStyle(row).columnGap) || 0;
-      const nextPosition = row.scrollLeft + firstItem.offsetWidth + gap;
-      row.scrollTo({ left: nextPosition >= row.scrollWidth - row.clientWidth - 8 ? 0 : nextPosition, behavior: 'smooth' });
-    }, 5000);
+      const nextIndex = (activeIndexRef.current + 1) % children.length;
+      activeIndexRef.current = nextIndex;
+      const nextItem = row.children[nextIndex] as HTMLElement | undefined;
+      if (!nextItem) return;
+      if (highlightActive) setActiveIndex(nextIndex);
+      row.scrollTo({ left: nextItem.offsetLeft, behavior: 'smooth' });
+    }, intervalMs);
     return () => window.clearInterval(timer);
-  }, [children.length, paused]);
+  }, [children.length, highlightActive, intervalMs, paused]);
 
   return (
     <div ref={rowRef} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onTouchStart={() => setPaused(true)} onTouchEnd={() => setPaused(false)} className={className}>
-      {children}
+      {children.map((child, index) => isValidElement(child) ? cloneElement(child as React.ReactElement<{ className?: string }>, { className: `${child.props.className ?? ''} ${highlightActive && index === activeIndex ? `relative z-10 rounded-[22px] transition-shadow duration-500 ${highlightTone === 'amber' ? 'shadow-[0_0_0_3px_rgba(245,158,11,0.9),0_0_24px_rgba(245,158,11,0.46)]' : 'shadow-[0_0_0_3px_rgba(59,130,246,0.85),0_0_24px_rgba(59,130,246,0.42)]'}` : ''}` }) : child)}
     </div>
   );
 }
@@ -136,7 +144,7 @@ export function HomePage({ router }: Props) {
       const [{ data: micData }, { data: eventData }, { data: komikaData }, { data: ticketData }, { data: partnerData }] = await Promise.all([
         supabase.from('open_mics').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }),
         supabase.from('events').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(3),
-        supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active').limit(12),
+        supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active').limit(15),
         supabase.from('event_tickets').select('event_id, price').eq('status', 'active').order('price', { ascending: true }),
         supabase.from('partners').select('*').eq('is_published', true).order('sort_order', { ascending: true }).order('name', { ascending: true }),
       ]);
@@ -159,7 +167,7 @@ export function HomePage({ router }: Props) {
 
         if (aOrder !== bOrder) return aOrder - bOrder;
         return a.stage_name.localeCompare(b.stage_name, 'id', { sensitivity: 'base' });
-      }).slice(0, 6);
+      }).slice(0, 15);
 
       const groupedPartners: Record<'sponsor' | 'support' | 'media_partner', Partner[]> = { sponsor: [], support: [], media_partner: [] };
       (partnerData as Partner[] | null)?.forEach((partner) => {
@@ -231,8 +239,8 @@ export function HomePage({ router }: Props) {
       <div className="container-app py-8 space-y-10 sm:py-12 sm:space-y-14">
         {/* OPEN MIC TERDEKAT */}
         <section data-home-reveal className="home-reveal">
-          <div className="flex items-end justify-between gap-4">
-            <SectionHeader title="Open Mic Terdekat" subtitle="Panggung terbuka untuk kamu tampil." />
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
+            <div className="min-w-0 flex-1 border-l-4 border-l-blue-700 pl-3 sm:pl-4"><SectionHeader title="Open Mic Terdekat" subtitle="Panggung terbuka untuk kamu tampil." /></div>
             <button onClick={() => router.navigate('/open-mic')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
               Lihat semua <ArrowRight className="h-4 w-4" />
             </button>
@@ -247,7 +255,7 @@ export function HomePage({ router }: Props) {
             ) : mics.length === 0 ? (
               <EmptyState title="Belum ada Open Mic yang tersedia." description="Pantau terus untuk panggung berikutnya." noSmokeArea />
             ) : (
-              <AutoSlideRow className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
+              <AutoSlideRow highlightActive highlightTone="blue" className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
                 {mics.slice(0, 3).map((m) => (
                   <div key={m.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                     <OpenMicCard mic={m} openMicNumber={openMicNumbers.get(m.id)} confirmedCount={confirmedCounts[m.id] ?? 0} router={router} />
@@ -260,8 +268,8 @@ export function HomePage({ router }: Props) {
 
         {/* EVENT MENDATANG */}
         <section data-home-reveal className="home-reveal">
-          <div className="flex items-end justify-between gap-4">
-            <SectionHeader title="Event Mendatang" subtitle="Malam penuh tawa bersama komika terbaik." />
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
+            <div className="min-w-0 flex-1 border-l-4 border-l-amber-600 pl-3 sm:pl-4"><SectionHeader title="Event Mendatang" subtitle="Malam penuh tawa bersama komika terbaik." /></div>
             <button onClick={() => router.navigate('/event')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
               Lihat semua <ArrowRight className="h-4 w-4" />
             </button>
@@ -275,7 +283,7 @@ export function HomePage({ router }: Props) {
             ) : events.length === 0 ? (
               <EmptyState title="Belum ada event mendatang." noSmokeArea />
             ) : (
-              <AutoSlideRow className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
+              <AutoSlideRow highlightActive highlightTone="amber" className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
                 {events.map((e) => (
                   <div key={e.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                     <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
@@ -288,8 +296,8 @@ export function HomePage({ router }: Props) {
 
         {/* KOMIKA */}
         <section data-home-reveal className="home-reveal">
-          <div className="flex items-end justify-between gap-4">
-            <SectionHeader title="Komika" subtitle="Kenali talent Standupindo Cilegon." />
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
+            <div className="min-w-0 flex-1 border-l-4 border-l-blue-500 pl-3 sm:pl-4"><SectionHeader title="Komika" subtitle="Kenali talent Standupindo Cilegon." /></div>
             <button onClick={() => router.navigate('/komika')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
               Lihat semua <ArrowRight className="h-4 w-4" />
             </button>
@@ -305,7 +313,7 @@ export function HomePage({ router }: Props) {
             ) : komika.length === 0 ? (
               <EmptyState title="Belum ada komika." />
             ) : (
-              <AutoSlideRow className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:pb-0">
+              <AutoSlideRow intervalMs={2500} highlightActive className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:pb-0">
                 {komika.map((k) => (
                   <div key={k.id} className="min-w-[160px] max-w-[160px] shrink-0 snap-start sm:min-w-[180px] lg:min-w-0 lg:max-w-none">
                     <KomikaCard komika={k} router={router} />

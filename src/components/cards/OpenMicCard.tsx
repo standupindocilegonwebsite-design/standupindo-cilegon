@@ -38,12 +38,12 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
             router.navigate(`/open-mic/${mic.slug}`);
           }
         }}
-        className={`group cursor-pointer overflow-hidden ${isCompleted ? 'rounded-2xl border border-slate-300 bg-white shadow-[0_8px_20px_rgba(15,23,42,0.08)]' : 'card card-hover flex flex-col'}`}
+        className={`group cursor-pointer overflow-hidden ${isCompleted ? 'rounded-2xl border-2 border-slate-400 bg-slate-50 shadow-[0_8px_20px_rgba(15,23,42,0.1)]' : 'card card-hover flex flex-col border border-blue-300 border-t-4 border-t-blue-700 bg-white'}`}
         role="button"
         tabIndex={0}
       >
         <div className={isCompleted ? 'flex items-stretch' : ''}>
-        <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[16/10] w-[112px] shrink-0 sm:w-[150px]' : 'aspect-[16/10]'}`}>
+        <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[16/10] w-[112px] shrink-0 sm:w-[150px]' : 'aspect-[4/5]'}`}>
           {mic.poster ? (
             <button onClick={() => setLightbox(true)} aria-label={`Lihat poster ${mic.title}`} className="block h-full w-full">
               <img src={mic.poster} alt={`${mic.title} poster`} loading="lazy" className={`h-full w-full transition-transform duration-500 ${isCompleted ? 'object-cover grayscale group-hover:scale-105' : 'object-contain hover:scale-105'}`} />
@@ -73,7 +73,7 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
           </div>
 
           <div className={`flex gap-2 ${isCompleted ? 'mt-auto pt-3' : 'mt-4'}`}>
-            <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className={`btn-secondary flex-1 ${isCompleted ? '!rounded-lg !px-2.5 !py-2 text-[11px] sm:!text-xs' : '!px-3 !py-2 text-[12px] sm:!text-sm'} font-semibold`}>{isCompleted ? 'Detail' : 'Lihat Detail'}</button>
+            <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className={`${isCompleted ? 'btn-primary !rounded-lg !border-slate-800 !bg-slate-800 !px-2.5 !py-2 text-[11px] !text-white hover:!bg-slate-700 sm:!text-xs' : 'btn-secondary !px-3 !py-2 text-[12px] sm:!text-sm'} flex-1 font-semibold`}>{isCompleted ? 'Detail' : 'Lihat Detail'}</button>
             {currentStatus === 'upcoming' && !closed && !isFull && (
               <button onClick={() => router.navigate(`/open-mic/${mic.slug}/daftar`)} className={`btn-primary flex-1 ${isCompleted ? '!rounded-lg !px-2.5 !py-2 text-[11px] sm:!text-xs' : '!px-3 !py-2 text-[12px] sm:!text-sm'} font-semibold shadow-[0_8px_18px_rgba(29,94,219,0.18)]`}>Daftar</button>
             )}

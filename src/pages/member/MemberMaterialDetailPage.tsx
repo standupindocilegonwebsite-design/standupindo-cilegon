@@ -368,11 +368,11 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><BookOpen className="h-4 w-4" /></div>
               <div className="min-w-0">
                 <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Detail Materi</p>
-                <h1 className="truncate text-xl font-black leading-tight text-slate-950 sm:text-2xl">{material.title}</h1>
+                <h1 className="truncate text-xl font-black uppercase leading-tight text-slate-950 sm:text-2xl">{material.title}</h1>
               </div>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 pl-12 text-[11px] font-semibold text-slate-500">
-              <span className="inline-flex items-center gap-1"><BookOpen className="h-3 w-3 text-blue-600" /> {material.theme}</span>
+                <span className="inline-flex items-center gap-1 uppercase"><BookOpen className="h-3 w-3 text-blue-600" /> {material.theme}</span>
               <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3 text-blue-600" /> ±{material.estimated_duration} menit</span>
               <span className="inline-flex items-center gap-1"><CalendarDays className="h-3 w-3 text-blue-600" /> {formatDate(material.updated_at.slice(0, 10))}</span>
             </div>

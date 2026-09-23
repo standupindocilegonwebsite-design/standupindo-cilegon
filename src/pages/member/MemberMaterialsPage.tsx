@@ -21,6 +21,7 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [theme, setTheme] = useState('all');
+  const [themeFilterSearch, setThemeFilterSearch] = useState('');
   const [duration, setDuration] = useState('all');
   const [rating, setRating] = useState('all');
   const [showForm, setShowForm] = useState(isCreatePage);
@@ -99,14 +100,17 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
   function FilterDropdown({ kind, value, options, onChange, ratingOptions = false }: { kind: 'theme' | 'duration' | 'rating'; value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void; ratingOptions?: boolean }) {
     const isOpen = filterMenuOpen === kind;
     const selectedLabel = options.find((option) => option.value === value)?.label ?? options[0]?.label;
+    const visibleOptions = kind === 'theme' && themeFilterSearch.trim() ? options.filter((option) => option.label.toLowerCase().includes(themeFilterSearch.trim().toLowerCase()) || option.value === 'all') : options;
     return (
       <div className="relative">
         <button type="button" onClick={() => setFilterMenuOpen(isOpen ? null : kind)} className={`input-field flex w-full items-center justify-between text-left ${isOpen ? 'border-blue-500 ring-2 ring-blue-100' : ''}`} aria-expanded={isOpen}>
-          <span className="flex min-w-0 items-center truncate">{ratingOptions && value !== 'all' && value !== 'unrated' ? <span className="mr-2 shrink-0 tracking-wide text-amber-400">{'★'.repeat(Number(value))}{'☆'.repeat(5 - Number(value))}</span> : null}<span className="truncate">{selectedLabel}</span></span>
+          <span className="flex min-w-0 items-center truncate">{ratingOptions && value !== 'all' && value !== 'unrated' ? <span className="mr-2 shrink-0 tracking-wide text-amber-400">{'★'.repeat(Number(value))}{'☆'.repeat(5 - Number(value))}</span> : null}<span className={`truncate ${kind === 'theme' ? 'uppercase' : ''}`}>{selectedLabel}</span></span>
           <span className={`ml-3 shrink-0 text-xs text-slate-500 transition-transform ${isOpen ? 'rotate-180 text-blue-700' : ''}`}>▼</span>
         </button>
         {isOpen && <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-2xl border border-blue-100 bg-white p-1.5 shadow-[0_14px_30px_rgba(15,23,42,0.16)]">
-          {options.map((option) => <button type="button" key={option.value} onClick={() => { onChange(option.value); setFilterMenuOpen(null); }} className={`flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${value === option.value ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700'}`}>{ratingOptions && option.value !== 'all' && option.value !== 'unrated' ? <span className="mr-2 tracking-wide text-amber-400">{'★'.repeat(Number(option.value))}{'☆'.repeat(5 - Number(option.value))}</span> : null}{option.label}</button>)}
+          {kind === 'theme' && <div className="relative mb-1.5"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input autoFocus className="input-field h-10 pl-9 text-sm" placeholder="Cari tema..." value={themeFilterSearch} onChange={(event) => setThemeFilterSearch(event.target.value)} /></div>}
+          {visibleOptions.map((option) => <button type="button" key={option.value} onClick={() => { onChange(option.value); setThemeFilterSearch(''); setFilterMenuOpen(null); }} className={`flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${value === option.value ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700'}`}>{ratingOptions && option.value !== 'all' && option.value !== 'unrated' ? <span className="mr-2 tracking-wide text-amber-400">{'★'.repeat(Number(option.value))}{'☆'.repeat(5 - Number(option.value))}</span> : null}<span className={kind === 'theme' ? 'uppercase' : ''}>{option.label}</span></button>)}
+          {!visibleOptions.length && <p className="px-3 py-2.5 text-sm text-slate-500">Tema tidak ditemukan.</p>}
         </div>}
       </div>
     );
@@ -123,8 +127,8 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
     setError('');
     const { error: saveError } = await supabase.from('materials').insert({
       user_id: user.id,
-      title: form.title.trim(),
-      theme: form.theme.trim(),
+      title: form.title.trim().toUpperCase(),
+      theme: form.theme.trim().toUpperCase(),
       estimated_duration: Number(form.estimated_duration),
       content: form.content.trim(),
     });
@@ -169,17 +173,17 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
           <form onSubmit={saveMaterial} className="rounded-[26px] border border-blue-100 bg-blue-50/60 p-4 shadow-[0_10px_28px_rgba(37,99,235,0.08)] sm:p-5">
             <div className="mb-4 flex items-center gap-2"><BookOpen className="h-5 w-5 text-blue-700" /><h2 className="text-lg font-extrabold text-slate-950">Tambah Materi</h2></div>
             <div className="space-y-4">
-              <input className="input-field" placeholder="Judul materi" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+              <input className="input-field uppercase" placeholder="Judul materi" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value.toUpperCase() })} />
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="relative">
                   <label htmlFor="material-theme" className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Tema materi</label>
                   <div className="relative">
-                    <input id="material-theme" className="input-field pr-10" placeholder="Ketik atau pilih tema" value={form.theme} onFocus={() => setThemeMenuOpen(true)} onBlur={() => window.setTimeout(() => setThemeMenuOpen(false), 120)} onChange={(event) => { setForm({ ...form, theme: event.target.value }); setThemeMenuOpen(true); }} />
+                    <input id="material-theme" className="input-field pr-10 uppercase" placeholder="Ketik atau pilih tema" value={form.theme} onFocus={() => setThemeMenuOpen(true)} onBlur={() => window.setTimeout(() => setThemeMenuOpen(false), 120)} onChange={(event) => { setForm({ ...form, theme: event.target.value.toUpperCase() }); setThemeMenuOpen(true); }} />
                     <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => setThemeMenuOpen((value) => !value)} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-500 hover:text-blue-700" aria-label="Buka pilihan tema"><span className={`text-xs transition-transform ${themeMenuOpen ? 'rotate-180' : ''}`}>▼</span></button>
                   </div>
                   {themeMenuOpen && <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-52 overflow-y-auto rounded-2xl border border-blue-100 bg-white p-1.5 shadow-[0_14px_30px_rgba(15,23,42,0.16)]">
-                    {matchingThemes.map((item) => <button type="button" key={item} onMouseDown={(event) => event.preventDefault()} onClick={() => { setForm({ ...form, theme: item }); setThemeMenuOpen(false); }} className="flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700">{item}</button>)}
-                    {form.theme.trim() && !availableThemes.some((item) => item.toLowerCase() === form.theme.trim().toLowerCase()) && <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => setThemeMenuOpen(false)} className="mt-1 flex w-full items-center gap-2 rounded-xl border-t border-slate-100 px-3 py-2.5 text-left text-sm font-bold text-blue-700"><Plus className="h-4 w-4" /> Gunakan “{form.theme.trim()}”</button>}
+                    {matchingThemes.map((item) => <button type="button" key={item} onMouseDown={(event) => event.preventDefault()} onClick={() => { setForm({ ...form, theme: item.toUpperCase() }); setThemeMenuOpen(false); }} className="flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-semibold uppercase text-slate-700 transition hover:bg-blue-50 hover:text-blue-700">{item}</button>)}
+                    {form.theme.trim() && !availableThemes.some((item) => item.toLowerCase() === form.theme.trim().toLowerCase()) && <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => setThemeMenuOpen(false)} className="mt-1 flex w-full items-center gap-2 rounded-xl border-t border-slate-100 px-3 py-2.5 text-left text-sm font-bold uppercase text-blue-700"><Plus className="h-4 w-4" /> Gunakan “{form.theme.trim()}”</button>}
                     {!matchingThemes.length && !form.theme.trim() && <p className="px-3 py-2.5 text-sm text-slate-500">Belum ada tema tersimpan.</p>}
                   </div>}
                   <p className="mt-1.5 text-xs text-slate-500">Tema baru yang kamu simpan akan menjadi pilihan pribadi di sini.</p>
@@ -205,7 +209,7 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
           <div className="rounded-[26px] border border-dashed border-slate-300 bg-white p-7 text-center sm:p-8">{(() => { const emptyState = getEmptyState(); const EmptyIcon: LucideIcon = emptyState.icon; return <><span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500" aria-hidden="true"><EmptyIcon className="h-5 w-5" strokeWidth={1.8} /></span><p className="mt-3 font-bold text-slate-800">{emptyState.title}</p><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">{emptyState.description}</p>{materials.length === 0 && <p className="mt-2 text-xs text-slate-400">Tekan tombol + untuk menyimpan materi pertamamu.</p>}</>; })()}</div>
         ) : (
           <div className="grid gap-3">
-            {filteredMaterials.map((material) => <button type="button" key={material.id} onClick={() => router.navigate(`/member/materials/${material.id}`)} className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-left shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md sm:px-4"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-[9px] font-extrabold uppercase tracking-[0.14em] text-blue-700">{material.theme}</p><h2 className="mt-0.5 truncate text-base font-extrabold text-slate-950 sm:text-lg">{material.title}</h2></div><div className="flex shrink-0 items-center gap-2 text-[11px] font-semibold text-slate-500"><span className="inline-flex items-center gap-1 whitespace-nowrap"><Clock3 className="h-3.5 w-3.5 text-blue-600" /> ±{material.estimated_duration} mnt</span><span className="hidden items-center gap-1 whitespace-nowrap sm:inline-flex">{material.rating ? <><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" /> {material.rating}/5</> : 'Belum dirating'}</span></div></div><div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-slate-400"><span className="truncate sm:hidden">{material.rating ? `Rating ${material.rating}/5` : 'Belum dirating'}</span><span className="truncate">Diperbarui {formatUpdated(material.updated_at)}</span></div></button>)}
+            {filteredMaterials.map((material) => <button type="button" key={material.id} onClick={() => router.navigate(`/member/materials/${material.id}`)} className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-left shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md sm:px-4"><div className="min-w-0"><p className="truncate text-[9px] font-extrabold uppercase tracking-[0.14em] text-blue-700 uppercase">{material.theme}</p><h2 className="mt-0.5 line-clamp-2 break-words text-base font-extrabold leading-snug text-slate-950 uppercase sm:text-lg">{material.title}</h2></div><div className="mt-2 flex min-w-0 items-center justify-between gap-3 text-[11px] font-semibold text-slate-500"><div className="flex min-w-0 items-center gap-2"><span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap"><Clock3 className="h-3.5 w-3.5 text-blue-600" /> ±{material.estimated_duration} mnt</span><span className="inline-flex shrink-0 items-center gap-0.5" aria-label={material.rating ? `Rating ${material.rating} dari 5` : 'Belum dirating'}>{[1, 2, 3, 4, 5].map((value) => <Star key={value} className={`h-3.5 w-3.5 ${material.rating && value <= material.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} aria-hidden="true" />)}</span></div><span className="min-w-0 truncate text-right text-[10px] font-normal text-slate-400">Diperbarui {formatUpdated(material.updated_at)}</span></div></button>)}
           </div>
         ))}
       </div>

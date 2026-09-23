@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Calendar, ClipboardList, Clock, ExternalLink, Info, MessageCircle, Ticket } from 'lucide-react';
+import { Calendar, ChevronDown, ClipboardList, Clock, ExternalLink, Info, MessageCircle, Ticket } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { EventItem, EventTicket, EventPartnership, Partner, SiteSettings } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -177,7 +177,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
             <div className="max-h-[18rem] overflow-hidden rounded-2xl bg-slate-100 shadow-soft sm:max-h-none">
               {event.poster ? (
                 <button onClick={() => setLightbox(true)} aria-label={`Lihat poster ${event.title}`} className="block w-full">
-                  <img src={event.poster} alt={`${event.title} poster`} className="aspect-[4/3] max-h-[18rem] w-full object-contain transition-transform duration-500 hover:scale-105 sm:max-h-none" />
+                  <img src={event.poster} alt={`${event.title} poster`} className={`aspect-[4/3] max-h-[18rem] w-full object-contain transition-transform duration-500 hover:scale-105 sm:max-h-none ${currentStatus === 'completed' ? 'grayscale' : ''}`} />
                 </button>
               ) : (
                 <div className="aspect-[4/3] w-full" />
@@ -225,6 +225,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
             >
               <Info className="h-4 w-4 shrink-0" />
               <span className="truncate text-xs font-extrabold sm:text-sm">About Event</span>
+              <ChevronDown className={`ml-auto h-4 w-4 shrink-0 transition-transform ${infoTab === 'about' && infoExpanded ? 'rotate-180' : ''}`} />
             </button>
             <button
               type="button"
@@ -235,11 +236,11 @@ export function EventDetailPage({ router, slug, settings }: Props) {
             >
               <ClipboardList className="h-4 w-4 shrink-0" />
               <span className="truncate text-xs font-extrabold sm:text-sm">Peraturan</span>
+              <ChevronDown className={`ml-auto h-4 w-4 shrink-0 transition-transform ${infoTab === 'rules' && infoExpanded ? 'rotate-180' : ''}`} />
             </button>
             </div>
 
-            <div role="tabpanel" className="border-t border-slate-200 bg-white p-4 sm:p-6">
-              {infoExpanded && <div role="tabpanel" className="border-t border-slate-200 bg-white p-4 sm:p-6">
+            {infoExpanded && <div role="tabpanel" className="border-t border-slate-200 bg-white p-4 sm:p-6">
                 <h2 className="text-lg font-extrabold text-slate-900 sm:text-xl">{infoTab === 'about' ? 'About Event' : 'Peraturan'}</h2>
                 <div className="mt-3 text-sm leading-relaxed text-slate-700 sm:text-base">
                   {infoTab === 'about' ? (
@@ -249,7 +250,6 @@ export function EventDetailPage({ router, slug, settings }: Props) {
                   )}
                 </div>
               </div>}
-            </div>
           </div>
         </section>
 

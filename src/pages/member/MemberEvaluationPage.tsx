@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CheckCheck, ClipboardList, Mic } from 'lucide-react';
+import { ArrowRight, CheckCheck, ClipboardList, History, Mic } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/lib/auth-context';
@@ -115,6 +115,11 @@ export function MemberEvaluationPage({ router }: { router: Router }) {
             <p className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">{records.length > 0 ? totalScore.toFixed(1) : '0.0'}</p>
           </div>
         </div>
+
+        <button type="button" onClick={() => router.navigate('/member/evaluations/history')} className="mb-4 flex w-full items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 p-3.5 text-left transition hover:border-blue-200 hover:bg-blue-50 sm:p-4">
+          <span className="flex min-w-0 items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm"><History className="h-4 w-4" /></span><span className="min-w-0"><span className="block text-sm font-extrabold text-slate-900">Riwayat Open Mic Ku</span><span className="mt-0.5 block truncate text-xs font-medium text-slate-500">Lihat semua penampilan internal dan eksternal</span></span></span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-blue-700" />
+        </button>
 
         {records.length > 0 && (
           <div className="mb-4 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">

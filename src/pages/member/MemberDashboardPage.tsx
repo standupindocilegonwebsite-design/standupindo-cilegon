@@ -62,8 +62,9 @@ export function MemberDashboardPage({ router }: { router: Router }) {
 
   const latestRegistration = registrations[0];
   const attendedCount = registrations.filter((item) => item.attendance_status === 'attended').length;
+  const confirmedInternalCount = registrations.filter((item) => item.status === 'confirmed').length;
   const approvedExternalCount = externalHistory.length;
-  const totalOpenMicHistory = registrations.length + approvedExternalCount;
+  const totalOpenMicHistory = confirmedInternalCount + approvedExternalCount;
   const totalPerformances = attendedCount + approvedExternalCount;
   const nextOpenMicNumber = totalPerformances + 1;
   const upcomingMic = useMemo(() => openMics.find((mic) => getOpenMicStatus(mic.status, mic.date) === 'upcoming'), [openMics]);
@@ -88,23 +89,31 @@ export function MemberDashboardPage({ router }: { router: Router }) {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-xl bg-white/10 p-2.5 ring-1 ring-white/10">
-                  <p className="text-[10px] uppercase tracking-[0.15em] text-blue-100">Open Mic Total</p>
-                  <p className="mt-1 text-xl font-black">{totalOpenMicHistory}</p>
-                  <div className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[10px] text-blue-100">
-                    <span>Internal <strong className="text-white">{registrations.length}</strong>x</span>
-                    <span>External <strong className="text-white">{approvedExternalCount}</strong>x</span>
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <div className="col-span-2 rounded-xl bg-white/10 p-2.5 ring-1 ring-white/10 sm:col-span-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-blue-100">Open Mic Total</p>
+                      <p className="mt-1 text-2xl font-black leading-none">{totalOpenMicHistory}</p>
+                    </div>
+                    <Mic className="mt-0.5 h-4 w-4 shrink-0 text-blue-100" />
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold text-blue-50">
+                    <span className="rounded-full bg-white/10 px-2 py-1">Internal {confirmedInternalCount}x</span>
+                    <span className="rounded-full bg-white/10 px-2 py-1">External {approvedExternalCount}x</span>
                   </div>
                 </div>
                 <div className="rounded-xl bg-white/10 p-2.5 ring-1 ring-white/10">
-                  <p className="text-[10px] uppercase tracking-[0.15em] text-blue-100">Status</p>
-                  <p className="mt-1 text-xl font-black">{latestRegistration?.status ?? 'Belum'}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-blue-100">Status pendaftaran</p>
+                  <p className="mt-1 truncate text-lg font-black capitalize leading-tight">{latestRegistration?.status ?? 'Belum'}</p>
                 </div>
                 <div className="rounded-xl bg-white/10 p-2.5 ring-1 ring-white/10">
-                  <p className="text-[10px] uppercase tracking-[0.15em] text-blue-100">Tampil</p>
-                  <p className="mt-1 text-xl font-black">{totalPerformances}</p>
-                  <p className="mt-0.5 text-[10px] text-blue-100">resmi + luar</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-blue-100">Total tampil</p>
+                  <p className="mt-1 text-2xl font-black leading-none">{totalPerformances}</p>
+                  <div className="mt-2 flex flex-wrap gap-x-2.5 gap-y-1 text-xs font-semibold text-blue-50">
+                    <span>Resmi {attendedCount}x</span>
+                    <span>Luar {approvedExternalCount}x</span>
+                  </div>
                 </div>
               </div>
             </div>
