@@ -72,7 +72,7 @@ export function MemberDashboardPage({ router }: { router: Router }) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader router={router} title="Member Dashboard" subtitle="Ringkasan profil, open mic, dan performa kamu." />
+      <PageHeader router={router} title="Member Dashboard" subtitle="Ringkasan profil, open mic, dan performa kamu." showBack={false} />
 
       <div className="container-app py-6 sm:py-8">
         <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">

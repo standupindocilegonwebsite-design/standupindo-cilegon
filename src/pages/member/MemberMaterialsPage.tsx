@@ -159,7 +159,7 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
             <p className="mt-1.5 text-sm font-medium text-slate-600 sm:text-base">Simpan materi baru ke Buku Materi pribadi kamu.</p>
           </div>
         </div>
-      ) : <PageHeader router={router} title="Buku Materi" subtitle="Kumpulan materi pribadi kamu." />}
+      ) : <PageHeader router={router} title="Buku Materi" subtitle="Kumpulan materi pribadi kamu." backTo="/member/more" />}
       <div className="container-app space-y-5 py-6 sm:py-8">
         {!isCreatePage && <div className="flex items-center justify-between gap-3">
           <div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Member Area</p><h1 className="mt-1 text-2xl font-black text-slate-950">Buku Materi</h1></div>

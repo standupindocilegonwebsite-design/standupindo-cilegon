@@ -16,7 +16,7 @@ export function MemberMorePage({ router }: { router: Router }) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader router={router} title="More" subtitle="Fitur yang relevan untuk member." />
+      <PageHeader router={router} title="More" subtitle="Fitur yang relevan untuk member." backTo="/member" />
 
       <div className="container-app py-6 sm:py-8">
         <div className="mx-auto max-w-2xl space-y-4">

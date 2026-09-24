@@ -16,6 +16,28 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .open-mic-roster-pendaftar div:has(> label > input[type='date']),
+  .open-mic-roster-performers div:has(> label > input[type='date']) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .open-mic-roster-pendaftar label:has(> input[type='date']) > span:nth-of-type(2),
+  .open-mic-roster-performers label:has(> input[type='date']) > span:nth-of-type(2) {
+    position: static;
+    display: block;
+    transform: none;
+    margin-bottom: 0.25rem;
+    color: rgb(100 116 139);
+    font-size: 0.6875rem;
+    font-weight: 700;
+  }
+
+  .open-mic-roster-pendaftar label:has(> input[type='date']) > input,
+  .open-mic-roster-performers label:has(> input[type='date']) > input {
+    padding-left: 0.75rem;
+  }
+
   .open-mic-roster-pendaftar > div:has(> label input[type='date']) > select,
   .open-mic-roster-performers > div:has(> label input[type='date']) > select {
     grid-column: 1 / -1;
@@ -257,6 +279,21 @@
     letter-spacing: -0.02em;
     white-space: nowrap;
     color: #0f172a;
+  }
+
+  .home-partner-marquee-shell {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    touch-action: pan-x;
+  }
+
+  .home-partner-marquee-shell::-webkit-scrollbar {
+    display: none;
+  }
+
+  .home-partner-marquee-track {
+    animation: none;
   }
 
   .event-partner-marquee-shell {

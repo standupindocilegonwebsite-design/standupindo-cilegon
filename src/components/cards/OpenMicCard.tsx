@@ -38,21 +38,21 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
             router.navigate(`/open-mic/${mic.slug}`);
           }
         }}
-        className={`group cursor-pointer overflow-hidden ${isCompleted ? 'rounded-2xl border-2 border-slate-400 bg-slate-50 shadow-[0_8px_20px_rgba(15,23,42,0.1)]' : 'card card-hover flex flex-col border border-blue-300 border-t-4 border-t-blue-700 bg-white'}`}
+        className={`group cursor-pointer overflow-hidden ${isCompleted ? 'rounded-2xl border-[3px] border-slate-500 bg-white shadow-[0_14px_30px_rgba(15,23,42,0.2)] ring-1 ring-slate-300/80' : 'card card-hover flex flex-col border border-blue-300 border-t-4 border-t-blue-700 bg-white'}`}
         role="button"
         tabIndex={0}
       >
         <div className={isCompleted ? 'flex items-stretch' : ''}>
-        <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[16/10] w-[112px] shrink-0 sm:w-[150px]' : 'aspect-[4/5]'}`}>
+        <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[16/10] w-[112px] shrink-0 border-r-2 border-slate-300 sm:w-[150px]' : 'aspect-[4/5]'}`}>
           {mic.poster ? (
-            <button onClick={() => setLightbox(true)} aria-label={`Lihat poster ${mic.title}`} className="block h-full w-full">
+            <button onClick={() => isCompleted ? router.navigate(`/open-mic/${mic.slug}`) : setLightbox(true)} aria-label={isCompleted ? `Buka detail ${mic.title}` : `Lihat poster ${mic.title}`} className="block h-full w-full">
               <img src={mic.poster} alt={`${mic.title} poster`} loading="lazy" className={`h-full w-full transition-transform duration-500 ${isCompleted ? 'object-cover grayscale group-hover:scale-105' : 'object-contain hover:scale-105'}`} />
             </button>
           ) : (
             <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className="flex h-full w-full items-center justify-center text-slate-300"><Users className="h-8 w-8" /></button>
           )}
           <div className="absolute left-3 top-3">
-            <StatusBadge status={currentStatus} />
+            {isCompleted ? <span className="inline-flex items-center rounded-full bg-slate-800 px-3 py-1 text-xs font-extrabold text-white shadow-sm">Selesai</span> : <StatusBadge status={currentStatus} />}
           </div>
         </div>
 
@@ -69,11 +69,11 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
             <div className="mt-3 border-t border-slate-300 pt-2.5"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Lineup</p><p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-700">{lineup.length > 0 ? lineup.join(' · ') : 'Belum ada data lineup'}</p></div>
           ) : <p className="mt-3 text-sm font-semibold text-slate-700">{filled} Komika</p>}
           <div className={isCompleted ? 'mt-3' : 'mt-1'}>
-            <NoSmokeAreaNotice />
+            <NoSmokeAreaNotice compact={isCompleted} />
           </div>
 
           <div className={`flex gap-2 ${isCompleted ? 'mt-auto pt-3' : 'mt-4'}`}>
-            <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className={`${isCompleted ? 'btn-primary !rounded-lg !border-slate-800 !bg-slate-800 !px-2.5 !py-2 text-[11px] !text-white hover:!bg-slate-700 sm:!text-xs' : 'btn-secondary !px-3 !py-2 text-[12px] sm:!text-sm'} flex-1 font-semibold`}>{isCompleted ? 'Detail' : 'Lihat Detail'}</button>
+            <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className={`${isCompleted ? 'btn-primary !rounded-lg !px-2.5 !py-2 text-[11px] sm:!text-xs' : 'btn-secondary !px-3 !py-2 text-[12px] sm:!text-sm'} flex-1 font-semibold`}>{isCompleted ? 'Detail' : 'Lihat Detail'}</button>
             {currentStatus === 'upcoming' && !closed && !isFull && (
               <button onClick={() => router.navigate(`/open-mic/${mic.slug}/daftar`)} className={`btn-primary flex-1 ${isCompleted ? '!rounded-lg !px-2.5 !py-2 text-[11px] sm:!text-xs' : '!px-3 !py-2 text-[12px] sm:!text-sm'} font-semibold shadow-[0_8px_18px_rgba(29,94,219,0.18)]`}>Daftar</button>
             )}
@@ -87,7 +87,7 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
         </div>
         </div>
       </article>
-      {mic.poster && (
+      {mic.poster && !isCompleted && (
         <ImageLightbox src={mic.poster} alt={`${mic.title} poster`} open={lightbox} onClose={() => setLightbox(false)} />
       )}
     </>

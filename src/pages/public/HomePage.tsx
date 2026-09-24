@@ -49,60 +49,51 @@ function AutoSlideRow({ children, className, intervalMs = 5000, highlightActive 
 }
 
 function PartnerMarqueeStrip({ partners, category }: { partners: Partner[]; category: 'sponsor' | 'support' | 'media_partner' }) {
-  if (partners.length === 0) return null;
-
-  const labels = {
-    sponsor: 'Sponsor',
-    support: 'Support',
-    media_partner: 'Media Partner',
-  } as const;
-
+  const shellRef = useRef<HTMLDivElement>(null);
+  const [paused, setPaused] = useState(false);
+  const labels = { sponsor: 'Sponsor', support: 'Support', media_partner: 'Media Partner' } as const;
   const sizeMap = {
-    sponsor: {
-      logo: 'h-20 w-20 sm:h-24 sm:w-24',
-      item: 'min-w-[170px] sm:min-w-[210px]',
-      name: 'text-base',
-    },
-    support: {
-      logo: 'h-14 w-14 sm:h-16 sm:w-16',
-      item: 'min-w-[140px] sm:min-w-[170px]',
-      name: 'text-sm',
-    },
-    media_partner: {
-      logo: 'h-12 w-12 sm:h-14 sm:w-14',
-      item: 'min-w-[130px] sm:min-w-[150px]',
-      name: 'text-xs',
-    },
+    sponsor: { logo: 'h-20 w-20 sm:h-24 sm:w-24', item: 'min-w-[170px] sm:min-w-[210px]', name: 'text-base' },
+    support: { logo: 'h-14 w-14 sm:h-16 sm:w-16', item: 'min-w-[140px] sm:min-w-[170px]', name: 'text-sm' },
+    media_partner: { logo: 'h-12 w-12 sm:h-14 sm:w-14', item: 'min-w-[130px] sm:min-w-[150px]', name: 'text-xs' },
   } as const;
-
   const leading = partners.length > 1 ? [...partners, ...partners] : partners;
+
+  useEffect(() => {
+    const shell = shellRef.current;
+    if (!shell || leading.length < 2) return undefined;
+    const timer = window.setInterval(() => {
+      if (paused) return;
+      shell.scrollLeft += 0.5;
+      if (shell.scrollLeft >= shell.scrollWidth / 2) shell.scrollLeft = 0;
+    }, 30);
+    return () => window.clearInterval(timer);
+  }, [leading.length, paused]);
+
+  if (partners.length === 0) return null;
 
   return (
     <div className="rounded-[28px] border border-white/50 bg-white/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] backdrop-blur-sm sm:p-4">
-      <div className="mb-3 flex items-center justify-center">
-        <span className="rounded-full border border-white/50 bg-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-700 sm:text-[11px]">
-          {labels[category]}
-        </span>
-      </div>
-
-      <div className="partner-marquee-shell">
-        <div className="partner-marquee-track">
-          {leading.map((partner, index) => (
-            <div key={`${partner.id}-${category}-${index}`} className={`partner-marquee-item ${sizeMap[category].item}`}>
-              <div className={`partner-marquee-logo ${sizeMap[category].logo}`}>
-                {partner.logo_url ? (
-                  <img src={partner.logo_url} alt={partner.name} className="h-full w-full object-contain" />
-                ) : (
-                  <span className="text-[10px] font-black text-slate-600 sm:text-xs">{partner.name.slice(0, 2).toUpperCase()}</span>
-                )}
-              </div>
-              <p className={`partner-marquee-name ${sizeMap[category].name}`}>{partner.name}</p>
-            </div>
-          ))}
+      <div className="mb-3 flex items-center justify-center"><span className="rounded-full border border-white/50 bg-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-700 sm:text-[11px]">{labels[category]}</span></div>
+      <div ref={shellRef} className="partner-marquee-shell home-partner-marquee-shell" onPointerDown={() => setPaused(true)} onPointerUp={() => setPaused(false)} onPointerCancel={() => setPaused(false)}>
+        <div className="partner-marquee-track home-partner-marquee-track">
+        {leading.map((partner, index) => <div key={`${partner.id}-${category}-${index}`} className={`partner-marquee-item ${sizeMap[category].item}`}>
+          <div className={`partner-marquee-logo ${sizeMap[category].logo}`}>{partner.logo_url ? <img src={partner.logo_url} alt={partner.name} className="h-full w-full object-contain" /> : <span className="text-[10px] font-black text-slate-600 sm:text-xs">{partner.name.slice(0, 2).toUpperCase()}</span>}</div>
+          <p className={`partner-marquee-name ${sizeMap[category].name}`}>{partner.name}</p>
+        </div>)}
         </div>
       </div>
     </div>
   );
+}
+
+function shuffleItems<T>(items: T[]): T[] {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
 }
 
 export function HomePage({ router }: Props) {
@@ -144,7 +135,7 @@ export function HomePage({ router }: Props) {
       const [{ data: micData }, { data: eventData }, { data: komikaData }, { data: ticketData }, { data: partnerData }] = await Promise.all([
         supabase.from('open_mics').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }),
         supabase.from('events').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(3),
-        supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active').limit(15),
+        supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active'),
         supabase.from('event_tickets').select('event_id, price').eq('status', 'active').order('price', { ascending: true }),
         supabase.from('partners').select('*').eq('is_published', true).order('sort_order', { ascending: true }).order('name', { ascending: true }),
       ]);
@@ -161,13 +152,7 @@ export function HomePage({ router }: Props) {
         }
       });
 
-      const rankedKomika = [...komikaList].sort((a, b) => {
-        const aOrder = a.featured_order ?? Number.MAX_SAFE_INTEGER;
-        const bOrder = b.featured_order ?? Number.MAX_SAFE_INTEGER;
-
-        if (aOrder !== bOrder) return aOrder - bOrder;
-        return a.stage_name.localeCompare(b.stage_name, 'id', { sensitivity: 'base' });
-      }).slice(0, 15);
+      const randomKomika = shuffleItems(komikaList).slice(0, 15);
 
       const groupedPartners: Record<'sponsor' | 'support' | 'media_partner', Partner[]> = { sponsor: [], support: [], media_partner: [] };
       (partnerData as Partner[] | null)?.forEach((partner) => {
@@ -176,7 +161,7 @@ export function HomePage({ router }: Props) {
 
       setMics(micsList);
       setEvents(eventsList);
-      setKomika(rankedKomika);
+      setKomika(randomKomika);
       setPartnersByCategory(groupedPartners);
       setTicketPrices(prices);
 
@@ -315,7 +300,7 @@ export function HomePage({ router }: Props) {
             ) : (
               <AutoSlideRow intervalMs={2500} highlightActive className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:pb-0">
                 {komika.map((k) => (
-                  <div key={k.id} className="min-w-[160px] max-w-[160px] shrink-0 snap-start sm:min-w-[180px] lg:min-w-0 lg:max-w-none">
+                  <div key={k.id} className="h-fit min-w-[160px] max-w-[160px] shrink-0 self-start snap-start sm:min-w-[180px] lg:min-w-0 lg:max-w-none">
                     <KomikaCard komika={k} router={router} />
                   </div>
                 ))}
@@ -327,8 +312,8 @@ export function HomePage({ router }: Props) {
         {/* PARTNERS */}
         {(partnersByCategory.sponsor.length > 0 || partnersByCategory.support.length > 0 || partnersByCategory.media_partner.length > 0) && (
           <section data-home-reveal className="home-reveal">
-            <div className="flex items-end justify-between gap-4">
-              <SectionHeader title="Our Beloved Partner" subtitle="Mereka yang turut mendukung komitmen kami." />
+            <div className="flex items-end justify-between gap-4 rounded-2xl border border-slate-300 bg-white px-3.5 py-3.5 shadow-sm sm:px-4">
+              <div className="min-w-0 flex-1 border-l-4 border-l-blue-500 pl-3 sm:pl-4"><SectionHeader title="Our Beloved Partner" subtitle="Mereka yang turut mendukung komitmen kami." /></div>
               <button onClick={() => router.navigate('/more/kerja-sama')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
                 Lihat semua <ArrowRight className="h-4 w-4" />
               </button>

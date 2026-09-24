@@ -843,8 +843,8 @@ function OperationalDashboard({ kind, openMics, registrations, events, eventPend
   );
 }
 
-function WorkspacePageHeader({ title, subtitle, eyebrow = 'Open Mic Workspace' }: { title: string; subtitle: string; eyebrow?: string }) {
-  return <div className="rounded-[22px] border border-blue-500 bg-gradient-to-br from-blue-700 via-blue-600 to-sky-500 p-4 text-white shadow-[0_10px_24px_rgba(37,99,235,0.2)] sm:p-5"><p className="!text-blue-100 text-[10px] font-extrabold uppercase tracking-[0.16em] sm:text-[11px]">{eyebrow}</p><h1 className="!text-white mt-1.5 text-xl font-black tracking-tight sm:text-2xl">{title}</h1><p className="!text-blue-50 mt-1 text-xs font-medium leading-5 sm:text-sm">{subtitle}</p></div>;
+function WorkspacePageHeader({ title, subtitle, eyebrow = 'Open Mic Workspace', action }: { title: string; subtitle: string; eyebrow?: string; action?: React.ReactNode }) {
+  return <div className="flex items-start justify-between gap-4 rounded-[22px] border border-blue-500 bg-gradient-to-br from-blue-700 via-blue-600 to-sky-500 p-4 text-white shadow-[0_10px_24px_rgba(37,99,235,0.2)] sm:p-5"><div className="min-w-0"><p className="!text-blue-100 text-[10px] font-extrabold uppercase tracking-[0.16em] sm:text-[11px]">{eyebrow}</p><h1 className="!text-white mt-1.5 text-xl font-black tracking-tight sm:text-2xl">{title}</h1><p className="!text-blue-50 mt-1 text-xs font-medium leading-5 sm:text-sm">{subtitle}</p></div>{action}</div>;
 }
 
 function OpenMicRosterView({ mode, openMics, registrations, loading, onReload }: { mode: 'registrants' | 'performers'; openMics: OpenMic[]; registrations: OpenMicRegistration[]; loading: boolean; onReload: () => Promise<void> }) {
@@ -1502,7 +1502,7 @@ function getAdminFieldPlaceholder(key: string): string | undefined {
   const placeholders: Record<string, string> = {
     full_name: 'Contoh: Budi Santoso', stage_name: 'Contoh: Budi Ngakak', whatsapp: 'Contoh: 082212345678', joined_at: 'Contoh: September 2026',
     instagram_url: 'Contoh: @budi.ngakak', tiktok_url: 'Contoh: @budingakak', youtube_url: 'Contoh: https://youtube.com/@budingakak',
-    bio: 'Contoh: Komika dengan materi observasi sehari-hari.', specialties: 'Contoh: Observasi, kehidupan kerja', title: 'Contoh: Open Mic #30',
+    bio: 'Contoh: Komika dengan materi observasi sehari-hari.', specialties: 'Contoh: Observasi, kehidupan kerja', title: 'Contoh: Comedy Night #02',
     venue: 'Contoh: Aula Serbaguna Cilegon', location: 'Contoh: Cilegon, Banten', maps_url: 'Contoh: https://maps.google.com/...', capacity: 'Contoh: 10', time: 'Contoh: 19.00',
   };
   return placeholders[key];
@@ -1758,10 +1758,7 @@ function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete
 
   return (
     <div className="space-y-5">
-      <div className="flex items-end justify-between gap-3">
-        <div><h1 className="text-2xl font-extrabold text-slate-900">Events</h1><p className="mt-1 text-sm text-slate-500">Kelola Event yang tampil di website.</p></div>
-        <button onClick={onAdd} className="btn-primary"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">Tambah</span></button>
-      </div>
+      <WorkspacePageHeader title="Events" subtitle="Kelola Event yang tampil di website." eyebrow="Event Workspace" action={<button onClick={onAdd} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm transition hover:bg-blue-50" aria-label="Tambah Event" title="Tambah Event"><Plus className="h-5 w-5" /></button>} />
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -1912,13 +1909,7 @@ function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit,
 
   return (
     <div className="space-y-5">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Partners</h1>
-          <p className="mt-1 text-sm text-slate-500">Kelola sponsor, support, dan media partner yang tampil di website.</p>
-        </div>
-        <button onClick={onAdd} className="btn-primary"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">Tambah</span></button>
-      </div>
+      <WorkspacePageHeader title="Partners" subtitle="Kelola sponsor, support, dan media partner yang tampil di website." eyebrow="Event Workspace" action={<button onClick={onAdd} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm transition hover:bg-blue-50" aria-label="Tambah Partner" title="Tambah Partner"><Plus className="h-5 w-5" /></button>} />
 
       <div className="grid grid-cols-3 gap-3">
         {(['sponsor', 'support', 'media_partner'] as const).map((category) => (
@@ -2443,15 +2434,7 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }:
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-950">Data Penonton</h1>
-          <p className="mt-1 text-sm font-medium text-slate-600">{filteredOrders.length} pemesanan sesuai filter</p>
-        </div>
-        <button type="button" onClick={printTicketOrders} disabled={loading || filteredOrders.length === 0} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-slate-700 ring-1 ring-slate-200 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40" title="Print data penonton sesuai filter" aria-label="Print data penonton sesuai filter">
-          <Printer className="h-4 w-4" />
-        </button>
-      </div>
+      <WorkspacePageHeader title="Data Penonton" subtitle={`${filteredOrders.length} pemesanan sesuai filter.`} eyebrow="Event Workspace" action={<button type="button" onClick={printTicketOrders} disabled={loading || filteredOrders.length === 0} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40" title="Print data penonton sesuai filter" aria-label="Print data penonton sesuai filter"><Printer className="h-4 w-4" /></button>} />
 
       <div className="grid gap-3 md:grid-cols-[1fr_220px]">
         <div className="relative">
@@ -2949,7 +2932,7 @@ function AdminFormModal({ kind, editing, saving, onClose, onSaving, onSaved }: {
     } else if (kind === 'komika') {
       setForm({ full_name: '', whatsapp: '', stage_name: '', photo: '', bio: '', instagram_url: '', tiktok_url: '', youtube_url: '', specialties: '', joined_at: '', status: 'active', published: 'true' });
     } else if (kind === 'open-mic') {
-      setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', capacity: '10', status: 'upcoming', registration_status: 'open', published: 'true' });
+      setForm({ title: '', poster: '', date: '', time: '19.30', venue: '', location: 'Cilegon', maps_url: '', description: 'Open Mic Standupindo Cilegon adalah ruang terbuka bagi siapa saja yang ingin mencoba, belajar, dan mengembangkan kemampuan di dunia stand up comedy.\n\nDi sini, para komika dapat menguji materi baru, mengasah kemampuan menulis dan membawakan jokes, sekaligus mendapatkan pengalaman tampil langsung di depan penonton.\n\nBukan cuma untuk komika, Open Mic juga menjadi ruang bagi masyarakat Cilegon untuk menikmati hiburan, mengenal dunia stand up comedy, dan menjadi bagian dari perkembangan komunitas komedi di Kota Cilegon.', capacity: '20', status: 'upcoming', registration_status: 'open', published: 'true' });
     } else if (kind === 'partner') {
       setForm({ name: '', logo_url: '', website_url: '', contact_name: '', contact_phone: '', notes: '', category: 'sponsor', is_published: 'true', sort_order: '0' });
     } else {
@@ -3035,10 +3018,10 @@ function AdminFormModal({ kind, editing, saving, onClose, onSaving, onSaved }: {
               <ImageUpload label="Foto Komika" folder="komika" value={form.photo ?? ''} onChange={(url) => set('photo', url)} aspect="portrait" onUploadingChange={setUploading} />
             )}
             {kind === 'open-mic' && (
-              <ImageUpload label="Poster / Foto Open Mic" folder="open-mic" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} />
+              <ImageUpload label="Poster / Foto Open Mic" folder="open-mic" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} skipCrop />
             )}
             {kind === 'event' && (
-              <ImageUpload label="Poster Event" folder="events" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} />
+              <ImageUpload label="Poster Event" folder="events" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} skipCrop />
             )}
             {kind === 'partner' && (
               <ImageUpload label="Logo Partner" folder="partners" value={form.logo_url ?? ''} onChange={(url) => set('logo_url', url)} aspect="square" onUploadingChange={setUploading} />

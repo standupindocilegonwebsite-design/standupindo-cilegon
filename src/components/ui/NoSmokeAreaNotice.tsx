@@ -3,9 +3,10 @@ import { AlertTriangle, CigaretteOff } from 'lucide-react';
 interface Props {
   detail?: boolean;
   context?: 'open-mic' | 'event';
+  compact?: boolean;
 }
 
-export function NoSmokeAreaNotice({ detail = false, context = 'event' }: Props) {
+export function NoSmokeAreaNotice({ detail = false, context = 'event', compact = false }: Props) {
   const areaLabel = context === 'open-mic' ? 'Open Mic' : 'acara';
   const coordinatorLabel = context === 'open-mic' ? 'Open Mic' : 'Acara';
 
@@ -23,6 +24,6 @@ export function NoSmokeAreaNotice({ detail = false, context = 'event' }: Props) 
       </div>
     </div>
   ) : (
-    <span className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-extrabold text-white shadow-sm shadow-red-600/20"><CigaretteOff className="h-3.5 w-3.5 text-white" /> <span>No Smoke Area</span></span>
+    <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-extrabold ${compact ? 'bg-red-50 text-red-700 ring-1 ring-red-200' : 'bg-red-600 text-white shadow-sm shadow-red-600/20'}`}><CigaretteOff className="h-3.5 w-3.5" /> <span>No Smoke Area</span></span>
   );
 }

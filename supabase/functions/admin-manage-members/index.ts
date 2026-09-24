@@ -25,7 +25,7 @@ serve(async (request) => {
   if (authError || !authData.user || (!hasRole(appMetadata, 'admin') && !hasRole(appMetadata, 'open_mic_admin'))) return json({ error: 'Hanya Admin Penuh atau Admin Open Mic yang dapat mengelola akun member.' }, 403);
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
-  let body: { action?: 'list' | 'toggle' | 'delete' | 'update-role' | 'update-roles'; user_id?: string; active?: boolean; role?: 'member' | 'evaluator'; evaluator_enabled?: boolean };
+  let body: { action?: 'list' | 'toggle' | 'delete' | 'update-role' | 'update-roles' | 'reset-password'; user_id?: string; active?: boolean; role?: 'member' | 'evaluator'; evaluator_enabled?: boolean; password?: string };
   try { body = await request.json(); } catch { return json({ error: 'Data permintaan tidak valid.' }, 400); }
 
   if (body.action === 'update-role' || body.action === 'update-roles') {
@@ -57,6 +57,16 @@ serve(async (request) => {
     const { data, error } = await adminClient.auth.admin.updateUserById(body.user_id, { ban_duration: body.active ? 'none' : '876000h' });
     if (error || !data.user) return json({ error: error?.message ?? 'Status akun gagal diubah.' }, 400);
     return json({ user: { id: data.user.id, email: data.user.email, active: !data.user.banned_until || new Date(data.user.banned_until) <= new Date() } });
+  }
+
+  if (body.action === 'reset-password') {
+    if (!body.user_id || !body.password || body.password.length < 6) return json({ error: 'Akun dan password minimal 6 karakter wajib diisi.' }, 400);
+    const { data: target, error: targetError } = await adminClient.auth.admin.getUserById(body.user_id);
+    if (targetError || !target.user) return json({ error: 'Akun member tidak ditemukan.' }, 404);
+    if (hasRole(target.user.app_metadata as Record<string, unknown> | undefined, 'admin')) return json({ error: 'Password akun admin tidak dapat diubah dari menu ini.' }, 400);
+    const { error } = await adminClient.auth.admin.updateUserById(body.user_id, { password: body.password });
+    if (error) return json({ error: error.message }, 400);
+    return json({ reset: true, user_id: body.user_id });
   }
 
   if (body.action === 'delete') {

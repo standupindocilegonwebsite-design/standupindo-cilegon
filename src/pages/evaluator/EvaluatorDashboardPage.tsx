@@ -15,6 +15,7 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
   const [visibleLimit, setVisibleLimit] = useState(10);
   const [komikaByMic, setKomikaByMic] = useState<Record<string, string>>({});
   const [progressByMic, setProgressByMic] = useState<Record<string, { evaluated: number; total: number }>>({});
+  const [emptyReasonByMic, setEmptyReasonByMic] = useState<Record<string, 'no-attendee' | 'only-evaluator'>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -66,6 +67,11 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
           supabase.from('komika').select('id').eq('user_id', user.id).maybeSingle(),
         ]);
         const eligibleRegistrations = (registrationRows ?? []).filter((row) => row.community?.toLowerCase().includes('standupindo cilegon') && row.komika_id !== ownProfile?.id);
+        setEmptyReasonByMic(Object.fromEntries(assignedMicIds.map((id) => {
+          const attendedRows = (registrationRows ?? []).filter((row) => row.open_mic_id === id);
+          const onlyEvaluator = attendedRows.length > 0 && Boolean(ownProfile?.id) && attendedRows.every((row) => row.komika_id === ownProfile.id);
+          return [id, onlyEvaluator ? 'only-evaluator' : 'no-attendee'];
+        })));
         const eligibleRegistrationIdsByMic = eligibleRegistrations.reduce<Record<string, Set<string>>>((result, row) => {
           if (!result[row.open_mic_id]) result[row.open_mic_id] = new Set();
           result[row.open_mic_id].add(row.id);
@@ -102,7 +108,7 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
     return assignments.filter(({ open_mic: mic }) => {
       if (!mic) return false;
       const progress = progressByMic[mic.id] ?? { evaluated: 0, total: 0 };
-      const isCompleted = progress.total > 0 && progress.evaluated >= progress.total;
+      const isCompleted = progress.total === 0 || progress.evaluated >= progress.total;
       if (progressFilter === 'pending' && isCompleted) return false;
       if (progressFilter === 'completed' && !isCompleted) return false;
       return !query || `${mic.title} ${mic.date} ${mic.time} ${mic.venue} ${mic.location} ${mic.status} ${komikaByMic[mic.id] ?? ''}`.toLowerCase().includes(query);
@@ -116,8 +122,8 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
   const orderedAssignments = useMemo(() => [...filteredAssignments].sort((a, b) => {
     const aProgress = progressByMic[a.open_mic?.id ?? ''] ?? { evaluated: 0, total: 0 };
     const bProgress = progressByMic[b.open_mic?.id ?? ''] ?? { evaluated: 0, total: 0 };
-    const aDone = aProgress.total > 0 && aProgress.evaluated >= aProgress.total;
-    const bDone = bProgress.total > 0 && bProgress.evaluated >= bProgress.total;
+    const aDone = aProgress.total === 0 || aProgress.evaluated >= aProgress.total;
+    const bDone = bProgress.total === 0 || bProgress.evaluated >= bProgress.total;
     return Number(aDone) - Number(bDone);
   }), [filteredAssignments, progressByMic]);
   const visibleAssignments = orderedAssignments.slice(0, visibleLimit);
@@ -181,7 +187,7 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
             const mic = assignment.open_mic;
             if (!mic) return null;
             const progress = progressByMic[mic.id] ?? { evaluated: 0, total: 0 };
-            const isCompleted = progress.total > 0 && progress.evaluated >= progress.total;
+            const isCompleted = progress.total === 0 || progress.evaluated >= progress.total;
             const percentage = progress.total > 0 ? Math.min(100, Math.round((progress.evaluated / progress.total) * 100)) : 0;
 
             return (
@@ -204,12 +210,12 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
                   <div className={`flex shrink-0 items-center gap-1.5 text-xs font-bold ${isCompleted ? 'text-emerald-700' : 'text-blue-700'}`}>{isCompleted ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />} {isCompleted ? 'selesai' : 'open'}</div>
                 </div>
                 <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-slate-500">
-                  <span>{progress.total > 0 ? `${progress.evaluated}/${progress.total} dievaluasi` : 'Belum ada peserta hadir'}</span>
+                  <span>{progress.total > 0 ? `${progress.evaluated}/${progress.total} dievaluasi` : emptyReasonByMic[mic.id] === 'only-evaluator' ? 'Tidak ada peserta lain yang perlu dievaluasi' : 'Belum ada peserta hadir'}</span>
                   {progress.total > 0 && <><span className="text-slate-300">·</span><span className={isCompleted ? 'text-emerald-600' : 'text-amber-600'}>{isCompleted ? 'Semua selesai' : `${progress.total - progress.evaluated} tersisa`}</span></>}
                 </div>
                 {progress.total > 0 && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full transition-all ${isCompleted ? 'bg-emerald-500' : 'bg-blue-600'}`} style={{ width: `${percentage}%` }} /></div>}
                 <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-                  <span className="text-xs font-semibold text-slate-500">Lanjutkan evaluasi</span>
+                  <span className="text-xs font-semibold text-slate-500">{isCompleted ? 'Lihat Evaluasi Selesai' : 'Lanjutkan evaluasi'}</span>
                   <span className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-700">Buka <ArrowRight className="h-4 w-4" /></span>
                 </div>
               </button>

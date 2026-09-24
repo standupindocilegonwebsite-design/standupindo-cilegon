@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, KeyRound, Power, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { Check, ChevronDown, KeyRound, Power, RefreshCw, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
 import type { Komika } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { Modal } from '@/components/ui/Modal';
@@ -27,10 +27,16 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
   const [roleUpdatingId, setRoleUpdatingId] = useState<string | null>(null);
   const [accountSearch, setAccountSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<MemberAccount | null>(null);
+  const [resetTarget, setResetTarget] = useState<MemberAccount | null>(null);
+  const [resetSearch, setResetSearch] = useState('');
+  const [resetPickerOpen, setResetPickerOpen] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetSaving, setResetSaving] = useState(false);
   const [showAllAccounts, setShowAllAccounts] = useState(false);
   const selectedKomika = komika.find((profile) => profile.id === komikaId);
   const filteredKomika = useMemo(() => komika.filter((profile) => profile.stage_name.toLowerCase().includes(komikaSearch.trim().toLowerCase()) || profile.full_name.toLowerCase().includes(komikaSearch.trim().toLowerCase())), [komika, komikaSearch]);
   const filteredAccounts = accounts.filter((account) => `${account.profile?.stage_name ?? ''} ${account.profile?.full_name ?? ''} ${account.email ?? ''}`.toLowerCase().includes(accountSearch.trim().toLowerCase()));
+  const filteredResetAccounts = accounts.filter((account) => `${account.profile?.stage_name ?? ''} ${account.profile?.full_name ?? ''} ${account.email ?? ''}`.toLowerCase().includes(resetSearch.trim().toLowerCase()));
   const visibleAccounts = accountSearch.trim() || showAllAccounts ? filteredAccounts : filteredAccounts.slice(0, 4);
 
   async function loadAccounts() {
@@ -69,6 +75,17 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
     if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Peran akun gagal diubah.'); return; }
     setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, role: data?.user?.role === 'evaluator' ? 'evaluator' : 'member', evaluator_enabled: data?.user?.role === 'evaluator' } : item));
     onNotice(`${account.email ?? 'Akun member'} sekarang memiliki role ${role === 'evaluator' ? 'Member + Evaluator' : 'Member'}.`);
+  }
+
+  async function resetAccountPassword() {
+    if (!resetTarget || resetPassword.length < 6) return;
+    setResetSaving(true);
+    const { data, error } = await supabase.functions.invoke('admin-manage-members', { body: { action: 'reset-password', user_id: resetTarget.id, password: resetPassword } });
+    setResetSaving(false);
+    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Password akun gagal direset.'); return; }
+    setResetTarget(null);
+    setResetPassword('');
+    onNotice(`Password ${resetTarget.email ?? 'akun member'} berhasil direset.`);
   }
 
   useEffect(() => { void loadAccounts(); }, []);
@@ -130,7 +147,7 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
             <button type="button" className="fixed inset-0 z-20 cursor-default" onClick={() => setKomikaPickerOpen(false)} aria-label="Tutup pilihan profil komika" />
             <div className="absolute left-0 right-0 top-full z-30 mt-2 max-h-64 overflow-y-auto rounded-2xl border border-blue-100 bg-white p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
               <button type="button" onClick={() => { setKomikaId(''); setKomikaSearch(''); setKomikaPickerOpen(false); }} className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-600 hover:bg-slate-50">Tanpa menghubungkan profil</button>
-              {filteredKomika.map((profile) => <button key={profile.id} type="button" onClick={() => { setKomikaId(profile.id); setKomikaSearch(''); setKomikaPickerOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-blue-50"><span className="flex min-w-0 items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-blue-100 text-xs font-black text-blue-700">{profile.photo ? <img src={profile.photo} alt="" className="h-full w-full object-cover" /> : profile.stage_name.charAt(0).toUpperCase()}</span><span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-800">{profile.stage_name}</span><span className="block truncate text-xs text-slate-500">{profile.full_name}</span></span></span>{profile.id === komikaId && <Check className="h-4 w-4 shrink-0 text-blue-600" />}</button>)}
+              {filteredKomika.map((profile) => <button key={profile.id} type="button" onClick={() => { setKomikaId(profile.id); setKomikaSearch(''); setKomikaPickerOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-blue-50"><span className="flex min-w-0 items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-blue-100 text-xs font-black text-blue-700">{profile.photo ? <img src={profile.photo} alt="" className="h-full w-full object-cover" /> : profile.stage_name.charAt(0).toUpperCase()}</span><span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-800">{profile.stage_name}</span><span className="block truncate text-xs text-slate-500">{profile.full_name}</span>{profile.user_id && <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600"><Check className="h-3 w-3" /> Akun terhubung</span>}</span></span>{profile.id === komikaId && <Check className="h-4 w-4 shrink-0 text-blue-600" />}</button>)}
               {filteredKomika.length === 0 && <p className="px-3 py-3 text-sm text-slate-500">Profil komika tidak ditemukan.</p>}
             </div>
           </>}
@@ -144,7 +161,7 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
       </form>
 
       <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-6">
-        <div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-extrabold text-slate-900">Daftar Akun Member</h2><p className="mt-1 text-sm text-slate-500">Pantau akun dan aktifkan atau nonaktifkan akses login.</p></div><span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{accounts.length > 0 ? `${accounts.length} akun` : 'Belum ada'}</span></div>
+        <div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-extrabold text-slate-900">Daftar Akun Member</h2><p className="mt-1 text-sm text-slate-500">Pantau akun dan aktifkan atau nonaktifkan akses login.</p></div><div className="flex items-center gap-2"><span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{accounts.length > 0 ? `${accounts.length} akun` : 'Belum ada'}</span><button type="button" onClick={() => void loadAccounts()} disabled={accountsLoading} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-wait disabled:opacity-60" aria-label="Refresh daftar akun member" title="Refresh daftar akun member"><RefreshCw className={`h-4 w-4 ${accountsLoading ? 'animate-spin' : ''}`} /></button></div></div>
         <div className="relative mt-4">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input value={accountSearch} onChange={(event) => setAccountSearch(event.target.value)} className="input-field !pl-10" placeholder="Cari nama, email, atau nama panggung..." aria-label="Cari akun member" />
@@ -158,6 +175,24 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
           ))}
           {!accountSearch.trim() && filteredAccounts.length > 4 && <button type="button" onClick={() => setShowAllAccounts((current) => !current)} className="mx-auto flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-50" aria-expanded={showAllAccounts}>{showAllAccounts ? 'Tampilkan lebih sedikit' : `Tampilkan ${filteredAccounts.length - 4} akun lainnya`}<ChevronDown className={`h-4 w-4 transition-transform ${showAllAccounts ? 'rotate-180' : ''}`} /></button>}
         </div>
+        {accounts.length > 0 && <div className="mt-5 border-t border-slate-200 pt-5">
+          <h3 className="text-sm font-extrabold text-slate-900">Reset Password</h3>
+          <p className="mt-1 text-xs text-slate-500">Pilih akun member lalu buat password baru minimal 6 karakter.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <div className="relative">
+              <input value={resetTarget ? `${resetTarget.profile?.stage_name ?? 'Akun member'} · ${resetTarget.email ?? 'tanpa email'}` : resetSearch} onChange={(event) => { setResetTarget(null); setResetSearch(event.target.value); setResetPickerOpen(true); }} onFocus={() => setResetPickerOpen(true)} className="input-field" placeholder="Cari nama atau email member" autoComplete="off" aria-label="Cari akun untuk reset password" />
+              {resetPickerOpen && <>
+                <button type="button" className="fixed inset-0 z-20 cursor-default" onClick={() => setResetPickerOpen(false)} aria-label="Tutup pilihan akun reset password" />
+                <div className="absolute left-0 right-0 top-full z-30 mt-2 max-h-56 overflow-y-auto rounded-xl border border-blue-100 bg-white p-1.5 shadow-lg">
+                  {filteredResetAccounts.map((account) => <button key={account.id} type="button" onClick={() => { setResetTarget(account); setResetSearch(''); setResetPickerOpen(false); setResetPassword(''); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-blue-50"><span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-800">{account.profile?.stage_name ?? 'Akun member'}</span><span className="block truncate text-xs text-slate-500">{account.email ?? 'Email belum tersedia'}</span></span>{resetTarget?.id === account.id && <Check className="h-4 w-4 shrink-0 text-blue-600" />}</button>)}
+                  {filteredResetAccounts.length === 0 && <p className="px-3 py-3 text-sm text-slate-500">Akun member tidak ditemukan.</p>}
+                </div>
+              </>}
+            </div>
+            <input type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} className="input-field" placeholder="Password baru" minLength={6} autoComplete="new-password" aria-label="Password baru" />
+            <button type="button" onClick={() => void resetAccountPassword()} disabled={!resetTarget || resetPassword.length < 6 || resetSaving} className="btn-primary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">{resetSaving ? 'Menyimpan...' : 'Reset Password'}</button>
+          </div>
+        </div>}
       </section>
 
       <Modal open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} title="Hapus Akun Member" size="sm">

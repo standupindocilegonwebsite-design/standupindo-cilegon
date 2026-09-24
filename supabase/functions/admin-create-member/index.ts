@@ -20,6 +20,64 @@ function hasRole(metadata: Record<string, unknown> | undefined, role: string): b
     : Array.isArray(candidate) && candidate.some((item) => typeof item === 'string' && item.trim().toLowerCase() === role));
 }
 
+function normalizeText(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizeInstagram(value: unknown): string {
+  return normalizeText(value)
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//, '')
+    .replace(/^@/, '')
+    .replace(/\/.*$/, '');
+}
+
+function normalizeWhatsapp(value: unknown): string {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+type KomikaIdentity = {
+  full_name: string | null;
+  stage_name: string | null;
+  instagram_url: string | null;
+  whatsapp: string | null;
+};
+
+type OpenMicRegistrationIdentity = KomikaIdentity & { id: string; komika_id: string | null };
+
+function isStrongIdentityMatch(profile: KomikaIdentity, registration: OpenMicRegistrationIdentity): boolean {
+  const instagramMatches = Boolean(normalizeInstagram(profile.instagram_url))
+    && normalizeInstagram(profile.instagram_url) === normalizeInstagram(registration.instagram);
+  const whatsappMatches = Boolean(normalizeWhatsapp(profile.whatsapp))
+    && normalizeWhatsapp(profile.whatsapp) === normalizeWhatsapp(registration.whatsapp);
+  const namesMatch = Boolean(normalizeText(profile.full_name) && normalizeText(profile.stage_name))
+    && normalizeText(profile.full_name) === normalizeText(registration.full_name)
+    && normalizeText(profile.stage_name) === normalizeText(registration.stage_name);
+
+  return instagramMatches || whatsappMatches || namesMatch;
+}
+
+async function linkUnassignedHistory(adminClient: ReturnType<typeof createClient>, komikaId: string) {
+  const { data: profile } = await adminClient
+    .from('komika')
+    .select('full_name, stage_name, instagram_url, whatsapp')
+    .eq('id', komikaId)
+    .maybeSingle();
+  if (!profile) return;
+
+  const { data: registrations } = await adminClient
+    .from('open_mic_registrations')
+    .select('id, komika_id, full_name, stage_name, instagram, whatsapp')
+    .is('komika_id', null);
+  const candidates = ((registrations ?? []) as OpenMicRegistrationIdentity[]).filter((registration) => isStrongIdentityMatch(profile as KomikaIdentity, registration));
+  if (candidates.length === 0) return;
+
+  await adminClient
+    .from('open_mic_registrations')
+    .update({ komika_id: komikaId })
+    .in('id', candidates.map((candidate) => candidate.id))
+    .is('komika_id', null);
+}
+
 serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return response({ error: 'Method not allowed.' }, 405);
@@ -70,6 +128,8 @@ serve(async (request) => {
       await adminClient.auth.admin.deleteUser(created.user.id);
       return response({ error: `Akun dibatalkan karena profil komika gagal dihubungkan: ${linkError.message}` }, 400);
     }
+
+    await linkUnassignedHistory(adminClient, body.komika_id);
   }
 
   return response({ user_id: created.user.id, email: created.user.email });

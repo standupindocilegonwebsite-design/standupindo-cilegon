@@ -18,10 +18,10 @@ function TikTokIcon({ className }: { className?: string }) {
 export function SocialIconButton({ instagram, tiktok, youtube, size = 'md' }: Props) {
   const sz = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5';
   const box = size === 'sm' ? 'h-8 w-8' : 'h-9 w-9';
-  const items: { url: string; label: string; icon: React.ReactNode }[] = [];
-  if (instagram) items.push({ url: instagram, label: 'Instagram', icon: <Instagram className={sz} /> });
-  if (tiktok) items.push({ url: tiktok, label: 'TikTok', icon: <TikTokIcon className={sz} /> });
-  if (youtube) items.push({ url: youtube, label: 'YouTube', icon: <Youtube className={sz} /> });
+  const items: { url: string; label: string; icon: React.ReactNode; className: string }[] = [];
+  if (instagram) items.push({ url: instagram, label: 'Instagram', icon: <Instagram className={sz} />, className: 'bg-pink-100 text-pink-600 hover:bg-pink-500 hover:text-white' });
+  if (tiktok) items.push({ url: tiktok, label: 'TikTok', icon: <TikTokIcon className={sz} />, className: 'bg-slate-200 text-slate-800 hover:bg-slate-800 hover:text-white' });
+  if (youtube) items.push({ url: youtube, label: 'YouTube', icon: <Youtube className={sz} />, className: 'bg-red-100 text-red-600 hover:bg-red-600 hover:text-white' });
 
   if (items.length === 0) return null;
 
@@ -34,7 +34,7 @@ export function SocialIconButton({ instagram, tiktok, youtube, size = 'md' }: Pr
           target="_blank"
           rel="noopener noreferrer"
           aria-label={it.label}
-          className={`${box} inline-flex items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-blue-600 hover:text-white hover:scale-110`}
+          className={`${box} inline-flex items-center justify-center rounded-full transition-all ${it.className}`}
         >
           {it.icon}
         </a>
