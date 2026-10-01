@@ -3,7 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { AuthContext } from './auth-context';
 
-type RoleRequirement = 'admin-app' | 'admin' | 'member' | 'evaluator' | 'any';
+type RoleRequirement = 'admin-app' | 'admin' | 'member' | 'evaluator' | 'ticket-admin' | 'qr-scanner' | 'any';
 
 type RoleSource = string | string[] | undefined;
 
@@ -38,10 +38,12 @@ function readUserRoles(user: User | null): string[] {
 
 function matchesRequiredRole(roles: string[], requiredRole: RoleRequirement): boolean {
   if (requiredRole === 'any') return true;
-  if (requiredRole === 'admin-app') return roles.includes('admin') || roles.includes('open_mic_admin') || roles.includes('event_admin');
+  if (requiredRole === 'admin-app') return roles.includes('admin') || roles.includes('open_mic_admin') || roles.includes('event_admin') || roles.includes('admin_ticket') || roles.includes('admin_qr');
   if (requiredRole === 'admin') return roles.includes('admin');
   if (requiredRole === 'member') return roles.includes('member') || roles.includes('evaluator');
   if (requiredRole === 'evaluator') return roles.includes('evaluator') || roles.includes('admin');
+  if (requiredRole === 'ticket-admin') return roles.includes('admin_ticket') || roles.includes('admin');
+  if (requiredRole === 'qr-scanner') return roles.includes('admin_qr') || roles.includes('admin');
   return true;
 }
 
@@ -117,7 +119,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAdmin = roles.includes('admin');
   const isOpenMicAdmin = roles.includes('open_mic_admin');
   const isEventAdmin = roles.includes('event_admin');
-  const isAdminApp = isAdmin || isOpenMicAdmin || isEventAdmin;
+  const isTicketAdmin = roles.includes('admin_ticket');
+  const isQrScanner = roles.includes('admin_qr');
+  const isAdminApp = isAdmin || isOpenMicAdmin || isEventAdmin || isTicketAdmin || isQrScanner;
   const isEvaluator = roles.includes('evaluator');
   const isMember = roles.includes('member') || isEvaluator || isAdmin;
   const isAuthenticated = Boolean(session);
@@ -145,6 +149,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (requiredRole === 'evaluator') {
         return { error: 'Login berhasil, tetapi akun ini belum memiliki akses evaluator. Hubungi administrator.' };
       }
+      if (requiredRole === 'ticket-admin') {
+        return { error: 'Akun ini belum memiliki akses Admin Tiket.' };
+      }
+      if (requiredRole === 'qr-scanner') {
+        return { error: 'Akun ini belum memiliki akses Admin QR Scanner.' };
+      }
       return { error: 'Login berhasil, tetapi akun ini tidak memiliki izin akses yang cukup.' };
     }
 
@@ -158,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, roles, isAdmin, isAdminApp, isOpenMicAdmin, isEventAdmin, isMember, isEvaluator, isAuthenticated, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, roles, isAdmin, isAdminApp, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner, isMember, isEvaluator, isAuthenticated, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

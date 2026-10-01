@@ -96,6 +96,7 @@ export interface EventTicket {
   event_id: string;
   name: string;
   price: number;
+  quota?: number | null;
   description: string | null;
   ticket_url: string | null;
   status: 'active' | 'inactive';
@@ -104,7 +105,7 @@ export interface EventTicket {
   updated_at: string;
 }
 
-export type TicketOrderStatus = 'Menunggu Pembayaran' | 'Sudah Bayar' | 'Terverifikasi' | 'Selesai' | 'Dibatalkan';
+export type TicketOrderStatus = 'Draft Pembayaran' | 'Menunggu Pembayaran' | 'Menunggu Verifikasi' | 'Sudah Bayar' | 'Lunas' | 'Terverifikasi' | 'Ditolak' | 'Expired' | 'Selesai' | 'Dibatalkan';
 
 export interface TicketOrder {
   id: string;
@@ -120,8 +121,41 @@ export interface TicketOrder {
   total_price: number;
   notes: string | null;
   status: TicketOrderStatus;
+  expires_at?: string | null;
+  payment_amount?: number | null;
+  payment_proof_path?: string | null;
+  payment_submitted_at?: string | null;
+  payment_method_id?: string | null;
+  payment_method_snapshot?: Record<string, unknown> | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_note?: string | null;
+  access_code_id?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface TicketPaymentMethod {
+  id: string;
+  event_id: string;
+  recipient_name: string;
+  bank_name: string | null;
+  account_number: string | null;
+  qris_storage_path: string | null;
+  note: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminEventScope {
+  id: string;
+  user_id: string;
+  role: 'admin_ticket' | 'admin_qr';
+  event_id: string | null;
+  scope_all: boolean;
+  granted_by: string | null;
+  created_at: string;
 }
 
 export interface CommunityApplication {
@@ -200,6 +234,7 @@ export interface Material {
   user_id: string;
   title: string;
   theme: string;
+  premis: string | null;
   estimated_duration: number;
   content: string;
   previous_content: string | null;

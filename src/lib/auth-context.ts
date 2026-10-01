@@ -10,10 +10,12 @@ export interface AuthContextValue {
   isAdminApp: boolean;
   isOpenMicAdmin: boolean;
   isEventAdmin: boolean;
+  isTicketAdmin: boolean;
+  isQrScanner: boolean;
   isMember: boolean;
   isEvaluator: boolean;
   isAuthenticated: boolean;
-  signIn: (email: string, password: string, options?: { requireRole?: 'admin-app' | 'admin' | 'member' | 'evaluator' | 'any' }) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string, options?: { requireRole?: 'admin-app' | 'admin' | 'member' | 'evaluator' | 'ticket-admin' | 'qr-scanner' | 'any' }) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 

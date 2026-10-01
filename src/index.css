@@ -189,6 +189,13 @@
     @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 transition-all duration-200 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/25;
   }
 
+  .admin-ticket-select {
+    @apply min-h-11 min-w-0 w-full cursor-pointer appearance-none rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 pr-10 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:border-blue-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/25 sm:px-4;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.875rem center;
+    background-repeat: no-repeat;
+  }
+
   .label-field {
     @apply mb-1.5 block text-sm font-bold text-slate-800;
   }
@@ -454,6 +461,16 @@
       visibility: hidden !important;
     }
 
+    body[data-print-mode="ticket-sales-report"] .print-sheet:not(.ticket-sales-report-print),
+    body[data-print-mode="ticket-sales-report"] .print-sheet:not(.ticket-sales-report-print) * {
+      visibility: hidden !important;
+    }
+
+    body[data-print-mode="ticket-check-in-report"] .print-sheet:not(.ticket-check-in-report-print),
+    body[data-print-mode="ticket-check-in-report"] .print-sheet:not(.ticket-check-in-report-print) * {
+      visibility: hidden !important;
+    }
+
     .print-sheet {
       display: block !important;
       position: absolute;
@@ -512,6 +529,96 @@
       padding: 10mm;
       font-family: Arial, Helvetica, sans-serif;
       font-size: 8.5pt;
+    }
+
+    .ticket-sales-report-print {
+      padding: 10mm;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9pt;
+    }
+
+    .ticket-sales-report-print .print-brand {
+      margin-bottom: 6mm;
+    }
+
+    .ticket-sales-report-print h1 {
+      font-size: 18pt;
+    }
+
+    .ticket-sales-report-print h2 {
+      margin: 8mm 0 1mm;
+      color: #0B1F44;
+      font-size: 13pt;
+      font-weight: 700;
+    }
+
+    .ticket-sales-report-print h3 {
+      margin: 5mm 0 2mm;
+      color: #1D4ED8;
+      font-size: 10pt;
+      font-weight: 700;
+    }
+
+    .ticket-sales-report-print p {
+      margin-bottom: 2mm;
+    }
+
+    .ticket-sales-report-print .ticket-report-print-event {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .ticket-sales-report-print .ticket-report-print-total {
+      margin-top: 3mm;
+      color: #0B1F44;
+      font-weight: 700;
+    }
+
+    .ticket-check-in-report-print {
+      padding: 10mm;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 8.5pt;
+    }
+
+    .ticket-check-in-report-print .print-brand {
+      margin-bottom: 5mm;
+    }
+
+    .ticket-check-in-report-print h1 {
+      font-size: 18pt;
+    }
+
+    .ticket-check-in-report-print h2 {
+      margin: 5mm 0 2mm;
+      color: #0B1F44;
+      font-size: 11pt;
+      font-weight: 700;
+    }
+
+    .ticket-check-in-report-print .ticket-check-in-report-meta p {
+      margin-bottom: 1.5mm;
+    }
+
+    .ticket-check-in-report-print table {
+      font-size: 8pt;
+    }
+
+    .ticket-check-in-report-print thead {
+      display: table-header-group;
+    }
+
+    .ticket-check-in-report-print tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .ticket-check-in-report-print .ticket-check-in-summary-table {
+      margin-bottom: 5mm;
+    }
+
+    .ticket-check-in-report-print .ticket-check-in-number {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
     }
 
     .ticket-orders-print .print-brand {

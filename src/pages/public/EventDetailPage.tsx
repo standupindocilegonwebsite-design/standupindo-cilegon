@@ -12,7 +12,7 @@ import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
-import { formatDate, formatPrice, getEventStatus, waLink } from '@/lib/format';
+import { formatDate, formatPrice, waLink } from '@/lib/format';
 
 interface Props {
   router: Router;
@@ -164,7 +164,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const cheapestTicketPrice = tickets.length > 0 ? tickets.reduce((lowest, ticket) => ticket.price < lowest.price ? ticket : lowest, tickets[0]).price : (event.ticket_price ?? 0);
   const isFreeEvent = tickets.length === 0 && cheapestTicketPrice <= 0;
   const pageUrl = `${window.location.origin}/event/${event.slug}`;
-  const currentStatus = getEventStatus(event.status, event.date);
+  const currentStatus = event.status;
 
   return (
     <div className="animate-fade-in">

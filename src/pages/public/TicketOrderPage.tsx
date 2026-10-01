@@ -1,30 +1,127 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, CheckCircle2, MessageCircle, Ticket } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, Copy, CreditCard, Eye, Ticket, Upload } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import { LOGO_URL, type EventItem, type EventTicket, type SiteSettings } from '@/lib/types';
+import { LOGO_URL, type EventItem, type EventTicket } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
-import { createOrderNumber, formatDate, formatPrice, getEventStatus, normalizeWhatsappNumber } from '@/lib/format';
-import { generateTicketPurchaseWhatsAppMessage } from '@/lib/whatsapp';
+import { createOrderNumber, formatDate, formatPrice, normalizeWhatsappNumber } from '@/lib/format';
+
+interface PaymentSnapshot {
+  recipient_name: string;
+  bank_name: string | null;
+  account_number: string | null;
+  qris_storage_path: string | null;
+  note: string | null;
+}
+
+function PaymentInstructions({ method, totalPrice }: { method: PaymentSnapshot; totalPrice: number }) {
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState('');
+
+  async function copyAccountNumber() {
+    if (!method.account_number) return;
+    try {
+      await navigator.clipboard.writeText(method.account_number);
+      setCopied(true);
+      setCopyError('');
+    } catch {
+      setCopied(false);
+      setCopyError('Nomor rekening gagal disalin. Silakan salin secara manual.');
+    }
+  }
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
+      <div className="flex items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-white px-4 py-4 sm:px-5">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><CreditCard className="h-5 w-5" /></span>
+        <div>
+          <h2 className="font-extrabold text-slate-900">Informasi Pembayaran</h2>
+          <p className="mt-0.5 text-xs text-slate-500">Transfer sesuai jumlah total berikut</p>
+        </div>
+      </div>
+      <div className="space-y-4 p-4 sm:p-5">
+        {method.bank_name && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Transfer Bank</p>
+            <p className="mt-1 font-extrabold text-slate-900">{method.bank_name}</p>
+            {method.account_number && (
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+                <span className="min-w-0 break-all font-mono text-lg font-extrabold tracking-wide text-slate-900">{method.account_number}</span>
+                <button type="button" onClick={() => void copyAccountNumber()} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100" aria-label="Salin nomor rekening">
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copied ? 'Tersalin' : 'Salin'}
+                </button>
+              </div>
+            )}
+            <p className="mt-2 text-xs text-slate-500">Nama penerima</p>
+            <p className="text-sm font-semibold text-slate-800">{method.recipient_name}</p>
+            {copyError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">{copyError}</p>}
+          </div>
+        )}
+        {method.qris_storage_path && (
+          <div className="rounded-xl border border-slate-200 p-3 sm:p-4">
+            <p className="mb-3 text-sm font-bold text-slate-800">QRIS · {method.recipient_name}</p>
+            <img src={supabase.storage.from('standupindo-media').getPublicUrl(method.qris_storage_path).data.publicUrl} alt="QRIS pembayaran Event" className="mx-auto max-h-72 rounded-xl border border-slate-200" />
+          </div>
+        )}
+        {method.note && <p className="text-xs leading-5 text-slate-500">{method.note}</p>}
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-wider text-amber-800">Jumlah transfer wajib sama</p>
+          <p className="mt-1 text-2xl font-black text-slate-900">{formatPrice(totalPrice)}</p>
+          <p className="mt-1 text-xs leading-5 text-amber-900">Pastikan jumlah yang ditransfer sama persis dengan total pembayaran (Gross Amount) agar order dapat diverifikasi.</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+interface SavedTicketOrder {
+  id: string;
+  order_number: string;
+  full_name?: string;
+  email?: string | null;
+  total_price: number;
+  expires_at: string | null;
+  ticket_category?: string;
+  quantity?: number;
+  status?: string;
+  payment_method_snapshot: PaymentSnapshot | null;
+}
 
 interface Props {
   router: Router;
   slug: string;
   ticketId: string;
-  settings: SiteSettings;
 }
 
-export function TicketOrderPage({ router, slug, ticketId, settings }: Props) {
+export function TicketOrderPage({ router, slug, ticketId }: Props) {
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState<EventItem | null>(null);
   const [ticket, setTicket] = useState<EventTicket | null>(null);
-  const [form, setForm] = useState({ full_name: '', email: '', whatsapp: '', quantity: '1', notes: '' });
+  const [paymentMethod, setPaymentMethod] = useState<PaymentSnapshot | null>(null);
+  const [form, setForm] = useState({ full_name: '', email: '', whatsapp: '', quantity: '1' });
   const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [paymentMethodError, setPaymentMethodError] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const [reviewOpen, setReviewOpen] = useState(false);
+  const [paymentConfirmationOpen, setPaymentConfirmationOpen] = useState(false);
+  const [orderDetailsOpen, setOrderDetailsOpen] = useState(false);
+  const [savedOrder, setSavedOrder] = useState<SavedTicketOrder | null>(null);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState('Draft Pembayaran');
+  const [uploadingProof, setUploadingProof] = useState(false);
+
+  useEffect(() => {
+    if (!proofFile) {
+      setProofPreviewUrl('');
+      return;
+    }
+    const previewUrl = URL.createObjectURL(proofFile);
+    setProofPreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [proofFile]);
 
   useEffect(() => {
     let active = true;
@@ -37,16 +134,23 @@ export function TicketOrderPage({ router, slug, ticketId, settings }: Props) {
       if (eventRow) {
         const { data: ticketData } = await supabase.from('event_tickets').select('*').eq('id', ticketId).eq('event_id', eventRow.id).eq('status', 'active').maybeSingle();
         if (active) setTicket((ticketData as EventTicket) ?? null);
+        const { data: paymentData, error: paymentError } = await supabase.from('event_payment_methods')
+          .select('recipient_name, bank_name, account_number, qris_storage_path, note')
+          .eq('event_id', eventRow.id).eq('is_active', true).maybeSingle();
+        if (active) {
+          setPaymentMethod((paymentData as PaymentSnapshot | null) ?? null);
+          if (paymentError) setPaymentMethodError('Informasi pembayaran Event gagal dimuat. Muat ulang halaman sebelum mengirim order.');
+          else if (!paymentData) setPaymentMethodError('Informasi pembayaran untuk Event ini belum tersedia.');
+        }
       }
       if (active) setLoading(false);
     })();
     return () => { active = false; };
   }, [slug, ticketId]);
 
-  const quantity = Math.max(1, Math.min(20, Number.parseInt(form.quantity, 10) || 1));
+  const quantity = Math.max(1, Math.min(10, Number.parseInt(form.quantity, 10) || 1));
   const totalPrice = ticket ? ticket.price * quantity : 0;
-  const buyTicketNumber = event?.whatsapp_number || settings.whatsapp_ticket || settings.whatsapp_admin;
-  const currentStatus = event ? getEventStatus(event.status, event.date) : 'completed';
+  const currentStatus = event?.status ?? 'completed';
 
   function setWhatsapp(value: string) {
     setForm((current) => ({ ...current, whatsapp: value.replace(/\D/g, '') }));
@@ -69,54 +173,114 @@ export function TicketOrderPage({ router, slug, ticketId, settings }: Props) {
       setError('Nomor WhatsApp belum valid.');
       return;
     }
-    setReviewOpen(true);
-  }
-
-  async function confirmSubmit() {
-    if (!event || !ticket) return;
-    setError('');
-    setSaving(true);
-    const orderId = crypto.randomUUID();
-    const orderNumber = createOrderNumber(event.title);
-    const { error: insertError } = await supabase
-      .from('ticket_orders')
-      .insert({
-        id: orderId,
-        order_number: orderNumber,
-        event_id: event.id,
-        ticket_id: ticket.id,
-        ticket_category: ticket.name,
-        full_name: form.full_name.trim(),
-        email: form.email.trim().toLowerCase(),
-        whatsapp: form.whatsapp,
-        quantity,
-        unit_price: ticket.price,
-        total_price: totalPrice,
-        notes: form.notes.trim() || null,
-        status: 'Menunggu Pembayaran',
-      });
-
-    if (insertError) {
-      setSaving(false);
-      setError('Pesanan belum tersimpan. Pastikan migration ticket_orders sudah dijalankan di Supabase, lalu coba lagi.');
+    if (!/^\d+$/.test(form.quantity) || Number(form.quantity) < 1 || Number(form.quantity) > 10) {
+      setError('Jumlah tiket harus antara 1 dan 10.');
       return;
     }
+    if (!paymentMethod) {
+      setError(paymentMethodError || 'Informasi pembayaran Event belum tersedia.');
+      return;
+    }
+    if (!proofFile) {
+      setError('Pilih bukti transfer sebelum mengirim order.');
+      return;
+    }
+    if (proofFile.size > 5 * 1024 * 1024) {
+      setError('Ukuran bukti pembayaran maksimal 5 MB.');
+      return;
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(proofFile.type)) {
+      setError('Gunakan bukti pembayaran JPG, PNG, atau WEBP.');
+      return;
+    }
+    setError('');
+    setPaymentConfirmationOpen(true);
+  }
 
-    const message = generateTicketPurchaseWhatsAppMessage({
-      order_number: orderNumber,
-      full_name: form.full_name.trim(),
-      email: form.email.trim().toLowerCase(),
-      whatsapp: form.whatsapp,
-      ticket_category: ticket.name,
-      quantity,
-      total_price: totalPrice,
-      notes: form.notes.trim() || null,
-      status: 'Menunggu Pembayaran',
-    }, event.title);
+  async function uploadPaymentProof(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!savedOrder || !proofFile) {
+      setError('Pilih bukti pembayaran terlebih dahulu.');
+      return;
+    }
+    if (proofFile.size > 5 * 1024 * 1024) {
+      setError('Ukuran bukti pembayaran maksimal 5 MB.');
+      return;
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(proofFile.type)) {
+      setError('Gunakan bukti pembayaran JPG, PNG, atau WEBP.');
+      return;
+    }
+    setError('');
+    setPaymentConfirmationOpen(true);
+  }
 
-    setReviewOpen(false);
+  async function confirmPaymentProof() {
+    if (!event || !ticket || !proofFile) return;
+    setUploadingProof(true);
+    setError('');
+    let order = savedOrder;
+    if (!order) {
+      if (!paymentMethod) {
+        setUploadingProof(false);
+        setError(paymentMethodError || 'Informasi pembayaran Event belum tersedia.');
+        return;
+      }
+      const orderNumber = createOrderNumber(event.title);
+      const { data: orderId, error: orderError } = await supabase.rpc('create_ticket_order', {
+        p_order_number: orderNumber,
+        p_event_id: event.id,
+        p_ticket_id: ticket.id,
+        p_full_name: form.full_name.trim(),
+        p_email: form.email.trim().toLowerCase(),
+        p_whatsapp: form.whatsapp,
+        p_quantity: quantity,
+        p_notes: null,
+      });
+      if (orderError || !orderId) {
+        setUploadingProof(false);
+        setError(orderError?.message ?? 'Order belum berhasil dibuat. Periksa ketersediaan tiket dan informasi pembayaran Event.');
+        return;
+      }
+      order = {
+        id: orderId,
+        order_number: orderNumber,
+        full_name: form.full_name.trim(),
+        email: form.email.trim().toLowerCase(),
+        total_price: totalPrice,
+        expires_at: null,
+        ticket_category: ticket.name,
+        quantity,
+        status: 'Draft Pembayaran',
+        payment_method_snapshot: paymentMethod,
+      };
+      setSavedOrder(order);
+    }
+    const { data: uploadData, error: uploadLinkError } = await supabase.functions.invoke('ticketing-public', {
+      body: { action: 'create-proof-upload', order_id: order.id, whatsapp: form.whatsapp, file_name: proofFile.name, file_type: proofFile.type },
+    });
+    if (uploadLinkError || uploadData?.error) {
+      setUploadingProof(false);
+      setError(uploadLinkError?.message ?? uploadData?.error ?? 'Link upload bukti gagal dibuat.');
+      return;
+    }
+    const { error: fileError } = await supabase.storage.from('ticket-payment-proofs').uploadToSignedUrl(uploadData.path, uploadData.token, proofFile, { contentType: proofFile.type, upsert: false });
+    if (fileError) {
+      setUploadingProof(false);
+      setError('Bukti pembayaran gagal diupload. Coba pilih ulang file.');
+      return;
+    }
+    const { data, error: submitError } = await supabase.functions.invoke('ticketing-public', {
+      body: { action: 'submit-payment', order_id: order.id, whatsapp: form.whatsapp, payment_amount: order.total_price, proof_path: uploadData.path },
+    });
+    setUploadingProof(false);
+    if (submitError || data?.error) {
+      setError(submitError?.message ?? data?.error ?? 'Bukti pembayaran gagal dikirim.');
+      return;
+    }
+    setPaymentStatus('Menunggu Verifikasi');
+    setPaymentConfirmationOpen(false);
     setSubmitted(true);
-    window.location.assign(`https://wa.me/${normalizeWhatsappNumber(buyTicketNumber)}?text=${encodeURIComponent(message)}`);
   }
 
   if (loading) {
@@ -128,15 +292,89 @@ export function TicketOrderPage({ router, slug, ticketId, settings }: Props) {
   }
 
   if (submitted) {
+    const canContinuePayment = paymentStatus === 'Draft Pembayaran' || paymentStatus === 'Menunggu Pembayaran';
     return (
       <div className="animate-fade-in">
         <PageHeader router={router} title="Pesanan Tersimpan" subtitle={event.title} />
         <div className="container-app py-8">
-          <div className="card mx-auto max-w-xl p-8 text-center sm:p-12">
-            <CheckCircle2 className="mx-auto h-12 w-12 text-green-600" />
-            <h2 className="mt-4 text-2xl font-extrabold text-slate-900">Pesanan berhasil disimpan</h2>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">WhatsApp admin sedang dibuka dengan detail pesanan kamu.</p>
-            <button type="button" onClick={() => router.navigate(`/event/${event.slug}`)} className="btn-primary mt-6">Kembali ke Event</button>
+          <div className="mx-auto max-w-xl space-y-4">
+            <div className="card p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nama</p>
+                  <h2 className="mt-1 truncate text-lg font-extrabold text-slate-900">{savedOrder?.full_name ?? form.full_name}</h2>
+                  <p className="mt-2 text-sm font-semibold text-slate-700">{event.title}</p>
+                  <p className="mt-1 text-sm text-slate-500">{savedOrder?.quantity ?? quantity} tiket</p>
+                  <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Total bayar</p>
+                  <p className="mt-0.5 text-xl font-black text-slate-900">{formatPrice(savedOrder?.total_price ?? totalPrice)}</p>
+                </div>
+                <button type="button" onClick={() => setOrderDetailsOpen(true)} aria-label="Lihat detail order" title="Lihat detail order" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 transition hover:bg-blue-100">
+                  <Eye className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 text-sm font-semibold">
+                <CheckCircle2 className={`h-5 w-5 ${paymentStatus === 'Lunas' ? 'text-emerald-600' : 'text-blue-600'}`} />
+                <span className={paymentStatus === 'Lunas' ? 'text-emerald-700' : 'text-blue-800'}>{paymentStatus === 'Lunas' ? 'Pembayaran terverifikasi' : canContinuePayment ? 'Menunggu bukti pembayaran' : 'Menunggu verifikasi pembayaran'}</span>
+              </div>
+            </div>
+            {canContinuePayment && <form onSubmit={(e) => void uploadPaymentProof(e)} className="card space-y-4 p-5">
+              <h3 className="font-extrabold text-slate-900">Kirim Bukti Pembayaran</h3>
+              <div><label className="label-field" htmlFor="ticket-payment-proof">Bukti transfer</label><input id="ticket-payment-proof" type="file" accept="image/jpeg,image/png,image/webp" onChange={(input) => setProofFile(input.target.files?.[0] ?? null)} className="input-field" required /><p className="mt-1 text-xs text-slate-500">JPG, PNG, WEBP · Maks. 5 MB</p></div>
+              {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
+              <button type="submit" disabled={uploadingProof} className="btn-primary w-full">{uploadingProof ? 'Mengirim bukti...' : <><Upload className="h-4 w-4" /> Kirim Bukti Pembayaran</>}</button>
+            </form>}
+            {paymentStatus === 'Menunggu Verifikasi' && <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-800">
+              <p>Bukti pembayaran diterima. Order sudah masuk ke Admin Tiket untuk diverifikasi.</p>
+            </div>}
+            {paymentStatus === 'Lunas' && <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"><p>Order telah disetujui dan lunas.</p><button type="button" onClick={() => router.navigate('/tiket')} className="btn-primary w-full">Buka Tiket Saya</button></div>}
+            {paymentStatus !== 'Menunggu Verifikasi' && paymentStatus !== 'Lunas' && !canContinuePayment && <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900"><p>Status order: {paymentStatus}.</p>{paymentStatus === 'Ditolak' && <button type="button" onClick={() => { setSubmitted(false); setSavedOrder(null); setPaymentStatus('Draft Pembayaran'); setProofFile(null); setError(''); }} className="btn-primary w-full">Buat Order Baru</button>}</div>}
+            <Modal open={orderDetailsOpen} onClose={() => setOrderDetailsOpen(false)} title="Detail Order" size="lg">
+              <div className="space-y-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div><p className="text-xs font-semibold text-slate-500">Nomor order</p><p className="mt-0.5 font-mono font-bold text-slate-900">{savedOrder?.order_number}</p></div>
+                    <div><p className="text-xs font-semibold text-slate-500">Status</p><p className="mt-0.5 font-bold text-slate-900">{paymentStatus}</p></div>
+                    <div><p className="text-xs font-semibold text-slate-500">Nama</p><p className="mt-0.5 font-semibold text-slate-900">{savedOrder?.full_name ?? form.full_name}</p></div>
+                    <div><p className="text-xs font-semibold text-slate-500">Email</p><p className="mt-0.5 break-all font-semibold text-slate-900">{savedOrder?.email ?? form.email}</p></div>
+                    <div><p className="text-xs font-semibold text-slate-500">WhatsApp</p><p className="mt-0.5 font-semibold text-slate-900">{form.whatsapp}</p></div>
+                    <div><p className="text-xs font-semibold text-slate-500">Event</p><p className="mt-0.5 font-semibold text-slate-900">{event.title}</p></div>
+                    <div><p className="text-xs font-semibold text-slate-500">Tiket</p><p className="mt-0.5 font-semibold text-slate-900">{savedOrder?.ticket_category ?? ticket.name} · {savedOrder?.quantity ?? quantity} tiket</p></div>
+                    <div><p className="text-xs font-semibold text-slate-500">Total bayar</p><p className="mt-0.5 font-extrabold text-slate-900">{formatPrice(savedOrder?.total_price ?? totalPrice)}</p></div>
+                  </div>
+                </div>
+                {savedOrder?.payment_method_snapshot && canContinuePayment && <PaymentInstructions method={savedOrder.payment_method_snapshot} totalPrice={savedOrder.total_price} />}
+                {proofFile && proofPreviewUrl && <section className="rounded-xl border border-blue-200 bg-white p-4">
+                  <h3 className="mb-3 font-extrabold text-slate-900">Pratinjau bukti transfer</h3>
+                  <img src={proofPreviewUrl} alt="Bukti transfer yang telah dikirim" className="mx-auto max-h-[60vh] w-full rounded-lg object-contain" />
+                  <p className="mt-2 truncate text-center text-xs text-slate-500">{proofFile.name}</p>
+                </section>}
+                {paymentStatus === 'Lunas' && <button type="button" onClick={() => router.navigate('/tiket')} className="btn-primary w-full">Buka Tiket Saya</button>}
+                <button type="button" onClick={() => setOrderDetailsOpen(false)} className="btn-secondary w-full">Tutup detail</button>
+              </div>
+            </Modal>
+            <Modal open={paymentConfirmationOpen} onClose={() => !uploadingProof && setPaymentConfirmationOpen(false)} title="Konfirmasi Pembayaran" size="md">
+              <div className="space-y-4">
+                <p className="text-sm font-medium text-slate-700">Pastikan data dan bukti pembayaran berikut sudah benar sebelum dikirim.</p>
+                <div className="review-summary">
+                  <div className="review-row"><span className="review-label">Nama</span><span className="review-value">{savedOrder?.full_name ?? form.full_name}</span></div>
+                  <div className="review-row"><span className="review-label">Email</span><span className="review-value">{savedOrder?.email ?? form.email}</span></div>
+                  <div className="review-row"><span className="review-label">WhatsApp</span><span className="review-value">{form.whatsapp}</span></div>
+                  <div className="review-row"><span className="review-label">Tiket</span><span className="review-value">{savedOrder?.ticket_category ?? ticket.name}</span></div>
+                  <div className="review-row"><span className="review-label">Jumlah</span><span className="review-value">{savedOrder?.quantity ?? quantity}</span></div>
+                  <div className="review-row"><span className="review-label">Total</span><span className="review-value">{formatPrice(savedOrder?.total_price ?? totalPrice)}</span></div>
+                  <div className="review-row"><span className="review-label">Bukti transfer</span><span className="review-value">{proofFile?.name}</span></div>
+                  <div className="review-row"><span className="review-label">Bukti</span><span className="review-value">{proofFile?.name}</span></div>
+                </div>
+                {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
+                <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                  <button type="button" onClick={() => setPaymentConfirmationOpen(false)} disabled={uploadingProof} className="btn-secondary flex-1">Periksa Lagi</button>
+                  <button type="button" onClick={() => void confirmPaymentProof()} disabled={uploadingProof} className="btn-primary flex-1">
+                    {uploadingProof ? 'Membuat order dan mengirim bukti...' : <><ArrowRight className="h-4 w-4" /> Konfirmasi & Kirim Order</>}
+                  </button>
+                </div>
+              </div>
+            </Modal>
+            <button type="button" onClick={() => router.navigate(`/event/${event.slug}`)} className="btn-secondary w-full">Kembali ke Event</button>
           </div>
         </div>
       </div>
@@ -179,44 +417,48 @@ export function TicketOrderPage({ router, slug, ticketId, settings }: Props) {
             </div>
             <div>
               <label className="label-field" htmlFor="ticket-order-quantity">Jumlah tiket</label>
-              <input id="ticket-order-quantity" required type="number" min="1" max="20" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} className="input-field" />
-            </div>
-            <div>
-              <label className="label-field" htmlFor="ticket-order-notes">Catatan <span className="font-normal text-slate-400">(opsional)</span></label>
-              <textarea id="ticket-order-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="input-field min-h-[88px]" placeholder="Contoh: Mohon info rekening pembayaran" />
+              <input id="ticket-order-quantity" required type="number" min="1" max="10" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} className="input-field" />
+              <p className="mt-1 text-xs text-slate-500">Maksimal 10 tiket per pesanan.</p>
             </div>
 
             <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm">
-              <div className="flex items-center justify-between gap-3 text-slate-500"><span>Total pesanan</span><strong className="text-lg text-slate-900">{formatPrice(totalPrice)}</strong></div>
+              <div className="flex items-center justify-between gap-3 text-slate-500"><span>Total pembayaran (Gross Amount)</span><strong className="text-lg text-slate-900">{formatPrice(totalPrice)}</strong></div>
+            </div>
+            {paymentMethod && <PaymentInstructions method={paymentMethod} totalPrice={totalPrice} />}
+            {paymentMethodError && <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{paymentMethodError}</p>}
+            <div>
+              <label className="label-field" htmlFor="ticket-payment-proof">Bukti transfer</label>
+              <input id="ticket-payment-proof" type="file" accept="image/jpeg,image/png,image/webp" onChange={(input) => setProofFile(input.target.files?.[0] ?? null)} className="input-field" required />
+              <p className="mt-1 text-xs text-slate-500">JPG, PNG, WEBP · Maks. 5 MB</p>
             </div>
             {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
-            <button type="submit" disabled={saving} className="btn-primary w-full !py-3.5 text-base">
-              {saving ? 'Memeriksa data...' : <><ArrowRight className="h-4 w-4" /> Kirim Pesanan</>}
+            <button type="submit" disabled={uploadingProof || !paymentMethod} className="btn-primary w-full !py-3.5 text-base">
+              {uploadingProof ? 'Mengirim order...' : <><ArrowRight className="h-4 w-4" /> Konfirmasi & Kirim Order</>}
             </button>
           </form>
+          <Modal open={paymentConfirmationOpen} onClose={() => !uploadingProof && setPaymentConfirmationOpen(false)} title="Konfirmasi Order" size="md">
+            <div className="space-y-4">
+              <p className="text-sm font-medium text-slate-700">Pastikan seluruh data pesanan dan bukti transfer sudah benar. Order akan dikirim ke Admin setelah bukti berhasil diunggah.</p>
+              <div className="review-summary">
+                <div className="review-row"><span className="review-label">Nama</span><span className="review-value">{form.full_name}</span></div>
+                <div className="review-row"><span className="review-label">Email</span><span className="review-value">{form.email}</span></div>
+                <div className="review-row"><span className="review-label">WhatsApp</span><span className="review-value">{form.whatsapp}</span></div>
+                <div className="review-row"><span className="review-label">Tiket</span><span className="review-value">{ticket.name}</span></div>
+                <div className="review-row"><span className="review-label">Jumlah</span><span className="review-value">{quantity}</span></div>
+                <div className="review-row"><span className="review-label">Total pembayaran (Gross Amount)</span><span className="review-value">{formatPrice(totalPrice)}</span></div>
+                <div className="review-row"><span className="review-label">Bukti transfer</span><span className="review-value">{proofFile?.name}</span></div>
+              </div>
+              {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
+              <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                <button type="button" onClick={() => setPaymentConfirmationOpen(false)} disabled={uploadingProof} className="btn-secondary flex-1">Periksa Lagi</button>
+                <button type="button" onClick={() => void confirmPaymentProof()} disabled={uploadingProof} className="btn-primary flex-1">
+                  {uploadingProof ? 'Mengirim order...' : <><ArrowRight className="h-4 w-4" /> Kirim Order</>}
+                </button>
+              </div>
+            </div>
+          </Modal>
         </div>
       </div>
-      <Modal open={reviewOpen} onClose={() => setReviewOpen(false)} title="Periksa Data Pesanan" size="md">
-        <div className="space-y-4">
-          <p className="text-sm font-medium text-slate-700">Pastikan data berikut sudah benar.</p>
-          <div className="review-summary">
-            <div className="review-row"><span className="review-label">Nama</span><span className="review-value">{form.full_name}</span></div>
-            <div className="review-row"><span className="review-label">Email</span><span className="review-value">{form.email}</span></div>
-            <div className="review-row"><span className="review-label">WhatsApp</span><span className="review-value">{form.whatsapp}</span></div>
-            <div className="review-row"><span className="review-label">Tiket</span><span className="review-value">{ticket.name}</span></div>
-            <div className="review-row"><span className="review-label">Jumlah</span><span className="review-value">{quantity}</span></div>
-            <div className="review-row"><span className="review-label">Total</span><span className="review-value">{formatPrice(totalPrice)}</span></div>
-            {form.notes.trim() && <div className="review-row"><span className="review-label">Catatan</span><span className="review-value">{form.notes}</span></div>}
-          </div>
-          {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
-          <div className="flex flex-col-reverse gap-2 sm:flex-row">
-            <button type="button" onClick={() => setReviewOpen(false)} className="btn-secondary flex-1">Periksa Lagi</button>
-            <button type="button" onClick={() => void confirmSubmit()} disabled={saving} className="btn-primary flex-1">
-              {saving ? 'Mengirim...' : <><MessageCircle className="h-4 w-4" /> Konfirmasi & Kirim</>}
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

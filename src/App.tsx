@@ -13,6 +13,7 @@ import { OpenMicRegisterPage } from '@/pages/public/OpenMicRegisterPage';
 import { EventPage } from '@/pages/public/EventPage';
 import { EventDetailPage } from '@/pages/public/EventDetailPage';
 import { TicketOrderPage } from '@/pages/public/TicketOrderPage';
+import { TicketAccessPage } from '@/pages/public/TicketAccessPage';
 import { KomikaPage } from '@/pages/public/KomikaPage';
 import { KomikaDetailPage } from '@/pages/public/KomikaDetailPage';
 import { MorePage } from '@/pages/public/MorePage';
@@ -47,6 +48,7 @@ function updateSeo(path: string, siteName: string) {
     '/': `${siteName} — Komunitas Stand Up Comedy`,
     '/open-mic': `Open Mic — ${siteName}`,
     '/event': `Event — ${siteName}`,
+    '/tiket': `Tiket Saya — ${siteName}`,
     '/komika': `Komika — ${siteName}`,
     '/member': `Member — ${siteName}`,
     '/member/profile': `Profile Member — ${siteName}`,
@@ -216,11 +218,12 @@ function RoutedApp() {
 
   let content: React.ReactNode;
   if (router.path === '/') content = <HomePage router={router} />;
+  else if (router.path === '/tiket') content = <TicketAccessPage router={router} />;
   else if (router.path === '/open-mic') content = <OpenMicPage router={router} />;
   else if (openMicRegister) content = <OpenMicRegisterPage router={router} slug={openMicRegister.slug} />;
   else if (openMicDetail) content = <OpenMicDetailPage router={router} slug={openMicDetail.slug} />;
   else if (router.path === '/event') content = <EventPage router={router} />;
-  else if (ticketOrder) content = <TicketOrderPage router={router} slug={ticketOrder.slug} ticketId={ticketOrder.ticketId} settings={settings} />;
+  else if (ticketOrder) content = <TicketOrderPage router={router} slug={ticketOrder.slug} ticketId={ticketOrder.ticketId} />;
   else if (eventRegister) content = <EventRegisterPage router={router} slug={eventRegister.slug} />;
   else if (eventDetail) content = <EventDetailPage router={router} slug={eventDetail.slug} settings={settings} />;
   else if (router.path === '/komika') content = <KomikaPage router={router} />;
@@ -233,7 +236,7 @@ function RoutedApp() {
   else content = <div className="container-app py-16"><EmptyState title="Halaman tidak ditemukan" description="Kembali ke beranda untuk melanjutkan." /></div>;
 
   return <AppShell router={router} settings={settings}>
-    <div key={router.path} className="route-transition">{content}</div>
+    <div key={router.path} className={router.path === '/tiket' ? '' : 'route-transition'}>{content}</div>
   </AppShell>;
 }
 

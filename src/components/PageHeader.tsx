@@ -12,7 +12,8 @@ interface Props {
 export function PageHeader({ router, title, subtitle, showBack = true, backTo }: Props) {
   const isMember = router.path.startsWith('/member');
   const isEvaluator = router.path.startsWith('/evaluator');
-  const isRoleArea = isMember || isEvaluator;
+  const isTicketBuyer = router.path === '/tiket';
+  const isRoleArea = isMember || isEvaluator || isTicketBuyer;
   return (
     <div className={`border-b-2 ${isRoleArea ? 'border-blue-100 bg-slate-50' : 'border-blue-100 bg-white'}`}>
       <div className={`container-app ${isRoleArea && title ? 'py-3 sm:py-4' : 'py-5'}`}>

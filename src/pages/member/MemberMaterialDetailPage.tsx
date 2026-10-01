@@ -5,6 +5,8 @@ import type { Material, MaterialNode } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { formatDate } from '@/lib/format';
+import { MaterialContentEditor } from '@/components/MaterialContentEditor';
+import { parseMaterialContent, type MaterialContentBlock } from '@/lib/material-content';
 
 type DetailTab = 'current' | 'previous';
 type ReadingTheme = 'paper' | 'night';
@@ -12,37 +14,65 @@ type ReadingTheme = 'paper' | 'night';
 const RATING_LABELS = ['Cuma Niat', 'Maksa Lucu', 'Ada Bibit', 'Mulai Kena', 'Lumayan Pecah', 'Solid Ini'];
 const READING_PAGE_CHAR_LIMIT = 1100;
 
-function buildReadingPages(content: string): string[] {
-  const blocks = content.split(/\n\s*\n|\n/).map((block) => block.trim()).filter(Boolean);
-  const pages: string[] = [];
-  let current = '';
+function buildReadingPages(content: string): MaterialContentBlock[][] {
+  const pages: MaterialContentBlock[][] = [];
+  let current: MaterialContentBlock[] = [];
+  let currentLength = 0;
 
-  blocks.forEach((block) => {
-    if (block.length > READING_PAGE_CHAR_LIMIT) {
-      const words = block.split(/\s+/);
-      words.forEach((word) => {
-        const next = current ? `${current} ${word}` : word;
-        if (current && next.length > READING_PAGE_CHAR_LIMIT) {
-          pages.push(current);
-          current = word;
-        } else {
-          current = next;
-        }
-      });
+  const appendText = (text: string) => {
+    const nextLength = currentLength ? currentLength + text.length + 2 : text.length;
+    if (currentLength && nextLength > READING_PAGE_CHAR_LIMIT) {
+      pages.push(current);
+      current = [];
+      currentLength = 0;
+    }
+    current.push({ type: 'text', text });
+    currentLength += text.length + (currentLength ? 2 : 0);
+  };
+
+  const addText = (text: string) => {
+    if (text.length <= READING_PAGE_CHAR_LIMIT) {
+      appendText(text);
       return;
     }
+    let chunk = '';
+    text.split(/\s+/).forEach((word) => {
+      if (chunk && `${chunk} ${word}`.length > READING_PAGE_CHAR_LIMIT) {
+        appendText(chunk);
+        chunk = word;
+      } else {
+        chunk = chunk ? `${chunk} ${word}` : word;
+      }
+    });
+    if (chunk) appendText(chunk);
+  };
 
-    const next = current ? `${current}\n\n${block}` : block;
-    if (current && next.length > READING_PAGE_CHAR_LIMIT) {
-      pages.push(current);
-      current = block;
-    } else {
-      current = next;
+  parseMaterialContent(content).forEach((block) => {
+    if (block.type === 'table') {
+      if (current.length) pages.push(current);
+      pages.push([block]);
+      current = [];
+      currentLength = 0;
+      return;
     }
+    block.text.split(/\n\s*\n|\n/).map((part) => part.trim()).filter(Boolean).forEach(addText);
   });
 
-  if (current) pages.push(current);
-  return pages.length > 0 ? pages : ['Belum ada isi materi.'];
+  if (current.length) pages.push(current);
+  return pages.length > 0 ? pages : [[{ type: 'text', text: 'Belum ada isi materi.' }]];
+}
+
+function renderMaterialBlocks(blocks: MaterialContentBlock[], readingTheme?: ReadingTheme) {
+  const isNight = readingTheme === 'night';
+  return blocks.map((block, blockIndex) => block.type === 'text' ? (
+    <p key={`text-${blockIndex}`} className="whitespace-pre-line break-words">{block.text}</p>
+  ) : (
+    <div key={`table-${blockIndex}`} className="my-4 w-full max-w-full overflow-hidden rounded-lg border border-slate-300">
+      <table className="w-full table-fixed border-collapse text-left text-[13px] leading-6 sm:text-sm">
+        <tbody>{block.rows.map((row, rowIndex) => <tr key={`row-${rowIndex}`} className={isNight ? 'border-b border-slate-700 last:border-b-0' : 'border-b border-slate-200 last:border-b-0'}>{row.map((cell, cellIndex) => <td key={`cell-${cellIndex}`} className={`break-words [overflow-wrap:anywhere] border-r p-2 align-top last:border-r-0 sm:p-3 ${isNight ? 'border-slate-700' : 'border-slate-200'}`}>{cell || '\u00a0'}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  ));
 }
 
 export function MemberMaterialDetailPage({ router, id }: { router: Router; id: string }) {
@@ -56,7 +86,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
   const [readingTheme, setReadingTheme] = useState<ReadingTheme>('paper');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ title: '', theme: '', estimated_duration: '', content: '', rating: '', personal_note: '' });
+  const [form, setForm] = useState({ title: '', theme: '', premis: '', estimated_duration: '', content: '', rating: '', personal_note: '' });
   const [nodes, setNodes] = useState<MaterialNode[]>([]);
   const [nodeForm, setNodeForm] = useState({ title: '', type: 'Ide', content: '' });
   const [nodeParentId, setNodeParentId] = useState<string | null>(null);
@@ -102,7 +132,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
     if (loadError || !data) setError('Materi tidak ditemukan atau tidak dapat diakses.');
     const row = data as Material | null;
     setMaterial(row);
-    if (row) setForm({ title: row.title, theme: row.theme, estimated_duration: String(row.estimated_duration), content: row.content, rating: row.rating ? String(row.rating) : '', personal_note: row.personal_note ?? '' });
+    if (row) setForm({ title: row.title, theme: row.theme, premis: row.premis ?? '', estimated_duration: String(row.estimated_duration), content: row.content, rating: row.rating ? String(row.rating) : '', personal_note: row.personal_note ?? '' });
     const { data: nodeData } = await supabase.from('material_nodes').select('*').eq('material_id', id).order('sort_order', { ascending: true }).order('created_at', { ascending: true });
     setNodes((nodeData as MaterialNode[]) ?? []);
     setLoading(false);
@@ -123,6 +153,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
     const payload = {
       title: form.title.trim(),
       theme: form.theme.trim(),
+      premis: form.premis.trim() || null,
       estimated_duration: Number(form.estimated_duration),
       content: form.content.trim(),
       previous_content: contentChanged ? material.content : material.previous_content,
@@ -376,13 +407,16 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
               <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3 text-blue-600" /> ±{material.estimated_duration} menit</span>
               <span className="inline-flex items-center gap-1"><CalendarDays className="h-3 w-3 text-blue-600" /> {formatDate(material.updated_at.slice(0, 10))}</span>
             </div>
+            <p className="mt-3 border-t border-slate-100 pt-3 text-sm leading-6 text-slate-600"><span className="font-bold text-slate-800">Premis:</span> {material.premis?.trim() || '-'}</p>
           </section>
           {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
           {editing ? (
             <form onSubmit={saveChanges} className="space-y-4 rounded-[26px] border border-blue-100 bg-blue-50/60 p-4 sm:p-5">
-              <input className="input-field" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
-              <div className="grid gap-4 sm:grid-cols-2"><input className="input-field" value={form.theme} onChange={(event) => setForm({ ...form, theme: event.target.value })} /><input className="input-field" type="number" min="1" value={form.estimated_duration} onChange={(event) => setForm({ ...form, estimated_duration: event.target.value })} /></div>
-              <textarea className="input-field !min-h-[220px]" value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} />
+              <input className="input-field" placeholder="Judul materi" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+              <input className="input-field" placeholder="Tema materi" value={form.theme} onChange={(event) => setForm({ ...form, theme: event.target.value })} />
+              <div><label htmlFor="edit-material-premis" className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Premis</label><textarea id="edit-material-premis" className="input-field !min-h-[88px]" placeholder="Inti atau gagasan utama materi..." value={form.premis} onChange={(event) => setForm({ ...form, premis: event.target.value })} /></div>
+              <input className="input-field" type="number" min="1" placeholder="Estimasi durasi (menit)" value={form.estimated_duration} onChange={(event) => setForm({ ...form, estimated_duration: event.target.value })} />
+              <MaterialContentEditor value={form.content} onChange={(content) => setForm((current) => ({ ...current, content }))} />
               <button type="submit" disabled={saving} className="btn-primary w-full"><Save className="h-4 w-4" />{saving ? 'Menyimpan...' : 'Simpan Rewrite'}</button>
             </form>
           ) : (
@@ -392,10 +426,11 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
               {readingMode ? (
                 <div className={`overflow-hidden rounded-2xl border shadow-[0_8px_24px_rgba(120,88,30,0.08)] ${readingTheme === 'paper' ? 'border-amber-100 bg-[#fffdf7]' : 'border-slate-700 bg-slate-900'}`}>
                   <div className={`flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 text-xs font-bold sm:px-6 ${readingTheme === 'paper' ? 'border-amber-100 text-amber-800' : 'border-slate-700 text-slate-300'}`}><span className="inline-flex items-center gap-2"><BookOpen className="h-4 w-4" /> Mode Baca</span><div className="flex items-center gap-3"><span>Halaman {readingPage + 1} / {readingPages.length}</span><button type="button" onClick={() => setReadingTheme((theme) => theme === 'paper' ? 'night' : 'paper')} className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition ${readingTheme === 'paper' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`} aria-label={readingTheme === 'paper' ? 'Gunakan tampilan malam' : 'Gunakan tampilan kertas'}>{readingTheme === 'paper' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />} {readingTheme === 'paper' ? 'Malam' : 'Kertas'}</button></div></div>
-                  <div ref={readingContentRef} onTouchStart={startReadingSwipe} onTouchEnd={endReadingSwipe} className={`scroll-mt-24 mx-auto min-h-[min(55vh,28rem)] max-w-2xl touch-pan-y whitespace-pre-line px-5 py-8 font-serif text-[16px] leading-8 tracking-normal sm:min-h-[28rem] sm:px-10 sm:py-10 sm:text-[17px] sm:leading-9 ${readingTheme === 'paper' ? 'text-slate-700' : 'text-slate-200'}`}>{readingPages[readingPage]}</div>
+                  <div className={`border-b px-5 py-4 sm:px-10 ${readingTheme === 'paper' ? 'border-amber-100 text-slate-700' : 'border-slate-700 text-slate-200'}`}><h2 className="text-lg font-bold leading-snug">{material.title}</h2><p className="mt-1 text-xs">{material.theme} · ±{material.estimated_duration} menit</p><p className="mt-3 text-sm leading-6"><span className="font-bold">Premis:</span> {material.premis?.trim() || '-'}</p></div>
+                  <div ref={readingContentRef} onTouchStart={startReadingSwipe} onTouchEnd={endReadingSwipe} className={`scroll-mt-24 mx-auto min-h-[min(55vh,28rem)] max-w-2xl touch-pan-y px-5 py-8 font-serif text-[16px] leading-8 tracking-normal sm:min-h-[28rem] sm:px-10 sm:py-10 sm:text-[17px] sm:leading-9 ${readingTheme === 'paper' ? 'text-slate-700' : 'text-slate-200'}`}>{renderMaterialBlocks(readingPages[readingPage], readingTheme)}</div>
                   <div className={`flex items-center justify-between gap-3 border-t px-4 py-3 sm:px-6 ${readingTheme === 'paper' ? 'border-amber-100 bg-amber-50/50' : 'border-slate-700 bg-slate-950'}`}><button type="button" onClick={() => setReadingPage((page) => Math.max(0, page - 1))} disabled={readingPage === 0} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs disabled:opacity-40"><ChevronLeft className="h-4 w-4" /> Sebelumnya</button><span className={`text-xs font-semibold ${readingTheme === 'paper' ? 'text-slate-400' : 'text-slate-500'}`}>Baca santai</span><button type="button" onClick={() => setReadingPage((page) => Math.min(readingPages.length - 1, page + 1))} disabled={readingPage === readingPages.length - 1} className="btn-primary !min-h-10 !px-3 !py-2 text-xs disabled:opacity-40">Berikutnya <ChevronRight className="h-4 w-4" /></button></div>
                 </div>
-              ) : <div className="whitespace-pre-line rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-700">{tab === 'current' ? material.content : material.previous_content || 'Belum ada versi sebelumnya.'}</div>}
+              ) : <div className="space-y-4 rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-700">{renderMaterialBlocks(parseMaterialContent(tab === 'current' ? material.content : material.previous_content || 'Belum ada versi sebelumnya.'))}</div>}
               {tab === 'previous' && material.previous_content && <><p className="mt-2 text-xs text-slate-400">Versi sebelumnya disimpan saat rewrite terakhir.</p><button type="button" onClick={() => void restorePrevious()} disabled={saving} className="btn-secondary mt-3 w-full !py-2.5 text-sm">Pulihkan versi ini</button></>}
               {tab === 'current' && <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
                 <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-400">Kelola</p>

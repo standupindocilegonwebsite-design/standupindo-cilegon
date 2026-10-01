@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, BarChart3, Bell, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, Eye, EyeOff, FolderOpen, History, LogOut, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Power, Printer, RefreshCw, Search, Settings, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Archive, BarChart3, Bell, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, Eye, EyeOff, FolderOpen, History, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Power, Printer, RefreshCw, Search, Settings, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, MemberOpenMicHistoryStatus, MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -16,9 +16,18 @@ import type { NotificationRecord, NotificationSource } from '@/lib/notification-
 import { MemberAccountsPage } from '@/pages/admin/MemberAccountsPage';
 import { AdminAccountsPage } from '@/pages/admin/AdminAccountsPage';
 import { AdminProfileSettingsPage } from '@/pages/admin/AdminProfileSettingsPage';
+import { TicketAdminOrdersPage } from '@/pages/admin/TicketAdminOrdersPage';
+import { TicketPaymentMethodsPage } from '@/pages/admin/TicketPaymentMethodsPage';
+import { TicketQrScannerPage } from '@/pages/admin/TicketQrScannerPage';
+import { TicketAudiencePage } from '@/pages/admin/TicketAudiencePage';
+import { TicketMaintenancePage } from '@/pages/admin/TicketMaintenancePage';
+import { TicketAdminTicketsPage } from '@/pages/admin/TicketAdminTicketsPage';
+import { TicketSalesReportPage } from '@/pages/admin/TicketSalesReportPage';
+import { TicketCheckInReportPage } from '@/pages/admin/TicketCheckInReportPage';
+import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
 
 interface Props { router: Router; settings: SiteSettings; }
-type Section = 'dashboard' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'settings' | 'profile-settings' | 'ticket-orders' | 'more';
+type Section = 'dashboard' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'check-in-report' | 'maintenance' | 'more';
 
 const NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -52,6 +61,12 @@ function getSection(path: string): Section {
   if (parts[1] === 'open-mic-history') return 'open-mic-history';
   if (parts[1] === 'event-pendaftar' && parts[2]) return 'event-participants';
   if (parts[1] === 'data-penonton' || parts[1] === 'ticket-orders') return 'ticket-orders';
+  if (parts[1] === 'tickets') return 'tickets';
+  if (parts[1] === 'scan') return 'scan';
+  if (parts[1] === 'payment-info') return 'payment-info';
+  if (parts[1] === 'ticket-report') return 'ticket-report';
+  if (parts[1] === 'check-in-report') return 'check-in-report';
+  if (parts[1] === 'maintenance') return 'maintenance';
   if (parts[1] === 'profile-settings') return 'profile-settings';
   const part = parts[1] as Section | undefined;
   if (part === 'more') return 'more';
@@ -59,27 +74,75 @@ function getSection(path: string): Section {
   return 'dashboard';
 }
 
-function canAccessSection(section: Section, isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean): boolean {
+function canAccessSection(section: Section, isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean, isTicketAdmin: boolean, isQrScanner: boolean): boolean {
   if (isAdmin) return true;
+  if (isTicketAdmin) return section === 'dashboard' || section === 'ticket-orders' || section === 'tickets' || section === 'events' || section === 'payment-info' || section === 'ticket-report' || (isQrScanner && section === 'check-in-report') || section === 'profile-settings' || section === 'more';
+  if (isQrScanner) return section === 'dashboard' || section === 'scan' || section === 'events' || section === 'check-in-report' || section === 'profile-settings' || section === 'more';
+  if (section === 'maintenance') return isAdmin || isEventAdmin;
   if (isOpenMicAdmin) return section === 'dashboard' || section === 'open-mic' || section === 'registrants' || section === 'open-mic-list' || section === 'open-mic-performers' || section === 'open-mic-history' || section === 'member-accounts' || section === 'evaluator' || section === 'profile-settings' || section === 'more';
-  if (isEventAdmin) return section === 'dashboard' || section === 'events' || section === 'event-participants' || section === 'ticket-orders' || section === 'partners' || section === 'profile-settings' || section === 'more';
+  if (isEventAdmin) return section === 'dashboard' || section === 'events' || section === 'event-participants' || section === 'ticket-orders' || section === 'partners' || section === 'admin-accounts' || section === 'profile-settings' || section === 'more';
   return false;
 }
 
-function getWorkspaceNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean) {
+async function loadAllTicketOrders() {
+  const orders: TicketOrder[] = [];
+  const pageSize = 500;
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase.from('ticket_orders').select('*')
+      .neq('status', 'Draft Pembayaran')
+      .order('created_at', { ascending: false }).order('id', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) return { data: null, error };
+
+    const page = (data as TicketOrder[] | null) ?? [];
+    orders.push(...page);
+    if (page.length < pageSize) break;
+  }
+
+  return { data: orders, error: null };
+}
+
+function getWorkspaceNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean, isTicketAdmin: boolean, isQrScanner: boolean) {
+  if (isTicketAdmin) return [
+    { key: 'dashboard' as Section, label: 'Ringkasan', icon: BarChart3 },
+    { key: 'ticket-orders' as Section, label: 'Order', icon: TicketIcon },
+    { key: 'tickets' as Section, label: 'Tiket', icon: TicketIcon },
+    { key: 'events' as Section, label: 'Event', icon: CalendarDays },
+    { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
+  ];
+  if (isQrScanner) return [
+    { key: 'scan' as Section, label: 'Scan', icon: TicketIcon },
+    { key: 'events' as Section, label: 'Event', icon: CalendarDays },
+    { key: 'dashboard' as Section, label: 'Ringkasan', icon: BarChart3 },
+    { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
+  ];
   if (isOpenMicAdmin) return NAV.filter((item) => ['dashboard', 'open-mic'].includes(item.key)).concat([
     { key: 'open-mic-list' as Section, label: 'Pendaftar', icon: UserPlus },
     { key: 'open-mic-performers' as Section, label: 'Performer', icon: UserCheck },
     { key: 'open-mic-history' as Section, label: 'Riwayat Member', icon: History },
     { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
   ]);
-  if (isEventAdmin) return NAV.filter((item) => ['dashboard', 'events', 'ticket-orders', 'partners'].includes(item.key)).concat([
+  if (isEventAdmin) return NAV.filter((item) => ['dashboard', 'events', 'ticket-orders', 'partners'].includes(item.key)).map((item) => item.key === 'ticket-orders' ? { ...item, label: 'Penonton' } : item).concat([
     { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
   ]);
-  return NAV.filter((item) => isAdmin || canAccessSection(item.key, isAdmin, isOpenMicAdmin, isEventAdmin));
+  return NAV.filter((item) => isAdmin || canAccessSection(item.key, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner));
 }
 
-function getWorkspaceBottomNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean) {
+function getWorkspaceBottomNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean, isTicketAdmin: boolean, isQrScanner: boolean) {
+  if (isTicketAdmin) return [
+    { key: 'dashboard' as Section, label: 'Ringkasan', icon: BarChart3 },
+    { key: 'ticket-orders' as Section, label: 'Order', icon: TicketIcon },
+    { key: 'tickets' as Section, label: 'Tiket', icon: TicketIcon },
+    { key: 'events' as Section, label: 'Event', icon: CalendarDays },
+    { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
+  ];
+  if (isQrScanner) return [
+    { key: 'scan' as Section, label: 'Scan', icon: TicketIcon },
+    { key: 'events' as Section, label: 'Event', icon: CalendarDays },
+    { key: 'dashboard' as Section, label: 'Ringkasan', icon: BarChart3 },
+    { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
+  ];
   if (isOpenMicAdmin) return [
     { key: 'dashboard' as Section, label: 'Ringkasan', icon: BarChart3 },
     { key: 'open-mic' as Section, label: 'Open Mic', icon: Mic },
@@ -91,11 +154,17 @@ function getWorkspaceBottomNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEven
   if (isEventAdmin) return [
     { key: 'dashboard' as Section, label: 'Ringkasan', icon: BarChart3 },
     { key: 'events' as Section, label: 'Event', icon: CalendarDays },
-    { key: 'ticket-orders' as Section, label: 'Tiket', icon: TicketIcon },
+    { key: 'ticket-orders' as Section, label: 'Penonton', icon: TicketIcon },
     { key: 'partners' as Section, label: 'Partner', icon: Users },
     { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
   ];
   return isAdmin ? BOTTOM_NAV : [];
+}
+
+function isMoreNavigationActive(section: Section, isTicketAdmin: boolean, isQrScanner: boolean) {
+  return section === 'more' || section === 'settings'
+    || (isTicketAdmin && (section === 'payment-info' || section === 'ticket-report' || section === 'profile-settings'))
+    || (isQrScanner && (section === 'check-in-report' || section === 'profile-settings'));
 }
 
 function StatCard({ label, value, icon: Icon, tone, onClick, loading }: { label: string; value: number; icon: typeof BarChart3; tone: string; onClick?: () => void; loading?: boolean }) {
@@ -127,6 +196,272 @@ function DashboardSkeleton() {
 
 function AdminEmptyState({ title }: { title: string }) {
   return <div className="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 ring-1 ring-slate-200/70">{title}</div>;
+}
+
+function ticketOrderStatusTone(status: TicketOrderStatus) {
+  if (status === 'Lunas' || status === 'Terverifikasi') return 'bg-emerald-50 text-emerald-700';
+  if (status === 'Selesai') return 'bg-slate-100 text-slate-700';
+  return 'bg-blue-50 text-blue-700';
+}
+
+function ScopedEventList({ events, loading, onManageTickets }: { events: EventItem[]; loading: boolean; onManageTickets?: (event: EventItem) => void }) {
+  const [eventFilter, setEventFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'upcoming' | 'completed' | 'cancelled'>('upcoming');
+  const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [rulesExpanded, setRulesExpanded] = useState(false);
+  const eventOptions = useMemo(() => events.map((event) => ({
+    id: event.id,
+    title: event.title,
+    subtitle: `${event.venue}${event.location ? ` · ${event.location}` : ''}`,
+  })), [events]);
+  const filteredEvents = useMemo(() => events.filter((event) => {
+    if (eventFilter !== 'all') return event.id === eventFilter;
+    const status = getEventStatus(event.status, event.date);
+    return status === statusFilter;
+  }).sort((first, second) => first.date.localeCompare(second.date)), [eventFilter, events, statusFilter]);
+  const filters: Array<{ value: typeof statusFilter; label: string }> = [
+    { value: 'upcoming', label: 'Mendatang' },
+    { value: 'completed', label: 'Selesai' },
+    { value: 'cancelled', label: 'Dibatalkan' },
+  ];
+
+  if (selectedEvent) {
+    const eventStatus = getEventStatus(selectedEvent.status, selectedEvent.date);
+    return (
+      <div className="space-y-4">
+        <button type="button" onClick={() => setSelectedEvent(null)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-200 bg-white px-3.5 py-2 text-sm font-bold text-blue-700 shadow-sm transition hover:border-blue-700 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2">
+          <ArrowLeft className="h-4 w-4" /> Daftar Event
+        </button>
+        <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="relative aspect-[16/9] max-h-[360px] overflow-hidden bg-slate-100">
+            <img src={selectedEvent.poster || LOGO_URL} alt={`Poster ${selectedEvent.title}`} className={`h-full w-full ${selectedEvent.poster ? 'object-cover' : 'object-contain p-8'}`} />
+            <span className="absolute left-3 top-3"><StatusBadge status={eventStatus} /></span>
+          </div>
+          <div className="space-y-5 p-4 sm:p-6">
+            <header className="border-b border-slate-200 pb-4">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Detail Ticketing Event</p>
+              <h1 className="mt-1 text-xl font-black leading-tight text-slate-950 sm:text-2xl">{selectedEvent.title}</h1>
+              <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                <p className="flex items-start gap-2"><CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" /><span>{formatDate(selectedEvent.date)}</span></p>
+                {selectedEvent.time && <p className="flex items-start gap-2"><Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" /><span>{selectedEvent.time}</span></p>}
+                <p className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" /><span>{selectedEvent.venue}{selectedEvent.location ? ` · ${selectedEvent.location}` : ''}</span></p>
+              </div>
+            </header>
+            {selectedEvent.description && <section className="overflow-hidden rounded-xl border border-slate-200">
+              <button type="button" aria-expanded={descriptionExpanded} onClick={() => setDescriptionExpanded((expanded) => !expanded)} className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50">
+                <span><span className="block text-sm font-extrabold text-slate-900">Tentang Event</span><span className="mt-0.5 block text-xs text-slate-500">{descriptionExpanded ? 'Sembunyikan deskripsi' : 'Ketuk untuk membaca deskripsi'}</span></span>
+                <ChevronDown className={`h-5 w-5 shrink-0 text-slate-600 transition-transform ${descriptionExpanded ? 'rotate-180' : ''}`} />
+              </button>
+              {descriptionExpanded && <p className="whitespace-pre-line border-t border-slate-200 px-4 py-3 text-sm leading-6 text-slate-700">{selectedEvent.description}</p>}
+            </section>}
+            {selectedEvent.event_rules && <section className="overflow-hidden rounded-xl border border-slate-200">
+              <button type="button" aria-expanded={rulesExpanded} onClick={() => setRulesExpanded((expanded) => !expanded)} className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50">
+                <span><span className="block text-sm font-extrabold text-slate-900">Informasi & Ketentuan</span><span className="mt-0.5 block text-xs text-slate-500">{rulesExpanded ? 'Sembunyikan ketentuan' : 'Ketuk untuk membaca ketentuan'}</span></span>
+                <ChevronDown className={`h-5 w-5 shrink-0 text-slate-600 transition-transform ${rulesExpanded ? 'rotate-180' : ''}`} />
+              </button>
+              {rulesExpanded && <p className="whitespace-pre-line border-t border-slate-200 px-4 py-3 text-sm leading-6 text-slate-700">{selectedEvent.event_rules}</p>}
+            </section>}
+            {selectedEvent.maps_url && <a href={selectedEvent.maps_url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800 transition hover:border-blue-700 hover:text-blue-700"><MapPin className="h-4 w-4" /> Buka lokasi Event</a>}
+            {onManageTickets && eventStatus !== 'completed' && <div className="border-t border-slate-200 pt-4"><button type="button" onClick={() => onManageTickets(selectedEvent)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-800"><TicketIcon className="h-4 w-4" /> Kelola Tiket</button></div>}
+          </div>
+        </article>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <WorkspacePageHeader title="Event" subtitle="Event yang berada dalam scope akun ini." eyebrow="Ticketing" />
+      {!loading && events.length > 0 && <>
+        <SearchableEventSelect options={eventOptions} value={eventFilter} onChange={setEventFilter} allLabel="Cari nama Event atau lokasi..." ariaLabel="Cari Event berdasarkan nama atau lokasi" />
+        <div role="tablist" aria-label="Filter status Event" className="flex gap-2 overflow-x-auto pb-1">
+          {filters.map((filter) => {
+            const count = events.filter((event) => getEventStatus(event.status, event.date) === filter.value).length;
+            const active = statusFilter === filter.value && eventFilter === 'all';
+            return <button key={filter.value} type="button" role="tab" aria-selected={active} onClick={() => { setStatusFilter(filter.value); setEventFilter('all'); }} className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold uppercase transition ${active ? 'bg-blue-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50'}`}>{filter.label} <span className={active ? 'ml-1 text-blue-100' : 'ml-1 text-slate-500'}>{count}</span></button>;
+          })}
+        </div>
+      </>}
+      {loading ? <div className="space-y-3"><div className="h-24 skeleton rounded-2xl" /><div className="h-24 skeleton rounded-2xl" /></div>
+        : events.length === 0 ? <AdminEmptyState title="Belum ada Event dalam scope akun ini." />
+          : filteredEvents.length === 0 ? <AdminEmptyState title="Event tidak ditemukan untuk filter ini." />
+            : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{filteredEvents.map((event) => {
+              const eventStatus = getEventStatus(event.status, event.date);
+              return <button key={event.id} type="button" onClick={() => setSelectedEvent(event)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-700">
+                <div className="relative aspect-[16/8] overflow-hidden bg-slate-100">
+                  <img src={event.poster || LOGO_URL} alt={`Poster ${event.title}`} className={`h-full w-full transition duration-300 group-hover:scale-[1.02] ${event.poster ? 'object-cover' : 'object-contain p-8'}`} loading="lazy" />
+                  <span className="absolute left-3 top-3"><StatusBadge status={eventStatus} /></span>
+                </div>
+                <div className="space-y-2 p-4">
+                  <div className="min-w-0">
+                    <h2 className="line-clamp-2 min-h-10 font-extrabold text-slate-950">{event.title}</h2>
+                    <p className="mt-1 text-xs font-medium text-slate-600">{formatDate(event.date)} <span className="mx-1 text-slate-400">·</span> {event.venue}</p>
+                  </div>
+                </div>
+                <div className="px-4 pb-4">
+                  <span className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-3 py-2 text-xs font-bold text-white shadow-sm transition group-hover:bg-blue-800">
+                    <Eye className="h-4 w-4" /> Lihat Detail
+                  </span>
+                </div>
+              </button>;
+            })}</div>}
+    </div>
+  );
+}
+
+function TicketAdminDashboard({ orders, events, loading, onNavigate }: { orders: TicketOrder[]; events: EventItem[]; loading: boolean; onNavigate: (section: Section) => void }) {
+  const [ticketStats, setTicketStats] = useState<{ total_tickets: number; checked_in: number; not_checked_in: number } | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState('');
+  const waitingPayment = orders.filter((order) => order.status === 'Menunggu Pembayaran').length;
+  const waitingVerification = orders.filter((order) => order.status === 'Menunggu Verifikasi' || order.status === 'Sudah Bayar').length;
+  const paidOrders = orders.filter((order) => order.status === 'Lunas' || order.status === 'Terverifikasi' || order.status === 'Selesai');
+  const soldTickets = paidOrders.reduce((total, order) => total + order.quantity, 0);
+  useEffect(() => {
+    let active = true;
+    void supabase.functions.invoke('ticketing-admin', { body: { action: 'scanner-summary', scope_role: 'admin_ticket' } }).then(({ data, error }) => {
+      if (!active) return;
+      setStatsLoading(false);
+      if (error || data?.error) { setStatsError(error?.message ?? data?.error ?? 'Statistik check-in gagal dimuat.'); return; }
+      setTicketStats({ total_tickets: data.total_tickets ?? 0, checked_in: data.checked_in ?? 0, not_checked_in: data.not_checked_in ?? 0 });
+    });
+    return () => { active = false; };
+  }, []);
+  return <div className="space-y-5"><WorkspacePageHeader title="Ringkasan Ticketing" subtitle="Statistik order sesuai Event dalam scope akun." eyebrow="Admin Tiket" /><div className="grid grid-cols-2 gap-3 xl:grid-cols-3"><StatCard label="Total Order" value={orders.length} icon={TicketIcon} tone="bg-blue-50 text-blue-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Menunggu Pembayaran" value={waitingPayment} icon={Clock3} tone="bg-amber-50 text-amber-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Menunggu Verifikasi" value={waitingVerification} icon={Eye} tone="bg-orange-50 text-orange-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Order Lunas" value={paidOrders.length} icon={Check} tone="bg-emerald-50 text-emerald-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Tiket Terjual" value={ticketStats?.total_tickets ?? soldTickets} icon={TicketIcon} tone="bg-indigo-50 text-indigo-700" onClick={() => onNavigate('tickets')} loading={loading || statsLoading} /><StatCard label="Tiket Check-in" value={ticketStats?.checked_in ?? 0} icon={UserCheck} tone="bg-emerald-50 text-emerald-700" onClick={() => onNavigate('tickets')} loading={statsLoading} /><StatCard label="Belum Check-in" value={ticketStats?.not_checked_in ?? 0} icon={Clock3} tone="bg-sky-50 text-sky-700" onClick={() => onNavigate('tickets')} loading={statsLoading} /></div>{statsError && <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">{statsError}</p>}<p className="text-xs text-slate-500">Event dalam scope: {events.length}</p></div>;
+}
+
+interface QrScannerAttendee {
+  full_name: string;
+  order_number: string | null;
+  sequence_no: number;
+  checked_in_at: string | null;
+}
+
+interface QrScannerSummary {
+  total_tickets: number;
+  checked_in: number;
+  not_checked_in: number;
+  attendees: QrScannerAttendee[];
+  error?: string;
+}
+
+function QrScannerDashboard({ events, onNavigate }: { events: EventItem[]; onNavigate: (section: Section) => void }) {
+  const [stats, setStats] = useState<{ total_tickets: number; checked_in: number; not_checked_in: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selectedEventId, setSelectedEventId] = useState('');
+  const [attendees, setAttendees] = useState<QrScannerAttendee[]>([]);
+  const [attendeeFilter, setAttendeeFilter] = useState<'all' | 'checked-in' | 'not-checked-in'>('all');
+  const [attendeeSearch, setAttendeeSearch] = useState('');
+  const selectableEvents = useMemo(() => events
+    .filter((event) => getEventStatus(event.status, event.date) !== 'completed')
+    .map((event) => ({ id: event.id, title: event.title, subtitle: `${formatDate(event.date)} · ${event.venue}` })), [events]);
+
+  useEffect(() => {
+    if (!selectableEvents.some((event) => event.id === selectedEventId)) {
+      setSelectedEventId(selectableEvents[0]?.id ?? '');
+      setAttendees([]);
+    }
+  }, [selectableEvents, selectedEventId]);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    void supabase.functions.invoke<QrScannerSummary>('ticketing-admin', { body: { action: 'scanner-summary', scope_role: 'admin_qr', event_id: selectedEventId || undefined } }).then(({ data, error: requestError }) => {
+      if (!active) return;
+      setLoading(false);
+      if (requestError || !data || data.error) {
+        setError(requestError?.message ?? data?.error ?? 'Ringkasan check-in gagal dimuat.');
+        return;
+      }
+      setError('');
+      setStats({
+        total_tickets: data.total_tickets ?? 0,
+        checked_in: data.checked_in ?? 0,
+        not_checked_in: data.not_checked_in ?? 0,
+      });
+      setAttendees(data.attendees ?? []);
+    });
+    return () => { active = false; };
+  }, [selectedEventId]);
+
+  const filteredAttendees = useMemo(() => {
+    const query = attendeeSearch.trim().toLocaleLowerCase('id-ID');
+    return attendees.filter((attendee) => {
+      const isCheckedIn = Boolean(attendee.checked_in_at);
+      const matchesStatus = attendeeFilter === 'all'
+        || (attendeeFilter === 'checked-in' ? isCheckedIn : !isCheckedIn);
+      const matchesQuery = !query
+        || `${attendee.full_name} ${attendee.order_number ?? ''}`.toLocaleLowerCase('id-ID').includes(query);
+      return matchesStatus && matchesQuery;
+    });
+  }, [attendeeFilter, attendeeSearch, attendees]);
+
+  return <div className="space-y-5">
+    <WorkspacePageHeader title="Ringkasan Check-in" subtitle="Pantau tiket terjual dan progres check-in Event dalam scope scanner." eyebrow="Admin QR Scanner" />
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+      <StatCard label="Tiket Terjual" value={stats?.total_tickets ?? 0} icon={TicketIcon} tone="bg-blue-50 text-blue-700" onClick={() => onNavigate('scan')} loading={loading} />
+      <StatCard label="Sudah Check-in" value={stats?.checked_in ?? 0} icon={UserCheck} tone="bg-emerald-50 text-emerald-700" onClick={() => onNavigate('scan')} loading={loading} />
+      <StatCard label="Belum Check-in" value={stats?.not_checked_in ?? 0} icon={Clock3} tone="bg-sky-50 text-sky-700" onClick={() => onNavigate('scan')} loading={loading} />
+    </div>
+    {error && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{error}</p>}
+    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div>
+        <h2 className="text-base font-extrabold text-slate-950">Daftar Check-in Event</h2>
+        <p className="mt-1 text-sm leading-5 text-slate-500">Lihat siapa yang sudah hadir dan siapa yang belum check-in.</p>
+      </div>
+      <SearchableEventSelect
+        options={selectableEvents}
+        value={selectedEventId || 'all'}
+        onChange={(value) => {
+          setLoading(true);
+          setSelectedEventId(value === 'all' ? '' : value);
+          setAttendees([]);
+        }}
+        allLabel="Pilih Event"
+        ariaLabel="Pilih Event untuk daftar check-in"
+      />
+      {(loading && selectedEventId)
+        ? <div className="flex min-h-28 items-center justify-center text-sm font-medium text-slate-500"><span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700" />Memuat daftar peserta...</div>
+        : !selectedEventId
+            ? <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">Belum ada Event tersedia untuk ditampilkan.</p>
+            : <>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['all', 'Semua', attendees.length],
+                  ['checked-in', 'Sudah hadir', attendees.filter((attendee) => attendee.checked_in_at).length],
+                  ['not-checked-in', 'Belum hadir', attendees.filter((attendee) => !attendee.checked_in_at).length],
+                ] as const).map(([value, label, count]) => <button
+                  key={value}
+                  type="button"
+                  onClick={() => setAttendeeFilter(value)}
+                  className={`rounded-xl border px-2 py-2.5 text-center transition ${attendeeFilter === value ? 'border-blue-700 bg-blue-50 text-blue-800 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300'}`}
+                >
+                  <span className="block text-sm font-extrabold">{count}</span>
+                  <span className="mt-0.5 block text-[10px] font-semibold sm:text-xs">{label}</span>
+                </button>)}
+              </div>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input value={attendeeSearch} onChange={(event) => setAttendeeSearch(event.target.value)} className="input-field pl-10" placeholder="Cari nama atau nomor order..." aria-label="Cari peserta check-in" />
+              </div>
+              {filteredAttendees.length
+                ? <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+                  {filteredAttendees.map((attendee, index) => <li key={`${attendee.order_number ?? attendee.full_name}-${attendee.sequence_no}-${index}`} className="flex items-center justify-between gap-3 p-3 sm:px-4">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-900">{attendee.full_name}</p>
+                      <p className="mt-0.5 truncate font-mono text-[11px] text-slate-500">{attendee.order_number ?? 'Order'} · Tiket {attendee.sequence_no}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold ${attendee.checked_in_at ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {attendee.checked_in_at ? 'Sudah hadir' : 'Belum hadir'}
+                    </span>
+                  </li>)}
+                </ul>
+                : <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">{attendees.length ? 'Tidak ada peserta yang cocok dengan pencarian atau filter ini.' : 'Belum ada tiket lunas untuk Event ini.'}</p>}
+            </>}
+    </section>
+  </div>;
 }
 
 const NOTIFICATION_LABELS: Record<NotificationSource, string> = {
@@ -249,15 +584,15 @@ function AttendanceBadge({ status }: { status?: AttendanceStatus }) {
 }
 
 export function AdminPage({ router, settings }: Props) {
-  const { user, signOut, isAdmin, isOpenMicAdmin, isEventAdmin } = useAuth();
+  const { user, signOut, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner } = useAuth();
   const { unreadCount, notifications, counts: notificationCounts, revision, resync: resyncNotifications, markAsRead, markAllAsRead } = useNotifications();
   const requestedSection = getSection(router.path);
-  const section = canAccessSection(requestedSection, isAdmin, isOpenMicAdmin, isEventAdmin)
+  const section = canAccessSection(requestedSection, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner)
     ? requestedSection
-    : isOpenMicAdmin ? 'open-mic' : 'events';
-  const visibleNav = getWorkspaceNav(isAdmin, isOpenMicAdmin, isEventAdmin);
-  const visibleBottomNav = getWorkspaceBottomNav(isAdmin, isOpenMicAdmin, isEventAdmin);
-  const workspaceTitle = isOpenMicAdmin ? 'OPEN MIC WORKSPACE' : isEventAdmin ? 'EVENT WORKSPACE' : 'ADMIN PANEL';
+    : isOpenMicAdmin ? 'open-mic' : isEventAdmin ? 'events' : isQrScanner ? 'scan' : isTicketAdmin ? 'ticket-orders' : 'dashboard';
+  const visibleNav = getWorkspaceNav(isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner);
+  const visibleBottomNav = getWorkspaceBottomNav(isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner);
+  const workspaceTitle = isOpenMicAdmin ? 'OPEN MIC WORKSPACE' : isEventAdmin ? 'EVENT WORKSPACE' : isTicketAdmin ? 'TICKET WORKSPACE' : isQrScanner ? 'SCANNER WORKSPACE' : 'ADMIN PANEL';
   const [openMics, setOpenMics] = useState<OpenMic[]>([]);
   const [registrations, setRegistrations] = useState<OpenMicRegistration[]>([]);
     const [events, setEvents] = useState<EventItem[]>([]); // This line is unchanged
@@ -282,6 +617,9 @@ export function AdminPage({ router, settings }: Props) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    if (isAdmin || isTicketAdmin) {
+      await supabase.functions.invoke('ticketing-admin', { body: { action: 'expire-orders' } });
+    }
     const [m, r, e, k, a, p, pt, ep, to, ea, mh] = await Promise.all([
       supabase.from('open_mics').select('*').order('date', { ascending: false }),
       supabase.from('open_mic_registrations').select('*').order('created_at', { ascending: false }),
@@ -291,7 +629,7 @@ export function AdminPage({ router, settings }: Props) {
       supabase.from('event_participants').select('event_id, status'),
       supabase.from('partners').select('*').order('sort_order', { ascending: true }).order('name', { ascending: true }),
       supabase.from('event_partnerships').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
-      supabase.from('ticket_orders').select('*').order('created_at', { ascending: false }),
+      loadAllTicketOrders(),
       supabase.from('evaluator_assignments').select('*').order('created_at', { ascending: false }),
       supabase.from('member_open_mic_history_submissions').select('*').order('created_at', { ascending: false }),
     ]);
@@ -310,7 +648,8 @@ export function AdminPage({ router, settings }: Props) {
     setPartners((pt.data as Partner[]) ?? []);
     setEventPartnerships((ep.data as EventPartnership[]) ?? []);
     setCommunityApplications((a.data as CommunityApplication[]) ?? []);
-    setTicketOrders((to.data as TicketOrder[]) ?? []);
+    if (to.error) setNotice('Data order tiket gagal dimuat lengkap.');
+    setTicketOrders(to.data ?? []);
     setEvaluatorAssignments((ea.data as EvaluatorAssignment[]) ?? []);
     setMemberHistory((mh.data as MemberOpenMicHistorySubmission[]) ?? []);
     const pendingByEvent: Record<string, number> = {};
@@ -319,7 +658,7 @@ export function AdminPage({ router, settings }: Props) {
     });
     setEventPendingCounts(pendingByEvent);
     setLoading(false);
-  }, []);
+  }, [isAdmin, isTicketAdmin]);
 
   useEffect(() => { void load(); }, [load, revision]);
   useEffect(() => {
@@ -472,7 +811,7 @@ export function AdminPage({ router, settings }: Props) {
               const communityPendingCount = notificationCounts.applications;
               const showPendingBadge = ((item.key === 'open-mic-list') && pendingRegistrationCount > 0) || (item.key === 'open-mic-history' && pendingHistoryCount > 0) || (item.key === 'events' && pendingEventCount > 0) || (item.key === 'applications' && communityPendingCount > 0);
               return (
-                <button key={item.key} onClick={() => navigateSection(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${sidebarCollapsed ? 'justify-center px-2' : ''} ${section === item.key ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`} title={sidebarCollapsed ? item.label : undefined}>
+                <button key={item.key} onClick={() => navigateSection(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${sidebarCollapsed ? 'justify-center px-2' : ''} ${(item.key === 'more' ? isMoreNavigationActive(section, isTicketAdmin, isQrScanner) : section === item.key) ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`} title={sidebarCollapsed ? item.label : undefined}>
                   <Icon className="h-5 w-5" />
                   {!sidebarCollapsed && <span className="flex-1 text-left">{item.label}</span>}
                   {showPendingBadge && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-extrabold leading-none text-white" aria-label="Data menunggu review">{item.key === 'open-mic-list' ? pendingRegistrationCount : item.key === 'open-mic-history' ? pendingHistoryCount : item.key === 'events' ? pendingEventCount : communityPendingCount}</span>}
@@ -499,24 +838,35 @@ export function AdminPage({ router, settings }: Props) {
             </div>
           )}
 
-          {section === 'dashboard' && (isAdmin ? <Dashboard openMics={openMics} registrations={registrations} events={events} komika={komika} loading={loading} onNavigate={navigateSection} /> : <OperationalDashboard kind={isOpenMicAdmin ? 'open-mic' : 'event'} openMics={openMics} registrations={registrations} events={events} eventPendingCounts={eventPendingCounts} ticketOrders={ticketOrders} loading={loading} onNavigate={navigateSection} />)}
+          {section === 'dashboard' && (isAdmin ? <Dashboard openMics={openMics} registrations={registrations} events={events} komika={komika} loading={loading} onNavigate={navigateSection} /> : isTicketAdmin ? <TicketAdminDashboard orders={ticketOrders} events={events} loading={loading} onNavigate={navigateSection} /> : isQrScanner ? <QrScannerDashboard events={events} onNavigate={navigateSection} /> : <OperationalDashboard kind={isOpenMicAdmin ? 'open-mic' : 'event'} openMics={openMics} registrations={registrations} events={events} eventPendingCounts={eventPendingCounts} ticketOrders={ticketOrders} loading={loading} onNavigate={navigateSection} />)}
           {section === 'open-mic' && <OpenMicManagement rows={openMics} registrations={registrations} loading={loading} showRegistrants={isAdmin} onAdd={() => { setEditing(null); setModal('open-mic'); }} onEdit={(row) => { setEditing(row); setModal('open-mic'); }} onDelete={(id) => deleteRow('open_mics', id)} onTogglePublish={(id, val) => togglePublish('open_mics', id, val)} onViewRegistrants={(m) => router.navigate(`/admin/pendaftar/${m.id}`)} />}
           {section === 'open-mic-list' && <PolishedOpenMicRosterView mode="registrants" openMics={openMics} registrations={registrations} komika={komika} loading={loading} onReload={load} />}
           {section === 'open-mic-performers' && <PolishedOpenMicRosterView mode="performers" openMics={openMics} registrations={registrations} komika={komika} loading={loading} onReload={load} />}
           {section === 'registrants' && <RegistrantsView openMicId={registrantOpenMicId} komika={komika} onBack={() => router.navigate(isAdmin ? '/admin/open-mic' : '/admin/open-mic-list')} />}
           {section === 'event-participants' && <EventParticipantsView eventId={router.path.split('/').filter(Boolean)[2] ?? ''} onBack={() => router.navigate('/admin/events')} />}
-          {section === 'events' && <EventManagement rows={events} loading={loading} pendingCounts={eventPendingCounts} onAdd={() => { setEditing(null); setModal('event'); }} onEdit={(row) => { setEditing(row); setModal('event'); }} onDelete={(id) => deleteRow('events', id)} onTogglePublish={(id, val) => togglePublish('events', id, val)} onManageTickets={(row) => setTicketEvent(row)} onManagePartnerships={(row) => setPartnershipEvent(row)} onViewParticipants={(row) => router.navigate(`/admin/event-pendaftar/${row.id}`)} />}
+          {section === 'events' && (isAdmin || isEventAdmin
+            ? <EventManagement rows={events} loading={loading} pendingCounts={eventPendingCounts} canManageTickets={isAdmin} onAdd={() => { setEditing(null); setModal('event'); }} onEdit={(row) => { setEditing(row); setModal('event'); }} onDelete={(id) => deleteRow('events', id)} onTogglePublish={(id, val) => togglePublish('events', id, val)} onManageTickets={(row) => setTicketEvent(row)} onManagePartnerships={(row) => setPartnershipEvent(row)} onViewParticipants={(row) => router.navigate(`/admin/event-pendaftar/${row.id}`)} />
+            : <ScopedEventList events={events} loading={loading} onManageTickets={isTicketAdmin ? setTicketEvent : undefined} />)}
           {section === 'applications' && <ApplicationsView community={communityApplications} onNotice={setNotice} onReload={load} />}
           {section === 'open-mic-history' && <MemberOpenMicHistoryReview rows={memberHistory} komika={komika} onNotice={setNotice} onReload={load} />}
           {section === 'komika' && <KomikaManagement rows={komika} registrations={registrations} openMics={openMics} attendanceCounts={komikaAttendanceCounts} loading={loading} onReload={load} onAdd={() => { setEditing(null); setModal('komika'); }} onEdit={(row) => { setEditing(row); setModal('komika'); }} onDelete={(id) => deleteRow('komika', id)} />}
           {section === 'member-accounts' && <MemberAccountsPage komika={komika} onNotice={setNotice} />}
-          {section === 'admin-accounts' && isAdmin && <AdminAccountsPage onNotice={setNotice} />}
-          {section === 'profile-settings' && !isAdmin && <AdminProfileSettingsPage onNotice={setNotice} />}
+          {section === 'admin-accounts' && (isAdmin || isEventAdmin) && <AdminAccountsPage onNotice={setNotice} creatorRole={isAdmin ? 'admin' : 'event_admin'} />}
+          {section === 'profile-settings' && !isAdmin && <AdminProfileSettingsPage onNotice={setNotice} onBack={isTicketAdmin ? () => navigateSection('more') : undefined} />}
           {section === 'partners' && <PartnerManagement rows={partners} events={events} partnerships={eventPartnerships} loading={loading} onAdd={() => { setEditing(null); setModal('partner'); }} onEdit={(row) => { setEditing(row); setModal('partner'); }} onDelete={(id) => deleteRow('partners', id)} onTogglePublish={(id, current) => togglePublish('partners', id, current)} />}
           {section === 'evaluator' && <EvaluatorAssignmentView openMics={openMics} komika={komika} assignments={evaluatorAssignments} currentUserId={user?.id ?? null} onReload={load} onNotice={setNotice} />}
-          {section === 'ticket-orders' && <TicketOrdersPage orders={ticketOrders} events={events} loading={loading} onStatusChange={updateTicketOrderStatus} onDelete={deleteTicketOrder} />}
+          {section === 'ticket-orders' && isEventAdmin && <TicketAudiencePage events={events} />}
+          {section === 'ticket-orders' && (isAdmin || isTicketAdmin
+            ? <TicketAdminOrdersPage orders={ticketOrders} events={events} loading={loading} onReload={load} />
+            : !isEventAdmin && <TicketOrdersPage orders={ticketOrders} events={events} loading={loading} onStatusChange={updateTicketOrderStatus} onDelete={deleteTicketOrder} />)}
+          {section === 'tickets' && isTicketAdmin && <TicketAdminTicketsPage />}
+          {section === 'scan' && isQrScanner && <TicketQrScannerPage events={events} />}
+          {section === 'payment-info' && isTicketAdmin && <TicketPaymentMethodsPage events={events} onBack={() => navigateSection('more')} />}
+          {section === 'ticket-report' && isTicketAdmin && <TicketSalesReportPage events={events} orders={ticketOrders} onBack={() => navigateSection('more')} />}
+          {section === 'check-in-report' && isQrScanner && <TicketCheckInReportPage onBack={() => navigateSection('more')} />}
+          {section === 'maintenance' && (isAdmin || isEventAdmin) && <TicketMaintenancePage events={events} />}
           {section === 'settings' && <SettingsPanel settings={settings} onSaved={load} onNotice={setNotice} />}
-          {section === 'more' && <MorePage onNavigate={navigateSection} onSignOut={async () => { await signOut(); router.navigate('/admin/login'); }} ticketOrderUnreadCount={notificationCounts['ticket-orders']} isAdmin={isAdmin} isOpenMicAdmin={isOpenMicAdmin} isEventAdmin={isEventAdmin} />}
+          {section === 'more' && <MorePage onNavigate={navigateSection} onSignOut={async () => { await signOut(); router.navigate('/admin/login'); }} ticketOrderUnreadCount={notificationCounts['ticket-orders']} isAdmin={isAdmin} isOpenMicAdmin={isOpenMicAdmin} isEventAdmin={isEventAdmin} isTicketAdmin={isTicketAdmin} isQrScanner={isQrScanner} />}
         </main>
       </div>
 
@@ -543,7 +893,7 @@ export function AdminPage({ router, settings }: Props) {
                     : item.key === 'partners'
                       ? section === 'partners'
                       : item.key === 'more'
-                        ? section === 'more' || section === 'settings'
+                        ? isMoreNavigationActive(section, isTicketAdmin, isQrScanner)
                         : section === item.key;
             return (
               <button
@@ -1739,7 +2089,7 @@ function EventParticipantsView({ eventId, onBack }: { eventId: string; onBack: (
   );
 }
 
-function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete, onTogglePublish, onManageTickets, onManagePartnerships, onViewParticipants }: { rows: EventItem[]; loading: boolean; pendingCounts: Record<string, number>; onAdd: () => void; onEdit: (row: EventItem) => void; onDelete: (id: string) => void; onTogglePublish: (id: string, current: boolean) => void; onManageTickets: (row: EventItem) => void; onManagePartnerships: (row: EventItem) => void; onViewParticipants: (row: EventItem) => void }) {
+function EventManagement({ rows, loading, pendingCounts, canManageTickets, onAdd, onEdit, onDelete, onTogglePublish, onManageTickets, onManagePartnerships, onViewParticipants }: { rows: EventItem[]; loading: boolean; pendingCounts: Record<string, number>; canManageTickets: boolean; onAdd: () => void; onEdit: (row: EventItem) => void; onDelete: (id: string) => void; onTogglePublish: (id: string, current: boolean) => void; onManageTickets: (row: EventItem) => void; onManagePartnerships: (row: EventItem) => void; onViewParticipants: (row: EventItem) => void }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'upcoming' | 'completed' | 'cancelled'>('upcoming');
   const filteredRows = rows.filter((row) => {
@@ -1796,7 +2146,7 @@ function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-1">
                       {e.registration_status === 'open' && <button onClick={() => onViewParticipants(e)} className="relative rounded-lg p-2 text-slate-500 hover:bg-green-50 hover:text-green-700" title="Lihat Pendaftar"><UserPlus className="h-4 w-4" />{pendingCounts[e.id] > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white">{pendingCounts[e.id]}</span>}</button>}
-                      <button onClick={() => onManageTickets(e)} className="rounded-lg p-2 text-slate-500 hover:bg-amber-50 hover:text-amber-700" title="Kelola Tiket"><TicketIcon className="h-4 w-4" /></button>
+                      {canManageTickets && <button onClick={() => onManageTickets(e)} className="rounded-lg p-2 text-slate-500 hover:bg-amber-50 hover:text-amber-700" title="Kelola Tiket"><TicketIcon className="h-4 w-4" /></button>}
                       <button onClick={() => onManagePartnerships(e)} className="rounded-lg p-2 text-slate-500 hover:bg-violet-50 hover:text-violet-700" title="Kelola Partner"><Users className="h-4 w-4" /></button>
                       <button onClick={() => onEdit(e)} className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700" title="Edit"><Pencil className="h-4 w-4" /></button>
                       <button onClick={() => onDelete(e.id)} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-700" title="Hapus"><Trash2 className="h-4 w-4" /></button>
@@ -1834,7 +2184,7 @@ function EventManagement({ rows, loading, pendingCounts, onAdd, onEdit, onDelete
               </div>
               <div className="mt-4 flex gap-2">
                 {e.registration_status === 'open' && <button onClick={() => onViewParticipants(e)} className="flex-1 rounded-lg bg-green-50 py-2.5 text-xs font-semibold text-green-700 transition hover:bg-green-100">Pendaftar{pendingCounts[e.id] > 0 && <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white">{pendingCounts[e.id]}</span>}</button>}
-                <button onClick={() => onManageTickets(e)} className="flex-1 rounded-lg bg-amber-50 py-2.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100">Tiket</button>
+                {canManageTickets && <button onClick={() => onManageTickets(e)} className="flex-1 rounded-lg bg-amber-50 py-2.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100">Tiket</button>}
                 <button onClick={() => onManagePartnerships(e)} className="flex-1 rounded-lg bg-violet-50 py-2.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-100">Partner</button>
                 <button onClick={() => onEdit(e)} className="flex-1 rounded-lg bg-blue-50 py-2.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">Edit</button>
                 <button onClick={() => onDelete(e.id)} className="flex-1 rounded-lg bg-red-50 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100">Hapus</button>
@@ -2386,14 +2736,14 @@ function KomikaManagement({ rows, registrations, openMics, attendanceCounts, loa
   );
 }
 
-function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }: { orders: TicketOrder[]; events: EventItem[]; loading: boolean; onStatusChange: (id: string, status: TicketOrderStatus) => void; onDelete: (id: string) => void }) {
+function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete, audienceMode = false }: { orders: TicketOrder[]; events: EventItem[]; loading: boolean; onStatusChange: (id: string, status: TicketOrderStatus) => void; onDelete: (id: string) => void; audienceMode?: boolean }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | TicketOrderStatus>('all');
   const [eventFilter, setEventFilter] = useState<string>('all');
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
 
   const eventMap = useMemo(() => new Map(events.map((event) => [event.id, event.title])), [events]);
-  const statusOptions: TicketOrderStatus[] = ['Menunggu Pembayaran', 'Sudah Bayar', 'Terverifikasi', 'Selesai', 'Dibatalkan'];
+  const statusOptions: TicketOrderStatus[] = audienceMode ? ['Lunas', 'Terverifikasi', 'Selesai'] : ['Menunggu Pembayaran', 'Menunggu Verifikasi', 'Lunas', 'Ditolak', 'Expired', 'Sudah Bayar', 'Terverifikasi', 'Selesai', 'Dibatalkan'];
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -2434,7 +2784,7 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }:
 
   return (
     <div className="space-y-5">
-      <WorkspacePageHeader title="Data Penonton" subtitle={`${filteredOrders.length} pemesanan sesuai filter.`} eyebrow="Event Workspace" action={<button type="button" onClick={printTicketOrders} disabled={loading || filteredOrders.length === 0} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40" title="Print data penonton sesuai filter" aria-label="Print data penonton sesuai filter"><Printer className="h-4 w-4" /></button>} />
+      <WorkspacePageHeader title={audienceMode ? 'Penonton' : 'Order Tiket'} subtitle={`${filteredOrders.length} ${audienceMode ? 'order lunas' : 'order'} sesuai filter.`} eyebrow={audienceMode ? 'Event Workspace' : 'Ticket Workspace'} action={<button type="button" onClick={printTicketOrders} disabled={loading || filteredOrders.length === 0} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40" title="Print data sesuai filter" aria-label="Print data sesuai filter"><Printer className="h-4 w-4" /></button>} />
 
       <div className="grid gap-3 md:grid-cols-[1fr_220px]">
         <div className="relative">
@@ -2510,9 +2860,7 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }:
                       <td className="px-4 py-3 font-semibold text-slate-800">{order.full_name}</td>
                       <td className="px-4 py-3 text-slate-600">{order.email || '—'}</td>
                       <td className="px-4 py-3">
-                        <button type="button" onClick={() => void openTicketOrderWhatsApp(order)} className="font-medium text-green-700 hover:text-green-800" title="Kirim pesan WhatsApp sesuai status terbaru" aria-label={`Kirim pesan WhatsApp untuk ${order.order_number || order.full_name}`}>
-                          {order.whatsapp}
-                        </button>
+                        {audienceMode ? order.whatsapp : <button type="button" onClick={() => void openTicketOrderWhatsApp(order)} className="font-medium text-green-700 hover:text-green-800" title="Kirim pesan WhatsApp sesuai status terbaru" aria-label={`Kirim pesan WhatsApp untuk ${order.order_number || order.full_name}`}>{order.whatsapp}</button>}
                       </td>
                       <td className="px-4 py-3 text-slate-600">{eventMap.get(order.event_id) ?? 'Event tidak ditemukan'}</td>
                       <td className="px-4 py-3 text-slate-600">{order.ticket_category}</td>
@@ -2522,7 +2870,7 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }:
                       <td className="px-4 py-3 text-slate-500">{order.notes || '—'}</td>
                       <td className="px-4 py-3 text-slate-500">{new Date(order.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</td>
                       <td className="min-w-[175px] whitespace-nowrap px-4 py-3">
-                        <select
+                        {audienceMode ? <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${ticketOrderStatusTone(order.status)}`}>{order.status}</span> : <select
                           value={order.status}
                           onChange={(event) => onStatusChange(order.id, event.target.value as TicketOrderStatus)}
                           className="input-field !min-h-0 !w-full !min-w-[155px] !py-1.5 !text-xs !font-bold !text-slate-800"
@@ -2531,10 +2879,10 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }:
                           {statusOptions.map((status) => (
                             <option key={status} value={status}>{status}</option>
                           ))}
-                        </select>
+                        </select>}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex justify-end">
+                        {!audienceMode && <div className="flex justify-end">
                           <button
                             type="button"
                             onClick={() => onDelete(order.id)}
@@ -2543,7 +2891,7 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }:
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
-                        </div>
+                        </div>}
                       </td>
                     </tr>
                   ))}
@@ -2564,9 +2912,9 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }:
                     <p className="mt-0.5 truncate text-xs font-semibold text-slate-600">{eventMap.get(order.event_id) ?? 'Event tidak ditemukan'}</p>
                     </div>
                   </button>
-                  <button type="button" onClick={() => onDelete(order.id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50" title="Hapus pemesanan" aria-label={`Hapus pemesanan ${order.order_number || order.full_name}`}>
+                  {!audienceMode && <button type="button" onClick={() => onDelete(order.id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50" title="Hapus pemesanan" aria-label={`Hapus pemesanan ${order.order_number || order.full_name}`}>
                     <Trash2 className="h-4 w-4" />
-                  </button>
+                  </button>}
                 </div>
 
                 {expandedOrders[order.id] && <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-slate-700">
@@ -2576,7 +2924,7 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }:
                   </div>
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">WhatsApp</p>
-                    <button type="button" onClick={() => void openTicketOrderWhatsApp(order)} className="mt-0.5 block font-bold text-green-700" title="Kirim pesan WhatsApp sesuai status terbaru" aria-label={`Kirim pesan WhatsApp untuk ${order.order_number || order.full_name}`}>{order.whatsapp}</button>
+                    {audienceMode ? <p className="mt-0.5 font-bold text-slate-800">{order.whatsapp}</p> : <button type="button" onClick={() => void openTicketOrderWhatsApp(order)} className="mt-0.5 block font-bold text-green-700" title="Kirim pesan WhatsApp sesuai status terbaru" aria-label={`Kirim pesan WhatsApp untuk ${order.order_number || order.full_name}`}>{order.whatsapp}</button>}
                   </div>
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Tiket</p>
@@ -2594,7 +2942,7 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }:
                   </div>
                 )}
 
-                <div className="mt-2.5 flex items-center gap-2">
+                {!audienceMode && <div className="mt-2.5 flex items-center gap-2">
                   <p className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Status</p>
                   <select
                     value={order.status}
@@ -2606,7 +2954,8 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete }:
                       <option key={status} value={status}>{status}</option>
                     ))}
                   </select>
-                </div>
+                </div>}
+                {audienceMode && <div className="mt-2.5 flex items-center gap-2"><p className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Status</p><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${ticketOrderStatusTone(order.status)}`}>{order.status}</span></div>}
               </div>
             ))}
           </div>
@@ -2882,10 +3231,15 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
   );
 }
 
-function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, isAdmin, isOpenMicAdmin, isEventAdmin }: { onNavigate: (s: Section) => void; onSignOut: () => void; ticketOrderUnreadCount: number; isAdmin: boolean; isOpenMicAdmin: boolean; isEventAdmin: boolean }) {
+function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner }: { onNavigate: (s: Section) => void; onSignOut: () => void; ticketOrderUnreadCount: number; isAdmin: boolean; isOpenMicAdmin: boolean; isEventAdmin: boolean; isTicketAdmin: boolean; isQrScanner: boolean }) {
   const items: { label: string; icon: typeof BarChart3; onClick: () => void; section?: Section; badge?: number }[] = [
+    ...(isEventAdmin ? [{ label: 'Akun Admin Tiket / QR', icon: ShieldPlus, onClick: () => onNavigate('admin-accounts'), section: 'admin-accounts' as Section }] : []),
+    ...(isTicketAdmin ? [{ label: 'Informasi Pembayaran', icon: TicketIcon, onClick: () => onNavigate('payment-info'), section: 'payment-info' as Section }] : []),
+    ...(isTicketAdmin ? [{ label: 'Laporan Tiket', icon: Printer, onClick: () => onNavigate('ticket-report'), section: 'ticket-report' as Section }] : []),
+    ...(isQrScanner ? [{ label: 'Laporan Check-in', icon: Printer, onClick: () => onNavigate('check-in-report'), section: 'check-in-report' as Section }] : []),
+    ...(isQrScanner ? [{ label: 'Riwayat Scan', icon: TicketIcon, onClick: () => onNavigate('tickets'), section: 'tickets' as Section }] : []),
     { label: 'Gabung Komunitas', icon: UserPlus, onClick: () => onNavigate('applications'), section: 'applications' },
-    ...(!isEventAdmin ? [{ label: 'Data Penonton', icon: TicketIcon, onClick: () => onNavigate('ticket-orders'), section: 'ticket-orders' as Section, badge: ticketOrderUnreadCount }] : []),
+    ...(!isEventAdmin && !isTicketAdmin ? [{ label: 'Data Penonton', icon: TicketIcon, onClick: () => onNavigate('ticket-orders'), section: 'ticket-orders' as Section, badge: ticketOrderUnreadCount }] : []),
     { label: 'Akun Member', icon: UserPlus, onClick: () => onNavigate('member-accounts'), section: 'member-accounts' },
     ...(isAdmin ? [{ label: 'Akun Admin', icon: ShieldPlus, onClick: () => onNavigate('admin-accounts'), section: 'admin-accounts' as Section }] : []),
     ...(!isAdmin ? [{ label: 'Pengaturan Profil', icon: Settings, onClick: () => onNavigate('profile-settings'), section: 'profile-settings' as Section }] : []),
@@ -2894,10 +3248,10 @@ function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, isAdmin, isOp
   ];
   return (
     <div className="space-y-5">
-      <WorkspacePageHeader title="More" subtitle="Menu lainnya." />
+      <WorkspacePageHeader title={isTicketAdmin ? 'Lainnya' : 'More'} subtitle="Menu lainnya." eyebrow={isTicketAdmin ? 'Admin Tiket' : undefined} />
       <div className="overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
         <div className="divide-y divide-slate-100">
-          {items.filter((item) => !item.section || canAccessSection(item.section, isAdmin, isOpenMicAdmin, isEventAdmin)).map((item) => {
+          {items.filter((item) => !item.section || canAccessSection(item.section, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner)).map((item) => {
             const Icon = item.icon;
             return (
               <button key={item.label} onClick={item.onClick} className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-slate-50">
@@ -3468,6 +3822,7 @@ function TicketManagementModal({ event, onClose, onNotice }: { event: EventItem 
 function TicketFormModal({ event, ticket, onClose, onSaved }: { event: EventItem; ticket: EventTicket | null; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(ticket?.name ?? '');
   const [price, setPrice] = useState(ticket ? String(ticket.price) : '0');
+  const [quota, setQuota] = useState(ticket?.quota == null ? '' : String(ticket.quota));
   const [description, setDescription] = useState(ticket?.description ?? '');
   const [ticketUrl, setTicketUrl] = useState(ticket?.ticket_url ?? '');
   const [status, setStatus] = useState<'active' | 'inactive'>(ticket?.status ?? 'active');
@@ -3495,6 +3850,7 @@ function TicketFormModal({ event, ticket, onClose, onSaved }: { event: EventItem
       event_id: event.id,
       name: name.trim(),
       price: Number(price) || 0,
+      quota: quota.trim() ? Number(quota) : null,
       description: description.trim() || null,
       ticket_url: ticketUrl.trim() || null,
       status,
@@ -3522,6 +3878,10 @@ function TicketFormModal({ event, ticket, onClose, onSaved }: { event: EventItem
           <p className="mt-1 text-xs text-slate-400">Masukkan 0 untuk GRATIS.</p>
         </div>
         <div>
+          <label className="label-field" htmlFor="ticket-quota">Kuota tiket <span className="font-normal text-slate-400">(opsional)</span></label>
+          <input id="ticket-quota" type="number" min="0" step="1" value={quota} onChange={(e) => setQuota(e.target.value)} className="input-field" placeholder="Kosongkan untuk tanpa batas" />
+        </div>
+        <div>
           <label className="label-field" htmlFor="ticket-desc">Deskripsi</label>
           <textarea id="ticket-desc" value={description} onChange={(e) => setDescription(e.target.value)} className="input-field min-h-[72px]" placeholder="Keterangan tiket (opsional)" />
         </div>
@@ -3533,7 +3893,7 @@ function TicketFormModal({ event, ticket, onClose, onSaved }: { event: EventItem
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label-field" htmlFor="ticket-status">Status</label>
-            <select id="ticket-status" value={status} onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')} className="input-field">
+            <select id="ticket-status" value={status} onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')} className="admin-ticket-select">
               <option value="active">Aktif</option>
               <option value="inactive">Nonaktif</option>
             </select>

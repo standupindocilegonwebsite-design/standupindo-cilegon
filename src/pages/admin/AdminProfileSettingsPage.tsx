@@ -3,8 +3,9 @@ import { Eye, EyeOff, KeyRound, Save, UserRound } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
 
-export function AdminProfileSettingsPage({ onNotice }: { onNotice: (message: string) => void }) {
+export function AdminProfileSettingsPage({ onNotice, onBack }: { onNotice: (message: string) => void; onBack?: () => void }) {
   const { user } = useAuth();
   const [name, setName] = useState('');
   const [photo, setPhoto] = useState('');
@@ -54,7 +55,9 @@ export function AdminProfileSettingsPage({ onNotice }: { onNotice: (message: str
 
   return (
     <div className="space-y-5">
-      <div><h1 className="text-xl font-extrabold text-slate-900 sm:text-2xl">Pengaturan Profil</h1><p className="mt-1 text-sm text-slate-500">Kelola identitas dan keamanan akun workspace kamu.</p></div>
+      {onBack
+        ? <TicketWorkspaceHeader title="Pengaturan Profil" subtitle="Kelola identitas dan keamanan akun workspace kamu." onBack={onBack} />
+        : <div><h1 className="text-xl font-extrabold text-slate-900 sm:text-2xl">Pengaturan Profil</h1><p className="mt-1 text-sm text-slate-500">Kelola identitas dan keamanan akun workspace kamu.</p></div>}
       {!profileEditing && !passwordEditing && <div className="max-w-2xl space-y-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex items-center gap-3"><div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-blue-50 text-blue-700 ring-1 ring-blue-100">{photo ? <img src={photo} alt="Foto profil admin" className="h-full w-full object-cover" /> : <UserRound className="h-6 w-6" />}</div><div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600">Profil workspace</p><h2 className="mt-1 truncate text-base font-extrabold text-slate-900 sm:text-lg">{name || 'Nama admin belum diatur'}</h2><p className="truncate text-sm text-slate-500">{user?.email}</p></div></div>

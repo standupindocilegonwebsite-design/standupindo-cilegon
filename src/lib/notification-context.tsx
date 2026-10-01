@@ -39,14 +39,16 @@ function updateAppBadge(count: number) {
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const { isAdmin, isOpenMicAdmin, isEventAdmin } = useAuth();
+  const { isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin } = useAuth();
   const activeSources = useMemo<NotificationSource[]>(() => isAdmin
     ? SOURCES
     : isOpenMicAdmin
       ? ['open-mic']
       : isEventAdmin
-        ? ['ticket-orders', 'event-participants']
-        : [], [isAdmin, isEventAdmin, isOpenMicAdmin]);
+        ? ['event-participants']
+        : isTicketAdmin
+          ? ['ticket-orders']
+          : [], [isAdmin, isEventAdmin, isOpenMicAdmin, isTicketAdmin]);
   const [records, setRecords] = useState<Map<string, NotificationRecord>>(new Map());
   const [revision, setRevision] = useState(0);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
