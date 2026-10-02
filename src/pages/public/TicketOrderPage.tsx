@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, CheckCircle2, Copy, CreditCard, Eye, Ticket, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, CreditCard, Eye, Ticket, Upload } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { LOGO_URL, type EventItem, type EventTicket } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -49,9 +49,8 @@ function PaymentInstructions({ method, totalPrice }: { method: PaymentSnapshot; 
             {method.account_number && (
               <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
                 <span className="min-w-0 break-all font-mono text-lg font-extrabold tracking-wide text-slate-900">{method.account_number}</span>
-                <button type="button" onClick={() => void copyAccountNumber()} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100" aria-label="Salin nomor rekening">
+                <button type="button" onClick={() => void copyAccountNumber()} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label={copied ? 'Nomor rekening tersalin' : 'Salin nomor rekening'} title={copied ? 'Nomor rekening tersalin' : 'Salin nomor rekening'}>
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copied ? 'Tersalin' : 'Salin'}
                 </button>
               </div>
             )}
@@ -70,7 +69,7 @@ function PaymentInstructions({ method, totalPrice }: { method: PaymentSnapshot; 
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-xs font-bold uppercase tracking-wider text-amber-800">Jumlah transfer wajib sama</p>
           <p className="mt-1 text-2xl font-black text-slate-900">{formatPrice(totalPrice)}</p>
-          <p className="mt-1 text-xs leading-5 text-amber-900">Pastikan jumlah yang ditransfer sama persis dengan total pembayaran (Gross Amount) agar order dapat diverifikasi.</p>
+          <p className="mt-1 text-xs leading-5 text-amber-900">Pastikan jumlah yang ditransfer sama persis dengan total pembayaran agar order dapat diverifikasi.</p>
         </div>
       </div>
     </section>
@@ -154,6 +153,18 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
 
   function setWhatsapp(value: string) {
     setForm((current) => ({ ...current, whatsapp: value.replace(/\D/g, '') }));
+  }
+
+  function setQuantity(value: string) {
+    const digits = value.replace(/\D/g, '').slice(0, 2);
+    const parsedQuantity = Number.parseInt(digits, 10);
+    const quantity = digits && parsedQuantity > 10 ? '10' : digits;
+    setForm((current) => ({ ...current, quantity }));
+  }
+
+  function adjustQuantity(change: number) {
+    const currentQuantity = Number.parseInt(form.quantity, 10) || 1;
+    setQuantity(String(Math.max(1, Math.min(10, currentQuantity + change))));
   }
 
   function submit(e: React.FormEvent) {
@@ -386,7 +397,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
       <PageHeader router={router} title="Pesan Tiket" subtitle={event.title} />
       <div className="container-app py-8 sm:py-10">
         <div className="mx-auto max-w-xl">
-          <form data-scroll-reveal onSubmit={submit} className="scroll-reveal card space-y-5 p-5 sm:p-7">
+          <form data-scroll-reveal onSubmit={submit} className="scroll-reveal card space-y-4 p-5 sm:p-7">
             <div className="flex items-start gap-3 border-b border-slate-100 pb-5">
               {event.poster ? (
                 <img src={event.poster} alt={`Poster ${event.title}`} className="h-16 w-24 shrink-0 rounded-xl object-cover ring-1 ring-slate-200 sm:h-20 sm:w-28" />
@@ -404,7 +415,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
             </div>
 
             <div>
-              <label className="label-field" htmlFor="ticket-order-name">Nama lengkap</label>
+              <label className="label-field" htmlFor="ticket-order-name">Nama Lengkap</label>
               <input id="ticket-order-name" required value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} className="input-field" placeholder="Contoh: Budi Santoso" autoComplete="name" />
             </div>
             <div>
@@ -416,13 +427,21 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
               <input id="ticket-order-whatsapp" required type="tel" inputMode="numeric" pattern="[0-9]+" value={form.whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="input-field" placeholder="Contoh: 082212345678" autoComplete="tel" />
             </div>
             <div>
-              <label className="label-field" htmlFor="ticket-order-quantity">Jumlah tiket</label>
-              <input id="ticket-order-quantity" required type="number" min="1" max="10" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} className="input-field" />
+              <label className="label-field" htmlFor="ticket-order-quantity">Jumlah Tiket</label>
+              <div className="inline-flex h-11 items-center overflow-hidden rounded-xl border border-slate-300 bg-white">
+                <button type="button" aria-label="Kurangi jumlah tiket" disabled={quantity <= 1} onClick={() => adjustQuantity(-1)} className="flex h-full w-11 items-center justify-center text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40">
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <input id="ticket-order-quantity" required type="text" inputMode="numeric" pattern="[1-9]|10" maxLength={2} value={form.quantity} onChange={(e) => setQuantity(e.target.value)} className="h-full w-10 border-x border-slate-200 bg-transparent p-0 text-center text-base font-semibold text-slate-900 outline-none" aria-label="Jumlah tiket" />
+                <button type="button" aria-label="Tambah jumlah tiket" disabled={quantity >= 10} onClick={() => adjustQuantity(1)} className="flex h-full w-11 items-center justify-center text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40">
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
               <p className="mt-1 text-xs text-slate-500">Maksimal 10 tiket per pesanan.</p>
             </div>
 
             <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm">
-              <div className="flex items-center justify-between gap-3 text-slate-500"><span>Total pembayaran (Gross Amount)</span><strong className="text-lg text-slate-900">{formatPrice(totalPrice)}</strong></div>
+              <div className="flex items-center justify-between gap-3 text-slate-500"><span>Total Pembayaran</span><strong className="text-lg text-slate-900">{formatPrice(totalPrice)}</strong></div>
             </div>
             {paymentMethod && <PaymentInstructions method={paymentMethod} totalPrice={totalPrice} />}
             {paymentMethodError && <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{paymentMethodError}</p>}
@@ -444,8 +463,8 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
                 <div className="review-row"><span className="review-label">Email</span><span className="review-value">{form.email}</span></div>
                 <div className="review-row"><span className="review-label">WhatsApp</span><span className="review-value">{form.whatsapp}</span></div>
                 <div className="review-row"><span className="review-label">Tiket</span><span className="review-value">{ticket.name}</span></div>
-                <div className="review-row"><span className="review-label">Jumlah</span><span className="review-value">{quantity}</span></div>
-                <div className="review-row"><span className="review-label">Total pembayaran (Gross Amount)</span><span className="review-value">{formatPrice(totalPrice)}</span></div>
+                <div className="review-row"><span className="review-label">Jumlah Tiket</span><span className="review-value">{quantity}</span></div>
+                <div className="review-row"><span className="review-label">Total Pembayaran</span><span className="review-value">{formatPrice(totalPrice)}</span></div>
                 <div className="review-row"><span className="review-label">Bukti transfer</span><span className="review-value">{proofFile?.name}</span></div>
               </div>
               {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}

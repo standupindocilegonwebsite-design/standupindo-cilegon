@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, BarChart3, Bell, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, Eye, EyeOff, FolderOpen, History, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Power, Printer, RefreshCw, Search, Settings, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Archive, BarChart3, Bell, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, DoorOpen, Eye, EyeOff, FolderOpen, History, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Power, Printer, RefreshCw, Search, Settings, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, MemberOpenMicHistoryStatus, MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -24,10 +24,11 @@ import { TicketMaintenancePage } from '@/pages/admin/TicketMaintenancePage';
 import { TicketAdminTicketsPage } from '@/pages/admin/TicketAdminTicketsPage';
 import { TicketSalesReportPage } from '@/pages/admin/TicketSalesReportPage';
 import { TicketCheckInReportPage } from '@/pages/admin/TicketCheckInReportPage';
+import { TicketGateSettingsPage } from '@/pages/admin/TicketGateSettingsPage';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
 
 interface Props { router: Router; settings: SiteSettings; }
-type Section = 'dashboard' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'check-in-report' | 'maintenance' | 'more';
+type Section = 'dashboard' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'ticket-gates' | 'check-in-report' | 'maintenance' | 'more';
 
 const NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -41,6 +42,7 @@ const NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
   { key: 'partners', label: 'Partners', icon: Users },
   { key: 'evaluator', label: 'Evaluator', icon: Users },
   { key: 'ticket-orders', label: 'Data Penonton', icon: TicketIcon },
+  { key: 'ticket-gates', label: 'Pengaturan Gate', icon: DoorOpen },
   { key: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -65,6 +67,7 @@ function getSection(path: string): Section {
   if (parts[1] === 'scan') return 'scan';
   if (parts[1] === 'payment-info') return 'payment-info';
   if (parts[1] === 'ticket-report') return 'ticket-report';
+  if (parts[1] === 'ticket-gates') return 'ticket-gates';
   if (parts[1] === 'check-in-report') return 'check-in-report';
   if (parts[1] === 'maintenance') return 'maintenance';
   if (parts[1] === 'profile-settings') return 'profile-settings';
@@ -76,7 +79,7 @@ function getSection(path: string): Section {
 
 function canAccessSection(section: Section, isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean, isTicketAdmin: boolean, isQrScanner: boolean): boolean {
   if (isAdmin) return true;
-  if (isTicketAdmin) return section === 'dashboard' || section === 'ticket-orders' || section === 'tickets' || section === 'events' || section === 'payment-info' || section === 'ticket-report' || (isQrScanner && section === 'check-in-report') || section === 'profile-settings' || section === 'more';
+  if (isTicketAdmin) return section === 'dashboard' || section === 'ticket-orders' || section === 'tickets' || section === 'events' || section === 'payment-info' || section === 'ticket-report' || section === 'ticket-gates' || (isQrScanner && section === 'check-in-report') || section === 'profile-settings' || section === 'more';
   if (isQrScanner) return section === 'dashboard' || section === 'scan' || section === 'events' || section === 'check-in-report' || section === 'profile-settings' || section === 'more';
   if (section === 'maintenance') return isAdmin || isEventAdmin;
   if (isOpenMicAdmin) return section === 'dashboard' || section === 'open-mic' || section === 'registrants' || section === 'open-mic-list' || section === 'open-mic-performers' || section === 'open-mic-history' || section === 'member-accounts' || section === 'evaluator' || section === 'profile-settings' || section === 'more';
@@ -109,6 +112,7 @@ function getWorkspaceNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin
     { key: 'ticket-orders' as Section, label: 'Order', icon: TicketIcon },
     { key: 'tickets' as Section, label: 'Tiket', icon: TicketIcon },
     { key: 'events' as Section, label: 'Event', icon: CalendarDays },
+    { key: 'ticket-gates' as Section, label: 'Gate', icon: DoorOpen },
     { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
   ];
   if (isQrScanner) return [
@@ -135,6 +139,7 @@ function getWorkspaceBottomNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEven
     { key: 'ticket-orders' as Section, label: 'Order', icon: TicketIcon },
     { key: 'tickets' as Section, label: 'Tiket', icon: TicketIcon },
     { key: 'events' as Section, label: 'Event', icon: CalendarDays },
+    { key: 'ticket-gates' as Section, label: 'Gate', icon: DoorOpen },
     { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
   ];
   if (isQrScanner) return [
@@ -354,6 +359,7 @@ function QrScannerDashboard({ events, onNavigate }: { events: EventItem[]; onNav
   const [attendees, setAttendees] = useState<QrScannerAttendee[]>([]);
   const [attendeeFilter, setAttendeeFilter] = useState<'all' | 'checked-in' | 'not-checked-in'>('all');
   const [attendeeSearch, setAttendeeSearch] = useState('');
+  const [selectedAttendee, setSelectedAttendee] = useState<QrScannerAttendee | null>(null);
   const selectableEvents = useMemo(() => events
     .filter((event) => getEventStatus(event.status, event.date) !== 'completed')
     .map((event) => ({ id: event.id, title: event.title, subtitle: `${formatDate(event.date)} · ${event.venue}` })), [events]);
@@ -447,20 +453,69 @@ function QrScannerDashboard({ events, onNavigate }: { events: EventItem[]; onNav
                 <input value={attendeeSearch} onChange={(event) => setAttendeeSearch(event.target.value)} className="input-field pl-10" placeholder="Cari nama atau nomor order..." aria-label="Cari peserta check-in" />
               </div>
               {filteredAttendees.length
-                ? <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
-                  {filteredAttendees.map((attendee, index) => <li key={`${attendee.order_number ?? attendee.full_name}-${attendee.sequence_no}-${index}`} className="flex items-center justify-between gap-3 p-3 sm:px-4">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-slate-900">{attendee.full_name}</p>
-                      <p className="mt-0.5 truncate font-mono text-[11px] text-slate-500">{attendee.order_number ?? 'Order'} · Tiket {attendee.sequence_no}</p>
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold ${attendee.checked_in_at ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                      {attendee.checked_in_at ? 'Sudah hadir' : 'Belum hadir'}
-                    </span>
-                  </li>)}
-                </ul>
+                ? <div className="overflow-hidden rounded-xl border border-slate-200">
+                  <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_minmax(0,6.5rem)_1rem] items-center gap-2 bg-slate-100 px-2.5 py-2.5 text-[10px] font-extrabold uppercase tracking-wide text-slate-600 sm:grid-cols-[3.25rem_minmax(0,1fr)_minmax(0,9rem)_1.25rem] sm:gap-3 sm:px-4">
+                    <span className="text-center">No.</span>
+                    <span>Nama</span>
+                    <span>Kode</span>
+                    <span className="sr-only">Detail</span>
+                  </div>
+                  <ul className="divide-y divide-slate-200">
+                    {filteredAttendees.map((attendee, index) => <li
+                      key={`${attendee.order_number ?? attendee.full_name}-${attendee.sequence_no}-${index}`}
+                      className={index % 2 === 0 ? 'bg-white' : 'bg-blue-50/60'}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAttendee(attendee)}
+                        className="grid min-h-[3.75rem] w-full grid-cols-[2.75rem_minmax(0,1fr)_minmax(0,6.5rem)_1rem] items-center gap-2 px-2.5 py-2.5 text-left transition hover:bg-blue-100/80 focus:outline-none focus-visible:bg-blue-100 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-700 sm:grid-cols-[3.25rem_minmax(0,1fr)_minmax(0,9rem)_1.25rem] sm:gap-3 sm:px-4"
+                        aria-label={`Lihat detail tiket nomor ${index + 1}, ${attendee.full_name}`}
+                      >
+                        <span className="mx-auto inline-flex h-7 min-w-7 items-center justify-center rounded-lg bg-slate-100 px-1 text-xs font-bold tabular-nums text-slate-600 ring-1 ring-inset ring-slate-200">
+                          {index + 1}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-bold text-slate-900">{attendee.full_name}</span>
+                          <span className={`mt-0.5 block text-[10px] font-bold ${attendee.checked_in_at ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            {attendee.checked_in_at ? 'Sudah hadir' : 'Belum hadir'}
+                          </span>
+                        </span>
+                        <span className="min-w-0 truncate font-mono text-[9px] text-slate-600 sm:text-xs">{attendee.order_number ?? '—'}</span>
+                        <ChevronRight className="h-4 w-4 justify-self-end text-slate-400" />
+                      </button>
+                    </li>)}
+                  </ul>
+                </div>
                 : <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">{attendees.length ? 'Tidak ada peserta yang cocok dengan pencarian atau filter ini.' : 'Belum ada tiket lunas untuk Event ini.'}</p>}
             </>}
     </section>
+    <Modal open={Boolean(selectedAttendee)} onClose={() => setSelectedAttendee(null)} title="Detail Tiket" size="sm">
+      {selectedAttendee && <div className="space-y-3">
+        <p className="text-sm text-slate-600">{selectedAttendee.full_name}</p>
+        <div className="overflow-hidden rounded-xl border border-slate-200">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+              <tr><th className="w-12 px-3 py-2.5 text-right">No.</th><th className="px-3 py-2.5">Detail</th><th className="px-3 py-2.5">Informasi</th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {[
+                ['Nama', selectedAttendee.full_name],
+                ['Kode Order', selectedAttendee.order_number ?? '—'],
+                ['Nomor Tiket', `Tiket ${selectedAttendee.sequence_no}`],
+                ['Status', selectedAttendee.checked_in_at ? 'Sudah hadir' : 'Belum hadir'],
+                ['Waktu Check-in', selectedAttendee.checked_in_at
+                  ? new Date(selectedAttendee.checked_in_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'medium', timeStyle: 'short' })
+                  : '—'],
+              ].map(([label, value], index) => <tr key={label}>
+                <td className="px-3 py-3 text-right text-xs tabular-nums text-slate-400">{index + 1}</td>
+                <th scope="row" className="px-3 py-3 text-xs font-semibold text-slate-500">{label}</th>
+                <td className="break-words px-3 py-3 text-right text-xs font-bold text-slate-900">{value}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+      </div>}
+    </Modal>
   </div>;
 }
 
@@ -862,6 +917,7 @@ export function AdminPage({ router, settings }: Props) {
           {section === 'tickets' && isTicketAdmin && <TicketAdminTicketsPage />}
           {section === 'scan' && isQrScanner && <TicketQrScannerPage events={events} />}
           {section === 'payment-info' && isTicketAdmin && <TicketPaymentMethodsPage events={events} onBack={() => navigateSection('more')} />}
+          {section === 'ticket-gates' && (isAdmin || isTicketAdmin) && <TicketGateSettingsPage events={events} onBack={() => navigateSection('more')} />}
           {section === 'ticket-report' && isTicketAdmin && <TicketSalesReportPage events={events} orders={ticketOrders} onBack={() => navigateSection('more')} />}
           {section === 'check-in-report' && isQrScanner && <TicketCheckInReportPage onBack={() => navigateSection('more')} />}
           {section === 'maintenance' && (isAdmin || isEventAdmin) && <TicketMaintenancePage events={events} />}

@@ -151,7 +151,7 @@ serve(async (request) => {
 
     const sellableTickets = ticketInstances.filter((ticket) => {
       const order = paidOrdersById.get(ticket.ticket_order_id);
-      return order?.event_id === ticket.event_id && (ticket.status === 'active' || Boolean(ticket.checked_in_at));
+      return order?.event_id === ticket.event_id && (ticket.status === 'active' || ticket.status === 'expired' || Boolean(ticket.checked_in_at));
     });
     const countsByEvent = new Map<string, { tickets_sold: number; checked_in: number }>();
     sellableTickets.forEach((ticket) => {

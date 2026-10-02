@@ -214,12 +214,12 @@ serve(async (request) => {
         const completed = accessCode?.revoke_reason === 'event_completed';
         return json({ error_code: completed ? 'event_completed' : 'session_expired', error: completed ? 'Kode Akses sudah tidak berlaku karena Event telah selesai' : 'Kode Akses sudah tidak berlaku.' }, 410);
       }
-      const { data: event, error: eventError } = await serviceClient.from('events').select('id, title, date, time, venue, status, poster').eq('id', accessCode.event_id).maybeSingle();
+      const { data: event, error: eventError } = await serviceClient.from('events').select('id, title, date, time, venue, location, status, poster, event_rules').eq('id', accessCode.event_id).maybeSingle();
       if (eventError || !event) return json({ error: 'Event tidak ditemukan.' }, 404);
       if (event.status === 'completed') return json({ error_code: 'event_completed', error: 'Kode Akses sudah tidak berlaku karena Event telah selesai' }, 410);
 
       const { data: orders, error: orderError } = await fetchAllPages((from, to) => serviceClient.from('ticket_orders')
-        .select('id, order_number, ticket_category, quantity, total_price, status, created_at')
+        .select('id, order_number, full_name, ticket_category, quantity, unit_price, total_price, status, created_at')
         .eq('event_id', event.id).eq('access_code_id', accessCode.id).eq('whatsapp', accessCode.whatsapp_normalized)
         .in('status', ['Lunas']).order('created_at', { ascending: true }).order('id', { ascending: true }).range(from, to));
       if (orderError) return json({ error: 'Order tiket gagal dimuat.' }, 500);
@@ -236,9 +236,9 @@ serve(async (request) => {
         id: ticket.id,
         ticket_order_id: ticket.ticket_order_id,
         sequence_no: ticket.sequence_no,
-        status: ticket.checked_in_at ? 'Sudah Digunakan' : ticket.status !== 'active' ? 'Tidak Aktif' : event.status === 'cancelled' ? 'Event Dibatalkan' : 'Belum Digunakan',
+        status: ticket.checked_in_at ? 'Sudah Digunakan' : ticket.status === 'expired' ? 'Expired' : ticket.status !== 'active' ? 'Tidak Aktif' : event.status === 'cancelled' ? 'Event Dibatalkan' : 'Belum Digunakan',
         checked_in_at: ticket.checked_in_at,
-        qr_token: event.status === 'upcoming' && ticket.status === 'active' && !ticket.checked_in_at ? await decryptSecret(ticket.qr_token_ciphertext, encryptionKey) : null,
+        qr_token: await decryptSecret(ticket.qr_token_ciphertext, encryptionKey),
       })));
       return json({ event, orders: orders ?? [], tickets, event_cancelled: event.status === 'cancelled', session_expires_at: session.idle_expires_at });
     }

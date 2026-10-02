@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, History, KeyRound, LogOut, Maximize2, Smartphone, Ticket, X, XCircle } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, Download, History, KeyRound, LogOut, Maximize2, Smartphone, Ticket, X, XCircle } from 'lucide-react';
+import { QRCodeCanvas, QRCodeSVG } from 'qrcode.react';
 import type { Router } from '@/lib/router';
 import { supabase } from '@/lib/supabase';
 import { TicketPagination } from '@/components/TicketPagination';
 import { LOGO_URL } from '@/lib/types';
 import { formatDate, formatPrice } from '@/lib/format';
+import { downloadETicketPdf } from '@/lib/ticket-pdf';
 
 const ORDER_PAGE_SIZE = 10;
 
@@ -15,15 +16,19 @@ interface TicketEvent {
   date: string;
   time: string;
   venue: string;
+  location?: string | null;
   status: 'upcoming' | 'completed' | 'cancelled';
   poster: string | null;
+  event_rules?: string | null;
 }
 
 interface GuestOrder {
   id: string;
   order_number: string | null;
+  full_name: string;
   ticket_category: string;
   quantity: number;
+  unit_price: number;
   total_price: number;
   status: string;
   created_at: string;
@@ -38,7 +43,7 @@ interface GuestTicket {
   id: string;
   ticket_order_id: string;
   sequence_no: number;
-  status: 'Belum Digunakan' | 'Sudah Digunakan' | 'Tidak Aktif' | 'Event Dibatalkan';
+  status: 'Belum Digunakan' | 'Sudah Digunakan' | 'Tidak Aktif' | 'Event Dibatalkan' | 'Expired';
   checked_in_at: string | null;
   qr_token: string | null;
 }
@@ -89,10 +94,13 @@ export function TicketAccessPage({ router }: { router: Router }) {
   const [orderPage, setOrderPage] = useState(1);
   const [activeTicketIndexes, setActiveTicketIndexes] = useState<Record<string, number>>({});
   const [fullscreenTicketOrder, setFullscreenTicketOrder] = useState<string | null>(null);
+  const [downloadingOrder, setDownloadingOrder] = useState<string | null>(null);
+  const [pdfErrors, setPdfErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const lastTouchAt = useRef(0);
   const ticketCarouselRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const ticketQrCanvases = useRef<Record<string, HTMLCanvasElement | null>>({});
   const visibleOrders = session?.orders.slice((orderPage - 1) * ORDER_PAGE_SIZE, orderPage * ORDER_PAGE_SIZE) ?? [];
   const purchasedEvents = Array.from((history ?? []).reduce((groups, order) => {
     if (!order.event) return groups;
@@ -220,11 +228,39 @@ export function TicketAccessPage({ router }: { router: Router }) {
       } else {
         setHistoryError(message);
       }
+
       setHistoryLoading(false);
       return;
     }
     setHistory(data.history ?? []);
     setHistoryLoading(false);
+  }
+
+  async function downloadOrderTickets(order: GuestOrder) {
+    if (!session) return;
+    const tickets = session.tickets.filter((ticket) => ticket.ticket_order_id === order.id);
+    setDownloadingOrder(order.id);
+    setPdfErrors((current) => ({ ...current, [order.id]: '' }));
+    try {
+      const qrCanvases = new Map<string, HTMLCanvasElement>();
+      tickets.forEach((ticket) => {
+        const canvas = ticketQrCanvases.current[ticket.id];
+        if (canvas) qrCanvases.set(ticket.id, canvas);
+      });
+      await downloadETicketPdf({
+        event: session.event,
+        order,
+        tickets,
+        qrCanvases,
+      });
+    } catch (downloadError) {
+      setPdfErrors((current) => ({
+        ...current,
+        [order.id]: downloadError instanceof Error ? downloadError.message : 'E-Tiket gagal dibuat. Silakan coba lagi.',
+      }));
+    } finally {
+      setDownloadingOrder(null);
+    }
   }
 
   function scrollToTicket(orderId: string, index: number) {
@@ -315,10 +351,20 @@ export function TicketAccessPage({ router }: { router: Router }) {
                       <p className="truncate font-mono text-[11px] text-slate-500">{order.order_number ?? order.id}</p>
                     </div>
                     : <p className="text-center text-xs font-bold uppercase tracking-wider text-slate-500">{orderTickets.length > 1 ? 'Geser untuk melihat tiket lainnya' : 'Detail tiket'}</p>}
+                  <button
+                    type="button"
+                    onClick={() => void downloadOrderTickets(order)}
+                    disabled={downloadingOrder === order.id || orderTickets.length === 0}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-700 px-3 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 sm:px-4 sm:text-sm"
+                  >
+                    <Download className="h-4 w-4" />
+                    {downloadingOrder === order.id ? 'Membuat PDF...' : 'Download E-Tiket'}
+                  </button>
                   <button type="button" onClick={() => fullscreenTicketOrder === order.id ? setFullscreenTicketOrder(null) : setFullscreenTicketOrder(order.id)} aria-label={fullscreenTicketOrder === order.id ? 'Tutup layar penuh' : 'Lihat layar penuh'} title={fullscreenTicketOrder === order.id ? 'Tutup layar penuh' : 'Lihat layar penuh'} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                     {fullscreenTicketOrder === order.id ? <X className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                   </button>
                 </div>
+                {pdfErrors[order.id] && <p role="alert" className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{pdfErrors[order.id]}</p>}
                 {orderTickets.length ? <><div ref={(node) => { ticketCarouselRefs.current[order.id] = node; }} onScroll={(event) => {
                   const carousel = event.currentTarget;
                   const cards = Array.from(carousel.children);
@@ -336,6 +382,7 @@ export function TicketAccessPage({ router }: { router: Router }) {
                     <div className="flex max-h-full max-w-full items-center justify-center rounded-2xl border border-slate-300 bg-white p-3 shadow-[0_12px_32px_rgba(15,23,42,0.1)] sm:p-5">
                       {ticket.qr_token && ticket.status === 'Belum Digunakan' ? <QRCodeSVG value={ticket.qr_token} size={Math.max(180, Math.min(360, window.innerWidth * 0.78, (window.innerHeight - 280) * 0.66))} level="M" includeMargin aria-label={`QR tiket ${ticket.sequence_no}`} /> : ticket.status === 'Sudah Digunakan' ? <CheckCircle2 className="h-20 w-20 text-slate-400" /> : ticket.status === 'Event Dibatalkan' ? <XCircle className="h-20 w-20 text-red-500" /> : <Ticket className="h-20 w-20 text-slate-300" />}
                     </div>
+                    {ticket.qr_token && <QRCodeCanvas ref={(node) => { ticketQrCanvases.current[ticket.id] = node; }} value={ticket.qr_token} size={640} level="M" includeMargin className="fixed -left-[10000px] top-0 h-[640px] w-[640px]" aria-hidden="true" />}
                     <p className="text-xl font-black uppercase tracking-wide text-slate-900">TIKET {ticket.sequence_no}</p>
                     <p className="rounded-xl border border-slate-300 bg-white px-4 py-2 font-mono text-base font-extrabold tracking-wide text-slate-900 shadow-sm">{order.order_number ?? order.id} / {ticket.sequence_no}</p>
                   </article>)}

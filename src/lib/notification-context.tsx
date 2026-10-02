@@ -8,24 +8,29 @@ const SOURCES: NotificationSource[] = ['ticket-orders', 'open-mic', 'event-parti
 const EMPTY_COUNTS: Record<NotificationSource, number> = { 'ticket-orders': 0, 'open-mic': 0, 'event-participants': 0, applications: 0 };
 const READ_STORAGE_KEY = 'standupindo-admin-read-notifications';
 
-function readStoredIds(): Record<NotificationSource, string[]> {
+function readStoredIds(storageKey: string): Record<NotificationSource, string[]> {
   try {
-    return JSON.parse(localStorage.getItem(READ_STORAGE_KEY) || '{}') as Record<NotificationSource, string[]>;
+    return JSON.parse(localStorage.getItem(storageKey) || '{}') as Record<NotificationSource, string[]>;
   } catch {
     return {} as Record<NotificationSource, string[]>;
   }
 }
 
-function isRead(source: NotificationSource, id: string): boolean {
-  return (readStoredIds()[source] ?? []).includes(id);
+function isRead(storageKey: string, source: NotificationSource, id: string): boolean {
+  return (readStoredIds(storageKey)[source] ?? []).includes(id);
 }
 
-function storeReadIds(readIds: Record<NotificationSource, string[]>) {
-  localStorage.setItem(READ_STORAGE_KEY, JSON.stringify(readIds));
+function storeReadIds(storageKey: string, readIds: Record<NotificationSource, string[]>) {
+  localStorage.setItem(storageKey, JSON.stringify(readIds));
 }
 
 function isAttentionStatus(source: NotificationSource, status: unknown): boolean {
-  if (source === 'ticket-orders') return status === 'Menunggu Pembayaran' || status === 'Sudah Bayar';
+  if (source === 'ticket-orders') {
+    return status === 'Draft Pembayaran'
+      || status === 'Menunggu Pembayaran'
+      || status === 'Menunggu Verifikasi'
+      || status === 'Sudah Bayar';
+  }
   return status === 'pending';
 }
 
@@ -39,16 +44,16 @@ function updateAppBadge(count: number) {
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const { isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin } = useAuth();
-  const activeSources = useMemo<NotificationSource[]>(() => isAdmin
-    ? SOURCES
-    : isOpenMicAdmin
-      ? ['open-mic']
-      : isEventAdmin
-        ? ['event-participants']
-        : isTicketAdmin
-          ? ['ticket-orders']
-          : [], [isAdmin, isEventAdmin, isOpenMicAdmin, isTicketAdmin]);
+  const { user, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin } = useAuth();
+  const activeSources = useMemo<NotificationSource[]>(() => {
+    if (isAdmin) return SOURCES;
+    return [
+      ...(isTicketAdmin ? ['ticket-orders' as const] : []),
+      ...(isOpenMicAdmin ? ['open-mic' as const] : []),
+      ...(isEventAdmin ? ['event-participants' as const] : []),
+    ];
+  }, [isAdmin, isEventAdmin, isOpenMicAdmin, isTicketAdmin]);
+  const readStorageKey = `${READ_STORAGE_KEY}:${user?.id ?? 'anonymous'}`;
   const [records, setRecords] = useState<Map<string, NotificationRecord>>(new Map());
   const [revision, setRevision] = useState(0);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
@@ -71,12 +76,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     results.forEach((result, index) => {
       const source = activeSources[index];
       (result.data as { id: string; status: string }[]).forEach((row) => {
-        if (isAttentionStatus(source, row.status) && !isRead(source, row.id)) next.set(`${source}:${row.id}`, { ...row, source });
+        if (isAttentionStatus(source, row.status) && !isRead(readStorageKey, source, row.id)) next.set(`${source}:${row.id}`, { ...row, source });
       });
     });
     setRecords(next);
     setRevision((value) => value + 1);
-  }, [activeSources]);
+  }, [activeSources, readStorageKey]);
 
   useEffect(() => {
     if (activeSources.length === 0) {
@@ -91,7 +96,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const key = `${source}:${row.id}`;
       setRecords((current) => {
         const next = new Map(current);
-        if (isAttentionStatus(source, row.status) && !isRead(source, row.id)) next.set(key, { ...row, source });
+        if (isAttentionStatus(source, row.status) && !isRead(readStorageKey, source, row.id)) next.set(key, { ...row, source });
         else next.delete(key);
         return next;
       });
@@ -147,12 +152,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       void supabase.removeChannel(channel);
       setRealtimeConnected(false);
     };
-  }, [activeSources, channelRevision, resync]);
+  }, [activeSources, channelRevision, readStorageKey, resync]);
 
   const markAsRead = useCallback(async (source: NotificationSource, id: string) => {
-    const stored = readStoredIds();
+    const stored = readStoredIds(readStorageKey);
     stored[source] = [...new Set([...(stored[source] ?? []), id])];
-    storeReadIds(stored);
+    storeReadIds(readStorageKey, stored);
     setRecords((current) => {
       const next = new Map(current);
       next.delete(`${source}:${id}`);
@@ -164,14 +169,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       channel.postMessage({ type: 'notification-read' });
       channel.close();
     }
-  }, []);
+  }, [readStorageKey]);
 
   const markAllAsRead = useCallback(async (source: NotificationSource) => {
     const ids = [...records.values()].filter((record) => record.source === source).map((record) => record.id);
     if (ids.length === 0) return;
-    const stored = readStoredIds();
+    const stored = readStoredIds(readStorageKey);
     stored[source] = [...new Set([...(stored[source] ?? []), ...ids])];
-    storeReadIds(stored);
+    storeReadIds(readStorageKey, stored);
     setRecords((current) => {
       const next = new Map(current);
       ids.forEach((id) => next.delete(`${source}:${id}`));
@@ -183,7 +188,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       channel.postMessage({ type: 'notification-read' });
       channel.close();
     }
-  }, [records]);
+  }, [readStorageKey, records]);
 
   const unreadCount = records.size;
   const counts = [...records.values()].reduce<Record<NotificationSource, number>>((result, record) => {

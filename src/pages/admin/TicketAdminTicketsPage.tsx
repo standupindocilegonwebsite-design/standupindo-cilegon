@@ -16,7 +16,7 @@ interface TicketRow {
   ticket_order_id: string;
   event_ticket_id: string | null;
   sequence_no: number;
-  status: 'active' | 'revoked';
+  status: 'active' | 'revoked' | 'expired';
   checked_in_at: string | null;
   issued_at: string;
   order: { order_number: string | null; full_name: string; whatsapp: string; ticket_category: string };
@@ -49,6 +49,7 @@ interface TicketOrderGroup {
   event: TicketRow['event'];
   tickets: TicketRow[];
   usedCount: number;
+  expiredCount: number;
 }
 
 async function loadTickets() {
@@ -86,7 +87,7 @@ export function TicketAdminTicketsPage() {
   const [categories, setCategories] = useState<EventTicketCategory[]>([]);
   const [search, setSearch] = useState('');
   const [eventFilter, setEventFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'unused' | 'used'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'unused' | 'used' | 'expired'>('all');
   const [page, setPage] = useState(1);
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(() => new Set());
   const [posterPreview, setPosterPreview] = useState<{ src: string; alt: string } | null>(null);
@@ -114,7 +115,7 @@ export function TicketAdminTicketsPage() {
     .map((event) => {
       const eventCategories = categories.filter((category) => category.event_id === event.id);
       const eventTickets = tickets.filter((ticket) => ticket.event_id === event.id
-        && (ticket.status === 'active' || Boolean(ticket.checked_in_at)));
+        && (ticket.status === 'active' || ticket.status === 'expired' || Boolean(ticket.checked_in_at)));
       const totalQuota = eventCategories.reduce((total, category) => total + (category.quota ?? 0), 0);
       const unlimited = eventCategories.some((category) => category.quota === null);
       return {
@@ -133,7 +134,8 @@ export function TicketAdminTicketsPage() {
     const matchesQuery = !query || [ticket.order.full_name, ticket.order.whatsapp, ticket.order.order_number ?? '', ticket.event.title, ticket.order.ticket_category].join(' ').toLowerCase().includes(query);
     const matchesEvent = visibleEventIds.has(ticket.event_id) && (eventFilter === 'all' || ticket.event_id === eventFilter);
     const used = Boolean(ticket.checked_in_at);
-    const matchesStatus = statusFilter === 'all' || (statusFilter === 'used' ? used : !used);
+    const matchesStatus = statusFilter === 'all'
+      || (statusFilter === 'used' ? used : statusFilter === 'expired' ? ticket.status === 'expired' : ticket.status === 'active' && !used);
     return matchesQuery && matchesEvent && matchesStatus;
   }), [eventFilter, search, statusFilter, tickets, visibleEventIds]);
   const orderGroups = useMemo(() => {
@@ -150,11 +152,13 @@ export function TicketAdminTicketsPage() {
           event: ticket.event,
           tickets: [],
           usedCount: 0,
+          expiredCount: 0,
         };
         groups.set(group.id, group);
       }
       group.tickets.push(ticket);
       if (ticket.checked_in_at) group.usedCount += 1;
+      if (ticket.status === 'expired') group.expiredCount += 1;
     });
     return [...groups.values()];
   }, [filteredTickets]);
@@ -171,7 +175,7 @@ export function TicketAdminTicketsPage() {
   return (
     <div className="space-y-5">
       <TicketWorkspaceHeader title="Tiket" subtitle="Tiket individual yang telah diterbitkan untuk order lunas." />
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px_190px]"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input className="input-field pl-10" placeholder="Cari nama, WhatsApp, order..." value={search} onChange={(event) => setSearch(event.target.value)} /></div><SearchableEventSelect options={eventOptions} value={eventFilter} onChange={setEventFilter} allLabel="Semua Event" ariaLabel="Filter Event Tiket" /><select className="admin-ticket-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}><option value="all">Semua Status</option><option value="unused">Belum Digunakan</option><option value="used">Sudah Digunakan</option></select></div>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px_190px]"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input className="input-field pl-10" placeholder="Cari nama, WhatsApp, order..." value={search} onChange={(event) => setSearch(event.target.value)} /></div><SearchableEventSelect options={eventOptions} value={eventFilter} onChange={setEventFilter} allLabel="Semua Event" ariaLabel="Filter Event Tiket" /><select className="admin-ticket-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}><option value="all">Semua Status</option><option value="unused">Belum Digunakan</option><option value="used">Sudah Digunakan</option><option value="expired">Expired</option></select></div>
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
       {!loading && eventSummaries.length > 0 && <section className="space-y-3">
         <div className="flex items-end justify-between gap-2"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Ringkasan Penjualan</p><h2 className="text-lg font-black text-slate-950">{eventFilter === 'all' ? 'Per Event' : eventSummaries[0].title}</h2></div><span className="text-xs font-semibold text-slate-500">{eventSummaries.length} EVENT</span></div>
@@ -209,7 +213,7 @@ export function TicketAdminTicketsPage() {
       <ImageLightbox src={posterPreview?.src ?? ''} alt={posterPreview?.alt ?? ''} open={Boolean(posterPreview)} onClose={() => setPosterPreview(null)} />
       {loading ? <div className="h-24 skeleton rounded-2xl" /> : !filteredTickets.length ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Belum ada tiket individual terbit untuk filter ini.</div> : <div className="space-y-2">{pageOrders.map((group) => {
         const expanded = expandedOrders.has(group.id);
-        const unusedCount = group.tickets.length - group.usedCount;
+        const unusedCount = group.tickets.filter((ticket) => ticket.status === 'active' && !ticket.checked_in_at).length;
         return <article key={group.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex items-start gap-3 p-3 sm:p-4">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-white"><Ticket className="h-4 w-4" /></span>
@@ -224,6 +228,7 @@ export function TicketAdminTicketsPage() {
                 <span className="rounded-md border border-slate-300 px-2 py-1 text-[10px] font-bold uppercase text-slate-800">{group.category}</span>
                 <span className="rounded-md bg-blue-700 px-2 py-1 text-[10px] font-extrabold tracking-wide text-white">{group.tickets.length} TIKET</span>
                 {group.usedCount > 0 && <span className="text-[10px] font-bold text-slate-600">{group.usedCount} SUDAH CHECK-IN</span>}
+                {group.expiredCount > 0 && <span className="text-[10px] font-bold text-red-700">{group.expiredCount} EXPIRED</span>}
                 {unusedCount > 0 && <span className="text-[10px] font-bold text-emerald-800">{unusedCount} BELUM CHECK-IN</span>}
               </div>
             </div>
@@ -240,7 +245,7 @@ export function TicketAdminTicketsPage() {
             <div className="flex flex-wrap justify-between gap-1 text-[11px] text-slate-600"><span>WhatsApp: <strong className="text-slate-900">{group.whatsapp}</strong></span><span>{formatDate(group.event.date)}</span></div>
             {group.tickets.map((ticket) => <div key={ticket.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
               <div><p className="text-xs font-bold text-slate-900">{group.category.toUpperCase()} · TIKET {ticket.sequence_no}</p>{ticket.checked_in_at && <p className="mt-0.5 text-[10px] text-slate-500">Check-in {new Date(ticket.checked_in_at).toLocaleString('id-ID')}</p>}</div>
-              <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-bold ${ticket.checked_in_at ? 'bg-slate-800 text-white' : 'bg-emerald-700 text-white'}`}>{ticket.checked_in_at ? 'SUDAH DIGUNAKAN' : 'BELUM DIGUNAKAN'}</span>
+              <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-bold ${ticket.checked_in_at ? 'bg-slate-800 text-white' : ticket.status === 'expired' ? 'bg-red-100 text-red-700' : ticket.status === 'revoked' ? 'bg-slate-100 text-slate-600' : 'bg-emerald-700 text-white'}`}>{ticket.checked_in_at ? 'SUDAH DIGUNAKAN' : ticket.status === 'expired' ? 'EXPIRED' : ticket.status === 'revoked' ? 'NONAKTIF' : 'BELUM DIGUNAKAN'}</span>
             </div>)}
           </div>}
         </article>;

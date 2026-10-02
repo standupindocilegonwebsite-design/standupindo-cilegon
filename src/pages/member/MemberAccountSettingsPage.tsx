@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Eye, EyeOff, KeyRound, Save } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
+import { PushNotificationSettings } from '@/components/PushNotificationSettings';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -56,6 +57,7 @@ export function MemberAccountSettingsPage({ router }: { router: Router }) {
     <div className="animate-fade-in">
       <PageHeader router={router} title="Pengaturan Akun" subtitle="Kelola keamanan akun member kamu." />
       <div className="container-app py-6 sm:py-8"><div className="mx-auto max-w-xl">
+        <PushNotificationSettings />
         <form onSubmit={handleSubmit} className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-6">
           <div className="mb-5"><p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">Keamanan akun</p><h2 className="mt-1 text-xl font-black text-slate-900">Ganti Password</h2><p className="mt-1 text-sm text-slate-500">Pastikan password baru mudah diingat dan tidak dibagikan kepada siapa pun.</p></div>
           <div className="space-y-4">{passwordField('current', 'Password saat ini', 'Masukkan password saat ini')}{passwordField('next', 'Password baru', 'Minimal 6 karakter')}{passwordField('confirm', 'Konfirmasi password baru', 'Ulangi password baru')}</div>

@@ -211,7 +211,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
                 </div>
                 <ShareButton
                   title={`${mic.title} — Standupindo Cilegon`}
-                  text={`Yuk ikut ${mic.title} bersama Standupindo Cilegon.\nLihat detail dan daftar sekarang.`}
+                  text={`🎤 OPEN MIC STANDUP COMEDY\n\nMau coba naik panggung dan ngetes materi?\nYuk daftar Open Mic ${mic.title} di Standupindo Cilegon!\n\n📅 ${formatDate(mic.date)}\n⏰ ${mic.time} WIB\n📍 ${mic.venue}${mic.location ? `, ${mic.location}` : ''}\n\n🎟️ Daftar & lihat detail:\n${pageUrl}`}
                   url={pageUrl}
                   image={mic.poster}
                 />

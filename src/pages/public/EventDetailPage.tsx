@@ -189,7 +189,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
               <StatusBadge status={currentStatus} />
               <ShareButton
                 title={`${event.title} — Standupindo Cilegon`}
-                text={`Yuk hadir di ${event.title} bersama Standupindo Cilegon.`}
+                text={`🔥 SIAP-SIAP KETAWA!\n\n${event.title} bakal hadir di ${event.venue}${event.location ? `, ${event.location}` : ''}!\n\n📅 ${formatDate(event.date)}\n⏰ ${event.time} WIB\n\n🎟️ Tiket & info lengkap:\n${pageUrl}`}
                 url={pageUrl}
                 image={event.poster}
               />

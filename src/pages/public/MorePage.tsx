@@ -4,6 +4,7 @@ import type { Router } from '@/lib/router';
 import type { SiteSettings } from '@/lib/types';
 import { PageHeader } from '@/components/PageHeader';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
+import { PushNotificationSettings } from '@/components/PushNotificationSettings';
 
 const ITEMS = [
   { to: '/more/gabung', label: 'Gabung Komunitas', description: 'Jadi bagian dari komunitas Cilegon.', icon: Users },
@@ -22,6 +23,9 @@ export function MorePage({ router, settings }: { router: Router; settings: SiteS
 
       <div className="container-app py-6 sm:py-8">
         <div className="mx-auto max-w-2xl">
+          <div className="mb-4">
+            <PushNotificationSettings />
+          </div>
           <div data-scroll-reveal className="scroll-reveal overflow-hidden rounded-[30px] border border-slate-200 bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.12),_transparent_42%),linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] p-4 shadow-[0_18px_45px_rgba(15,23,42,0.06)] sm:p-6">
             <div className="mb-5 rounded-[24px] border border-blue-100 bg-white/80 p-4 shadow-[0_10px_25px_rgba(37,99,235,0.06)] backdrop-blur-sm sm:p-5">
               <div className="flex items-center gap-4">
