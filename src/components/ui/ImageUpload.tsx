@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Upload, X, ImageIcon, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { PhotoCropper } from '@/components/ui/PhotoCropper';
+import { getImageFileExtension, processImageForUpload, validateImageFile, type ImageProcessingProfile } from '@/lib/image-processing';
 
 interface ImageUploadProps {
   label: string;
@@ -15,24 +16,23 @@ interface ImageUploadProps {
   avatar?: boolean;
   onPreview?: () => void;
   skipCrop?: boolean;
+  processingProfile?: ImageProcessingProfile;
 }
 
-const MAX_SIZE = 5 * 1024 * 1024;
-const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
-
-export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', required = false, onUploadingChange, compact = false, avatar = false, onPreview, skipCrop = false }: ImageUploadProps) {
+export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', required = false, onUploadingChange, compact = false, avatar = false, onPreview, skipCrop = false, processingProfile }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [pendingCropSrc, setPendingCropSrc] = useState<string | null>(null);
+  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
+  const effectiveProcessingProfile = processingProfile
+    ?? (avatar ? 'avatar' : folder.toLowerCase().includes('history') ? 'history-proof' : folder === 'partners' ? 'logo' : 'poster');
 
   const aspectClass = aspect === 'square' ? 'aspect-square' : aspect === 'portrait' ? 'aspect-[3/4]' : aspect === 'landscape' ? 'aspect-video' : 'aspect-[4/3]';
 
   function validate(file: File): string | null {
-    if (!ALLOWED.includes(file.type)) return 'Format file tidak didukung. Gunakan JPG, PNG, atau WEBP.';
-    if (file.size > MAX_SIZE) return 'Ukuran file maksimal 5 MB.';
-    return null;
+    return validateImageFile(file);
   }
 
   async function uploadFile(file: File) {
@@ -42,20 +42,26 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', r
     if (skipCrop) {
       setUploading(true);
       onUploadingChange?.(true);
-      const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const uploadPath = `${folder}/${crypto.randomUUID()}.${extension}`;
-      const { error: uploadError } = await supabase.storage.from('standupindo-media').upload(uploadPath, file, { cacheControl: '3600', upsert: false, contentType: file.type });
-      if (uploadError) {
-        setError('Foto gagal diupload. Coba pilih foto lain.');
-      } else {
+      try {
+        const processedFile = await processImageForUpload(file, effectiveProcessingProfile);
+        const extension = getImageFileExtension(processedFile.type);
+        const uploadPath = `${folder}/${crypto.randomUUID()}.${extension}`;
+        const { error: uploadError } = await supabase.storage.from('standupindo-media').upload(uploadPath, processedFile, { cacheControl: '3600', upsert: false, contentType: processedFile.type });
+        if (uploadError) throw uploadError;
         const { data } = supabase.storage.from('standupindo-media').getPublicUrl(uploadPath);
         onChange(data.publicUrl);
+      } catch (uploadFailure) {
+        const detail = uploadFailure instanceof Error ? uploadFailure.message : 'Kesalahan tidak diketahui.';
+        console.error(`${label} gagal diupload.`, uploadFailure);
+        setError(`Foto gagal diupload: ${detail}`);
+      } finally {
+        setUploading(false);
+        onUploadingChange?.(false);
       }
-      setUploading(false);
-      onUploadingChange?.(false);
       return;
     }
     const objectUrl = URL.createObjectURL(file);
+    setPendingCropFile(file);
     setPendingCropSrc(objectUrl);
   }
 
@@ -154,19 +160,23 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', r
         </div>
       )}
 
-      {pendingCropSrc && (
+      {pendingCropSrc && pendingCropFile && (
         <PhotoCropper
           src={pendingCropSrc}
-          folder={folder}
+            originalFile={pendingCropFile}
+            folder={folder}
+            processingProfile={effectiveProcessingProfile}
           onSave={(url) => {
             onChange(url);
             setPendingCropSrc(null);
-            if (pendingCropSrc.startsWith('blob:')) URL.revokeObjectURL(pendingCropSrc);
-          }}
-          onCancel={() => {
-            setPendingCropSrc(null);
-            if (pendingCropSrc.startsWith('blob:')) URL.revokeObjectURL(pendingCropSrc);
-          }}
+              setPendingCropFile(null);
+              if (pendingCropSrc.startsWith('blob:')) URL.revokeObjectURL(pendingCropSrc);
+            }}
+            onCancel={() => {
+              setPendingCropSrc(null);
+              setPendingCropFile(null);
+              if (pendingCropSrc.startsWith('blob:')) URL.revokeObjectURL(pendingCropSrc);
+            }}
         />
       )}
 

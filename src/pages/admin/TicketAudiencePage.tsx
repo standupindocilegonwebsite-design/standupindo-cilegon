@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, Clock3, LoaderCircle, MessageCircle, Printer, Search, Users } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import type { EventItem } from '@/lib/types';
-import { formatDate, normalizeWhatsappNumber } from '@/lib/format';
+import { formatDate, getEventStatus, normalizeWhatsappNumber } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { TicketPagination } from '@/components/TicketPagination';
 
@@ -43,6 +43,31 @@ interface MaintenanceActivity {
   sends: MaintenanceSend[];
 }
 
+function getEventStartTime(event: EventItem): Date | null {
+  const dateParts = event.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const timeParts = event.time.trim().match(/^(\d{1,2})[.:](\d{2})(?:\s*WIB)?$/i);
+  if (!dateParts || !timeParts) return null;
+
+  const [, year, month, day] = dateParts;
+  const hour = Number(timeParts[1]);
+  const minute = Number(timeParts[2]);
+  if (hour > 23 || minute > 59) return null;
+
+  const start = new Date(Number(year), Number(month) - 1, Number(day), hour, minute);
+  if (start.getFullYear() !== Number(year) || start.getMonth() !== Number(month) - 1 || start.getDate() !== Number(day)) return null;
+  return start;
+}
+
+function getNearestUpcomingEvent(events: EventItem[], now = new Date()): EventItem | null {
+  return events
+    .filter((event) => event.published && getEventStatus(event.status, event.date) === 'upcoming')
+    .map((event) => ({ event, start: getEventStartTime(event) }))
+    .filter((item): item is { event: EventItem; start: Date } => Boolean(item.start && item.start.getTime() > now.getTime()))
+    .sort((first, second) => first.start.getTime() - second.start.getTime()
+      || (first.event.created_at ?? '').localeCompare(second.event.created_at ?? '')
+      || first.event.id.localeCompare(second.event.id))[0]?.event ?? null;
+}
+
 async function loadAudience(eventFilter: string) {
   const { data, error } = await supabase.functions.invoke('ticketing-admin', { body: { action: 'audience', event_filter: eventFilter } });
   if (!error) return { data: data as { guests: AudienceGuest[]; total_buyers: number; total_tickets: number; total_checked_in: number }, error: null as string | null };
@@ -72,6 +97,7 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
   const [messageLoading, setMessageLoading] = useState(false);
   const [messageBusy, setMessageBusy] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<MessageType | null>(null);
+  const [pendingConfirmationEventId, setPendingConfirmationEventId] = useState<string | null>(null);
   const [messageError, setMessageError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -97,6 +123,7 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
     return matchesQuery && matchesAttendance;
   }), [attendanceFilter, guests, search]);
   const pageGuests = filteredGuests.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const nearestUpcomingEvent = getNearestUpcomingEvent(events);
 
   useEffect(() => { setPage(1); }, [attendanceFilter, eventFilter, search]);
   useEffect(() => {
@@ -108,19 +135,26 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
     let active = true;
     setMessageLoading(true);
     setMessageError('');
-    void supabase.functions.invoke('ticketing-admin', {
-      body: { action: 'maintenance-list', event_filter: messageTarget.eventId },
-    }).then(({ data, error: requestError }) => {
+    setMessageActivities([]);
+    const eventIds = [...new Set([messageTarget.eventId, nearestUpcomingEvent?.id].filter((id): id is string => Boolean(id)))];
+    void Promise.all(eventIds.map((eventId) => supabase.functions.invoke('ticketing-admin', {
+      body: { action: 'maintenance-list', event_filter: eventId },
+    }))).then((responses) => {
       if (!active) return;
       setMessageLoading(false);
-      if (requestError) {
-        setMessageError(requestError.message);
+      const failedResponse = responses.find((response) => response.error);
+      if (failedResponse?.error) {
+        setMessageError(failedResponse.error.message);
         return;
       }
-      setMessageActivities((data?.activities as MaintenanceActivity[] | undefined) ?? []);
+      setMessageActivities(responses.flatMap((response) => (response.data?.activities as MaintenanceActivity[] | undefined) ?? []));
+    }).catch((requestError: unknown) => {
+      if (!active) return;
+      setMessageLoading(false);
+      setMessageError(requestError instanceof Error ? requestError.message : 'Status pesan WhatsApp gagal dimuat.');
     });
     return () => { active = false; };
-  }, [messageTarget]);
+  }, [messageTarget, nearestUpcomingEvent?.id]);
 
   function exportCsv() {
     const rows: Array<Array<string | number>> = [['Nama', 'WhatsApp', 'Event', 'Jumlah Order', 'Jumlah Tiket', 'Check-in', 'Belum Check-in', 'Nomor Order']];
@@ -145,30 +179,50 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
   const targetEvent = messageTarget ? events.find((event) => event.id === messageTarget.eventId) : null;
 
   function messageFor(type: MessageType, guest: AudienceGuest, event: EventItem) {
-    const eventLink = `https://standupindocilegon.id/event/${event.slug}`;
-    const guestName = `*${guest.full_name}*`;
+    const eventLink = new URL(`/event/${encodeURIComponent(event.slug)}`, window.location.origin).toString();
+    const guestName = `Kak *${guest.full_name.trim()}*`;
     const eventTitle = `*${event.title}*`;
-    const eventDateTime = `*${formatDate(event.date)} · ${event.time}*`;
-    if (type === 'thanks') return `Halo ${guestName}, terima kasih sudah hadir di ${eventTitle}!\n\nSampai bertemu di acara berikutnya.\n${eventLink}`;
-    if (type === 'upcoming_event') return `Halo ${guestName}, ada Event mendatang dari Standupindo Cilegon!\n\n${eventTitle}\n${eventDateTime}\n${event.venue}\n${event.location}\n${eventLink}`;
-    return `Halo ${guestName}, kami ingin mengajak kamu hadir di ${eventTitle}!\n\n${eventDateTime}\n${event.venue}\n${eventLink}`;
+    const eventDate = `*${formatDate(event.date)}*`;
+    const eventLocation = `*${[event.venue, event.location].map((value) => value.trim()).filter((value, index, values) => value && values.indexOf(value) === index).join(' · ')}*`;
+    const rawTime = event.time.trim();
+    const eventTime = `*${/\bWIB\b/i.test(rawTime) ? rawTime : `${rawTime} WIB`}*`;
+
+    if (type === 'thanks') {
+      return `Terima kasih ${guestName} sudah hadir di ${eventTitle} 🙌\n\nSemoga acaranya berkesan dan sampai ketemu lagi di event Standupindo Cilegon berikutnya.\n\n📅 ${eventDate}\n📍 ${eventLocation}\n🕐 ${eventTime}\n\n${eventLink}`;
+    }
+    if (type === 'upcoming_event') {
+      return `Halo ${guestName} 👋\n\nAda event baru nih di Standupindo Cilegon.\n\n🎭 ${eventTitle}\n📅 ${eventDate}\n📍 ${eventLocation}\n🕐 ${eventTime}\n\nKalau tertarik, info dan tiketnya bisa dicek di sini:\n${eventLink}`;
+    }
+    return `Halo ${guestName} 👋\n\nBuat Kakak yang sebelumnya sudah nonton bareng kami, kami ingin berbagi info event mendatang.\n\n🎭 ${eventTitle}\n📅 ${eventDate}\n📍 ${eventLocation}\n🕐 ${eventTime}\n\n${eventLink}`;
   }
 
-  function activityFor(type: MessageType) {
+  function activityFor(type: MessageType, eventId: string) {
     if (!messageTarget) return undefined;
     const whatsapp = normalizeWhatsappNumber(messageTarget.guest.whatsapp);
     return messageActivities.find((activity) =>
-      activity.event_id === messageTarget.eventId
+      activity.event_id === eventId
       && activity.activity_type === type
       && normalizeWhatsappNumber(activity.whatsapp_normalized) === whatsapp,
     );
   }
 
   async function sendTemplate(type: MessageType) {
-    if (!messageTarget || !targetEvent) return;
+    if (!messageTarget) return;
     const guest = messageTarget.guest;
-    const existing = activityFor(type);
-    const message = messageFor(type, guest, targetEvent);
+    const attendedEvent = guest.events.find((event) => event.event_id === messageTarget.eventId);
+    const messageEvent = type === 'thanks'
+      ? events.find((event) => event.id === messageTarget.eventId)
+      : getNearestUpcomingEvent(events);
+    if (type === 'thanks' && (!attendedEvent || attendedEvent.checked_in <= 0)) {
+      setMessageError('Pesan Thanks hanya dapat dikirim kepada penonton yang sudah check-in di event ini.');
+      return;
+    }
+    if (!messageEvent) {
+      setMessageError(type === 'thanks' ? 'Data event yang dihadiri tidak tersedia.' : 'Belum ada event mendatang yang dapat dipromosikan.');
+      return;
+    }
+    const existing = activityFor(type, messageEvent.id);
+    const message = messageFor(type, guest, messageEvent);
     const phone = normalizeWhatsappNumber(guest.whatsapp);
     if (!phone) {
       setMessageError('Nomor WhatsApp tidak valid.');
@@ -183,6 +237,7 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
     popup.opener = null;
     setMessageError('');
     setPendingConfirmation(type);
+    setPendingConfirmationEventId(messageEvent.id);
     if (existing) return;
 
     setMessageBusy(type);
@@ -190,7 +245,7 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
       const { data, error: saveError } = await supabase.functions.invoke('ticketing-admin', {
         body: {
           action: 'maintenance-create',
-          event_id: messageTarget.eventId,
+          event_id: messageEvent.id,
           activity_type: type,
           recipient_name: guest.full_name,
           recipient_whatsapp: guest.whatsapp,
@@ -211,7 +266,10 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
   }
 
   async function markTemplateSent(type: MessageType) {
-    const activity = activityFor(type);
+    if (!messageTarget) return;
+    const eventId = type === 'thanks' ? messageTarget.eventId : pendingConfirmationEventId;
+    if (!eventId) return;
+    const activity = activityFor(type, eventId);
     if (!activity) return;
     setMessageBusy(type);
     setMessageError('');
@@ -227,6 +285,7 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
       ? { ...item, delivery_status: 'sent', sends: [{ sent_at: data.sent_at }, ...(item.sends ?? [])] }
       : item));
     setPendingConfirmation(null);
+    setPendingConfirmationEventId(null);
   }
 
   return (
@@ -241,7 +300,7 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
       })}</div>}
       <TicketPagination page={page} pageSize={PAGE_SIZE} total={filteredGuests.length} onPageChange={setPage} />
       <div className="hidden print:block"><div className="print-brand"><h1>DATABASE PENONTON</h1><p>Standupindo Cilegon</p></div><table><thead><tr><th>Nama</th><th>WhatsApp</th><th>Event</th><th>Order</th><th>Tiket</th><th>Check-in</th><th>Belum Check-in</th></tr></thead><tbody>{filteredGuests.flatMap((guest) => guest.events.map((event) => <tr key={`${guest.whatsapp}-${event.event_id}`}><td>{guest.full_name}</td><td>{guest.whatsapp}</td><td>{event.title}</td><td>{event.order_count}</td><td>{event.ticket_count}</td><td>{event.checked_in}</td><td>{event.not_checked_in}</td></tr>))}</tbody></table></div>
-      <Modal open={Boolean(messageTarget)} onClose={() => { setMessageTarget(null); setMessageActivities([]); setMessageError(''); setPendingConfirmation(null); }} title="Pesan WhatsApp" size="sm">
+      <Modal open={Boolean(messageTarget)} onClose={() => { setMessageTarget(null); setMessageActivities([]); setMessageError(''); setPendingConfirmation(null); setPendingConfirmationEventId(null); }} title="Pesan WhatsApp" size="sm">
         {messageTarget && <div className="space-y-3">
           <div className="truncate rounded-lg bg-blue-50 px-3 py-2 text-xs text-slate-700"><span className="font-bold">{messageTarget.guest.full_name}</span> · {targetEvent?.title ?? 'Event'}</div>
           <p className="text-xs text-slate-500">Pilih template. Setelah mengirim di WhatsApp, konfirmasi dengan ikon centang.</p>
@@ -251,7 +310,8 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
             { type: 'upcoming_event' as const, title: 'Event Mendatang' },
             { type: 'promo' as const, title: 'Promo' },
           ]).map(({ type, title }) => {
-            const activity = activityFor(type);
+            const messageEventId = type === 'thanks' ? messageTarget.eventId : nearestUpcomingEvent?.id;
+            const activity = messageEventId ? activityFor(type, messageEventId) : undefined;
             const sent = activity?.delivery_status === 'sent';
             const working = messageBusy === type;
             return <article key={type} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">

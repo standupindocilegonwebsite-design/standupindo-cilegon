@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, CreditCard, Eye, Tick
 import type { Router } from '@/lib/router';
 import { LOGO_URL, type EventItem, type EventTicket } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { getImageFileExtension, processImageForUpload, validateImageFile } from '@/lib/image-processing';
 import { PageHeader } from '@/components/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -196,12 +197,9 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
       setError('Pilih bukti transfer sebelum mengirim order.');
       return;
     }
-    if (proofFile.size > 5 * 1024 * 1024) {
-      setError('Ukuran bukti pembayaran maksimal 5 MB.');
-      return;
-    }
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(proofFile.type)) {
-      setError('Gunakan bukti pembayaran JPG, PNG, atau WEBP.');
+    const proofValidationError = validateImageFile(proofFile);
+    if (proofValidationError) {
+      setError(proofValidationError);
       return;
     }
     setError('');
@@ -214,12 +212,9 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
       setError('Pilih bukti pembayaran terlebih dahulu.');
       return;
     }
-    if (proofFile.size > 5 * 1024 * 1024) {
-      setError('Ukuran bukti pembayaran maksimal 5 MB.');
-      return;
-    }
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(proofFile.type)) {
-      setError('Gunakan bukti pembayaran JPG, PNG, atau WEBP.');
+    const proofValidationError = validateImageFile(proofFile);
+    if (proofValidationError) {
+      setError(proofValidationError);
       return;
     }
     setError('');
@@ -230,6 +225,15 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
     if (!event || !ticket || !proofFile) return;
     setUploadingProof(true);
     setError('');
+    let uploadFile: Blob;
+    try {
+      uploadFile = await processImageForUpload(proofFile, 'payment-proof');
+    } catch (processingError) {
+      console.error('Bukti pembayaran gagal diproses.', processingError);
+      setUploadingProof(false);
+      setError(processingError instanceof Error ? processingError.message : 'Bukti pembayaran gagal diproses.');
+      return;
+    }
     let order = savedOrder;
     if (!order) {
       if (!paymentMethod) {
@@ -268,14 +272,20 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
       setSavedOrder(order);
     }
     const { data: uploadData, error: uploadLinkError } = await supabase.functions.invoke('ticketing-public', {
-      body: { action: 'create-proof-upload', order_id: order.id, whatsapp: form.whatsapp, file_name: proofFile.name, file_type: proofFile.type },
+      body: {
+        action: 'create-proof-upload',
+        order_id: order.id,
+        whatsapp: form.whatsapp,
+        file_name: `${proofFile.name.replace(/\.[^.]+$/, '')}.${getImageFileExtension(uploadFile.type)}`,
+        file_type: uploadFile.type,
+      },
     });
     if (uploadLinkError || uploadData?.error) {
       setUploadingProof(false);
       setError(uploadLinkError?.message ?? uploadData?.error ?? 'Link upload bukti gagal dibuat.');
       return;
     }
-    const { error: fileError } = await supabase.storage.from('ticket-payment-proofs').uploadToSignedUrl(uploadData.path, uploadData.token, proofFile, { contentType: proofFile.type, upsert: false });
+    const { error: fileError } = await supabase.storage.from('ticket-payment-proofs').uploadToSignedUrl(uploadData.path, uploadData.token, uploadFile, { contentType: uploadFile.type, upsert: false });
     if (fileError) {
       setUploadingProof(false);
       setError('Bukti pembayaran gagal diupload. Coba pilih ulang file.');

@@ -3,6 +3,7 @@ import { Building2, Check, CreditCard, ImagePlus, Pencil, Plus, Power, Save, Tra
 import type { TicketPaymentMethod } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
+import { getImageFileExtension, processImageForUpload, validateImageFile } from '@/lib/image-processing';
 
 interface EventOption { id: string; title: string; date: string; status: string; }
 type PaymentDraft = { id?: string; event_id: string; recipient_name: string; bank_name: string; account_number: string; qris_storage_path: string; note: string };
@@ -64,18 +65,34 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
     setError('');
     let qrisPath = draft.qris_storage_path;
     if (qrisFile) {
-      if (qrisFile.size > 5 * 1024 * 1024) {
+      const validationError = validateImageFile(qrisFile);
+      if (validationError) {
         setSaving(false);
-        setError('Ukuran QRIS maksimal 5 MB.');
+        setError(validationError);
         return;
       }
-      const { data: upload, error: uploadError } = await paymentAction<{ path: string; token: string }>({ action: 'create-qris-upload', event_id: draft.event_id, file_name: qrisFile.name, file_type: qrisFile.type });
+      let uploadFile: Blob;
+      try {
+        uploadFile = await processImageForUpload(qrisFile, 'qris');
+      } catch (processingError) {
+        console.error('QRIS gagal diproses.', processingError);
+        setSaving(false);
+        setError(processingError instanceof Error ? processingError.message : 'QRIS gagal diproses.');
+        return;
+      }
+      const uploadName = `${qrisFile.name.replace(/\.[^.]+$/, '')}.${getImageFileExtension(uploadFile.type)}`;
+      const { data: upload, error: uploadError } = await paymentAction<{ path: string; token: string }>({
+        action: 'create-qris-upload',
+        event_id: draft.event_id,
+        file_name: uploadName,
+        file_type: uploadFile.type,
+      });
       if (uploadError || !upload) {
         setSaving(false);
         setError(uploadError ?? 'Link upload QRIS gagal dibuat.');
         return;
       }
-      const { error: storageError } = await supabase.storage.from('standupindo-media').uploadToSignedUrl(upload.path, upload.token, qrisFile, { contentType: qrisFile.type, upsert: false });
+      const { error: storageError } = await supabase.storage.from('standupindo-media').uploadToSignedUrl(upload.path, upload.token, uploadFile, { contentType: uploadFile.type, upsert: false });
       if (storageError) {
         setSaving(false);
         setError('QRIS gagal diupload.');

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { AlertCircle, ImagePlus, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getImageFileExtension, processImageForUpload, validateImageFile } from '@/lib/image-processing';
 
 interface MultiImageUploadProps {
   label: string;
@@ -10,9 +11,6 @@ interface MultiImageUploadProps {
   maxFiles?: number;
   onUploadingChange?: (uploading: boolean) => void;
 }
-
-const MAX_SIZE = 5 * 1024 * 1024;
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export function MultiImageUpload({ label, folder, value, onChange, maxFiles = 15, onUploadingChange }: MultiImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -29,12 +27,9 @@ export function MultiImageUpload({ label, folder, value, onChange, maxFiles = 15
 
     const errors: string[] = [];
     const validFiles = selectedFiles.filter((file) => {
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        errors.push(`${file.name}: gunakan JPG, PNG, atau WEBP.`);
-        return false;
-      }
-      if (file.size > MAX_SIZE) {
-        errors.push(`${file.name}: ukuran maksimal 5 MB.`);
+      const validationError = validateImageFile(file);
+      if (validationError) {
+        errors.push(`${file.name}: ${validationError}`);
         return false;
       }
       return true;
@@ -54,25 +49,34 @@ export function MultiImageUpload({ label, folder, value, onChange, maxFiles = 15
     const failedFiles: string[] = [];
     try {
       for (const [index, file] of validFiles.entries()) {
-        setUploadProgress(`Mengupload ${index + 1}/${validFiles.length}...`);
-        const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-        const path = `${folder}/${crypto.randomUUID()}.${extension}`;
-        const { error: uploadError } = await supabase.storage
-          .from('standupindo-media')
-          .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
-        if (uploadError) {
-          failedFiles.push(file.name);
+        try {
+          setUploadProgress(`Memproses ${index + 1}/${validFiles.length}...`);
+          const uploadFile = await processImageForUpload(file, 'documentation');
+          setUploadProgress(`Mengupload ${index + 1}/${validFiles.length}...`);
+          const extension = getImageFileExtension(uploadFile.type);
+          const path = `${folder}/${crypto.randomUUID()}.${extension}`;
+          const { error: uploadError } = await supabase.storage
+            .from('standupindo-media')
+            .upload(path, uploadFile, { cacheControl: '3600', upsert: false, contentType: uploadFile.type });
+          if (uploadError) {
+            failedFiles.push(`${file.name} (${uploadError.message})`);
+            continue;
+          }
+          const { data } = supabase.storage.from('standupindo-media').getPublicUrl(path);
+          uploadedUrls.push(data.publicUrl);
+        } catch (fileFailure) {
+          const detail = fileFailure instanceof Error ? fileFailure.message : 'Kesalahan tidak diketahui.';
+          failedFiles.push(`${file.name} (${detail})`);
           continue;
         }
-        const { data } = supabase.storage.from('standupindo-media').getPublicUrl(path);
-        uploadedUrls.push(data.publicUrl);
       }
       if (uploadedUrls.length > 0) onChange([...value, ...uploadedUrls]);
       if (failedFiles.length > 0) errors.push(`Gagal mengupload: ${failedFiles.join(', ')}.`);
       setError(errors.join(' '));
     } catch (uploadFailure) {
       console.error('Dokumentasi event gagal diupload.', uploadFailure);
-      setError('Foto dokumentasi gagal diupload karena masalah koneksi. Coba lagi.');
+      const detail = uploadFailure instanceof Error ? uploadFailure.message : 'Kesalahan tidak diketahui.';
+      setError(`Foto dokumentasi gagal diupload: ${detail}`);
     } finally {
       setUploading(false);
       setUploadProgress('');

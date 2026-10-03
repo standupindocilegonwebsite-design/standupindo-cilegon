@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock, ExternalLink, Info, MessageCircle, Ticket } from 'lucide-react';
+import { Calendar, ChevronDown, ClipboardList, Clock, ExternalLink, Info, MessageCircle, Ticket } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { EventItem, EventTicket, EventPartnership, Partner, SiteSettings } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -74,15 +74,9 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const [tickets, setTickets] = useState<EventTicket[]>([]);
   const [lineup, setLineup] = useState<{ id: string; stage_name: string; community: string | null; instagram: string | null }[]>([]);
   const [partnersByRole, setPartnersByRole] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const documentationGalleryRef = useRef<HTMLDivElement>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [infoTab, setInfoTab] = useState<'about' | 'rules'>('about');
   const [infoExpanded, setInfoExpanded] = useState(false);
-
-  function scrollDocumentationGallery(direction: -1 | 1) {
-    const gallery = documentationGalleryRef.current;
-    if (gallery) gallery.scrollBy({ left: direction * gallery.clientWidth, behavior: 'smooth' });
-  }
 
   useEffect(() => {
     (async () => {
@@ -206,7 +200,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
               <div className="border-t border-slate-100"><LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="items-center gap-2.5 !rounded-none !border-0 !shadow-none !px-3.5 !py-3" /></div>
               <div className="flex items-center gap-2.5 border-t border-slate-100 px-3.5 py-3"><Ticket className="h-5 w-5 shrink-0 text-blue-600" /> <span className="font-bold text-slate-900">{formatPrice(cheapestTicketPrice)}</span></div>
             </div>
-            <NoSmokeAreaNotice detail context="event" />
+            {currentStatus !== 'completed' && <NoSmokeAreaNotice detail context="event" />}
 
             {currentStatus === 'upcoming' && (
               <div className="space-y-2">
@@ -287,27 +281,29 @@ export function EventDetailPage({ router, slug, settings }: Props) {
                 <h2 className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">Foto Dokumentasi</h2>
               </div>
               {(event.documentation_photos ?? []).length > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="mr-1 text-xs font-semibold text-slate-500">{event.documentation_photos.length} foto</span>
-                  <button type="button" aria-label="Foto sebelumnya" onClick={() => scrollDocumentationGallery(-1)} className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50">
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <button type="button" aria-label="Foto berikutnya" onClick={() => scrollDocumentationGallery(1)} className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50">
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
+                <span className="text-xs font-semibold text-slate-500">{event.documentation_photos.length} foto</span>
               )}
             </div>
             {(event.documentation_photos ?? []).length > 0 ? (
               <>
-                <div ref={documentationGalleryRef} className="grid auto-cols-[calc((100%_-_0.75rem)_/_2)] grid-flow-col gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2">
-                  {event.documentation_photos.map((photo, index) => (
-                    <button key={`${photo}-${index}`} type="button" onClick={() => setLightboxImage(photo)} aria-label={`Lihat foto dokumentasi ${index + 1}`} className="group relative aspect-[4/3] min-w-0 snap-start overflow-hidden rounded-2xl bg-slate-100 text-left">
-                      <img src={photo} alt={`${event.title} — dokumentasi ${index + 1}`} loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                    </button>
-                  ))}
+                <div className="flex gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2">
+                  {Array.from({ length: Math.ceil(event.documentation_photos.length / 4) }, (_, pageIndex) => {
+                    const photos = event.documentation_photos.slice(pageIndex * 4, pageIndex * 4 + 4);
+                    return (
+                      <div key={pageIndex} className="grid min-w-full snap-start grid-cols-2 grid-rows-2 gap-3">
+                        {photos.map((photo, photoIndex) => {
+                          const index = pageIndex * 4 + photoIndex;
+                          return (
+                            <button key={`${photo}-${index}`} type="button" onClick={() => setLightboxIndex(index)} aria-label={`Lihat foto dokumentasi ${index + 1}`} className="group relative aspect-[4/3] min-w-0 overflow-hidden rounded-2xl bg-slate-100 text-left">
+                              <img src={photo} alt={`${event.title} — dokumentasi ${index + 1}`} loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
                 </div>
-                <p className="mt-2 text-xs font-medium text-slate-500">Geser untuk melihat foto lainnya. Pilih foto untuk memperbesar.</p>
+                <p className="mt-2 text-xs font-medium text-slate-500">Geser untuk melihat halaman foto lainnya. Pilih foto untuk memperbesar.</p>
               </>
             ) : (
               <EmptyState title="Foto dokumentasi belum tersedia." />
@@ -396,8 +392,16 @@ export function EventDetailPage({ router, slug, settings }: Props) {
         )}
       </div>
 
-      {lightboxImage && (
-        <ImageLightbox src={lightboxImage} alt={`${event.title} — foto`} open onClose={() => setLightboxImage(null)} />
+      {lightboxIndex !== null && event.documentation_photos[lightboxIndex] && (
+        <ImageLightbox
+          src={event.documentation_photos[lightboxIndex]}
+          alt={`${event.title} — dokumentasi ${lightboxIndex + 1}`}
+          open
+          onClose={() => setLightboxIndex(null)}
+          onPrevious={() => setLightboxIndex((index) => index === null ? null : (index - 1 + event.documentation_photos.length) % event.documentation_photos.length)}
+          onNext={() => setLightboxIndex((index) => index === null ? null : (index + 1) % event.documentation_photos.length)}
+          positionLabel={`${lightboxIndex + 1} / ${event.documentation_photos.length}`}
+        />
       )}
     </div>
   );

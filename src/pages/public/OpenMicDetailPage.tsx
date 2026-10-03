@@ -1,6 +1,6 @@
 import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { useEffect, useState } from 'react';
-import { Calendar, Check, CheckCircle2, ChevronDown, Clock, Copy, Info, Instagram, Mic, Send, Ticket } from 'lucide-react';
+import { Calendar, Check, CheckCircle2, ChevronDown, Clock, Info, Instagram, Mic, Search, Send, Ticket, X } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { OpenMic, OpenMicRegistration } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -11,7 +11,6 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { OpenMicCard } from '@/components/cards/OpenMicCard';
 import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
-import { Modal } from '@/components/ui/Modal';
 import { ShareButton } from '@/components/ui/ShareButton';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
 
@@ -41,9 +40,10 @@ export function OpenMicDetailPage({ router, slug }: Props) {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [otherLineups, setOtherLineups] = useState<Record<string, string[]>>({});
   const [lightbox, setLightbox] = useState(false);
-  const [shareFallbackOpen, setShareFallbackOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [stageInfoExpanded, setStageInfoExpanded] = useState(false);
+  const [lineupSearch, setLineupSearch] = useState('');
+  const [otherMicSearch, setOtherMicSearch] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -154,35 +154,47 @@ export function OpenMicDetailPage({ router, slug }: Props) {
   const pageUrl = `${window.location.origin}/open-mic/${mic.slug}`;
   const lineupText = confirmed.map((r) => `• ${r.stage_name}`).join('\n');
   const shareTitle = `${mic.title} — Standupindo Cilegon`;
-  const shareImage = mic.poster;
   const openMicNumbers = getOpenMicNumbers(numberedMics.length > 0 ? numberedMics : [mic]);
+  const normalizedLineupSearch = lineupSearch.trim().toLocaleLowerCase();
+  const filteredLineup = normalizedLineupSearch
+    ? confirmed.filter((registration) => [
+      registration.stage_name,
+      registration.instagram,
+      registration.community,
+    ].some((value) => value?.toLocaleLowerCase().includes(normalizedLineupSearch)))
+    : confirmed;
+  const normalizedOtherMicSearch = otherMicSearch.trim().toLocaleLowerCase();
+  const filteredOtherMics = normalizedOtherMicSearch
+    ? otherMics.filter((otherMic) => [
+      otherMic.title,
+      otherMic.venue,
+      otherMic.location,
+    ].some((value) => value?.toLocaleLowerCase().includes(normalizedOtherMicSearch)))
+    : otherMics.slice(0, 3);
   const shareText = [`Lineup *${mic.title}*`, 'Standupindo Cilegon', '', 'Komika:', lineupText || 'Belum ada komika yang dikonfirmasi.', '', `📍 *${mic.venue}${mic.location ? `, ${mic.location}` : ''}*`, `📅 ${formatDate(mic.date)}`, `⏰ *${mic.time} WIB*`, '', 'Lihat lineup lengkap:'].join('\n');
 
   async function shareLineup() {
-    if (typeof navigator.share === 'function') {
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
-        if (shareImage && typeof navigator.canShare === 'function' && typeof File !== 'undefined') {
-          const response = await fetch(shareImage);
-          const blob = await response.blob();
-          const file = new File([blob], 'open-mic-lineup.jpg', { type: blob.type || 'image/jpeg' });
-          if (navigator.canShare({ files: [file] })) {
-            await navigator.share({ title: shareTitle, text: `${shareText}\n${pageUrl}`, url: pageUrl, files: [file] });
-            return;
-          }
-        }
         await navigator.share({ title: shareTitle, text: `${shareText}\n${pageUrl}`, url: pageUrl });
         return;
       } catch (error) {
-        if ((error as DOMException).name === 'AbortError') return;
+        if ((error as DOMException)?.name === 'AbortError') return;
+        console.error('Gagal membuka native share sheet untuk lineup.', error);
+        return;
       }
     }
-    setShareFallbackOpen(true);
+    await copyLineupLink();
   }
 
   async function copyLineupLink() {
-    await navigator.clipboard.writeText(pageUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(pageUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Gagal menyalin link lineup.', error);
+    }
   }
 
   return (
@@ -224,7 +236,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
               </div>
 
               <p className="text-sm font-bold text-slate-900 sm:text-base">{filled} Komika</p>
-              <NoSmokeAreaNotice detail context="open-mic" />
+              {currentStatus !== 'completed' && <NoSmokeAreaNotice detail context="open-mic" />}
 
               {currentStatus === 'upcoming' && !closed && !isFull && (
                 <button onClick={() => router.navigate(`/open-mic/${mic.slug}/daftar`)} className="btn-primary w-full !py-2.75 text-sm sm:!py-3 sm:text-base">
@@ -279,16 +291,31 @@ export function OpenMicDetailPage({ router, slug }: Props) {
               <h2 className="text-lg font-bold text-slate-900 sm:text-xl">{currentStatus === 'completed' ? 'Arsip Lineup' : 'Lineup'}</h2>
               <p className="mt-1 text-sm font-semibold text-slate-800">{confirmed.length} Komika {currentStatus === 'completed' ? 'tampil' : 'terdaftar'}</p>
             </div>
-            <button onClick={() => void shareLineup()} aria-label="Bagikan lineup" title="Bagikan lineup" className="inline-flex shrink-0 items-center justify-center rounded-full bg-blue-50 p-2.5 text-blue-700 transition hover:bg-blue-100 active:scale-[0.98]">
-              <Send className="h-4 w-4" />
+            <button onClick={() => void shareLineup()} aria-label={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} title={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} className="inline-flex shrink-0 items-center justify-center rounded-full bg-blue-50 p-2.5 text-blue-700 transition hover:bg-blue-100 active:scale-[0.98]">
+              {copied ? <Check className="h-4 w-4 text-green-600" /> : <Send className="h-4 w-4" />}
             </button>
           </div>
           {confirmed.length === 0 ? (
             <EmptyState title={currentStatus === 'completed' ? 'Belum ada lineup yang ditandai tampil.' : 'Belum ada lineup yang terkonfirmasi.'} description={currentStatus === 'completed' ? 'Lineup arsip akan muncul setelah penampilan ditandai admin.' : 'Lineup akan muncul setelah pendaftar dikonfirmasi admin.'} />
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+            <>
+              <label className="relative mb-3 block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="search"
+                  value={lineupSearch}
+                  onChange={(event) => setLineupSearch(event.target.value)}
+                  placeholder="Cari nama panggung, Instagram, atau komunitas"
+                  aria-label="Cari komika di lineup ini"
+                  className="input-field !pl-10"
+                />
+              </label>
+              {filteredLineup.length === 0 ? (
+                <p className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">Tidak ada komika di lineup ini yang cocok dengan pencarian.</p>
+              ) : (
+            <div className="overflow-x-auto rounded-2xl border border-slate-300 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70">
               <table className="w-full min-w-[500px] table-fixed text-left">
-                <thead className="border-b border-slate-200/80 bg-slate-50/70 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                <thead className="border-b-2 border-blue-800 bg-blue-700 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white">
                   <tr>
                     <th className="w-[38%] px-3 py-2.5 sm:px-4">Komika</th>
                     <th className="w-[37%] px-3 py-2.5 sm:px-4">Instagram</th>
@@ -296,10 +323,10 @@ export function OpenMicDetailPage({ router, slug }: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100/80">
-                  {confirmed.map((r) => {
+                  {filteredLineup.map((r, index) => {
                     const ig = normalizeInstagram(r.instagram);
                     return (
-                      <tr key={r.id} className="text-sm transition-colors hover:bg-slate-50/60">
+                      <tr key={r.id} className={`text-sm transition-colors ${index % 2 === 0 ? 'bg-white hover:bg-blue-100' : 'bg-slate-100 hover:bg-blue-100'}`}>
                         <td className="px-3 py-3 sm:px-4">
                           <p className="truncate font-bold text-slate-900">{r.stage_name}</p>
                           {r.community && <p className="truncate text-xs text-slate-500">{r.community}</p>}
@@ -323,6 +350,8 @@ export function OpenMicDetailPage({ router, slug }: Props) {
                 </tbody>
               </table>
             </div>
+              )}
+            </>
           )}
         </section>
 
@@ -335,9 +364,34 @@ export function OpenMicDetailPage({ router, slug }: Props) {
                 Lainnya
               </span>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
-              {otherMics.map((m) => <OpenMicCard key={m.id} mic={m} openMicNumber={openMicNumbers.get(m.id)} confirmedCount={counts[m.id] ?? 0} lineup={otherLineups[m.id]} router={router} />)}
+            <label className="relative mb-3 block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={otherMicSearch}
+                onChange={(event) => setOtherMicSearch(event.target.value)}
+                placeholder="Cari Open Mic lain"
+                aria-label="Cari Open Mic lainnya"
+                className="input-field !pl-10 !pr-10"
+              />
+              {otherMicSearch && (
+                <button
+                  type="button"
+                  onClick={() => setOtherMicSearch('')}
+                  aria-label="Hapus pencarian Open Mic"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </label>
+            {filteredOtherMics.length === 0 ? (
+              <p className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">Tidak ada Open Mic yang cocok dengan pencarian.</p>
+            ) : (
+            <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+              {filteredOtherMics.map((m) => <OpenMicCard key={m.id} mic={m} openMicNumber={openMicNumbers.get(m.id)} confirmedCount={counts[m.id] ?? 0} lineup={otherLineups[m.id]} router={router} compact />)}
             </div>
+            )}
           </section>
         )}
       </div>
@@ -346,15 +400,6 @@ export function OpenMicDetailPage({ router, slug }: Props) {
         <ImageLightbox src={mic.poster} alt={`${mic.title} poster`} open={lightbox} onClose={() => setLightbox(false)} />
       )}
 
-      <Modal open={shareFallbackOpen} onClose={() => setShareFallbackOpen(false)} title="Bagikan Lineup" size="sm">
-        <div className="space-y-2">
-          <button onClick={() => void copyLineupLink()} className="flex w-full items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">
-            {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4 text-blue-600" />} {copied ? 'Link berhasil disalin' : 'Salin Link'}
-          </button>
-          <a href={`https://wa.me/?text=${encodeURIComponent(`${shareText}\n${pageUrl}`)}`} target="_blank" rel="noopener noreferrer" className="flex w-full items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Bagikan ke WhatsApp</a>
-          <a href={`https://t.me/share/url?url=${encodeURIComponent(pageUrl)}&text=${encodeURIComponent(shareText)}`} target="_blank" rel="noopener noreferrer" className="flex w-full items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Bagikan ke Telegram</a>
-        </div>
-      </Modal>
     </div>
   );
 }

@@ -218,6 +218,16 @@ serve(async (request) => {
       if (eventError || !event) return json({ error: 'Event tidak ditemukan.' }, 404);
       if (event.status === 'completed') return json({ error_code: 'event_completed', error: 'Kode Akses sudah tidak berlaku karena Event telah selesai' }, 410);
 
+      const { data: checkinSettings, error: checkinSettingsError } = await serviceClient.from('event_checkin_settings')
+        .select('closes_at').eq('event_id', event.id).maybeSingle();
+      if (checkinSettingsError) return json({ error: 'Periode check-in Event gagal dimuat.' }, 500);
+      if (checkinSettings && new Date(checkinSettings.closes_at).getTime() <= Date.now()) {
+        const { error: ticketExpiryError } = await serviceClient.from('ticket_instances')
+          .update({ status: 'expired', updated_at: new Date().toISOString() })
+          .eq('event_id', event.id).eq('status', 'active').is('checked_in_at', null);
+        if (ticketExpiryError) return json({ error: 'Tiket yang masa check-in-nya berakhir gagal diperbarui.' }, 500);
+      }
+
       const { data: orders, error: orderError } = await fetchAllPages((from, to) => serviceClient.from('ticket_orders')
         .select('id, order_number, full_name, ticket_category, quantity, unit_price, total_price, status, created_at')
         .eq('event_id', event.id).eq('access_code_id', accessCode.id).eq('whatsapp', accessCode.whatsapp_normalized)

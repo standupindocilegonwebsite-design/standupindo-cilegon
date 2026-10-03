@@ -31,6 +31,14 @@ import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
 interface Props { router: Router; settings: SiteSettings; }
 type Section = 'dashboard' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'ticket-gates' | 'check-in-report' | 'maintenance' | 'more';
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+  return 'Kesalahan tidak diketahui.';
+}
+
 const NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   { key: 'open-mic', label: 'Open Mic', icon: Mic },
@@ -665,11 +673,12 @@ export function AdminPage({ router, settings }: Props) {
   const [editing, setEditing] = useState<OpenMic | EventItem | Komika | Partner | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
+  const isErrorNotice = /gagal|tidak berhasil|tidak dapat/i.test(notice);
   const [deleteTarget, setDeleteTarget] = useState<{ table: 'open_mics' | 'events' | 'komika' | 'partners'; id: string } | null>(null);
   const [ticketDeleteTarget, setTicketDeleteTarget] = useState<string | null>(null);
   const [ticketEvent, setTicketEvent] = useState<EventItem | null>(null);
   const [partnershipEvent, setPartnershipEvent] = useState<EventItem | null>(null);
-  const [focusDocumentationPhotos, setFocusDocumentationPhotos] = useState(false);
+  const [documentationEvent, setDocumentationEvent] = useState<EventItem | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const load = useCallback(async () => {
@@ -736,10 +745,16 @@ export function AdminPage({ router, settings }: Props) {
       ? { is_published: !current, updated_at: new Date().toISOString() }
       : { published: !current, updated_at: new Date().toISOString() };
 
-    const { error } = await supabase.from(table).update(payload).eq('id', id);
-    if (error) { setNotice('Gagal mengubah status publish.'); return; }
-    setNotice(!current ? 'Konten dipublikasikan.' : 'Konten disembunyikan.');
-    await load();
+    try {
+      const { error } = await supabase.from(table).update(payload).eq('id', id);
+      if (error) throw error;
+      setNotice(!current ? 'Konten dipublikasikan.' : 'Konten disembunyikan.');
+      await load();
+    } catch (publishError) {
+      const detail = getErrorMessage(publishError);
+      console.error('Status publish gagal diperbarui.', publishError);
+      setNotice(`Gagal mengubah status publish: ${detail}`);
+    }
   }
 
   function deleteRow(table: 'open_mics' | 'events' | 'komika' | 'partners', id: string) {
@@ -889,9 +904,9 @@ export function AdminPage({ router, settings }: Props) {
         {/* Main Content */}
         <main className="min-w-0 flex-1 p-4 pb-safe-nav md:pb-0 lg:p-8 lg:pb-8" style={{ paddingBottom: 'calc(7.5rem + var(--safe-bottom))' }}>
           {notice && (
-            <div className="mb-5 flex items-center justify-between rounded-xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 ring-1 ring-green-200">
+            <div className={`mb-5 flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold ring-1 ${isErrorNotice ? 'bg-red-50 text-red-700 ring-red-200' : 'bg-green-50 text-green-700 ring-green-200'}`}>
               <span>{notice}</span>
-              <button onClick={() => setNotice('')} aria-label="Tutup pesan" className="text-green-600 hover:text-green-800"><X className="h-4 w-4" /></button>
+              <button onClick={() => setNotice('')} aria-label="Tutup pesan" className={isErrorNotice ? 'text-red-600 hover:text-red-800' : 'text-green-600 hover:text-green-800'}><X className="h-4 w-4" /></button>
             </div>
           )}
 
@@ -902,7 +917,7 @@ export function AdminPage({ router, settings }: Props) {
           {section === 'registrants' && <RegistrantsView openMicId={registrantOpenMicId} komika={komika} onBack={() => router.navigate(isAdmin ? '/admin/open-mic' : '/admin/open-mic-list')} />}
           {section === 'event-participants' && <EventParticipantsView eventId={router.path.split('/').filter(Boolean)[2] ?? ''} onBack={() => router.navigate('/admin/events')} />}
           {section === 'events' && (isAdmin || isEventAdmin
-            ? <EventManagement rows={events} loading={loading} pendingCounts={eventPendingCounts} canManageTickets={isAdmin} onAdd={() => { setFocusDocumentationPhotos(false); setEditing(null); setModal('event'); }} onEdit={(row) => { setFocusDocumentationPhotos(false); setEditing(row); setModal('event'); }} onManagePhotos={(row) => { setFocusDocumentationPhotos(true); setEditing(row); setModal('event'); }} onDelete={(id) => deleteRow('events', id)} onTogglePublish={(id, val) => togglePublish('events', id, val)} onManageTickets={(row) => setTicketEvent(row)} onManagePartnerships={(row) => setPartnershipEvent(row)} onViewParticipants={(row) => router.navigate(`/admin/event-pendaftar/${row.id}`)} />
+            ? <EventManagement rows={events} loading={loading} pendingCounts={eventPendingCounts} canManageTickets={isAdmin} onAdd={() => { setEditing(null); setModal('event'); }} onEdit={(row) => { setEditing(row); setModal('event'); }} onManagePhotos={setDocumentationEvent} onDelete={(id) => deleteRow('events', id)} onTogglePublish={(id, val) => togglePublish('events', id, val)} onManageTickets={(row) => setTicketEvent(row)} onManagePartnerships={(row) => setPartnershipEvent(row)} onViewParticipants={(row) => router.navigate(`/admin/event-pendaftar/${row.id}`)} />
             : <ScopedEventList events={events} loading={loading} onManageTickets={isTicketAdmin ? setTicketEvent : undefined} />)}
           {section === 'applications' && <ApplicationsView community={communityApplications} onNotice={setNotice} onReload={load} />}
           {section === 'open-mic-history' && <MemberOpenMicHistoryReview rows={memberHistory} komika={komika} onNotice={setNotice} onReload={load} />}
@@ -980,7 +995,8 @@ export function AdminPage({ router, settings }: Props) {
       <EventPartnershipManagementModal event={partnershipEvent} partners={partners} partnerships={eventPartnerships} onClose={() => setPartnershipEvent(null)} onNotice={setNotice} onReload={load} />
 
       {/* Form Modal */}
-      <AdminFormModal kind={modal} editing={editing} venueHistory={openMics} saving={saving} focusDocumentationPhotos={focusDocumentationPhotos} onClose={() => { setModal(null); setFocusDocumentationPhotos(false); }} onSaving={setSaving} onSaved={async () => { setModal(null); setFocusDocumentationPhotos(false); await load(); setNotice('Perubahan berhasil disimpan.'); }} />
+      <EventDocumentationPhotosModal event={documentationEvent} onClose={() => setDocumentationEvent(null)} onNotice={setNotice} onSaved={async () => { setDocumentationEvent(null); await load(); }} />
+      <AdminFormModal kind={modal} editing={editing} venueHistory={openMics} saving={saving} onClose={() => setModal(null)} onSaving={setSaving} onNotice={setNotice} onSaved={async () => { setModal(null); await load(); setNotice('Perubahan berhasil disimpan.'); }} />
 
     </div>
   );
@@ -3336,13 +3352,63 @@ function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, isAdmin, isOp
   );
 }
 
-function AdminFormModal({ kind, editing, venueHistory, saving, focusDocumentationPhotos, onClose, onSaving, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; venueHistory: OpenMic[]; saving: boolean; focusDocumentationPhotos: boolean; onClose: () => void; onSaving: (v: boolean) => void; onSaved: () => void }) {
+function EventDocumentationPhotosModal({ event, onClose, onNotice, onSaved }: { event: EventItem | null; onClose: () => void; onNotice: (message: string) => void; onSaved: () => Promise<void> }) {
+  const [photos, setPhotos] = useState<string[]>(event?.documentation_photos ?? []);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    setPhotos(event?.documentation_photos ?? []);
+    setErrorMessage('');
+  }, [event]);
+
+  async function savePhotos() {
+    if (!event) return;
+    setErrorMessage('');
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('events').update({
+        documentation_photos: photos,
+        updated_at: new Date().toISOString(),
+      }).eq('id', event.id);
+      if (error) throw error;
+      onNotice('Foto dokumentasi berhasil disimpan.');
+      await onSaved();
+    } catch (saveError) {
+      const detail = getErrorMessage(saveError);
+      console.error('Foto dokumentasi event gagal disimpan.', saveError);
+      const message = `Foto dokumentasi gagal disimpan: ${detail}`;
+      setErrorMessage(message);
+      onNotice(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal open={Boolean(event)} onClose={onClose} title="Foto Dokumentasi" size="md">
+      {event && <div className="space-y-4">
+        <p className="text-sm font-semibold text-slate-700">{event.title}</p>
+        <MultiImageUpload label="Foto Dokumentasi" folder="events" value={photos} onChange={setPhotos} maxFiles={15} onUploadingChange={setUploading} />
+        {errorMessage && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{errorMessage}</p>}
+        <div className="flex gap-3 border-t border-slate-100 pt-3">
+          <button type="button" onClick={onClose} className="btn-secondary flex-1">Batal</button>
+          <button type="button" onClick={() => void savePhotos()} disabled={saving || uploading} className="btn-primary flex-1">{uploading ? 'Mengupload...' : saving ? 'Menyimpan...' : 'Simpan Foto'}</button>
+        </div>
+      </div>}
+    </Modal>
+  );
+}
+
+function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving, onNotice, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; venueHistory: OpenMic[]; saving: boolean; onClose: () => void; onSaving: (v: boolean) => void; onNotice: (message: string) => void; onSaved: () => void }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [venueSuggestionsOpen, setVenueSuggestionsOpen] = useState(false);
-  const documentationPhotosRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!kind) return;
+    setErrorMessage('');
     const row = editing as Record<string, unknown> | null;
     if (row) {
       setForm({ ...Object.fromEntries(Object.entries(row).map(([k, v]) => [k === 'instagram_url' ? k : k === 'tiktok_url' ? k : k, k === 'instagram_url' ? formatInstagramHandle(String(v ?? '')) : k === 'tiktok_url' ? formatTikTokHandle(String(v ?? '')) : Array.isArray(v) ? v.join(', ') : String(v ?? '')])) });
@@ -3360,16 +3426,9 @@ function AdminFormModal({ kind, editing, venueHistory, saving, focusDocumentatio
     }
   }, [kind, editing]);
 
-  useEffect(() => {
-    if (!focusDocumentationPhotos || kind !== 'event') return;
-    const frame = requestAnimationFrame(() => documentationPhotosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
-    return () => cancelAnimationFrame(frame);
-  }, [focusDocumentationPhotos, kind, editing]);
-
   if (!kind) return null;
   const isEdit = Boolean(editing);
   const set = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
-  const documentationPhotos = (form.documentation_photos ?? '').split('\n').map((url) => url.trim()).filter(Boolean).slice(0, 15);
   const venueQuery = (form.venue ?? '').trim().toLocaleLowerCase();
   const venueHistoryEntries = kind === 'open-mic'
     ? Array.from(venueHistory.reduce((entries, row) => {
@@ -3390,6 +3449,7 @@ function AdminFormModal({ kind, editing, venueHistory, saving, focusDocumentatio
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setErrorMessage('');
     onSaving(true);
     const base = { ...form };
     try {
@@ -3417,22 +3477,30 @@ function AdminFormModal({ kind, editing, venueHistory, saving, focusDocumentatio
         if (result.error) throw result.error;
       } else {
         const whatsappNumber = normalizeWhatsappNumber(base.whatsapp_number || '');
+        const eventFields = { ...base };
+        delete eventFields.documentation_photos;
         const payload = {
-          ...base,
+          ...eventFields,
           slug: isEdit ? base.slug : slugify(base.title),
           published: base.published !== 'false',
           whatsapp_number: whatsappNumber,
           whatsapp_message: base.whatsapp_message?.trim() || null,
           event_rules: base.event_rules?.trim() || null,
-          documentation_photos: (base.documentation_photos ?? '').split('\n').map((url) => url.trim()).filter(Boolean).slice(0, 15),
         };
-        const result = editing ? await supabase.from('events').update(payload).eq('id', editing.id) : await supabase.from('events').insert(payload);
+        const result = editing
+          ? await supabase.from('events').update(payload).eq('id', editing.id)
+          : await supabase.from('events').insert(payload);
         if (result.error) throw result.error;
       }
       onSaving(false);
       onSaved();
-    } catch {
+    } catch (saveError) {
       onSaving(false);
+      const detail = getErrorMessage(saveError);
+      console.error(`${isEdit ? 'Perubahan' : 'Event'} gagal disimpan.`, saveError);
+      const message = `Event gagal disimpan: ${detail}`;
+      setErrorMessage(message);
+      onNotice(message);
     }
   }
 
@@ -3460,28 +3528,16 @@ function AdminFormModal({ kind, editing, venueHistory, saving, focusDocumentatio
         <div className="lg:grid lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.5fr)] lg:items-start lg:gap-6">
           <div className="lg:sticky lg:top-0">
             {kind === 'komika' && (
-              <ImageUpload label="Foto Komika" folder="komika" value={form.photo ?? ''} onChange={(url) => set('photo', url)} aspect="portrait" onUploadingChange={setUploading} />
+              <ImageUpload label="Foto Komika" folder="komika" value={form.photo ?? ''} onChange={(url) => set('photo', url)} aspect="portrait" processingProfile="avatar" onUploadingChange={setUploading} />
             )}
             {kind === 'open-mic' && (
-              <ImageUpload label="Poster / Foto Open Mic" folder="open-mic" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} skipCrop />
+              <ImageUpload label="Poster / Foto Open Mic" folder="open-mic" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" processingProfile="poster" onUploadingChange={setUploading} skipCrop />
             )}
             {kind === 'event' && (
-              <div className="space-y-4">
-                <ImageUpload label="Poster Event" folder="events" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} skipCrop />
-                <div ref={documentationPhotosRef} id="admin-documentation-photos" className="scroll-mt-6">
-                  <MultiImageUpload
-                    label="Foto Dokumentasi"
-                    folder="events"
-                    value={documentationPhotos}
-                    onChange={(urls) => set('documentation_photos', urls.join('\n'))}
-                    maxFiles={15}
-                    onUploadingChange={setUploading}
-                  />
-                </div>
-              </div>
+              <ImageUpload label="Poster Event" folder="events" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" processingProfile="poster" onUploadingChange={setUploading} skipCrop />
             )}
             {kind === 'partner' && (
-              <ImageUpload label="Logo Partner" folder="partners" value={form.logo_url ?? ''} onChange={(url) => set('logo_url', url)} aspect="square" onUploadingChange={setUploading} />
+              <ImageUpload label="Logo Partner" folder="partners" value={form.logo_url ?? ''} onChange={(url) => set('logo_url', url)} aspect="square" processingProfile="logo" onUploadingChange={setUploading} />
             )}
           </div>
           <div className="mt-4 space-y-4 lg:mt-0 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
@@ -3567,6 +3623,7 @@ function AdminFormModal({ kind, editing, venueHistory, saving, focusDocumentatio
                 /> Tampilkan di website
               </label>
             </div>
+            {errorMessage && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 lg:col-span-2">{errorMessage}</p>}
             <div className="flex gap-3 pt-2 lg:col-span-2">
               <button type="button" onClick={onClose} className="btn-secondary flex-1">Batal</button>
               <button type="submit" disabled={saving || uploading} className="btn-primary flex-1">{uploading ? 'Mengupload...' : saving ? 'Menyimpan...' : 'Simpan'}</button>

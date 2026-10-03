@@ -1,4 +1,12 @@
-# Standupindo City Website
+# Panduan Clone Komunitas — Arsip
+
+> **Panduan ini sudah digantikan.** Untuk membuat komunitas yang mandiri sepenuhnya (repository, domain, hosting, Supabase, Resend, akun, dan secrets sendiri), ikuti [COMMUNITY_CLONE_RUNBOOK.md](./COMMUNITY_CLONE_RUNBOOK.md).
+>
+> Jangan menggunakan urutan migration lama di bawah ini sebagai instruksi deploy production. Repository memiliki migration legacy/duplikat, seed admin berkredensial contoh, dan migration fitur yang belum dicakup dalam daftar lama. Paket migration lengkap harus ditinjau dan diuji pada database kosong sebelum dipakai.
+
+---
+
+Konten di bawah dipertahankan sebagai catatan historis dan tidak boleh dipakai sebagai runbook aktif.
 
 Panduan ini menjelaskan audit, cloning komunitas ke kota lain, konfigurasi brand, Supabase, dan deployment dari nol sampai publish.
 

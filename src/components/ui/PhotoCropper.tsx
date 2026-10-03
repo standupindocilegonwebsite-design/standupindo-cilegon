@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { Check, Move, RotateCcw, ZoomIn, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getImageFileExtension, processImageForUpload, type ImageProcessingProfile } from '@/lib/image-processing';
 
 function createImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -40,7 +41,7 @@ async function getCroppedImage(imageSrc: string, pixelCrop: Area): Promise<Blob 
   });
 }
 
-export function PhotoCropper({ src, folder, onSave, onCancel }: { src: string; folder: string; onSave: (url: string) => void; onCancel: () => void }) {
+export function PhotoCropper({ src, originalFile, folder, processingProfile, onSave, onCancel }: { src: string; originalFile: File; folder: string; processingProfile: ImageProcessingProfile; onSave: (url: string) => void; onCancel: () => void }) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
@@ -57,9 +58,10 @@ export function PhotoCropper({ src, folder, onSave, onCancel }: { src: string; f
       const blob = await getCroppedImage(src, croppedAreaPixels);
       if (!blob) throw new Error('Gagal memproses crop foto.');
 
-      const fileName = `profile-${Date.now()}.jpg`;
+      const uploadFile = await processImageForUpload(originalFile, processingProfile, blob);
+      const fileName = `${crypto.randomUUID()}.${getImageFileExtension(uploadFile.type)}`;
       const uploadPath = `${folder}/${fileName}`;
-      const { error: uploadError } = await supabase.storage.from('standupindo-media').upload(uploadPath, blob, { cacheControl: '3600', upsert: false });
+      const { error: uploadError } = await supabase.storage.from('standupindo-media').upload(uploadPath, uploadFile, { cacheControl: '3600', upsert: false, contentType: uploadFile.type });
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('standupindo-media').getPublicUrl(uploadPath);

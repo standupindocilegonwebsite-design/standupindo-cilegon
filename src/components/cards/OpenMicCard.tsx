@@ -14,9 +14,10 @@ interface Props {
   confirmedCount: number;
   lineup?: string[];
   router: Router;
+  compact?: boolean;
 }
 
-export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], router }: Props) {
+export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], router, compact = false }: Props) {
   const [lightbox, setLightbox] = useState(false);
   const filled = confirmedCount;
   const total = mic.capacity;
@@ -24,6 +25,60 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
   const currentStatus = getOpenMicStatus(mic.status, mic.date);
   const closed = mic.registration_status === 'closed' || currentStatus !== 'upcoming';
   const isCompleted = currentStatus === 'completed';
+
+  if (compact) {
+    return (
+      <article
+        onClick={(event) => {
+          if ((event.target as HTMLElement).closest('a,button')) return;
+          router.navigate(`/open-mic/${mic.slug}`);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            router.navigate(`/open-mic/${mic.slug}`);
+          }
+        }}
+        className="group flex min-w-0 cursor-pointer overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-[0_6px_18px_rgba(15,23,42,0.08)] transition hover:border-blue-400 hover:shadow-[0_10px_24px_rgba(15,23,42,0.12)]"
+        role="button"
+        tabIndex={0}
+      >
+        <div className="relative h-auto min-h-[150px] w-24 shrink-0 self-stretch bg-slate-100 sm:w-28">
+          {mic.poster ? (
+            <img src={mic.poster} alt={`${mic.title} poster`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+          ) : (
+            <span className="flex h-full min-h-[150px] items-center justify-center text-slate-300"><Users className="h-8 w-8" /></span>
+          )}
+          <div className="absolute left-2 top-2"><StatusBadge status={currentStatus} /></div>
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-3.5">
+          {openMicNumber !== undefined && <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-blue-700">Open Mic #{openMicNumber}</p>}
+          <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className="mt-0.5 text-left">
+            <h3 className="line-clamp-2 text-sm font-extrabold leading-tight text-slate-900 transition group-hover:text-blue-700 sm:text-base">{mic.title}</h3>
+          </button>
+          <div className="mt-2 space-y-1 text-xs text-slate-600">
+            <div className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5 shrink-0 text-blue-600" /><span className="truncate">{formatDate(mic.date)}</span></div>
+            <div className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 shrink-0 text-blue-600" /><span className="truncate">{mic.time} WIB · {mic.venue}</span></div>
+          </div>
+          <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+            <p className="truncate text-[11px] font-semibold text-slate-600">{isFull ? 'Slot penuh' : `${filled} Komika`}</p>
+            <div className="flex shrink-0 gap-1.5">
+              <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className="btn-secondary !min-h-8 !rounded-lg !px-2 !py-1.5 text-[10px] font-bold">Detail</button>
+              {currentStatus === 'upcoming' && !closed && !isFull && (
+                <button onClick={() => router.navigate(`/open-mic/${mic.slug}/daftar`)} className="btn-primary !min-h-8 !rounded-lg !px-2 !py-1.5 text-[10px] font-bold">Daftar</button>
+              )}
+              {currentStatus === 'upcoming' && isFull && !closed && (
+                <button disabled className="btn-secondary !min-h-8 !rounded-lg !border-red-200 !bg-red-50 !px-2 !py-1.5 text-[10px] font-bold !text-red-600">Penuh</button>
+              )}
+              {closed && currentStatus === 'upcoming' && (
+                <button disabled className="btn-secondary !min-h-8 !rounded-lg !px-2 !py-1.5 text-[10px] font-bold !text-slate-400">Ditutup</button>
+              )}
+            </div>
+          </div>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <>

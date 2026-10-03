@@ -37,16 +37,25 @@ function AutoSlideRow({ children, className, intervalMs = 5000, highlightActive 
       if (!nextItem) return;
       if (highlightActive) setActiveIndex(nextIndex);
       const rowStyle = window.getComputedStyle(row);
-      const scrollInset = Number.parseFloat(rowStyle.scrollPaddingLeft) || Number.parseFloat(rowStyle.paddingLeft) || 0;
-      const itemOffset = nextItem.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
-      row.scrollTo({ left: itemOffset - scrollInset, behavior: 'smooth' });
+      const scrollPaddingLeft = Number.parseFloat(rowStyle.scrollPaddingLeft);
+      const paddingLeft = Number.parseFloat(rowStyle.paddingLeft);
+      const scrollInset = Number.isNaN(scrollPaddingLeft) ? (Number.isNaN(paddingLeft) ? 0 : paddingLeft) : scrollPaddingLeft;
+      const itemOffset = nextItem.getBoundingClientRect().left - row.getBoundingClientRect().left;
+      row.scrollTo({ left: row.scrollLeft + itemOffset - scrollInset, behavior: 'smooth' });
     }, intervalMs);
     return () => window.clearInterval(timer);
   }, [children.length, highlightActive, intervalMs, paused]);
 
   return (
     <div ref={rowRef} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onTouchStart={() => setPaused(true)} onTouchEnd={() => setPaused(false)} className={className}>
-      {children.map((child, index) => isValidElement(child) ? cloneElement(child as React.ReactElement<{ className?: string }>, { className: `${child.props.className ?? ''} ${highlightActive && index === activeIndex ? `relative z-10 rounded-[22px] transition-shadow duration-500 ${highlightTone === 'amber' ? 'shadow-[0_0_0_3px_rgba(245,158,11,0.9),0_0_24px_rgba(245,158,11,0.46)]' : 'shadow-[0_0_0_3px_rgba(59,130,246,0.85),0_0_24px_rgba(59,130,246,0.42)]'}` : ''}` }) : child)}
+      {children.map((child, index) => {
+        if (!isValidElement(child)) return child;
+        const activeHighlight = highlightActive && index === activeIndex;
+        return cloneElement(child as React.ReactElement<{ className?: string; 'data-carousel-highlight'?: string }>, {
+          className: `${child.props.className ?? ''} ${activeHighlight ? 'relative z-10' : ''}`,
+          'data-carousel-highlight': activeHighlight ? highlightTone : undefined,
+        });
+      })}
     </div>
   );
 }
@@ -97,6 +106,12 @@ function shuffleItems<T>(items: T[]): T[] {
     [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
   }
   return shuffled;
+}
+
+function carouselEndPadding(itemCount: number): string {
+  return itemCount > 1
+    ? 'pr-[max(1rem,calc(100%_-_260px_+_1rem))] sm:pr-[max(1rem,calc(100%_-_300px_+_1rem))]'
+    : 'pr-4';
 }
 
 export function HomePage({ router }: Props) {
@@ -235,7 +250,7 @@ export function HomePage({ router }: Props) {
           </div>
           <div className="mt-6">
             {loading ? (
-              <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:overflow-visible lg:pb-0">
+              <div className={`-mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(3)} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
@@ -243,7 +258,7 @@ export function HomePage({ router }: Props) {
             ) : mics.length === 0 ? (
               <EmptyState title="Belum ada Open Mic yang tersedia." description="Pantau terus untuk panggung berikutnya." noSmokeArea />
             ) : (
-              <AutoSlideRow highlightActive highlightTone="blue" className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
+              <AutoSlideRow highlightActive highlightTone="blue" className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(Math.min(mics.length, 3))} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
                 {mics.slice(0, 3).map((m) => (
                   <div key={m.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                     <OpenMicCard mic={m} openMicNumber={openMicNumbers.get(m.id)} confirmedCount={confirmedCounts[m.id] ?? 0} router={router} />
@@ -264,14 +279,14 @@ export function HomePage({ router }: Props) {
           </div>
           <div className="mt-6">
             {loading ? (
-              <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:overflow-visible lg:pb-0">
+              <div className={`-mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(2)} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
               </div>
             ) : events.length === 0 ? (
               <EmptyState title="Belum ada event mendatang." noSmokeArea />
             ) : (
-              <AutoSlideRow highlightActive highlightTone="amber" className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
+              <AutoSlideRow highlightActive highlightTone="amber" className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(events.length)} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
                 {events.map((e) => (
                   <div key={e.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                     <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />

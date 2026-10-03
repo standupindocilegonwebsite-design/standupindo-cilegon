@@ -1190,3 +1190,21 @@
     animation: none !important;
   }
 }
+
+.home-stagger > [data-carousel-highlight] > article {
+  position: relative;
+  z-index: 1;
+  outline: 3px solid;
+  outline-offset: 2px;
+  transition: filter 500ms ease, outline-color 500ms ease;
+}
+
+.home-stagger > [data-carousel-highlight="blue"] > article {
+  outline-color: rgba(59, 130, 246, 0.85);
+  filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.42));
+}
+
+.home-stagger > [data-carousel-highlight="amber"] > article {
+  outline-color: rgba(245, 158, 11, 0.9);
+  filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.46));
+}

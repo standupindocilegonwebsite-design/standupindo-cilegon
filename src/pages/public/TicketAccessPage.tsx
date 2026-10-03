@@ -5,7 +5,7 @@ import type { Router } from '@/lib/router';
 import { supabase } from '@/lib/supabase';
 import { TicketPagination } from '@/components/TicketPagination';
 import { LOGO_URL } from '@/lib/types';
-import { formatDate, formatPrice } from '@/lib/format';
+import { formatDate, formatPrice, getEventStatus } from '@/lib/format';
 import { createETicketPdfFile, downloadETicketPdf } from '@/lib/ticket-pdf';
 
 const ORDER_PAGE_SIZE = 10;
@@ -485,6 +485,7 @@ export function TicketAccessPage({ router }: { router: Router }) {
             : historyError ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{historyError}</div>
               : purchasedEvents.length ? purchasedEvents.map(({ event, quantity, total, orderCount }) => {
                 const poster = event.poster?.trim() || (event.id === session.event.id ? session.event.poster?.trim() : '');
+                const eventStatus = getEventStatus(event.status, event.date);
                 return <article key={event.id} className="rounded-2xl border border-slate-300 bg-white p-4 shadow-[0_4px_14px_rgba(15,23,42,0.08)] sm:p-5">
                 <div className="flex items-start gap-3">
                   {poster ? <img src={poster} alt={`Poster ${event.title}`} loading="lazy" className="h-20 w-16 shrink-0 rounded-xl border border-slate-200 object-cover sm:h-24 sm:w-[4.5rem]" /> : <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><CalendarDays className="h-5 w-5" /></span>}
@@ -492,8 +493,8 @@ export function TicketAccessPage({ router }: { router: Router }) {
                     <p className="text-base font-extrabold text-slate-950">{event.title}</p>
                     <p className="mt-1 text-xs text-slate-500">{formatDate(event.date)} · {event.time}{event.venue ? ` · ${event.venue}` : ''}</p>
                   </div>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide ${event.status === 'upcoming' ? 'bg-blue-50 text-blue-700' : event.status === 'cancelled' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
-                    {event.status === 'upcoming' ? 'Akan datang' : event.status === 'cancelled' ? 'Dibatalkan' : 'Selesai'}
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide ${eventStatus === 'upcoming' ? 'bg-blue-50 text-blue-700' : eventStatus === 'cancelled' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
+                    {eventStatus === 'upcoming' ? 'Akan datang' : eventStatus === 'cancelled' ? 'Dibatalkan' : 'Selesai'}
                   </span>
                 </div>
                 <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">

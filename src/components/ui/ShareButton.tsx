@@ -9,33 +9,26 @@ interface ShareButtonProps {
   className?: string;
 }
 
-export function ShareButton({ title, text, url, image, className = '' }: ShareButtonProps) {
+export function ShareButton({ title, text, url, className = '' }: ShareButtonProps) {
   const [copied, setCopied] = useState(false);
 
   async function handleShare() {
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
-        if (image && typeof navigator.canShare === 'function' && typeof File !== 'undefined') {
-          const response = await fetch(image);
-          const blob = await response.blob();
-          const file = new File([blob], 'standupindo-share.jpg', { type: blob.type || 'image/jpeg' });
-          if (navigator.canShare({ files: [file] })) {
-            await navigator.share({ title, text, url, files: [file] });
-            return;
-          }
-        }
         await navigator.share({ title, text, url });
         return;
       } catch (err) {
         if ((err as DOMException)?.name === 'AbortError') return;
+        console.error('Gagal membuka native share sheet.', err);
+        return;
       }
     }
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
-    } catch {
-      /* clipboard unavailable */
+    } catch (error) {
+      console.error('Gagal menyalin link untuk dibagikan.', error);
     }
   }
 
