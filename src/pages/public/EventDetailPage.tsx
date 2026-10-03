@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Calendar, ChevronDown, ClipboardList, Clock, ExternalLink, Info, MessageCircle, Ticket } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock, ExternalLink, Info, MessageCircle, Ticket } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { EventItem, EventTicket, EventPartnership, Partner, SiteSettings } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -12,7 +12,7 @@ import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
-import { formatDate, formatPrice, waLink } from '@/lib/format';
+import { formatDate, formatPrice, getEventStatus, waLink } from '@/lib/format';
 
 interface Props {
   router: Router;
@@ -74,9 +74,15 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const [tickets, setTickets] = useState<EventTicket[]>([]);
   const [lineup, setLineup] = useState<{ id: string; stage_name: string; community: string | null; instagram: string | null }[]>([]);
   const [partnersByRole, setPartnersByRole] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
-  const [lightbox, setLightbox] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const documentationGalleryRef = useRef<HTMLDivElement>(null);
   const [infoTab, setInfoTab] = useState<'about' | 'rules'>('about');
   const [infoExpanded, setInfoExpanded] = useState(false);
+
+  function scrollDocumentationGallery(direction: -1 | 1) {
+    const gallery = documentationGalleryRef.current;
+    if (gallery) gallery.scrollBy({ left: direction * gallery.clientWidth, behavior: 'smooth' });
+  }
 
   useEffect(() => {
     (async () => {
@@ -164,7 +170,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const cheapestTicketPrice = tickets.length > 0 ? tickets.reduce((lowest, ticket) => ticket.price < lowest.price ? ticket : lowest, tickets[0]).price : (event.ticket_price ?? 0);
   const isFreeEvent = tickets.length === 0 && cheapestTicketPrice <= 0;
   const pageUrl = `${window.location.origin}/event/${event.slug}`;
-  const currentStatus = event.status;
+  const currentStatus = getEventStatus(event.status, event.date);
 
   return (
     <div className="animate-fade-in">
@@ -176,7 +182,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
           <div className="lg:col-span-2">
             <div className="max-h-[18rem] overflow-hidden rounded-2xl bg-slate-100 shadow-soft sm:max-h-none">
               {event.poster ? (
-                <button onClick={() => setLightbox(true)} aria-label={`Lihat poster ${event.title}`} className="block w-full">
+                <button onClick={() => setLightboxImage(event.poster)} aria-label={`Lihat poster ${event.title}`} className="block w-full">
                   <img src={event.poster} alt={`${event.title} poster`} className={`aspect-[4/3] max-h-[18rem] w-full object-contain transition-transform duration-500 hover:scale-105 sm:max-h-none ${currentStatus === 'completed' ? 'grayscale' : ''}`} />
                 </button>
               ) : (
@@ -189,7 +195,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
               <StatusBadge status={currentStatus} />
               <ShareButton
                 title={`${event.title} — Standupindo Cilegon`}
-                text={`🔥 SIAP-SIAP KETAWA!\n\n${event.title} bakal hadir di ${event.venue}${event.location ? `, ${event.location}` : ''}!\n\n📅 ${formatDate(event.date)}\n⏰ ${event.time} WIB\n\n🎟️ Tiket & info lengkap:\n${pageUrl}`}
+                text={`🔥 SIAP-SIAP KETAWA!\n\n*${event.title}* bakal hadir di *${event.venue}${event.location ? `, ${event.location}` : ''}*!\n\n📅 ${formatDate(event.date)}\n⏰ *${event.time} WIB*\n\n🎟️ Tiket & info lengkap:\n${pageUrl}`}
                 url={pageUrl}
                 image={event.poster}
               />
@@ -273,48 +279,84 @@ export function EventDetailPage({ router, slug, settings }: Props) {
           </section>
         )}
 
-        {/* Tickets */}
-        <section data-scroll-reveal className="scroll-reveal border-t border-slate-200 pt-8 sm:pt-10">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Akses acara</p>
-              <h2 className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">{isFreeEvent ? 'Acara Gratis' : 'Pilih tiket'}</h2>
+        {currentStatus === 'completed' ? (
+          <section data-scroll-reveal className="scroll-reveal border-t border-slate-200 pt-8 sm:pt-10">
+            <div className="mb-4 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Kenangan acara</p>
+                <h2 className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">Foto Dokumentasi</h2>
+              </div>
+              {(event.documentation_photos ?? []).length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="mr-1 text-xs font-semibold text-slate-500">{event.documentation_photos.length} foto</span>
+                  <button type="button" aria-label="Foto sebelumnya" onClick={() => scrollDocumentationGallery(-1)} className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button type="button" aria-label="Foto berikutnya" onClick={() => scrollDocumentationGallery(1)} className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50">
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
             </div>
-            {tickets.length > 0 && <span className="text-right text-xs font-semibold text-slate-500">{tickets.length} pilihan tersedia</span>}
-          </div>
-          {tickets.length === 0 ? (
-            <EmptyState title={isFreeEvent ? 'Tidak perlu membeli tiket untuk menghadiri acara ini.' : 'Informasi tiket segera hadir.'} />
-          ) : (
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-              {tickets.map((t) => {
-                const hasUrl = t.ticket_url && /^https?:\/\//i.test(t.ticket_url);
-                return (
-                  <div key={t.id} className="grid gap-4 border-b border-slate-100 p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-6 sm:p-5">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Ticket className="h-4 w-4" /></div>
-                      <div className="min-w-0">
-                        <h3 className="font-bold text-slate-900">{t.name}</h3>
-                        {t.description && <p className="mt-1 text-xs leading-5 text-slate-500">{t.description}</p>}
+            {(event.documentation_photos ?? []).length > 0 ? (
+              <>
+                <div ref={documentationGalleryRef} className="grid auto-cols-[calc((100%_-_0.75rem)_/_2)] grid-flow-col gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2">
+                  {event.documentation_photos.map((photo, index) => (
+                    <button key={`${photo}-${index}`} type="button" onClick={() => setLightboxImage(photo)} aria-label={`Lihat foto dokumentasi ${index + 1}`} className="group relative aspect-[4/3] min-w-0 snap-start overflow-hidden rounded-2xl bg-slate-100 text-left">
+                      <img src={photo} alt={`${event.title} — dokumentasi ${index + 1}`} loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs font-medium text-slate-500">Geser untuk melihat foto lainnya. Pilih foto untuk memperbesar.</p>
+              </>
+            ) : (
+              <EmptyState title="Foto dokumentasi belum tersedia." />
+            )}
+          </section>
+        ) : (
+          <section data-scroll-reveal className="scroll-reveal border-t border-slate-200 pt-8 sm:pt-10">
+            {/* Tickets */}
+            <div className="mb-4 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Akses acara</p>
+                <h2 className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">{isFreeEvent ? 'Acara Gratis' : 'Pilih tiket'}</h2>
+              </div>
+              {tickets.length > 0 && <span className="text-right text-xs font-semibold text-slate-500">{tickets.length} pilihan tersedia</span>}
+            </div>
+            {tickets.length === 0 ? (
+              <EmptyState title={isFreeEvent ? 'Tidak perlu membeli tiket untuk menghadiri acara ini.' : 'Informasi tiket segera hadir.'} />
+            ) : (
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+                {tickets.map((t) => {
+                  const hasUrl = t.ticket_url && /^https?:\/\//i.test(t.ticket_url);
+                  return (
+                    <div key={t.id} className="grid gap-4 border-b border-slate-100 p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-6 sm:p-5">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Ticket className="h-4 w-4" /></div>
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-slate-900">{t.name}</h3>
+                          {t.description && <p className="mt-1 text-xs leading-5 text-slate-500">{t.description}</p>}
+                        </div>
                       </div>
+                      <span className="text-lg font-extrabold tracking-tight text-slate-900 sm:text-right">{formatPrice(t.price)}</span>
+                      {currentStatus === 'upcoming' && (
+                        hasUrl ? (
+                          <a href={t.ticket_url!} target="_blank" rel="noopener noreferrer" aria-label={`Beli tiket ${t.name} melalui link ticketing`} title="Beli melalui link ticketing" className="btn-primary !min-h-10 !rounded-xl !px-4 !py-2.5 text-sm">
+                            <ExternalLink className="h-4 w-4" /> <span>Beli</span>
+                          </a>
+                        ) : (
+                          <button type="button" onClick={() => router.navigate(`/event/${event.slug}/tiket/${t.id}`)} aria-label={`Isi form pembelian tiket ${t.name}`} title="Isi form pembelian tiket" className="btn-primary !min-h-10 !rounded-xl !px-4 !py-2.5 text-sm">
+                            <MessageCircle className="h-4 w-4" /> <span>Beli</span>
+                          </button>
+                        )
+                      )}
                     </div>
-                    <span className="text-lg font-extrabold tracking-tight text-slate-900 sm:text-right">{formatPrice(t.price)}</span>
-                    {currentStatus === 'upcoming' && (
-                      hasUrl ? (
-                        <a href={t.ticket_url!} target="_blank" rel="noopener noreferrer" aria-label={`Beli tiket ${t.name} melalui link ticketing`} title="Beli melalui link ticketing" className="btn-primary !min-h-10 !rounded-xl !px-4 !py-2.5 text-sm">
-                          <ExternalLink className="h-4 w-4" /> <span>Beli</span>
-                        </a>
-                      ) : (
-                        <button type="button" onClick={() => router.navigate(`/event/${event.slug}/tiket/${t.id}`)} aria-label={`Isi form pembelian tiket ${t.name}`} title="Isi form pembelian tiket" className="btn-primary !min-h-10 !rounded-xl !px-4 !py-2.5 text-sm">
-                          <MessageCircle className="h-4 w-4" /> <span>Beli</span>
-                        </button>
-                      )
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Partnership */}
         {(['sponsor', 'support', 'media_partner'] as const).some((role) => partnersByRole[role].length > 0) && (
@@ -354,8 +396,8 @@ export function EventDetailPage({ router, slug, settings }: Props) {
         )}
       </div>
 
-      {event.poster && (
-        <ImageLightbox src={event.poster} alt={`${event.title} poster`} open={lightbox} onClose={() => setLightbox(false)} />
+      {lightboxImage && (
+        <ImageLightbox src={lightboxImage} alt={`${event.title} — foto`} open onClose={() => setLightboxImage(null)} />
       )}
     </div>
   );

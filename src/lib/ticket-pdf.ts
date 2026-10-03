@@ -1,5 +1,6 @@
 import type { jsPDF as JsPdfDocument } from 'jspdf';
 import { formatDate, formatPrice } from '@/lib/format';
+import { LOGO_URL } from '@/lib/types';
 
 export interface ETicketEvent {
   title: string;
@@ -66,6 +67,25 @@ async function loadPosterData(url: string): Promise<{ data: string; width: numbe
   }
 }
 
+async function loadLogoData(): Promise<{ data: string; width: number; height: number }> {
+  const image = new Image();
+  image.src = LOGO_URL;
+  try {
+    await image.decode();
+  } catch {
+    throw new Error('Logo Standupindo Cilegon gagal dimuat.');
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Logo Standupindo Cilegon tidak dapat diproses di browser ini.');
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0);
+  return { data: canvas.toDataURL('image/jpeg', 0.92), width: image.naturalWidth, height: image.naturalHeight };
+}
+
 function fitWithin(width: number, height: number, maxWidth: number, maxHeight: number) {
   const ratio = Math.min(maxWidth / width, maxHeight / height);
   return { width: width * ratio, height: height * ratio };
@@ -100,6 +120,7 @@ export async function createETicketPdfDocument({
   }
 
   const poster = event.poster?.trim() ? await loadPosterData(event.poster.trim()) : null;
+  const logo = await loadLogoData();
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [148, 225], compress: true });
   const pageWidth = 148;
@@ -114,10 +135,15 @@ export async function createETicketPdfDocument({
     if (index > 0) doc.addPage([148, 225], 'portrait');
     doc.setFillColor(29, 78, 216);
     doc.rect(0, 0, pageWidth, 2, 'F');
+    const logoSize = fitWithin(logo.width, logo.height, 7, 7);
+    doc.addImage(logo.data, 'JPEG', margin + (7 - logoSize.width) / 2, 4 + (7 - logoSize.height) / 2, logoSize.width, logoSize.height, undefined, 'FAST');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
-    doc.setTextColor(30, 41, 59);
-    doc.text('STANDUPINDO CILEGON', margin, 10);
+    const brandTextX = margin + 9;
+    doc.setTextColor(15, 23, 42);
+    doc.text('STANDUPINDO', brandTextX, 10);
+    doc.setTextColor(29, 78, 216);
+    doc.text('CILEGON', brandTextX + doc.getTextWidth('STANDUPINDO '), 10);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(100, 116, 139);
@@ -241,4 +267,22 @@ export async function downloadETicketPdf(input: Parameters<typeof createETicketP
   const fileOrder = (input.order.order_number || input.order.id).replace(/[^A-Za-z0-9_-]/g, '-');
   doc.save(`E-Tiket-${fileOrder}.pdf`);
   return { pages: doc.getNumberOfPages() };
+}
+
+function sanitizeFilenamePart(value: string) {
+  return value.trim()
+    .replace(/[<>:"/\\|?*]/g, '-')
+    .split('')
+    .filter((character) => character.charCodeAt(0) >= 32)
+    .join('')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[.-]+|[.-]+$/g, '')
+    || 'Tiket';
+}
+
+export async function createETicketPdfFile(input: Parameters<typeof createETicketPdfDocument>[0]) {
+  const doc = await createETicketPdfDocument(input);
+  const fileName = `E-Tiket-${sanitizeFilenamePart(input.event.title)}-${sanitizeFilenamePart(input.order.full_name)}.pdf`;
+  return new File([doc.output('blob')], fileName, { type: 'application/pdf' });
 }

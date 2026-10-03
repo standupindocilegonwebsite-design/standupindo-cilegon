@@ -96,10 +96,10 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', r
       ) : compact ? (
         <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
-            {value ? <img src={value} alt="Preview foto profil" className="h-full w-full object-cover" /> : <ImageIcon className="h-6 w-6 text-slate-300" />}
+            {value ? <img src={value} alt={`Preview ${label}`} className="h-full w-full object-cover" /> : <ImageIcon className="h-6 w-6 text-slate-300" />}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-slate-700">Foto profil</p>
+            <p className="text-sm font-bold text-slate-700">{label}</p>
             <p className="mt-0.5 text-xs text-slate-500">JPG, PNG, WEBP · Maks. 5 MB</p>
             <div className="mt-2 flex gap-2">
               <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-50">{uploading ? 'Mengupload...' : value ? 'Ganti Foto' : 'Upload Foto'}</button>

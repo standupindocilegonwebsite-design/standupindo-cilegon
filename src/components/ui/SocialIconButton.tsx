@@ -5,6 +5,7 @@ interface Props {
   tiktok?: string | null;
   youtube?: string | null;
   size?: 'sm' | 'md';
+  iconOnly?: boolean;
 }
 
 function TikTokIcon({ className }: { className?: string }) {
@@ -15,18 +16,18 @@ function TikTokIcon({ className }: { className?: string }) {
   );
 }
 
-export function SocialIconButton({ instagram, tiktok, youtube, size = 'md' }: Props) {
+export function SocialIconButton({ instagram, tiktok, youtube, size = 'md', iconOnly = false }: Props) {
   const sz = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5';
-  const box = size === 'sm' ? 'h-8 w-8' : 'h-9 w-9';
+  const box = iconOnly ? (size === 'sm' ? 'h-6 w-6' : 'h-7 w-7') : (size === 'sm' ? 'h-8 w-8' : 'h-9 w-9');
   const items: { url: string; label: string; icon: React.ReactNode; className: string }[] = [];
-  if (instagram) items.push({ url: instagram, label: 'Instagram', icon: <Instagram className={sz} />, className: 'bg-pink-100 text-pink-600 hover:bg-pink-500 hover:text-white' });
-  if (tiktok) items.push({ url: tiktok, label: 'TikTok', icon: <TikTokIcon className={sz} />, className: 'bg-slate-200 text-slate-800 hover:bg-slate-800 hover:text-white' });
-  if (youtube) items.push({ url: youtube, label: 'YouTube', icon: <Youtube className={sz} />, className: 'bg-red-100 text-red-600 hover:bg-red-600 hover:text-white' });
+  if (instagram) items.push({ url: instagram, label: 'Instagram', icon: <Instagram className={sz} />, className: iconOnly ? 'text-[#ff77a8] hover:text-[#ffb4d0]' : 'bg-pink-100 text-pink-600 hover:bg-pink-500 hover:text-white' });
+  if (tiktok) items.push({ url: tiktok, label: 'TikTok', icon: <TikTokIcon className={sz} />, className: iconOnly ? 'text-white hover:text-slate-200' : 'bg-slate-200 text-slate-800 hover:bg-slate-800 hover:text-white' });
+  if (youtube) items.push({ url: youtube, label: 'YouTube', icon: <Youtube className={sz} />, className: iconOnly ? 'text-[#ff626b] hover:text-[#ff9a9f]' : 'bg-red-100 text-red-600 hover:bg-red-600 hover:text-white' });
 
   if (items.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className={`flex items-center ${iconOnly ? 'gap-1' : 'gap-2'}`}>
       {items.map((it) => (
         <a
           key={it.label}
@@ -34,7 +35,7 @@ export function SocialIconButton({ instagram, tiktok, youtube, size = 'md' }: Pr
           target="_blank"
           rel="noopener noreferrer"
           aria-label={it.label}
-          className={`${box} inline-flex items-center justify-center rounded-full transition-all ${it.className}`}
+          className={`${box} inline-flex items-center justify-center transition-all ${iconOnly ? 'rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80' : 'rounded-full'} ${it.className}`}
         >
           {it.icon}
         </a>

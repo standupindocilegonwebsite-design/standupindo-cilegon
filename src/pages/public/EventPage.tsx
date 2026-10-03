@@ -89,9 +89,9 @@ export function EventPage({ router }: { router: Router }) {
           <section data-scroll-reveal className="scroll-reveal border-t border-slate-200 pt-6 sm:pt-8">
             <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-slate-400" /><h2 className="text-xl font-extrabold text-slate-900">Selesai</h2><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{completed.length}</span></div>
             <div className="relative mb-4"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="search" value={completedSearch} onChange={(event) => setCompletedSearch(event.target.value)} placeholder="Cari riwayat event..." className="input-field !pl-11" aria-label="Cari riwayat event" /></div>
-            {completed.length === 0 ? <EmptyState title="Riwayat event tidak ditemukan." /> : <div className="grid gap-3 lg:grid-cols-2">
+            {completed.length === 0 ? <EmptyState title="Riwayat event tidak ditemukan." /> : <div className="grid min-w-0 gap-3 lg:grid-cols-2">
               {completed.map((e) => (
-                <div key={e.id}>
+                <div key={e.id} className="min-w-0">
                   <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
                 </div>
               ))}

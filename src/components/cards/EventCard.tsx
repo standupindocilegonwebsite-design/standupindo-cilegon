@@ -27,12 +27,12 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
             router.navigate(`/event/${event.slug}`);
           }
         }}
-        className={`group cursor-pointer overflow-hidden ${isCompleted ? 'rounded-2xl border-2 border-slate-500 bg-slate-50 shadow-[0_8px_20px_rgba(15,23,42,0.12)]' : 'card card-hover rounded-[22px] border-2 border-amber-400 border-t-4 border-t-amber-700 bg-white shadow-[0_0_0_1px_rgba(245,158,11,0.18),0_10px_26px_rgba(245,158,11,0.2)]'}`}
+        className={`group w-full min-w-0 max-w-full cursor-pointer overflow-hidden ${isCompleted ? 'rounded-2xl border-2 border-slate-500 bg-slate-50 shadow-[0_8px_20px_rgba(15,23,42,0.12)]' : 'card card-hover rounded-[22px] border-2 border-amber-400 border-t-4 border-t-amber-700 bg-white shadow-[0_0_0_1px_rgba(245,158,11,0.18),0_10px_26px_rgba(245,158,11,0.2)]'}`}
         role="button"
         tabIndex={0}
       >
-        <div className={isCompleted ? 'flex items-stretch' : ''}>
-        <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[16/10] w-[112px] shrink-0 sm:w-[150px]' : 'aspect-[4/5]'}`}>
+        <div className={isCompleted ? 'flex w-full min-w-0 items-stretch' : ''}>
+        <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[4/5] w-[30%] min-w-[88px] max-w-[150px] shrink-0 sm:aspect-[16/10] sm:w-[34%]' : 'aspect-[4/5]'}`}>
           {event.poster && !posterFailed ? (
             <button onClick={() => setLightbox(true)} aria-label={`Lihat poster ${event.title}`} className="block h-full w-full">
               <img
@@ -52,17 +52,17 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
           </div>
         </div>
 
-        <div className={isCompleted ? 'flex min-w-0 flex-1 flex-col p-3.5 sm:p-4' : 'p-4'}>
-          <h3 className="line-clamp-2 text-lg font-extrabold tracking-[-0.02em] text-slate-900">{event.title}</h3>
+        <div className={isCompleted ? 'flex min-w-0 flex-1 flex-col overflow-hidden p-3 sm:p-4' : 'p-4'}>
+          <h3 className="line-clamp-2 break-words text-base font-extrabold tracking-[-0.02em] text-slate-900 sm:text-lg">{event.title}</h3>
 
           <div className="mt-2 space-y-1.5 text-sm text-slate-600">
-            <div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-blue-600" /> {formatDate(event.date)}</div>
-            <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-blue-600" /> {event.time} WIB</div>
-            <LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="mt-0.5" />
+            <div className="flex min-w-0 items-center gap-2"><Calendar className="h-4 w-4 shrink-0 text-blue-600" /><span className="min-w-0 truncate">{formatDate(event.date)}</span></div>
+            <div className="flex min-w-0 items-center gap-2"><Clock className="h-4 w-4 shrink-0 text-blue-600" /><span className="min-w-0 truncate">{event.time} WIB</span></div>
+            <LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="mt-0.5 w-full min-w-0" />
             {!isCompleted && <div className="flex items-center gap-2"><Ticket className="h-4 w-4 text-blue-600" /> <span className="font-bold text-slate-900">{formatPrice(displayPrice)}</span></div>}
           </div>
           <div className="mt-3">
-            <NoSmokeAreaNotice />
+            <NoSmokeAreaNotice compact={isCompleted} />
           </div>
 
           {!isCompleted && event.description && <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-500">{event.description}</p>}

@@ -28,6 +28,16 @@ interface ScanResult {
   allowed_categories?: string[];
 }
 interface ScannerGate { id: string; name: string; }
+type FullscreenElement = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+type FullscreenDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void> | void;
+};
+
+function getFullscreenElement() {
+  const fullscreenDocument = document as FullscreenDocument;
+  return document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement ?? null;
+}
 
 async function invokeScanner<T>(body: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke('ticketing-admin', { body });
@@ -99,9 +109,13 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
     return () => { active = false; };
   }, [eventId]);
   useEffect(() => {
-    const syncFullscreenState = () => setCameraFullscreen(document.fullscreenElement === cameraFrameRef.current);
+    const syncFullscreenState = () => setCameraFullscreen(getFullscreenElement() === cameraFrameRef.current);
     document.addEventListener('fullscreenchange', syncFullscreenState);
-    return () => document.removeEventListener('fullscreenchange', syncFullscreenState);
+    document.addEventListener('webkitfullscreenchange', syncFullscreenState);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreenState);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreenState);
+    };
   }, []);
   useEffect(() => {
     if (!selectableEvents.some((event) => event.id === eventId)) {
@@ -215,8 +229,14 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
     controlsRef.current?.stop();
     controlsRef.current = null;
     setCameraActive(false);
-    if (exitFullscreen && document.fullscreenElement === cameraFrameRef.current) {
-      void document.exitFullscreen().catch((fullscreenError: unknown) => {
+    if (exitFullscreen && getFullscreenElement() === cameraFrameRef.current) {
+      const fullscreenDocument = document as FullscreenDocument;
+      const exitFullscreen = document.exitFullscreen ?? fullscreenDocument.webkitExitFullscreen;
+      if (typeof exitFullscreen !== 'function') {
+        setError('Mode layar penuh tidak dapat ditutup di browser ini.');
+        return;
+      }
+      void Promise.resolve(exitFullscreen.call(document)).catch((fullscreenError: unknown) => {
         setError(fullscreenError instanceof Error ? fullscreenError.message : 'Mode layar penuh tidak dapat ditutup.');
       });
     }
@@ -224,12 +244,27 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
 
   async function toggleCameraFullscreen() {
     const cameraFrame = cameraFrameRef.current;
-    if (!cameraFrame) return;
+    if (!(cameraFrame instanceof HTMLElement)) {
+      setError('Elemen kamera tidak tersedia untuk mode layar penuh.');
+      return;
+    }
+    const fullscreenDocument = document as FullscreenDocument;
     try {
-      if (document.fullscreenElement === cameraFrame) {
-        await document.exitFullscreen();
+      if (getFullscreenElement() === cameraFrame) {
+        const exitFullscreen = document.exitFullscreen ?? fullscreenDocument.webkitExitFullscreen;
+        if (typeof exitFullscreen !== 'function') {
+          setError('Mode layar penuh tidak dapat ditutup di browser ini.');
+          return;
+        }
+        await exitFullscreen.call(document);
       } else {
-        await cameraFrame.requestFullscreen();
+        const fullscreenElement = cameraFrame as FullscreenElement;
+        const requestFullscreen = cameraFrame.requestFullscreen ?? fullscreenElement.webkitRequestFullscreen;
+        if (typeof requestFullscreen !== 'function') {
+          setError('Mode layar penuh tidak tersedia di browser atau perangkat ini.');
+          return;
+        }
+        await requestFullscreen.call(cameraFrame);
       }
     } catch (fullscreenError) {
       setError(fullscreenError instanceof Error ? fullscreenError.message : 'Mode layar penuh tidak tersedia di browser ini.');

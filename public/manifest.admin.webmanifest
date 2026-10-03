@@ -1,8 +1,8 @@
 {
   "id": "/admin",
-  "name": "Stand Up Indo Cilegon Admin",
-  "short_name": "Stand Up Admin",
-  "description": "Workspace operasional Stand Up Indo Cilegon.",
+  "name": "Standupindo Cilegon Admin",
+  "short_name": "Standupindo Cilegon Admin",
+  "description": "Workspace operasional Standupindo Cilegon.",
   "start_url": "/admin/login",
   "scope": "/admin/",
   "display": "standalone",

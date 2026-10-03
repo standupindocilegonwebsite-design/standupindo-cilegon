@@ -15,10 +15,13 @@ type SubscriptionPayload = {
 
 type RequestBody = {
   action?: 'public_key' | 'upsert' | 'delete' | 'test';
+  app_identity?: 'public' | 'admin' | 'member';
   guest_token?: string | null;
   endpoint?: string;
   subscription?: SubscriptionPayload;
 };
+
+type PushAppIdentity = 'public' | 'admin' | 'member';
 
 function response(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -41,6 +44,27 @@ async function getAuthenticatedUserId(supabaseUrl: string, anonKey: string, auth
   const { data, error } = await userClient.auth.getUser();
   if (error || !data.user) throw new Error('Sesi login tidak valid.');
   return data.user.id;
+}
+
+function userHasRole(user: { app_metadata?: Record<string, unknown> }, roles: string[]) {
+  const metadata = user.app_metadata ?? {};
+  const values = [metadata.role, metadata.roles, metadata.user_roles].flatMap((value) => Array.isArray(value) ? value : [value]);
+  return values.some((value) => typeof value === 'string' && roles.includes(value.trim().toLowerCase()));
+}
+
+async function validateAppIdentityAccess(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string | null,
+  appIdentity: PushAppIdentity,
+) {
+  if (appIdentity === 'public') return true;
+  if (!userId) return false;
+  const { data, error } = await adminClient.auth.admin.getUserById(userId);
+  if (error) throw error;
+  if (!data.user) return false;
+  return appIdentity === 'admin'
+    ? userHasRole(data.user, ['admin', 'open_mic_admin', 'event_admin', 'admin_ticket', 'admin_qr'])
+    : userHasRole(data.user, ['admin', 'member', 'evaluator']);
 }
 
 function parseExpiration(value: number | null | undefined): string | null {
@@ -90,6 +114,20 @@ serve(async (request) => {
     return response({ public_key: publicKey });
   }
 
+  const appIdentity = body.app_identity;
+  if (appIdentity !== 'public' && appIdentity !== 'admin' && appIdentity !== 'member') {
+    return response({ error: 'Identitas aplikasi Push tidak valid.' }, 400);
+  }
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  try {
+    if (!await validateAppIdentityAccess(adminClient, userId, appIdentity)) {
+      return response({ error: 'Akun ini tidak memiliki akses ke aplikasi Push yang dipilih.' }, 403);
+    }
+  } catch (error) {
+    console.error('failed to validate push app access', error);
+    return response({ error: 'Akses aplikasi Push tidak dapat diverifikasi.' }, 500);
+  }
+
   if (action === 'test') {
     const webhookSecret = Deno.env.get('PUSH_WEBHOOK_SECRET');
     if (!webhookSecret) return response({ error: 'Konfigurasi pengiriman notifikasi belum lengkap.' }, 500);
@@ -97,24 +135,24 @@ serve(async (request) => {
     if (!userId && !guestToken) return response({ error: 'Token perangkat wajib diisi.' }, 400);
 
     try {
-      const adminClient = createClient(supabaseUrl, serviceRoleKey);
       let subscription: { id: string } | null = null;
       let subscriptionError: { message: string } | null = null;
       if (userId) {
         const result = await adminClient.from('push_subscriptions').select('id')
-          .eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+          .eq('user_id', userId).eq('app_identity', appIdentity)
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
         subscription = result.data;
         subscriptionError = result.error;
         if (!subscription && guestToken && !subscriptionError) {
           const guestResult = await adminClient.from('push_subscriptions').select('id')
-            .is('user_id', null).eq('guest_token_hash', await sha256(guestToken))
+            .is('user_id', null).eq('guest_token_hash', await sha256(guestToken)).eq('app_identity', appIdentity)
             .order('created_at', { ascending: false }).limit(1).maybeSingle();
           subscription = guestResult.data;
           subscriptionError = guestResult.error;
         }
       } else {
         const result = await adminClient.from('push_subscriptions').select('id')
-          .is('user_id', null).eq('guest_token_hash', await sha256(guestToken!))
+          .is('user_id', null).eq('guest_token_hash', await sha256(guestToken!)).eq('app_identity', appIdentity)
           .order('created_at', { ascending: false }).limit(1).maybeSingle();
         subscription = result.data;
         subscriptionError = result.error;
@@ -130,11 +168,11 @@ serve(async (request) => {
         },
         body: JSON.stringify({
           action: 'test',
-          target_user_id: userId ?? undefined,
-          target_subscription_id: userId ? undefined : subscription.id,
+          app_identity: appIdentity,
+          target_subscription_id: subscription.id,
           title: 'Test Web Push',
           body: 'Notifikasi Web Push Standupindo Cilegon berhasil diterima.',
-          url: '/',
+          url: appIdentity === 'admin' ? '/admin' : appIdentity === 'member' ? '/member' : '/',
         }),
       });
       const payload = await result.json().catch(() => null) as { error?: string; sent?: number } | null;
@@ -146,7 +184,6 @@ serve(async (request) => {
     }
   }
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   let endpoint: string;
   try {
     endpoint = validateEndpoint(body.endpoint ?? body.subscription?.endpoint);
@@ -159,13 +196,14 @@ serve(async (request) => {
 
   const { data: existing, error: lookupError } = await adminClient
     .from('push_subscriptions')
-    .select('id, user_id, guest_token_hash')
+    .select('id, user_id, guest_token_hash, app_identity')
     .eq('endpoint', endpoint)
     .maybeSingle();
   if (lookupError) return response({ error: 'Subscription tidak dapat diperiksa.' }, 500);
 
   if (action === 'delete') {
     if (!existing) return response({ success: true });
+    if (existing.app_identity !== appIdentity) return response({ error: 'Subscription bukan milik aplikasi ini.' }, 403);
     const ownsAuthenticated = Boolean(userId && existing.user_id === userId);
     const ownsDevice = Boolean(guestTokenHash && existing.guest_token_hash === guestTokenHash);
     if (!ownsAuthenticated && !ownsDevice) return response({ error: 'Subscription bukan milik pemilik yang sah.' }, 403);
@@ -182,6 +220,7 @@ serve(async (request) => {
   if (!userId && !guestTokenHash) return response({ error: 'Token perangkat wajib diisi.' }, 400);
 
   if (existing) {
+    if (existing.app_identity !== appIdentity) return response({ error: 'Endpoint sudah digunakan aplikasi lain pada perangkat ini.' }, 409);
     const ownsAuthenticated = Boolean(userId && existing.user_id === userId);
     const ownsGuest = Boolean(!userId && guestTokenHash && existing.user_id === null && existing.guest_token_hash === guestTokenHash);
     const canClaimOwnGuestSubscription = Boolean(userId && existing.user_id === null && guestTokenHash && existing.guest_token_hash === guestTokenHash);
@@ -189,6 +228,7 @@ serve(async (request) => {
 
     const { error } = await adminClient.from('push_subscriptions').update({
       user_id: userId,
+      app_identity: appIdentity,
       p256dh,
       auth,
       expiration_time: parseExpiration(subscription?.expirationTime),
@@ -201,6 +241,7 @@ serve(async (request) => {
 
   const { error } = await adminClient.from('push_subscriptions').insert({
     user_id: userId,
+    app_identity: appIdentity,
     endpoint,
     p256dh,
     auth,

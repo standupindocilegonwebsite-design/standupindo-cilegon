@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
-import { createOrderNumber, formatDate, formatPrice, normalizeWhatsappNumber } from '@/lib/format';
+import { createOrderNumber, formatDate, formatPrice, getEventStatus, normalizeWhatsappNumber } from '@/lib/format';
 
 interface PaymentSnapshot {
   recipient_name: string;
@@ -149,7 +149,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
 
   const quantity = Math.max(1, Math.min(10, Number.parseInt(form.quantity, 10) || 1));
   const totalPrice = ticket ? ticket.price * quantity : 0;
-  const currentStatus = event?.status ?? 'completed';
+  const currentStatus = event ? getEventStatus(event.status, event.date) : 'completed';
 
   function setWhatsapp(value: string) {
     setForm((current) => ({ ...current, whatsapp: value.replace(/\D/g, '') }));

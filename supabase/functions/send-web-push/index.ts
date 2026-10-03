@@ -9,21 +9,26 @@ const corsHeaders = {
 };
 
 type WebhookPayload = {
-  type?: 'INSERT' | 'UPDATE' | 'DELETE';
+  type?: string;
   table?: string;
   record?: Record<string, unknown> | null;
   old_record?: Record<string, unknown> | null;
-  action?: 'test' | 'vapid_fingerprint';
+  action?: 'test' | 'vapid_fingerprint' | 'scheduled_announcement';
+  app_identity?: 'public' | 'admin' | 'member';
+  target_app_identity?: 'public' | 'admin' | 'member';
   target_user_id?: string;
   target_subscription_id?: string;
+  notification_id?: string;
   title?: string;
   body?: string;
   url?: string;
+  tag?: string;
 };
 
 type SubscriptionRow = {
   id: string;
   user_id: string | null;
+  app_identity: 'public' | 'admin' | 'member';
   endpoint: string;
   p256dh: string;
   auth: string;
@@ -115,22 +120,28 @@ async function getEventSlug(adminClient: ReturnType<typeof createClient>, eventI
   return typeof data?.slug === 'string' ? data.slug : null;
 }
 
-async function loadSubscriptions(adminClient: ReturnType<typeof createClient>, userIds?: string[]): Promise<SubscriptionRow[]> {
-  let query = adminClient.from('push_subscriptions').select('id, user_id, endpoint, p256dh, auth');
+async function loadSubscriptions(
+  adminClient: ReturnType<typeof createClient>,
+  userIds?: string[],
+  appIdentity?: SubscriptionRow['app_identity'],
+): Promise<SubscriptionRow[]> {
+  let query = adminClient.from('push_subscriptions').select('id, user_id, app_identity, endpoint, p256dh, auth');
   if (userIds) {
     if (userIds.length === 0) return [];
     query = query.in('user_id', userIds);
   }
+  if (appIdentity) query = query.eq('app_identity', appIdentity);
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as SubscriptionRow[];
 }
 
-async function loadTestSubscription(adminClient: ReturnType<typeof createClient>, userId: string): Promise<SubscriptionRow | null> {
+async function loadTestSubscription(adminClient: ReturnType<typeof createClient>, userId: string, appIdentity: SubscriptionRow['app_identity']): Promise<SubscriptionRow | null> {
   const { data, error } = await adminClient
     .from('push_subscriptions')
-    .select('id, user_id, endpoint, p256dh, auth')
+    .select('id, user_id, app_identity, endpoint, p256dh, auth')
     .eq('user_id', userId)
+    .eq('app_identity', appIdentity)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -141,9 +152,8 @@ async function loadTestSubscription(adminClient: ReturnType<typeof createClient>
 async function loadTestSubscriptionById(adminClient: ReturnType<typeof createClient>, subscriptionId: string): Promise<SubscriptionRow | null> {
   const { data, error } = await adminClient
     .from('push_subscriptions')
-    .select('id, user_id, endpoint, p256dh, auth')
+    .select('id, user_id, app_identity, endpoint, p256dh, auth')
     .eq('id', subscriptionId)
-    .is('user_id', null)
     .maybeSingle();
   if (error) throw error;
   return (data as SubscriptionRow | null) ?? null;
@@ -171,8 +181,13 @@ async function sendToSubscriptions(adminClient: ReturnType<typeof createClient>,
   }, { sent: 0, removed: 0, failed: 0 });
 }
 
-async function sendForUsers(adminClient: ReturnType<typeof createClient>, userIds: string[], payload: PushPayload) {
-  return sendToSubscriptions(adminClient, await loadSubscriptions(adminClient, userIds), payload);
+async function sendForUsers(
+  adminClient: ReturnType<typeof createClient>,
+  userIds: string[],
+  payload: PushPayload,
+  appIdentity: SubscriptionRow['app_identity'],
+) {
+  return sendToSubscriptions(adminClient, await loadSubscriptions(adminClient, userIds, appIdentity), payload);
 }
 
 function buildAnnouncement(table: 'open_mics' | 'events', record: Record<string, unknown>): PushPayload {
@@ -193,14 +208,26 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
   const oldRecord = webhook.old_record ?? null;
   if (!record || type === 'DELETE') return { sent: 0, removed: 0, failed: 0 };
 
+  if (table === 'events' && type === 'INSERT') {
+    const adminIds = await listUsersByRoles(adminClient, ['admin', 'event_admin']);
+    await sendForUsers(adminClient, adminIds, {
+      notification_id: `event-admin-created:${record.id}`,
+      type: 'admin-notification',
+      title: 'Event Baru Dibuat',
+      body: `${String(record.title ?? 'Event')} telah ditambahkan.`,
+      url: '/admin/events',
+      tag: `event-admin-created:${record.id}`,
+    }, 'admin');
+  }
+
   if ((table === 'open_mics' || table === 'events') && (type === 'INSERT' ? isPubliclyActive(record) : !isPubliclyActive(oldRecord) && isPubliclyActive(record))) {
-    return sendToSubscriptions(adminClient, await loadSubscriptions(adminClient), buildAnnouncement(table, record));
+    return sendToSubscriptions(adminClient, await loadSubscriptions(adminClient, undefined, 'public'), buildAnnouncement(table, record));
   }
 
   if (table === 'open_mic_registrations') {
     if (type === 'INSERT' && record.status === 'pending') {
       const userIds = await listUsersByRoles(adminClient, ['admin', 'open_mic_admin']);
-      return sendForUsers(adminClient, userIds, { notification_id: `open-mic-registration:${record.id}:pending`, type: 'admin-notification', title: 'Pendaftar Open Mic Baru', body: 'Ada pendaftar baru untuk Open Mic.', url: '/admin/open-mic-list', tag: `open-mic-registration:${record.id}:pending` });
+      return sendForUsers(adminClient, userIds, { notification_id: `open-mic-registration:${record.id}:pending`, type: 'admin-notification', title: 'Pendaftar Open Mic Baru', body: 'Ada pendaftar baru untuk Open Mic.', url: '/admin/open-mic-list', tag: `open-mic-registration:${record.id}:pending` }, 'admin');
     }
     if (type === 'UPDATE' && isStatusTransition(record, oldRecord, ['confirmed', 'rejected', 'cancelled'])) {
       const userId = await getKomikaUserId(adminClient, record.komika_id);
@@ -208,14 +235,14 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
       const status = String(record.status);
       const label = status === 'confirmed' ? 'Dikonfirmasi' : status === 'rejected' ? 'Ditolak' : 'Dibatalkan';
       const slug = await getOpenMicSlug(adminClient, record.open_mic_id);
-      return sendForUsers(adminClient, [userId], { notification_id: `registration:${record.id}:${status}`, type: 'member-notification', title: `Pendaftaran Open Mic ${label}`, body: `Pendaftaran Open Mic kamu telah ${label.toLowerCase()}.`, url: slug ? `/member/open-mic/${slug}` : '/member/open-mic', tag: `registration:${record.id}:${status}` });
+      return sendForUsers(adminClient, [userId], { notification_id: `registration:${record.id}:${status}`, type: 'member-notification', title: `Pendaftaran Open Mic ${label}`, body: `Pendaftaran Open Mic kamu telah ${label.toLowerCase()}.`, url: slug ? `/member/open-mic/${slug}` : '/member/open-mic', tag: `registration:${record.id}:${status}` }, 'member');
     }
   }
 
   if (table === 'event_participants') {
     if (type === 'INSERT' && record.status === 'pending') {
       const userIds = await listUsersByRoles(adminClient, ['admin', 'event_admin']);
-      return sendForUsers(adminClient, userIds, { notification_id: `event-participant:${record.id}:pending`, type: 'admin-notification', title: 'Pendaftar Event Baru', body: 'Ada pendaftar baru untuk Event.', url: '/admin/events', tag: `event-participant:${record.id}:pending` });
+      return sendForUsers(adminClient, userIds, { notification_id: `event-participant:${record.id}:pending`, type: 'admin-notification', title: 'Pendaftar Event Baru', body: 'Ada pendaftar baru untuk Event.', url: `/admin/event-pendaftar/${String(record.event_id ?? '')}`, tag: `event-participant:${record.id}:pending` }, 'admin');
     }
     if (type === 'UPDATE' && isStatusTransition(record, oldRecord, ['approved', 'rejected'])) {
       const userId = await getKomikaUserId(adminClient, record.komika_id);
@@ -223,25 +250,33 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
       const status = String(record.status);
       const label = status === 'approved' ? 'disetujui' : 'ditolak';
       const slug = await getEventSlug(adminClient, record.event_id);
-      return sendForUsers(adminClient, [userId], { notification_id: `event:${record.id}:${status}`, type: 'member-notification', title: `Pendaftaran Event ${status === 'approved' ? 'Disetujui' : 'Ditolak'}`, body: `Pendaftaran Event kamu telah ${label}.`, url: slug ? `/event/${slug}` : '/event', tag: `event:${record.id}:${status}` });
+      return sendForUsers(adminClient, [userId], { notification_id: `event:${record.id}:${status}`, type: 'member-notification', title: `Pendaftaran Event ${status === 'approved' ? 'Disetujui' : 'Ditolak'}`, body: `Pendaftaran Event kamu telah ${label}.`, url: slug ? `/event/${slug}` : '/event', tag: `event:${record.id}:${status}` }, 'member');
     }
   }
 
   if (table === 'evaluations' && isStatusTransition(record, oldRecord, ['submitted'])) {
     const userId = await getKomikaUserId(adminClient, record.performer_komika_id);
     if (!userId) return { sent: 0, removed: 0, failed: 0 };
-    return sendForUsers(adminClient, [userId], { notification_id: `evaluation:${record.id}:submitted`, type: 'member-notification', title: 'Evaluasi Baru Tersedia', body: 'Evaluasi penampilan kamu sudah tersedia.', url: '/member/evaluations', tag: `evaluation:${record.id}:submitted` });
+    return sendForUsers(adminClient, [userId], { notification_id: `evaluation:${record.id}:submitted`, type: 'member-notification', title: 'Evaluasi Baru Tersedia', body: 'Evaluasi penampilan kamu sudah tersedia.', url: '/member/evaluations', tag: `evaluation:${record.id}:submitted` }, 'member');
   }
 
   if (table === 'community_applications' && type === 'INSERT' && record.status === 'pending') {
     const userIds = await listUsersByRoles(adminClient, ['admin']);
-    return sendForUsers(adminClient, userIds, { notification_id: `application:${record.id}:pending`, type: 'admin-notification', title: 'Pengajuan Komunitas Baru', body: 'Ada pengajuan baru untuk bergabung dengan komunitas.', url: '/admin/applications', tag: `application:${record.id}:pending` });
+    return sendForUsers(adminClient, userIds, { notification_id: `application:${record.id}:pending`, type: 'admin-notification', title: 'Pengajuan Komunitas Baru', body: 'Ada pengajuan baru untuk bergabung dengan komunitas.', url: '/admin/applications', tag: `application:${record.id}:pending` }, 'admin');
   }
 
   const ticketOrderAttentionStatuses = ['Draft Pembayaran', 'Menunggu Pembayaran', 'Menunggu Verifikasi', 'Sudah Bayar'];
   if (table === 'ticket_orders' && ((type === 'INSERT' && ticketOrderAttentionStatuses.includes(String(record.status))) || (type === 'UPDATE' && isStatusTransition(record, oldRecord, ticketOrderAttentionStatuses)))) {
-    const userIds = await listUsersByRoles(adminClient, ['admin', 'event_admin', 'admin_ticket']);
-    return sendForUsers(adminClient, userIds, { notification_id: `ticket-order:${record.id}:${record.status}`, type: 'admin-notification', title: 'Pesanan Tiket Perlu Ditinjau', body: 'Ada pesanan tiket yang perlu ditinjau.', url: '/admin/ticket-orders', tag: `ticket-order:${record.id}:${record.status}` });
+    const newPurchase = type === 'INSERT';
+    const userIds = await listUsersByRoles(adminClient, newPurchase ? ['admin', 'admin_ticket'] : ['admin']);
+    return sendForUsers(adminClient, userIds, {
+      notification_id: `ticket-order:${record.id}:${record.status}`,
+      type: 'admin-notification',
+      title: newPurchase ? 'Pembelian Tiket Baru' : 'Status Pesanan Tiket Diperbarui',
+      body: newPurchase ? 'Ada pembelian tiket baru yang perlu ditinjau.' : 'Status pesanan tiket berubah.',
+      url: '/admin/ticket-orders',
+      tag: `ticket-order:${record.id}:${record.status}`,
+    }, 'admin');
   }
 
   return { sent: 0, removed: 0, failed: 0 };
@@ -282,17 +317,23 @@ serve(async (request) => {
     if (webhook.action === 'test') {
       const targetUserId = typeof webhook.target_user_id === 'string' ? webhook.target_user_id.trim() : '';
       const targetSubscriptionId = typeof webhook.target_subscription_id === 'string' ? webhook.target_subscription_id.trim() : '';
+      const appIdentity = webhook.app_identity;
       const title = webhook.title;
       const body = webhook.body;
       const url = webhook.url;
-      if ((!targetUserId && !targetSubscriptionId) || (targetUserId && targetSubscriptionId) || title !== 'Test Web Push' || body !== 'Notifikasi Web Push Standupindo Cilegon berhasil diterima.' || url !== '/') {
+      if ((!targetUserId && !targetSubscriptionId) || (targetUserId && targetSubscriptionId)
+        || (appIdentity !== 'public' && appIdentity !== 'admin' && appIdentity !== 'member')
+        || title !== 'Test Web Push'
+        || body !== 'Notifikasi Web Push Standupindo Cilegon berhasil diterima.'
+        || !['/', '/admin', '/member'].includes(String(url))) {
         return response({ error: 'Payload test Web Push tidak valid.' }, 400);
       }
 
       const subscription = targetUserId
-        ? await loadTestSubscription(adminClient, targetUserId)
+        ? await loadTestSubscription(adminClient, targetUserId, appIdentity)
         : await loadTestSubscriptionById(adminClient, targetSubscriptionId);
       if (!subscription) return response({ error: 'Subscription authenticated target tidak ditemukan.' }, 404);
+      if (subscription.app_identity !== appIdentity) return response({ error: 'Subscription tidak sesuai dengan aplikasi target.' }, 403);
       const summary = await sendToSubscriptions(adminClient, [subscription], {
         notification_id: `manual-test:${subscription.id}`,
         type: 'manual-test',
@@ -302,6 +343,45 @@ serve(async (request) => {
         tag: `manual-test:${subscription.id}`,
       });
       return response({ success: true, test: true, ...summary });
+    }
+
+    if (webhook.action === 'scheduled_announcement') {
+      const notificationId = webhook.notification_id?.trim() ?? '';
+      const type = webhook.type?.trim() ?? '';
+      const title = webhook.title?.trim() ?? '';
+      const body = webhook.body?.trim() ?? '';
+      const url = webhook.url?.trim() ?? '';
+      const tag = webhook.tag?.trim() ?? '';
+      const targetSubscriptionId = webhook.target_subscription_id?.trim() ?? '';
+      const targetAppIdentity = webhook.target_app_identity;
+      if (!/^(event|open-mic)-reminder$/.test(type) && type !== 'evaluator-assignment'
+        || !notificationId
+        || !title
+        || !body
+        || !tag
+        || !targetSubscriptionId
+        || (targetAppIdentity !== 'public' && targetAppIdentity !== 'admin' && targetAppIdentity !== 'member')
+        || (!/^\/(event|open-mic)\//.test(url)
+          && !/^\/admin\/(events|scan)$/.test(url)
+          && !(type === 'evaluator-assignment' && /^\/evaluator\/[0-9a-f-]+$/i.test(url)))
+        || url.startsWith('//')) {
+        return response({ error: 'Payload notifikasi terjadwal tidak valid.' }, 400);
+      }
+      const subscription = await loadTestSubscriptionById(adminClient, targetSubscriptionId);
+      if (!subscription) return response({ error: 'Subscription target tidak ditemukan.' }, 404);
+      if (subscription.app_identity !== targetAppIdentity
+        || (type === 'evaluator-assignment' && targetAppIdentity !== 'member')) {
+        return response({ error: 'Subscription tidak sesuai dengan aplikasi target.' }, 403);
+      }
+      const summary = await sendToSubscriptions(adminClient, [subscription], {
+        notification_id: notificationId,
+        type,
+        title,
+        body,
+        url,
+        tag,
+      });
+      return response({ success: true, ...summary });
     }
 
     const summary = await dispatchWebhook(adminClient, webhook);

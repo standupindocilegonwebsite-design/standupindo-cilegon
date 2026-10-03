@@ -1,8 +1,8 @@
 {
   "id": "/member",
-  "name": "Stand Up Indo Cilegon Member",
-  "short_name": "Stand Up Member",
-  "description": "Member Area Stand Up Indo Cilegon.",
+  "name": "Standupindo Cilegon Member",
+  "short_name": "Standupindo Cilegon Member",
+  "description": "Member Area Standupindo Cilegon.",
   "start_url": "/member/login",
   "scope": "/member/",
   "display": "standalone",

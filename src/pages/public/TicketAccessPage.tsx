@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, Download, History, KeyRound, LogOut, Maximize2, Smartphone, Ticket, X, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, Download, History, KeyRound, LogOut, Maximize2, Share2, Smartphone, Ticket, X, XCircle } from 'lucide-react';
 import { QRCodeCanvas, QRCodeSVG } from 'qrcode.react';
 import type { Router } from '@/lib/router';
 import { supabase } from '@/lib/supabase';
 import { TicketPagination } from '@/components/TicketPagination';
 import { LOGO_URL } from '@/lib/types';
 import { formatDate, formatPrice } from '@/lib/format';
-import { downloadETicketPdf } from '@/lib/ticket-pdf';
+import { createETicketPdfFile, downloadETicketPdf } from '@/lib/ticket-pdf';
 
 const ORDER_PAGE_SIZE = 10;
 
@@ -95,6 +95,7 @@ export function TicketAccessPage({ router }: { router: Router }) {
   const [activeTicketIndexes, setActiveTicketIndexes] = useState<Record<string, number>>({});
   const [fullscreenTicketOrder, setFullscreenTicketOrder] = useState<string | null>(null);
   const [downloadingOrder, setDownloadingOrder] = useState<string | null>(null);
+  const [sharingOrder, setSharingOrder] = useState<string | null>(null);
   const [pdfErrors, setPdfErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -263,6 +264,50 @@ export function TicketAccessPage({ router }: { router: Router }) {
     }
   }
 
+  async function shareOrderTickets(order: GuestOrder) {
+    if (!session) return;
+    setSharingOrder(order.id);
+    setPdfErrors((current) => ({ ...current, [order.id]: '' }));
+    try {
+      if (typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function' || typeof File === 'undefined') {
+        setPdfErrors((current) => ({
+          ...current,
+          [order.id]: 'Browser ini belum mendukung berbagi file PDF langsung. Gunakan Download E-Tiket terlebih dahulu, lalu bagikan file PDF yang sudah tersimpan.',
+        }));
+        return;
+      }
+      const tickets = session.tickets.filter((ticket) => ticket.ticket_order_id === order.id);
+      const qrCanvases = new Map<string, HTMLCanvasElement>();
+      tickets.forEach((ticket) => {
+        const canvas = ticketQrCanvases.current[ticket.id];
+        if (canvas) qrCanvases.set(ticket.id, canvas);
+      });
+      const pdfFile = await createETicketPdfFile({
+        event: session.event,
+        order,
+        tickets,
+        qrCanvases,
+      });
+      const shareData = { files: [pdfFile] };
+      if (!navigator.canShare(shareData)) {
+        setPdfErrors((current) => ({
+          ...current,
+          [order.id]: 'Browser atau perangkat ini belum mendukung berbagi file PDF langsung. Gunakan Download E-Tiket terlebih dahulu, lalu bagikan file PDF yang sudah tersimpan.',
+        }));
+        return;
+      }
+      await navigator.share(shareData);
+    } catch (shareError) {
+      if (shareError instanceof DOMException && shareError.name === 'AbortError') return;
+      setPdfErrors((current) => ({
+        ...current,
+        [order.id]: 'E-Tiket gagal dibagikan sebagai file. Gunakan Download E-Tiket terlebih dahulu, lalu bagikan file PDF yang sudah tersimpan.',
+      }));
+    } finally {
+      setSharingOrder(null);
+    }
+  }
+
   function scrollToTicket(orderId: string, index: number) {
     const carousel = ticketCarouselRefs.current[orderId];
     const ticketCard = carousel?.children.item(index);
@@ -354,11 +399,21 @@ export function TicketAccessPage({ router }: { router: Router }) {
                   <button
                     type="button"
                     onClick={() => void downloadOrderTickets(order)}
-                    disabled={downloadingOrder === order.id || orderTickets.length === 0}
+                    disabled={downloadingOrder === order.id || sharingOrder === order.id || orderTickets.length === 0}
                     className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-700 px-3 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 sm:px-4 sm:text-sm"
                   >
                     <Download className="h-4 w-4" />
                     {downloadingOrder === order.id ? 'Membuat PDF...' : 'Download E-Tiket'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void shareOrderTickets(order)}
+                    disabled={downloadingOrder === order.id || sharingOrder === order.id || orderTickets.length === 0}
+                    aria-label={sharingOrder === order.id ? 'Menyiapkan E-Tiket untuk dibagikan' : 'Bagikan E-Tiket'}
+                    title="Bagikan E-Tiket"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-white text-blue-800 shadow-sm transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <Share2 className="h-4 w-4" />
                   </button>
                   <button type="button" onClick={() => fullscreenTicketOrder === order.id ? setFullscreenTicketOrder(null) : setFullscreenTicketOrder(order.id)} aria-label={fullscreenTicketOrder === order.id ? 'Tutup layar penuh' : 'Lihat layar penuh'} title={fullscreenTicketOrder === order.id ? 'Tutup layar penuh' : 'Lihat layar penuh'} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                     {fullscreenTicketOrder === order.id ? <X className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}

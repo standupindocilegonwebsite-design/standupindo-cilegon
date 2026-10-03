@@ -8,16 +8,16 @@
         const path = window.location.pathname;
         const isAdmin = path.startsWith('/admin');
         const isMember = path.startsWith('/member');
-        const manifest = isAdmin
-          ? '/manifest.admin.webmanifest'
+        const app = isAdmin
+          ? { manifest: '/manifest.admin.webmanifest', icon: '/assets/images/pwa-admin.png' }
           : isMember
-            ? '/manifest.member.webmanifest'
-            : '/manifest.public.webmanifest';
+            ? { manifest: '/manifest.member.webmanifest', icon: '/assets/images/pwa-member.png' }
+            : { manifest: '/manifest.public.webmanifest', icon: '/assets/images/pwa-public.png' };
         const icon = document.getElementById('app-icon');
-        if (icon) icon.setAttribute('href', '/assets/images/favicon.png?v=3');
+        if (icon) icon.setAttribute('href', app.icon);
         const link = document.createElement('link');
         link.rel = 'manifest';
-        link.href = manifest;
+        link.href = app.manifest;
         document.head.appendChild(link);
       })();
     </script>

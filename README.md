@@ -23,6 +23,17 @@ npm run lint
 npm run build
 ```
 
+## Push Notification Multi-PWA
+
+Public, Admin, dan Member memakai subscription Web Push terpisah pada Service Worker scope masing-masing. Subscription lama dipertahankan sebagai Public. Subscription Admin/Member hanya dapat dibuat oleh akun dengan role yang sesuai. Push reminder menggunakan sender dan subscription Web Push yang sama; tidak ada provider baru.
+
+1. Pastikan secret Edge Function `PUSH_WEBHOOK_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, dan `VAPID_SUBJECT` sudah dikonfigurasi seperti pengiriman Push Notification yang ada.
+2. Simpan Project URL dan service-role key di Supabase Vault dengan nama `event_open_mic_push_project_url` dan `event_open_mic_push_service_role_key`. Gunakan URL project Supabase dan service-role key dari project tersebut; jangan menyimpan service-role key di repository atau frontend.
+3. Jalankan migration berurutan `20261003050000_automate_event_open_mic_push_notifications.sql` dan `20261004090000_isolate_pwa_push_subscriptions.sql`.
+4. Deploy fungsi `manage-push-subscription`, `send-web-push`, dan `automate-public-event-push`.
+
+Migration menjadwalkan pemeriksaan setiap 15 menit. Pengiriman Event/Open Mic publik, reminder Event untuk Admin/QR, tugas evaluasi untuk Evaluator, dan setiap target perangkat dicatat terpisah agar scheduler berulang tidak mengirim tahap yang sama dua kali. Waktu reminder mengikuti WIB. Push saat publish tetap memakai jalur pengiriman langsung yang ada. Reminder Open Mic sebelum acara hanya dikirim saat pendaftaran masih terbuka; notifikasi lineup H+1 menunggu data komika berstatus tampil (`confirmed` dan `attended`).
+
 ## Checklist Clone Komunitas Baru
 
 ### 1. Duplikasi project

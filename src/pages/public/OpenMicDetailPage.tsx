@@ -1,6 +1,6 @@
 import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { useEffect, useState } from 'react';
-import { Calendar, Check, CheckCircle2, Clock, Copy, Info, Instagram, Mic, Send, Ticket } from 'lucide-react';
+import { Calendar, Check, CheckCircle2, ChevronDown, Clock, Copy, Info, Instagram, Mic, Send, Ticket } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { OpenMic, OpenMicRegistration } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -43,6 +43,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
   const [lightbox, setLightbox] = useState(false);
   const [shareFallbackOpen, setShareFallbackOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [stageInfoExpanded, setStageInfoExpanded] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -155,7 +156,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
   const shareTitle = `${mic.title} — Standupindo Cilegon`;
   const shareImage = mic.poster;
   const openMicNumbers = getOpenMicNumbers(numberedMics.length > 0 ? numberedMics : [mic]);
-  const shareText = [`Lineup ${mic.title}`, 'Standupindo Cilegon', '', 'Komika:', lineupText || 'Belum ada komika yang dikonfirmasi.', '', `📍 ${mic.venue}${mic.location ? `, ${mic.location}` : ''}`, `📅 ${formatDate(mic.date)}`, '', 'Lihat lineup lengkap:'].join('\n');
+  const shareText = [`Lineup *${mic.title}*`, 'Standupindo Cilegon', '', 'Komika:', lineupText || 'Belum ada komika yang dikonfirmasi.', '', `📍 *${mic.venue}${mic.location ? `, ${mic.location}` : ''}*`, `📅 ${formatDate(mic.date)}`, `⏰ *${mic.time} WIB*`, '', 'Lihat lineup lengkap:'].join('\n');
 
   async function shareLineup() {
     if (typeof navigator.share === 'function') {
@@ -211,7 +212,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
                 </div>
                 <ShareButton
                   title={`${mic.title} — Standupindo Cilegon`}
-                  text={`🎤 OPEN MIC STANDUP COMEDY\n\nMau coba naik panggung dan ngetes materi?\nYuk daftar Open Mic ${mic.title} di Standupindo Cilegon!\n\n📅 ${formatDate(mic.date)}\n⏰ ${mic.time} WIB\n📍 ${mic.venue}${mic.location ? `, ${mic.location}` : ''}\n\n🎟️ Daftar & lihat detail:\n${pageUrl}`}
+                  text={`🎤 OPEN MIC STANDUP COMEDY\n\nMau coba naik panggung dan ngetes materi?\nYuk daftar Open Mic *${mic.title}* di Standupindo Cilegon!\n\n📅 ${formatDate(mic.date)}\n⏰ *${mic.time} WIB*\n📍 *${mic.venue}${mic.location ? `, ${mic.location}` : ''}*\n\n🎟️ Daftar & lihat detail:\n${pageUrl}`}
                   url={pageUrl}
                   image={mic.poster}
                 />
@@ -248,14 +249,25 @@ export function OpenMicDetailPage({ router, slug }: Props) {
         {mic.description && (
           <section data-scroll-reveal className="scroll-reveal is-visible">
             <div className="overflow-hidden rounded-2xl border border-slate-200 border-l-4 border-l-blue-600 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-              <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-5">
+              <button
+                type="button"
+                aria-expanded={stageInfoExpanded}
+                aria-controls="open-mic-stage-info"
+                onClick={() => setStageInfoExpanded((expanded) => !expanded)}
+                className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:px-5"
+              >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-[0_5px_12px_rgba(37,99,235,0.2)]"><Info className="h-4 w-4" /></span>
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Informasi panggung</p>
                   <h2 className="text-lg font-extrabold text-slate-950 sm:text-xl">Tentang Open Mic</h2>
                 </div>
-              </div>
-              <p className="px-4 py-4 text-sm font-medium leading-7 text-slate-800 whitespace-pre-line sm:px-5 sm:text-base">{mic.description}</p>
+                <ChevronDown className={`h-5 w-5 shrink-0 text-slate-500 transition-transform ${stageInfoExpanded ? 'rotate-180' : ''}`} />
+              </button>
+              {stageInfoExpanded && (
+                <div id="open-mic-stage-info" className="border-t border-slate-100 px-4 py-4 text-sm font-medium leading-7 text-slate-800 sm:px-5 sm:text-base">
+                  <p className="whitespace-pre-line">{mic.description}</p>
+                </div>
+              )}
             </div>
           </section>
         )}

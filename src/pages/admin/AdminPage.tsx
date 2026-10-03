@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, BarChart3, Bell, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, DoorOpen, Eye, EyeOff, FolderOpen, History, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Power, Printer, RefreshCw, Search, Settings, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Archive, BarChart3, Bell, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, DoorOpen, Eye, EyeOff, FolderOpen, History, ImagePlus, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Power, Printer, RefreshCw, Search, Settings, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, MemberOpenMicHistoryStatus, MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -9,6 +9,7 @@ import { generateTicketOrderWhatsAppUrl } from '@/lib/whatsapp';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { MultiImageUpload } from '@/components/ui/MultiImageUpload';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
 import { LOGO_URL } from '@/lib/types';
 import { useNotifications } from '@/lib/notification-context';
@@ -668,6 +669,7 @@ export function AdminPage({ router, settings }: Props) {
   const [ticketDeleteTarget, setTicketDeleteTarget] = useState<string | null>(null);
   const [ticketEvent, setTicketEvent] = useState<EventItem | null>(null);
   const [partnershipEvent, setPartnershipEvent] = useState<EventItem | null>(null);
+  const [focusDocumentationPhotos, setFocusDocumentationPhotos] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const load = useCallback(async () => {
@@ -900,7 +902,7 @@ export function AdminPage({ router, settings }: Props) {
           {section === 'registrants' && <RegistrantsView openMicId={registrantOpenMicId} komika={komika} onBack={() => router.navigate(isAdmin ? '/admin/open-mic' : '/admin/open-mic-list')} />}
           {section === 'event-participants' && <EventParticipantsView eventId={router.path.split('/').filter(Boolean)[2] ?? ''} onBack={() => router.navigate('/admin/events')} />}
           {section === 'events' && (isAdmin || isEventAdmin
-            ? <EventManagement rows={events} loading={loading} pendingCounts={eventPendingCounts} canManageTickets={isAdmin} onAdd={() => { setEditing(null); setModal('event'); }} onEdit={(row) => { setEditing(row); setModal('event'); }} onDelete={(id) => deleteRow('events', id)} onTogglePublish={(id, val) => togglePublish('events', id, val)} onManageTickets={(row) => setTicketEvent(row)} onManagePartnerships={(row) => setPartnershipEvent(row)} onViewParticipants={(row) => router.navigate(`/admin/event-pendaftar/${row.id}`)} />
+            ? <EventManagement rows={events} loading={loading} pendingCounts={eventPendingCounts} canManageTickets={isAdmin} onAdd={() => { setFocusDocumentationPhotos(false); setEditing(null); setModal('event'); }} onEdit={(row) => { setFocusDocumentationPhotos(false); setEditing(row); setModal('event'); }} onManagePhotos={(row) => { setFocusDocumentationPhotos(true); setEditing(row); setModal('event'); }} onDelete={(id) => deleteRow('events', id)} onTogglePublish={(id, val) => togglePublish('events', id, val)} onManageTickets={(row) => setTicketEvent(row)} onManagePartnerships={(row) => setPartnershipEvent(row)} onViewParticipants={(row) => router.navigate(`/admin/event-pendaftar/${row.id}`)} />
             : <ScopedEventList events={events} loading={loading} onManageTickets={isTicketAdmin ? setTicketEvent : undefined} />)}
           {section === 'applications' && <ApplicationsView community={communityApplications} onNotice={setNotice} onReload={load} />}
           {section === 'open-mic-history' && <MemberOpenMicHistoryReview rows={memberHistory} komika={komika} onNotice={setNotice} onReload={load} />}
@@ -978,7 +980,7 @@ export function AdminPage({ router, settings }: Props) {
       <EventPartnershipManagementModal event={partnershipEvent} partners={partners} partnerships={eventPartnerships} onClose={() => setPartnershipEvent(null)} onNotice={setNotice} onReload={load} />
 
       {/* Form Modal */}
-      <AdminFormModal kind={modal} editing={editing} saving={saving} onClose={() => setModal(null)} onSaving={setSaving} onSaved={async () => { setModal(null); await load(); setNotice('Perubahan berhasil disimpan.'); }} />
+      <AdminFormModal kind={modal} editing={editing} venueHistory={openMics} saving={saving} focusDocumentationPhotos={focusDocumentationPhotos} onClose={() => { setModal(null); setFocusDocumentationPhotos(false); }} onSaving={setSaving} onSaved={async () => { setModal(null); setFocusDocumentationPhotos(false); await load(); setNotice('Perubahan berhasil disimpan.'); }} />
 
     </div>
   );
@@ -2145,7 +2147,7 @@ function EventParticipantsView({ eventId, onBack }: { eventId: string; onBack: (
   );
 }
 
-function EventManagement({ rows, loading, pendingCounts, canManageTickets, onAdd, onEdit, onDelete, onTogglePublish, onManageTickets, onManagePartnerships, onViewParticipants }: { rows: EventItem[]; loading: boolean; pendingCounts: Record<string, number>; canManageTickets: boolean; onAdd: () => void; onEdit: (row: EventItem) => void; onDelete: (id: string) => void; onTogglePublish: (id: string, current: boolean) => void; onManageTickets: (row: EventItem) => void; onManagePartnerships: (row: EventItem) => void; onViewParticipants: (row: EventItem) => void }) {
+function EventManagement({ rows, loading, pendingCounts, canManageTickets, onAdd, onEdit, onManagePhotos, onDelete, onTogglePublish, onManageTickets, onManagePartnerships, onViewParticipants }: { rows: EventItem[]; loading: boolean; pendingCounts: Record<string, number>; canManageTickets: boolean; onAdd: () => void; onEdit: (row: EventItem) => void; onManagePhotos: (row: EventItem) => void; onDelete: (id: string) => void; onTogglePublish: (id: string, current: boolean) => void; onManageTickets: (row: EventItem) => void; onManagePartnerships: (row: EventItem) => void; onViewParticipants: (row: EventItem) => void }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'upcoming' | 'completed' | 'cancelled'>('upcoming');
   const filteredRows = rows.filter((row) => {
@@ -2201,11 +2203,12 @@ function EventManagement({ rows, loading, pendingCounts, canManageTickets, onAdd
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-1">
-                      {e.registration_status === 'open' && <button onClick={() => onViewParticipants(e)} className="relative rounded-lg p-2 text-slate-500 hover:bg-green-50 hover:text-green-700" title="Lihat Pendaftar"><UserPlus className="h-4 w-4" />{pendingCounts[e.id] > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white">{pendingCounts[e.id]}</span>}</button>}
-                      {canManageTickets && <button onClick={() => onManageTickets(e)} className="rounded-lg p-2 text-slate-500 hover:bg-amber-50 hover:text-amber-700" title="Kelola Tiket"><TicketIcon className="h-4 w-4" /></button>}
-                      <button onClick={() => onManagePartnerships(e)} className="rounded-lg p-2 text-slate-500 hover:bg-violet-50 hover:text-violet-700" title="Kelola Partner"><Users className="h-4 w-4" /></button>
-                      <button onClick={() => onEdit(e)} className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700" title="Edit"><Pencil className="h-4 w-4" /></button>
-                      <button onClick={() => onDelete(e.id)} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-700" title="Hapus"><Trash2 className="h-4 w-4" /></button>
+                      {getEventStatus(e.status, e.date) !== 'completed' && e.registration_status === 'open' && <button onClick={() => onViewParticipants(e)} className="relative rounded-lg p-2 text-slate-500 hover:bg-green-50 hover:text-green-700" title="Lihat Pendaftar" aria-label={`Lihat pendaftar ${e.title}`}><UserPlus className="h-4 w-4" />{pendingCounts[e.id] > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white">{pendingCounts[e.id]}</span>}</button>}
+                      {canManageTickets && getEventStatus(e.status, e.date) !== 'completed' && <button onClick={() => onManageTickets(e)} className="rounded-lg p-2 text-slate-500 hover:bg-amber-50 hover:text-amber-700" title="Kelola Tiket" aria-label={`Kelola tiket ${e.title}`}><TicketIcon className="h-4 w-4" /></button>}
+                      <button onClick={() => onManagePartnerships(e)} className="rounded-lg p-2 text-slate-500 hover:bg-violet-50 hover:text-violet-700" title="Kelola Partner" aria-label={`Kelola partner ${e.title}`}><Users className="h-4 w-4" /></button>
+                      {getEventStatus(e.status, e.date) === 'completed' && <button onClick={() => onManagePhotos(e)} className="rounded-lg p-2 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700" title="Kelola Foto Dokumentasi" aria-label={`Kelola foto dokumentasi ${e.title}`}><ImagePlus className="h-4 w-4" /></button>}
+                      <button onClick={() => onEdit(e)} className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700" title="Edit" aria-label={`Edit ${e.title}`}><Pencil className="h-4 w-4" /></button>
+                      <button onClick={() => onDelete(e.id)} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-700" title="Hapus" aria-label={`Hapus ${e.title}`}><Trash2 className="h-4 w-4" /></button>
                     </div>
                   </td>
                 </tr>
@@ -2222,8 +2225,9 @@ function EventManagement({ rows, loading, pendingCounts, canManageTickets, onAdd
           <div className="space-y-3">{[1,2].map((n) => <div key={n} className="h-36 skeleton" />)}</div>
         ) : filteredRows.length === 0 ? (
           <AdminEmptyState title={search ? 'Event tidak ditemukan.' : 'Belum ada Event.'} />
-        ) : filteredRows.map((e) => (
-          <div key={e.id} className="overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
+        ) : filteredRows.map((e) => {
+          const completed = getEventStatus(e.status, e.date) === 'completed';
+          return <div key={e.id} className="overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
             {e.poster && <img src={e.poster} alt={e.title} className="h-40 w-full object-cover" />}
             <div className="p-4">
               <div className="flex items-start justify-between gap-3">
@@ -2239,15 +2243,16 @@ function EventManagement({ rows, loading, pendingCounts, canManageTickets, onAdd
                 </button>
               </div>
               <div className="mt-4 flex gap-2">
-                {e.registration_status === 'open' && <button onClick={() => onViewParticipants(e)} className="flex-1 rounded-lg bg-green-50 py-2.5 text-xs font-semibold text-green-700 transition hover:bg-green-100">Pendaftar{pendingCounts[e.id] > 0 && <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white">{pendingCounts[e.id]}</span>}</button>}
-                {canManageTickets && <button onClick={() => onManageTickets(e)} className="flex-1 rounded-lg bg-amber-50 py-2.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100">Tiket</button>}
-                <button onClick={() => onManagePartnerships(e)} className="flex-1 rounded-lg bg-violet-50 py-2.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-100">Partner</button>
-                <button onClick={() => onEdit(e)} className="flex-1 rounded-lg bg-blue-50 py-2.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100">Edit</button>
-                <button onClick={() => onDelete(e.id)} className="flex-1 rounded-lg bg-red-50 py-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100">Hapus</button>
+                {!completed && e.registration_status === 'open' && <button onClick={() => onViewParticipants(e)} aria-label={`Lihat pendaftar ${e.title}`} title={`Pendaftar${pendingCounts[e.id] > 0 ? ` (${pendingCounts[e.id]} menunggu)` : ''}`} className="relative flex h-10 min-w-0 flex-1 items-center justify-center rounded-lg bg-green-50 text-green-700 transition hover:bg-green-100"><UserPlus className="h-4 w-4" />{pendingCounts[e.id] > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white">{pendingCounts[e.id]}</span>}</button>}
+                {!completed && canManageTickets && <button onClick={() => onManageTickets(e)} aria-label={`Kelola tiket ${e.title}`} title="Kelola tiket" className="flex h-10 min-w-0 flex-1 items-center justify-center rounded-lg bg-amber-50 text-amber-700 transition hover:bg-amber-100"><TicketIcon className="h-4 w-4" /></button>}
+                <button onClick={() => onManagePartnerships(e)} aria-label={`Kelola partner ${e.title}`} title="Kelola partner" className="flex h-10 min-w-0 flex-1 items-center justify-center rounded-lg bg-violet-50 text-violet-700 transition hover:bg-violet-100"><Users className="h-4 w-4" /></button>
+                {completed && <button onClick={() => onManagePhotos(e)} aria-label={`Kelola foto dokumentasi ${e.title}`} title="Foto dokumentasi" className="flex h-10 min-w-0 flex-1 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100"><ImagePlus className="h-4 w-4" /></button>}
+                <button onClick={() => onEdit(e)} aria-label={`Edit ${e.title}`} title="Edit" className="flex h-10 min-w-0 flex-1 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition hover:bg-blue-100"><Pencil className="h-4 w-4" /></button>
+                <button onClick={() => onDelete(e.id)} aria-label={`Hapus ${e.title}`} title="Hapus" className="flex h-10 min-w-0 flex-1 items-center justify-center rounded-lg bg-red-50 text-red-700 transition hover:bg-red-100"><Trash2 className="h-4 w-4" /></button>
               </div>
             </div>
-          </div>
-        ))}
+          </div>;
+        })}
       </div>
     </div>
   );
@@ -3331,14 +3336,19 @@ function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, isAdmin, isOp
   );
 }
 
-function AdminFormModal({ kind, editing, saving, onClose, onSaving, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; saving: boolean; onClose: () => void; onSaving: (v: boolean) => void; onSaved: () => void }) {
+function AdminFormModal({ kind, editing, venueHistory, saving, focusDocumentationPhotos, onClose, onSaving, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; venueHistory: OpenMic[]; saving: boolean; focusDocumentationPhotos: boolean; onClose: () => void; onSaving: (v: boolean) => void; onSaved: () => void }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
+  const [venueSuggestionsOpen, setVenueSuggestionsOpen] = useState(false);
+  const documentationPhotosRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!kind) return;
     const row = editing as Record<string, unknown> | null;
     if (row) {
       setForm({ ...Object.fromEntries(Object.entries(row).map(([k, v]) => [k === 'instagram_url' ? k : k === 'tiktok_url' ? k : k, k === 'instagram_url' ? formatInstagramHandle(String(v ?? '')) : k === 'tiktok_url' ? formatTikTokHandle(String(v ?? '')) : Array.isArray(v) ? v.join(', ') : String(v ?? '')])) });
+      if (Array.isArray(row.documentation_photos)) {
+        setForm((current) => ({ ...current, documentation_photos: row.documentation_photos.join('\n') }));
+      }
     } else if (kind === 'komika') {
       setForm({ full_name: '', whatsapp: '', stage_name: '', photo: '', bio: '', instagram_url: '', tiktok_url: '', youtube_url: '', specialties: '', joined_at: '', status: 'active', published: 'true' });
     } else if (kind === 'open-mic') {
@@ -3346,13 +3356,37 @@ function AdminFormModal({ kind, editing, saving, onClose, onSaving, onSaved }: {
     } else if (kind === 'partner') {
       setForm({ name: '', logo_url: '', website_url: '', contact_name: '', contact_phone: '', notes: '', category: 'sponsor', is_published: 'true', sort_order: '0' });
     } else {
-      setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', status: 'upcoming', registration_status: 'closed', published: 'true', whatsapp_number: '', whatsapp_message: '', event_rules: '' });
+      setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', documentation_photos: '', status: 'upcoming', registration_status: 'closed', published: 'true', whatsapp_number: '', whatsapp_message: '', event_rules: '' });
     }
   }, [kind, editing]);
+
+  useEffect(() => {
+    if (!focusDocumentationPhotos || kind !== 'event') return;
+    const frame = requestAnimationFrame(() => documentationPhotosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    return () => cancelAnimationFrame(frame);
+  }, [focusDocumentationPhotos, kind, editing]);
 
   if (!kind) return null;
   const isEdit = Boolean(editing);
   const set = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+  const documentationPhotos = (form.documentation_photos ?? '').split('\n').map((url) => url.trim()).filter(Boolean).slice(0, 15);
+  const venueQuery = (form.venue ?? '').trim().toLocaleLowerCase();
+  const venueHistoryEntries = kind === 'open-mic'
+    ? Array.from(venueHistory.reduce((entries, row) => {
+      const venue = row.venue.trim();
+      if (!venue) return entries;
+      const location = row.location.trim();
+      const mapsUrl = row.maps_url?.trim() ?? '';
+      const key = venue.toLocaleLowerCase();
+      const existing = entries.get(key);
+      if (!existing || row.date > existing.date) entries.set(key, { venue, location, mapsUrl, date: row.date });
+      return entries;
+    }, new Map<string, { venue: string; location: string; mapsUrl: string; date: string }>()).values())
+      .sort((first, second) => second.date.localeCompare(first.date))
+    : [];
+  const matchingVenueSuggestions = venueQuery
+    ? venueHistoryEntries.filter((entry) => entry.venue.toLocaleLowerCase().includes(venueQuery)).slice(0, 6)
+    : [];
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -3390,6 +3424,7 @@ function AdminFormModal({ kind, editing, saving, onClose, onSaving, onSaved }: {
           whatsapp_number: whatsappNumber,
           whatsapp_message: base.whatsapp_message?.trim() || null,
           event_rules: base.event_rules?.trim() || null,
+          documentation_photos: (base.documentation_photos ?? '').split('\n').map((url) => url.trim()).filter(Boolean).slice(0, 15),
         };
         const result = editing ? await supabase.from('events').update(payload).eq('id', editing.id) : await supabase.from('events').insert(payload);
         if (result.error) throw result.error;
@@ -3431,7 +3466,19 @@ function AdminFormModal({ kind, editing, saving, onClose, onSaving, onSaved }: {
               <ImageUpload label="Poster / Foto Open Mic" folder="open-mic" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} skipCrop />
             )}
             {kind === 'event' && (
-              <ImageUpload label="Poster Event" folder="events" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} skipCrop />
+              <div className="space-y-4">
+                <ImageUpload label="Poster Event" folder="events" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" onUploadingChange={setUploading} skipCrop />
+                <div ref={documentationPhotosRef} id="admin-documentation-photos" className="scroll-mt-6">
+                  <MultiImageUpload
+                    label="Foto Dokumentasi"
+                    folder="events"
+                    value={documentationPhotos}
+                    onChange={(urls) => set('documentation_photos', urls.join('\n'))}
+                    maxFiles={15}
+                    onUploadingChange={setUploading}
+                  />
+                </div>
+              </div>
             )}
             {kind === 'partner' && (
               <ImageUpload label="Logo Partner" folder="partners" value={form.logo_url ?? ''} onChange={(url) => set('logo_url', url)} aspect="square" onUploadingChange={setUploading} />
@@ -3441,7 +3488,56 @@ function AdminFormModal({ kind, editing, saving, onClose, onSaving, onSaved }: {
             {fields.map(([key, label, type]) => (
               <div key={key} className={type === 'textarea' ? 'lg:col-span-2' : ''}>
                 <label className="label-field" htmlFor={`admin-${key}`}>{label}</label>
-                {type === 'textarea' ? (
+                {kind === 'open-mic' && key === 'venue' ? (
+                  <div className="relative">
+                    <input
+                      id={`admin-${key}`}
+                      type="text"
+                      value={form[key] ?? ''}
+                      onFocus={() => setVenueSuggestionsOpen(true)}
+                      onChange={(event) => {
+                        set(key, event.target.value);
+                        setVenueSuggestionsOpen(true);
+                      }}
+                      onBlur={() => setVenueSuggestionsOpen(false)}
+                      placeholder={getAdminFieldPlaceholder(key)}
+                      className="input-field"
+                      autoComplete="off"
+                      role="combobox"
+                      aria-autocomplete="list"
+                      aria-expanded={venueSuggestionsOpen && matchingVenueSuggestions.length > 0}
+                      aria-controls="admin-open-mic-venue-suggestions"
+                      required={requiredFields.includes(key)}
+                    />
+                    {venueSuggestionsOpen && matchingVenueSuggestions.length > 0 && (
+                      <ul id="admin-open-mic-venue-suggestions" role="listbox" className="absolute inset-x-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                        {matchingVenueSuggestions.map((entry) => (
+                          <li key={`${entry.venue}-${entry.location}-${entry.mapsUrl}`} role="presentation">
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected="false"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => {
+                                setForm((current) => ({
+                                  ...current,
+                                  venue: entry.venue,
+                                  location: entry.location,
+                                  maps_url: entry.mapsUrl,
+                                }));
+                                setVenueSuggestionsOpen(false);
+                              }}
+                              className="w-full rounded-lg px-3 py-2 text-left transition hover:bg-blue-50"
+                            >
+                              <span className="block text-sm font-semibold text-slate-800">{entry.venue}</span>
+                              <span className="block text-xs text-slate-500">{[entry.location, `Terakhir ${formatDate(entry.date)}`].filter(Boolean).join(' · ')}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : type === 'textarea' ? (
                   <textarea id={`admin-${key}`} value={form[key] ?? ''} onChange={(e) => set(key, e.target.value)} placeholder={getAdminFieldPlaceholder(key)} className="input-field min-h-[88px]" />
                 ) : type === 'select' ? (
                   <select id={`admin-${key}`} value={form[key] ?? ''} onChange={(e) => set(key, e.target.value)} className="input-field">

@@ -36,7 +36,10 @@ function AutoSlideRow({ children, className, intervalMs = 5000, highlightActive 
       const nextItem = row.children[nextIndex] as HTMLElement | undefined;
       if (!nextItem) return;
       if (highlightActive) setActiveIndex(nextIndex);
-      row.scrollTo({ left: nextItem.offsetLeft, behavior: 'smooth' });
+      const rowStyle = window.getComputedStyle(row);
+      const scrollInset = Number.parseFloat(rowStyle.scrollPaddingLeft) || Number.parseFloat(rowStyle.paddingLeft) || 0;
+      const itemOffset = nextItem.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
+      row.scrollTo({ left: itemOffset - scrollInset, behavior: 'smooth' });
     }, intervalMs);
     return () => window.clearInterval(timer);
   }, [children.length, highlightActive, intervalMs, paused]);
@@ -298,7 +301,7 @@ export function HomePage({ router }: Props) {
             ) : komika.length === 0 ? (
               <EmptyState title="Belum ada komika." />
             ) : (
-              <AutoSlideRow intervalMs={2500} highlightActive className="home-stagger flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:pb-0">
+              <AutoSlideRow intervalMs={2500} highlightActive className="home-stagger -mx-3 flex gap-4 overflow-x-auto px-3 pt-3 pb-6 snap-x snap-mandatory scroll-px-3 lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0">
                 {komika.map((k) => (
                   <div key={k.id} className="h-fit min-w-[160px] max-w-[160px] shrink-0 self-start snap-start sm:min-w-[180px] lg:min-w-0 lg:max-w-none">
                     <KomikaCard komika={k} router={router} />
