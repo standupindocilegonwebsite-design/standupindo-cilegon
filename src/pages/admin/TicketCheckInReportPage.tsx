@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Printer } from 'lucide-react';
+import { Download, Printer } from 'lucide-react';
 import { formatDate } from '@/lib/format';
 import { LOGO_URL } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
+import { downloadXlsxTable } from '@/lib/xlsx';
 
 interface CheckInEventReport {
   id: string;
@@ -80,13 +81,47 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
 
   function printReport() {
     document.body.dataset.printMode = 'ticket-check-in-report';
-    window.setTimeout(() => {
-      window.print();
-      delete document.body.dataset.printMode;
-    }, 0);
+    window.addEventListener('afterprint', () => { delete document.body.dataset.printMode; }, { once: true });
+    window.setTimeout(() => window.print(), 100);
+  }
+
+  function exportExcel() {
+    if (!report) return;
+    const rows: Array<Array<string | number>> = eventFilter === 'all'
+      ? report.events.map((event) => [
+        event.title,
+        formatDate(event.date),
+        event.tickets_sold,
+        event.checked_in,
+        event.not_checked_in,
+        `${event.attendance_percent.toLocaleString('id-ID', { maximumFractionDigits: 2 })}%`,
+      ])
+      : report.tickets.map((ticket, index) => [
+        index + 1,
+        ticket.full_name,
+        ticket.whatsapp,
+        ticket.ticket_category,
+        ticket.status,
+      ]);
+    const eventFileName = selectedEvent
+      ? `-${selectedEvent.title.toLocaleLowerCase('id-ID').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
+      : '';
+    downloadXlsxTable({
+      fileName: `laporan-check-in${eventFileName}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      sheetName: selectedEvent ? 'Detail Tiket' : 'Rekap per Event',
+      title: selectedEvent ? `LAPORAN CHECK-IN - ${selectedEvent.title}` : 'LAPORAN CHECK-IN',
+      subtitle: selectedEvent
+        ? `${formatDate(selectedEvent.date)}${selectedEvent.venue ? ` · ${selectedEvent.venue}` : ''} · Standupindo Cilegon`
+        : 'Rekap semua Event dalam scope Admin QR Scanner · Standupindo Cilegon',
+      headers: eventFilter === 'all'
+        ? ['Event', 'Tanggal', 'Tiket Terjual', 'Hadir', 'Tidak Hadir', 'Kehadiran']
+        : ['No.', 'Nama Pemesan', 'WhatsApp', 'Kategori Tiket', 'Status'],
+      rows,
+    });
   }
 
   const canPrint = !loading && !error && Boolean(report?.events.length);
+  const canExport = canPrint;
   const printTitle = selectedEvent?.title ?? 'Semua Event dalam scope Admin QR Scanner';
   const printedAt = new Date().toLocaleString('id-ID');
 
@@ -97,10 +132,15 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
         subtitle="Rekap kehadiran tiket per Event berdasarkan status check-in."
         eyebrow="Admin QR Scanner"
         onBack={onBack}
-        action={<button type="button" onClick={printReport} disabled={!canPrint} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-800 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50" aria-label="Print laporan check-in" title="Print laporan check-in"><Printer className="h-4 w-4" /></button>}
+        action={<div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={exportExcel} disabled={!canExport} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-3 text-xs font-bold text-blue-800 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50" aria-label="Unduh Excel laporan check-in" title="Unduh Excel laporan check-in"><Download className="h-4 w-4" /><span className="hidden sm:inline">Excel</span></button>
+          <button type="button" onClick={printReport} disabled={!canPrint} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-800 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50" aria-label="Print laporan check-in" title="Print laporan check-in"><Printer className="h-4 w-4" /></button>
+        </div>}
       />
       <SearchableEventSelect
-        options={(report?.available_events ?? report?.events)?.map((event) => ({ id: event.id, title: event.title, subtitle: `${formatDate(event.date)} · ${event.venue}` })) ?? []}
+        options={[...(report?.available_events ?? report?.events ?? [])]
+          .sort((first, second) => second.date.localeCompare(first.date))
+          .map((event) => ({ id: event.id, title: event.title, subtitle: `${formatDate(event.date)} · ${event.venue}` }))}
         value={eventFilter}
         onChange={setEventFilter}
         allLabel="Semua Event"

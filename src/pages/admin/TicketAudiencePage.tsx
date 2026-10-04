@@ -5,8 +5,10 @@ import type { EventItem } from '@/lib/types';
 import { formatDate, getEventStatus, normalizeWhatsappNumber } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { TicketPagination } from '@/components/TicketPagination';
+import { downloadXlsxTable } from '@/lib/xlsx';
 
 const PAGE_SIZE = 30;
+const AUDIENCE_HEADERS = ['Nama', 'WhatsApp', 'Event', 'Jumlah Order', 'Jumlah Tiket', 'Check-in', 'Belum Check-in', 'Nomor Order'];
 
 interface AudienceEvent {
   event_id: string;
@@ -79,12 +81,6 @@ async function loadAudience(eventFilter: string) {
   return { data: null, error: error.message };
 }
 
-function csvCell(value: string | number) {
-  const text = String(value);
-  const safeText = typeof value === 'string' && /^[\s\u0000-\u001F]*[=+\-@]/.test(text) ? `'${text}` : text;
-  return `"${safeText.replace(/"/g, '""')}"`;
-}
-
 export function TicketAudiencePage({ events }: { events: EventItem[] }) {
   const [guests, setGuests] = useState<AudienceGuest[]>([]);
   const [search, setSearch] = useState('');
@@ -122,6 +118,19 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
     const matchesAttendance = attendanceFilter === 'all' || (attendanceFilter === 'attended' ? guest.total_checked_in > 0 : guest.total_checked_in === 0);
     return matchesQuery && matchesAttendance;
   }), [attendanceFilter, guests, search]);
+  const audienceRows = useMemo(() => filteredGuests.flatMap((guest) => guest.events.map((event) => ({
+    id: `${guest.whatsapp}-${event.event_id}`,
+    values: [
+      guest.full_name,
+      guest.whatsapp,
+      event.title,
+      event.order_count,
+      event.ticket_count,
+      event.checked_in,
+      event.not_checked_in,
+      event.order_numbers.join(' | '),
+    ] as Array<string | number>,
+  }))), [filteredGuests]);
   const pageGuests = filteredGuests.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const nearestUpcomingEvent = getNearestUpcomingEvent(events);
 
@@ -156,21 +165,21 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
     return () => { active = false; };
   }, [messageTarget, nearestUpcomingEvent?.id]);
 
-  function exportCsv() {
-    const rows: Array<Array<string | number>> = [['Nama', 'WhatsApp', 'Event', 'Jumlah Order', 'Jumlah Tiket', 'Check-in', 'Belum Check-in', 'Nomor Order']];
-    filteredGuests.forEach((guest) => guest.events.forEach((event) => rows.push([guest.full_name, guest.whatsapp, event.title, event.order_count, event.ticket_count, event.checked_in, event.not_checked_in, event.order_numbers.join(' | ')])));
-    const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
-    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `database-penonton-${new Date().toISOString().slice(0, 10)}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+  function exportExcel() {
+    downloadXlsxTable({
+      fileName: `database-penonton-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      sheetName: 'Penonton',
+      title: 'DATABASE PENONTON',
+      subtitle: 'Standupindo Cilegon',
+      headers: AUDIENCE_HEADERS,
+      rows: audienceRows.map((row) => row.values),
+    });
   }
 
   function printGuests() {
     document.body.dataset.printMode = 'ticket-audience';
-    window.setTimeout(() => { window.print(); delete document.body.dataset.printMode; }, 0);
+    window.addEventListener('afterprint', () => { delete document.body.dataset.printMode; }, { once: true });
+    window.setTimeout(() => window.print(), 100);
   }
 
   const totalTickets = filteredGuests.reduce((sum, guest) => sum + guest.total_tickets, 0);
@@ -290,7 +299,7 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Event Workspace</p><h1 className="text-2xl font-black text-slate-950">Penonton</h1><p className="mt-1 text-sm text-slate-500">Pembeli dengan order lunas, dikelompokkan berdasarkan WhatsApp.</p></div><div className="flex gap-2"><button type="button" onClick={exportCsv} disabled={!filteredGuests.length} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs">Unduh CSV</button><button type="button" onClick={printGuests} disabled={!filteredGuests.length} className="btn-secondary !h-10 !w-10 !p-0" aria-label="Cetak Penonton" title="Cetak Penonton"><Printer className="h-4 w-4" /></button></div></div>
+      <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Event Workspace</p><h1 className="text-2xl font-black text-slate-950">Penonton</h1><p className="mt-1 text-sm text-slate-500">Pembeli dengan order lunas, dikelompokkan berdasarkan WhatsApp.</p></div><div className="flex gap-2"><button type="button" onClick={exportExcel} disabled={!filteredGuests.length} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs">Unduh Excel</button><button type="button" onClick={printGuests} disabled={!filteredGuests.length} className="btn-secondary !h-10 !w-10 !p-0" aria-label="Cetak Penonton" title="Cetak Penonton"><Printer className="h-4 w-4" /></button></div></div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><div className="rounded-xl border border-slate-200 bg-white p-3"><p className="text-xs text-slate-500">Pembeli</p><p className="mt-1 text-xl font-black">{filteredGuests.length}</p></div><div className="rounded-xl border border-slate-200 bg-white p-3"><p className="text-xs text-slate-500">Tiket</p><p className="mt-1 text-xl font-black">{totalTickets}</p></div><div className="rounded-xl border border-slate-200 bg-white p-3"><p className="text-xs text-slate-500">Check-in</p><p className="mt-1 text-xl font-black text-emerald-700">{totalCheckIns}</p></div><div className="rounded-xl border border-slate-200 bg-white p-3"><p className="text-xs text-slate-500">Belum Check-in</p><p className="mt-1 text-xl font-black text-blue-700">{totalUnscanned}</p></div></div>
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_190px]"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input className="input-field pl-10" placeholder="Cari nama atau WhatsApp..." value={search} onChange={(event) => setSearch(event.target.value)} /></div><select className="input-field" value={eventFilter} onChange={(event) => setEventFilter(event.target.value)}><option value="all">Semua Event</option>{events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}</select><select className="input-field" value={attendanceFilter} onChange={(event) => setAttendanceFilter(event.target.value as typeof attendanceFilter)}><option value="all">Semua Kehadiran</option><option value="attended">Hadir</option><option value="not-attended">Belum Hadir</option></select></div>
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
@@ -299,7 +308,7 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
         return <article key={guest.whatsapp} className="overflow-hidden rounded-2xl border border-slate-200 bg-white"><button type="button" onClick={() => setExpanded((current) => ({ ...current, [guest.whatsapp]: !current[guest.whatsapp] }))} className="flex w-full items-center gap-3 p-4 text-left"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><Users className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="block truncate font-extrabold text-slate-900">{guest.full_name}</span><span className="mt-0.5 block text-xs text-slate-500">{guest.whatsapp} · {guest.event_count} Event</span></span><span className="hidden shrink-0 text-right text-xs sm:block"><span className="font-bold text-slate-800">{guest.total_tickets} tiket</span><span className="mt-0.5 block text-slate-500">{guest.total_checked_in} check-in · {guest.total_not_checked_in} belum</span></span>{isExpanded ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}</button>{isExpanded && <div className="space-y-2 border-t border-slate-100 p-3 sm:p-4">{guest.events.map((event) => <div key={event.event_id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{event.title}</p><p className="mt-0.5 text-xs text-slate-500">{formatDate(event.date)} · {event.order_count} order · {event.order_numbers.join(', ') || 'Order lama'}</p><div className="mt-1 flex gap-3 text-xs font-semibold text-slate-600"><span>{event.ticket_count} tiket</span><span className="text-emerald-700">{event.checked_in} hadir</span><span>{event.not_checked_in} belum</span></div></div><button type="button" onClick={() => setMessageTarget({ guest, eventId: event.event_id })} aria-label={`Kirim pesan WhatsApp ke ${guest.full_name} untuk ${event.title}`} title="Kirim pesan WhatsApp" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-white text-blue-700 transition hover:bg-blue-50"><MessageCircle className="h-4 w-4" /></button></div>)}</div>}</article>;
       })}</div>}
       <TicketPagination page={page} pageSize={PAGE_SIZE} total={filteredGuests.length} onPageChange={setPage} />
-      <div className="hidden print:block"><div className="print-brand"><h1>DATABASE PENONTON</h1><p>Standupindo Cilegon</p></div><table><thead><tr><th>Nama</th><th>WhatsApp</th><th>Event</th><th>Order</th><th>Tiket</th><th>Check-in</th><th>Belum Check-in</th></tr></thead><tbody>{filteredGuests.flatMap((guest) => guest.events.map((event) => <tr key={`${guest.whatsapp}-${event.event_id}`}><td>{guest.full_name}</td><td>{guest.whatsapp}</td><td>{event.title}</td><td>{event.order_count}</td><td>{event.ticket_count}</td><td>{event.checked_in}</td><td>{event.not_checked_in}</td></tr>))}</tbody></table></div>
+      <div className="print-sheet ticket-audience-print"><div className="print-brand"><h1>DATABASE PENONTON</h1><p>Standupindo Cilegon</p></div><table><thead><tr>{AUDIENCE_HEADERS.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{audienceRows.map((row) => <tr key={row.id}>{row.values.map((value, index) => <td key={`${row.id}-${index}`}>{value}</td>)}</tr>)}</tbody></table></div>
       <Modal open={Boolean(messageTarget)} onClose={() => { setMessageTarget(null); setMessageActivities([]); setMessageError(''); setPendingConfirmation(null); setPendingConfirmationEventId(null); }} title="Pesan WhatsApp" size="sm">
         {messageTarget && <div className="space-y-3">
           <div className="truncate rounded-lg bg-blue-50 px-3 py-2 text-xs text-slate-700"><span className="font-bold">{messageTarget.guest.full_name}</span> · {targetEvent?.title ?? 'Event'}</div>

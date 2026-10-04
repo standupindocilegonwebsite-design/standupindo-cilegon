@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, CheckCheck, Eye, ExternalLink, KeyRound, MessageCircle, Printer, Search, ShieldCheck, Ticket as TicketIcon, Trash2, X } from 'lucide-react';
+import { Check, CheckCheck, Eye, ExternalLink, Gift, KeyRound, MessageCircle, Printer, Search, ShieldCheck, Ticket as TicketIcon, Trash2, X } from 'lucide-react';
 import type { EventItem, TicketOrder } from '@/lib/types';
 import { formatPrice, getEventStatus } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -78,6 +78,8 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload }: { o
   const [page, setPage] = useState(1);
   const [busyOrder, setBusyOrder] = useState<string | null>(null);
   const [detailsOrderId, setDetailsOrderId] = useState<string | null>(null);
+  const [confirmingOrderReview, setConfirmingOrderReview] = useState<{ orderId: string; resolution: 'Lunas' | 'Ditolak' } | null>(null);
+  const [proofPreview, setProofPreview] = useState<{ orderId: string; url: string } | null>(null);
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [accessByOrder, setAccessByOrder] = useState<Record<string, { id: string; code: string; whatsappUrl: string; sentAt?: string; sendCount?: number }>>({});
@@ -123,6 +125,7 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload }: { o
     if (resolution === 'Lunas' && data.access_code_id && data.access_code && data.whatsapp_url) {
       setAccessByOrder((current) => ({ ...current, [order.id]: { id: data.access_code_id!, code: data.access_code!, whatsappUrl: data.whatsapp_url!, sentAt: data.last_sent_at, sendCount: data.send_count } }));
     }
+    setConfirmingOrderReview(null);
     await onReload();
   }
 
@@ -140,22 +143,15 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload }: { o
   }
 
   async function openProof(order: TicketOrder) {
-    const proofWindow = window.open('about:blank', '_blank');
-    if (!proofWindow) {
-      setError('Izinkan pop-up browser untuk membuka bukti pembayaran.');
-      return;
-    }
-    proofWindow.opener = null;
     setBusyOrder(order.id);
     setError('');
     const { data, error: actionError } = await invokeTicketAdmin({ action: 'proof-url', order_id: order.id });
     setBusyOrder(null);
     if (actionError || !data?.signed_url) {
-      proofWindow.close();
       setError(actionError ?? 'Bukti pembayaran gagal dibuka.');
       return;
     }
-    proofWindow.location.href = data.signed_url;
+    setProofPreview({ orderId: order.id, url: data.signed_url });
   }
 
   async function markSent(orderId: string) {
@@ -195,8 +191,8 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload }: { o
 
   function exportCsv() {
     const rows: Array<Array<string | number>> = [
-      ['Order', 'Event', 'Nama', 'WhatsApp', 'Tiket', 'Jumlah', 'Total', 'Status', 'Waktu'],
-      ...filteredOrders.map((order) => [order.order_number ?? order.id, eventById.get(order.event_id)?.title ?? '', order.full_name, order.whatsapp, order.ticket_category, order.quantity, order.total_price, order.status, order.created_at]),
+      ['Order', 'Event', 'Nama', 'WhatsApp', 'Tiket', 'Jumlah', 'Jenis order', 'Alasan Free Pass', 'Total', 'Status', 'Waktu'],
+      ...filteredOrders.map((order) => [order.order_number ?? order.id, eventById.get(order.event_id)?.title ?? '', order.full_name, order.whatsapp, order.ticket_category, order.quantity, order.order_type === 'free_pass' ? 'Free Pass' : 'Berbayar', order.free_pass_reason ?? '', order.order_type === 'free_pass' ? 'Gratis' : order.total_price, order.status, order.created_at]),
     ];
     const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
@@ -232,6 +228,7 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload }: { o
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="truncate text-sm font-extrabold text-slate-950">{order.full_name}</h2>
               <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${statusTone(order.status)}`}>{order.status}</span>
+              {order.order_type === 'free_pass' && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-extrabold text-amber-900"><Gift className="h-3 w-3" />FREE PASS</span>}
             </div>
             <p className="mt-1 truncate text-xs text-slate-600">{event?.title ?? 'Event'}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -241,15 +238,86 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload }: { o
               </span>
               <span className="shrink-0 rounded-md bg-blue-700 px-2 py-1 text-[10px] font-extrabold tracking-wide text-white">{order.quantity} TIKET</span>
             </div>
-            <p className="mt-2 text-sm font-extrabold text-slate-900">{formatPrice(order.total_price)}</p>
+            <p className="mt-2 text-sm font-extrabold text-slate-900">{order.order_type === 'free_pass' ? 'GRATIS · FREE PASS' : formatPrice(order.total_price)}</p>
+            {order.order_type === 'free_pass' && order.free_pass_reason && <p className="mt-1 line-clamp-2 text-xs text-amber-800">Alasan: {order.free_pass_reason}</p>}
           </div>
           <button type="button" onClick={() => setDetailsOrderId(order.id)} aria-label={`Lihat detail order ${order.order_number ?? order.id}`} title="Lihat detail dan aksi" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-white transition hover:bg-blue-800">
             <Eye className="h-5 w-5" />
           </button>
         </article>;
       })}</div>}
-      <Modal open={Boolean(detailsOrder)} onClose={() => setDetailsOrderId(null)} title="Detail Order" size="lg">
-        {detailsOrder && <div className="space-y-4">
+      <Modal
+        open={Boolean(detailsOrder)}
+        onClose={() => {
+          if (busyOrder === detailsOrder?.id) return;
+          setDetailsOrderId(null);
+          setConfirmingOrderReview(null);
+          setProofPreview(null);
+        }}
+        title={proofPreview?.orderId === detailsOrder?.id ? 'Bukti Pembayaran' : confirmingOrderReview && confirmingOrderReview.orderId === detailsOrder?.id ? (confirmingOrderReview.resolution === 'Lunas' ? 'Konfirmasi Pembayaran' : 'Konfirmasi Penolakan') : 'Detail Order'}
+        size="lg"
+      >
+        {detailsOrder && (proofPreview?.orderId === detailsOrder.id ? <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-mono text-xs font-bold text-blue-700">{detailsOrder.order_number ?? detailsOrder.id}</p>
+              <p className="mt-1 truncate text-sm font-bold text-slate-900">{detailsOrder.full_name} · {formatPrice(detailsOrder.payment_amount ?? detailsOrder.total_price)}</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">{detailsOrder.status}</span>
+          </div>
+          <div className="flex min-h-64 items-center justify-center overflow-hidden rounded-xl border border-slate-300 bg-slate-100 p-2 sm:min-h-80 sm:p-4">
+            <img
+              src={proofPreview.url}
+              alt={`Bukti pembayaran order ${detailsOrder.order_number ?? detailsOrder.id}`}
+              onError={() => setError('Gambar bukti pembayaran gagal dimuat. Tutup pratinjau lalu coba buka kembali.')}
+              className="mx-auto block max-h-[65dvh] w-full object-contain"
+            />
+          </div>
+          <p className="text-center text-xs text-slate-500">Bukti pembayaran ditampilkan di sini agar dapat diperiksa sebelum order dikonfirmasi atau ditolak.</p>
+          {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
+          <button type="button" onClick={() => setProofPreview(null)} className="btn-secondary w-full">Kembali ke Detail Order</button>
+        </div> : confirmingOrderReview?.orderId === detailsOrder.id ? confirmingOrderReview.resolution === 'Lunas' ? <div className="space-y-4">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <p className="text-base font-extrabold text-slate-950">Yakin ingin mengonfirmasi pembayaran ini?</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">
+              Order <span className="font-mono font-bold">{detailsOrder.order_number ?? detailsOrder.id}</span> atas nama <span className="font-bold">{detailsOrder.full_name}</span> akan ditandai lunas.
+              Setelah dikonfirmasi, sistem akan menerbitkan tiket digital beserta QR dan Access Code untuk pembeli.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Event</span><br /><span className="font-semibold text-slate-900">{detailsEvent?.title ?? 'Event'}</span></p>
+            <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Tiket</span><br /><span className="font-semibold text-slate-900">{detailsOrder.ticket_category} · {detailsOrder.quantity} tiket</span></p>
+            <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Total order</span><br /><span className="font-extrabold text-slate-900">{formatPrice(detailsOrder.total_price)}</span></p>
+            <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Nominal dibayar</span><br /><span className="font-semibold text-slate-900">{detailsOrder.payment_amount == null ? '—' : formatPrice(detailsOrder.payment_amount)}</span></p>
+          </div>
+          {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            <button type="button" onClick={() => setConfirmingOrderReview(null)} disabled={busyOrder === detailsOrder.id} className="btn-secondary flex-1">Batal</button>
+            <button type="button" onClick={() => void reviewOrder(detailsOrder, 'Lunas')} disabled={busyOrder === detailsOrder.id} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
+              <Check className="h-4 w-4" />{busyOrder === detailsOrder.id ? 'Memproses...' : 'Ya, Konfirmasi Lunas'}
+            </button>
+          </div>
+        </div> : <div className="space-y-4">
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+            <p className="text-base font-extrabold text-slate-950">Yakin ingin menolak pembayaran ini?</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">
+              Order <span className="font-mono font-bold">{detailsOrder.order_number ?? detailsOrder.id}</span> atas nama <span className="font-bold">{detailsOrder.full_name}</span> akan ditandai ditolak. Tiket digital dan QR tidak akan diterbitkan.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Event</span><br /><span className="font-semibold text-slate-900">{detailsEvent?.title ?? 'Event'}</span></p>
+            <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Tiket</span><br /><span className="font-semibold text-slate-900">{detailsOrder.ticket_category} · {detailsOrder.quantity} tiket</span></p>
+            <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Total order</span><br /><span className="font-extrabold text-slate-900">{formatPrice(detailsOrder.total_price)}</span></p>
+            <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Nominal dibayar</span><br /><span className="font-semibold text-slate-900">{detailsOrder.payment_amount == null ? '—' : formatPrice(detailsOrder.payment_amount)}</span></p>
+          </div>
+          {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            <button type="button" onClick={() => setConfirmingOrderReview(null)} disabled={busyOrder === detailsOrder.id} className="btn-secondary flex-1">Batal</button>
+            <button type="button" onClick={() => void reviewOrder(detailsOrder, 'Ditolak')} disabled={busyOrder === detailsOrder.id} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50">
+              <X className="h-4 w-4" />{busyOrder === detailsOrder.id ? 'Memproses...' : 'Ya, Tolak Pembayaran'}
+            </button>
+          </div>
+        </div> : <div className="space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-300 border-l-4 border-l-blue-700 bg-white p-4">
             <div className="min-w-0">
               <p className="font-mono text-xs font-bold text-blue-700">{detailsOrder.order_number ?? detailsOrder.id}</p>
@@ -261,26 +329,41 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload }: { o
                 <span className="shrink-0 rounded-md bg-blue-700 px-2 py-1 text-[10px] font-extrabold tracking-wide text-white">{detailsOrder.quantity} TIKET</span>
               </div>
             </div>
-            <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusTone(detailsOrder.status)}`}>{detailsOrder.status}</span>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              {detailsOrder.order_type === 'free_pass' && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-extrabold text-amber-900">FREE PASS</span>}
+              <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusTone(detailsOrder.status)}`}>{detailsOrder.status}</span>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm">
             <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">WhatsApp</span><br /><span className="font-semibold text-slate-900">{detailsOrder.whatsapp}</span></p>
             {detailsOrder.email && <p className="min-w-0 rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Email</span><br /><span className="break-all font-semibold text-slate-900">{detailsOrder.email}</span></p>}
-            <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Total</span><br /><span className="font-extrabold text-slate-900">{formatPrice(detailsOrder.total_price)}</span></p>
-            <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Nominal dibayar</span><br /><span className="font-semibold text-slate-900">{detailsOrder.payment_amount == null ? '—' : formatPrice(detailsOrder.payment_amount)}</span></p>
+            <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Total</span><br /><span className="font-extrabold text-slate-900">{detailsOrder.order_type === 'free_pass' ? 'GRATIS · FREE PASS' : formatPrice(detailsOrder.total_price)}</span></p>
+            <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Nominal dibayar</span><br /><span className="font-semibold text-slate-900">{detailsOrder.order_type === 'free_pass' ? 'Tidak ada pembayaran' : detailsOrder.payment_amount == null ? '—' : formatPrice(detailsOrder.payment_amount)}</span></p>
             <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Order dibuat</span><br /><span className="font-semibold text-slate-900">{new Date(detailsOrder.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</span></p>
             {detailsOrder.payment_submitted_at && <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Pembayaran dikirim</span><br /><span className="font-semibold text-slate-900">{new Date(detailsOrder.payment_submitted_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</span></p>}
           </div>
-          {(paymentSnapshotDetails(detailsOrder.payment_method_snapshot).length > 0 || detailsOrder.notes) && <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700"><p className="font-bold text-slate-900">Detail pembayaran</p>{paymentSnapshotDetails(detailsOrder.payment_method_snapshot).map((detail) => <p key={detail} className="mt-1">{detail}</p>)}{detailsOrder.notes && <p className="mt-2 border-t border-slate-200 pt-2"><span className="font-semibold">Catatan pembeli:</span> {detailsOrder.notes}</p>}</div>}
+          {detailsOrder.order_type === 'free_pass' ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <p className="font-extrabold">Alasan Free Pass</p>
+              <p className="mt-1">{detailsOrder.free_pass_reason || detailsOrder.notes || 'Tidak ada alasan tercatat.'}</p>
+            </div>
+          ) : (paymentSnapshotDetails(detailsOrder.payment_method_snapshot).length > 0 || detailsOrder.notes) ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
+              <p className="font-bold text-slate-900">Detail pembayaran</p>
+              {paymentSnapshotDetails(detailsOrder.payment_method_snapshot).map((detail) => <p key={detail} className="mt-1">{detail}</p>)}
+              {detailsOrder.notes && <p className="mt-2 border-t border-slate-200 pt-2"><span className="font-semibold">Catatan pembeli:</span> {detailsOrder.notes}</p>}
+            </div>
+          ) : null}
+          {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
           <div className="flex items-center gap-2 border-t border-slate-200 pt-3">
             {detailsOrder.payment_proof_path && <button type="button" onClick={() => void openProof(detailsOrder)} disabled={busyOrder === detailsOrder.id} aria-label="Lihat bukti pembayaran" title="Lihat bukti pembayaran" className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-800 transition hover:border-blue-700 hover:text-blue-700 disabled:opacity-50"><Eye className="h-5 w-5" /></button>}
-            {detailsCanReview && <><button type="button" onClick={() => void reviewOrder(detailsOrder, 'Lunas')} disabled={busyOrder === detailsOrder.id} aria-label="Tandai order lunas" title="Tandai lunas" className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-700 text-white transition hover:bg-emerald-800 disabled:opacity-50"><Check className="h-5 w-5" /></button><button type="button" onClick={() => void reviewOrder(detailsOrder, 'Ditolak')} disabled={busyOrder === detailsOrder.id} aria-label="Tolak order" title="Tolak order" className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-red-700 text-white transition hover:bg-red-800 disabled:opacity-50"><X className="h-5 w-5" /></button></>}
+            {detailsCanReview && <><button type="button" onClick={() => { setError(''); setConfirmingOrderReview({ orderId: detailsOrder.id, resolution: 'Lunas' }); }} disabled={busyOrder === detailsOrder.id} aria-label="Tandai order lunas" title="Tandai lunas" className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-700 text-white transition hover:bg-emerald-800 disabled:opacity-50"><Check className="h-5 w-5" /></button><button type="button" onClick={() => { setError(''); setConfirmingOrderReview({ orderId: detailsOrder.id, resolution: 'Ditolak' }); }} disabled={busyOrder === detailsOrder.id} aria-label="Tolak order" title="Tolak order" className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-red-700 text-white transition hover:bg-red-800 disabled:opacity-50"><X className="h-5 w-5" /></button></>}
             {detailsOrder.status === 'Lunas' && <button type="button" onClick={() => void resendAccessCode(detailsOrder)} disabled={busyOrder === detailsOrder.id} aria-label="Cek atau kirim ulang Kode Akses" title="Cek / Kirim Ulang Kode Akses" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-700 px-3.5 text-xs font-extrabold text-white transition hover:bg-blue-800 disabled:opacity-50"><KeyRound className="h-4 w-4" />{busyOrder === detailsOrder.id ? 'Memuat...' : 'Cek / Kirim Kode Akses'}</button>}
             {detailsOrder.status === 'Expired' && <button type="button" onClick={() => setDeleteOrderId(detailsOrder.id)} aria-label="Hapus order Expired" title="Hapus order Expired" className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-red-700 text-white transition hover:bg-red-800"><Trash2 className="h-5 w-5" /></button>}
           </div>
           {detailsAccess && <div className="space-y-2 rounded-xl border border-blue-200 bg-white p-3"><p className="text-xs font-bold text-slate-900">Access Code untuk WhatsApp + Event</p><p className="font-mono text-lg font-black tracking-widest text-blue-800">{detailsAccess.code}</p><div className="flex gap-2"><a href={detailsAccess.whatsappUrl} target="_blank" rel="noopener noreferrer" aria-label="Buka WhatsApp" title="Buka WhatsApp" className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-blue-700 text-white transition hover:bg-blue-800"><MessageCircle className="h-5 w-5" /></a><button type="button" onClick={() => void markSent(detailsOrder.id)} disabled={busyOrder === detailsOrder.id} aria-label="Tandai access code sudah dikirim" title="Tandai sudah dikirim" className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-800 transition hover:border-blue-700 hover:text-blue-700 disabled:opacity-50"><CheckCheck className="h-5 w-5" /></button></div><p className="text-[11px] text-slate-600">{detailsAccess.sentAt ? `Ditandai dikirim ${new Date(detailsAccess.sentAt).toLocaleString('id-ID')} · ${detailsAccess.sendCount ?? 1} kali` : 'Belum ditandai terkirim. Membuka WhatsApp tidak mengubah status ini.'}</p></div>}
           {busyOrder === detailsOrder.id && <p className="text-xs font-semibold text-blue-700">Memproses aksi...</p>}
-        </div>}
+        </div>)}
       </Modal>
       <Modal open={Boolean(deleteOrder)} onClose={() => busyOrder !== deleteOrder?.id && setDeleteOrderId(null)} title="Hapus Order Expired" size="sm">
         {deleteOrder && <div className="space-y-4">
@@ -295,7 +378,7 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload }: { o
         </div>}
       </Modal>
       <TicketPagination page={page} pageSize={PAGE_SIZE} total={filteredOrders.length} onPageChange={setPage} />
-      <div className="hidden print:block">{filteredOrders.map((order) => <p key={order.id}>{order.order_number} · {order.full_name} · {order.whatsapp} · {order.ticket_category} × {order.quantity} · {formatPrice(order.total_price)} · {order.status}</p>)}</div>
+      <div className="hidden print:block">{filteredOrders.map((order) => <p key={order.id}>{order.order_number} · {order.full_name} · {order.whatsapp} · {order.ticket_category} × {order.quantity} · {order.order_type === 'free_pass' ? `FREE PASS · ${order.free_pass_reason ?? 'Tanpa alasan tercatat'}` : formatPrice(order.total_price)} · {order.status}</p>)}</div>
       <p className="inline-flex items-center gap-2 text-xs text-slate-500"><ShieldCheck className="h-4 w-4" /> Pembayaran hanya berubah setelah verifikasi Admin Tiket.</p>
     </div>
   );

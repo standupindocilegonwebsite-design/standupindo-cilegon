@@ -75,7 +75,7 @@ export function EventPage({ router }: { router: Router }) {
           ) : upcoming.length === 0 ? (
             <EmptyState title="Belum ada event mendatang." noSmokeArea />
           ) : (
-            <div className="flex touch-pan-x gap-4 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
+            <div className="flex gap-4 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
               {upcoming.map((e) => (
                 <div key={e.id} className="min-w-[270px] max-w-[270px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                   <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />

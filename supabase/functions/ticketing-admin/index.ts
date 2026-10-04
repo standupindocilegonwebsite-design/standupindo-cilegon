@@ -24,7 +24,7 @@ type RequestBody = {
   qr_token?: string;
   access_code_id?: string;
   payment_method_id?: string;
-  payment_method?: { id?: string; event_id?: string; recipient_name?: string; bank_name?: string; account_number?: string; qris_storage_path?: string; note?: string };
+  payment_method?: { id?: string; event_id?: string; event_ids?: string[]; recipient_name?: string; bank_name?: string; account_number?: string; qris_storage_path?: string; note?: string };
   file_name?: string;
   file_type?: string;
   event_filter?: string;
@@ -36,6 +36,11 @@ type RequestBody = {
   ticket_order_id?: string;
   scope_role?: 'admin_ticket' | 'admin_qr';
   order_number?: string;
+  ticket_id?: string;
+  full_name?: string;
+  email?: string;
+  quantity?: number;
+  free_pass_reason?: string;
 };
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -67,6 +72,48 @@ function accessMessage(name: string, eventTitle: string, orderNumber: string, co
 function whatsappUrl(number: string, message: string) {
   const normalized = normalizeWhatsapp(number);
   return normalized ? `https://wa.me/${normalized}?text=${encodeURIComponent(message)}` : null;
+}
+
+function createTicketOrderNumber(eventTitle: string) {
+  const words = eventTitle.toUpperCase().replace(/[^A-Z\s]/g, ' ').split(/\s+/).filter(Boolean);
+  const letters = words.join('');
+  const prefix = (words.length >= 3 ? words.slice(0, 3).map((word) => word[0]).join('') : letters.slice(0, 3)).padEnd(3, 'X').slice(0, 3);
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const randomValues = crypto.getRandomValues(new Uint32Array(6));
+  const code = Array.from(randomValues, (value) => alphabet[value % alphabet.length]).join('');
+  return `${prefix}-${code}`;
+}
+
+function freePassMessage(name: string, eventTitle: string, orderNumber: string, code: string, ticketPageUrl: string) {
+  return `Halo *${name}*, kamu mendapatkan *Free Pass* untuk event *${eventTitle}*.\n\nOrder *#${orderNumber}* · Kode Akses: *${code}*\n\nBuka tiket: ${ticketPageUrl}\n\nMasuk menggunakan nomor WhatsApp yang terdaftar dan Kode Akses tersebut untuk melihat QR tiket.`;
+}
+
+function freePassConfirmationEmailHtml(order: {
+  full_name: string;
+  whatsapp: string;
+  ticket_category: string;
+  quantity: number;
+  order_number: string;
+}, event: {
+  title: string;
+  date: string | null;
+  time: string | null;
+  venue: string | null;
+  location: string | null;
+}, accessCode: string, ticketPageUrl: string) {
+  const email = paymentConfirmationEmailHtml({ ...order, total_price: 0 }, event, accessCode, ticketPageUrl);
+  const safeEventTitle = event.title.replace(/[\r\n]+/g, ' ').trim();
+  email.subject = `FREE PASS ${safeEventTitle} - TIKET KAMU SUDAH SIAP`;
+  email.html = email.html
+    .replace('PAYMENT SUCCESS', 'FREE PASS')
+    .replace('Pembayaran Berhasil!', 'Free Pass Berhasil!')
+    .replace(
+      `Halo <strong style="color:#17213c">${escapeHtml(order.full_name)}</strong>, pembayaran tiket kamu sudah dikonfirmasi dan berstatus <strong style="color:#07884f">LUNAS</strong>.`,
+      `Halo <strong style="color:#17213c">${escapeHtml(order.full_name)}</strong>, kamu mendapatkan tiket Free Pass untuk <strong style="color:#17213c">${escapeHtml(event.title)}</strong>.`,
+    )
+    .replace(/<tr>\s*<td colspan="2" style="padding:10px 16px;color:#73809a;font-size:12px;line-height:17px;vertical-align:top">\s*<div>Total pembayaran<\/div>[\s\S]*?<\/tr>/, '');
+  email.text = `Halo ${order.full_name},\n\nKamu mendapatkan tiket Free Pass untuk ${event.title}.\n\nDetail Tiket:\nEvent: ${event.title}\nKategori: ${order.ticket_category}\nJumlah tiket: ${order.quantity}\n\nAkses Tiket:\nNomor WhatsApp: ${order.whatsapp}\nKode Akses: ${accessCode}\n\nGunakan Nomor WhatsApp dan Kode Akses tersebut untuk melihat tiket melalui website.\nBuka Tiket Saya: ${ticketPageUrl}\n\nSTANDUPINDO CILEGON`;
+  return email;
 }
 
 function escapeHtml(value: string) {
@@ -393,10 +440,10 @@ serve(async (request) => {
       ticketRows.sort((first, second) => second.issued_at.localeCompare(first.issued_at));
       const orderIds = [...new Set(ticketRows.map((ticket) => ticket.ticket_order_id))];
       const eventIds = [...new Set(ticketRows.map((ticket) => ticket.event_id))];
-      const orders: Array<{ id: string; order_number: string | null; full_name: string; whatsapp: string; ticket_category: string; status: string }> = [];
+      const orders: Array<{ id: string; order_number: string | null; full_name: string; whatsapp: string; ticket_category: string; status: string; order_type: 'paid' | 'free_pass'; free_pass_reason: string | null }> = [];
       for (const ids of chunkValues(orderIds)) {
         const { data, error } = await fetchAllPages((from, to) => serviceClient.from('ticket_orders')
-          .select('id, order_number, full_name, whatsapp, ticket_category, status').in('id', ids).order('id', { ascending: true }).range(from, to));
+          .select('id, order_number, full_name, whatsapp, ticket_category, status, order_type, free_pass_reason').in('id', ids).order('id', { ascending: true }).range(from, to));
         if (error) return json({ error: 'Detail order gagal dimuat.' }, 500);
         orders.push(...(data ?? []));
       }
@@ -473,48 +520,101 @@ serve(async (request) => {
       if (!isAdmin && !isTicketAdmin) return json({ error: 'Akses informasi pembayaran ditolak.' }, 403);
       const { data: methods, error: methodError } = await serviceClient.from('event_payment_methods').select('*').order('updated_at', { ascending: false });
       if (methodError) return json({ error: 'Informasi pembayaran gagal dimuat.' }, 500);
-      const visibleMethods = isAdmin ? methods ?? [] : await Promise.all((methods ?? []).map(async (method) => await hasEventScope(method.event_id, 'admin_ticket') ? method : null)).then((rows) => rows.filter(Boolean));
-      const eventIds = [...new Set(visibleMethods.map((method) => method.event_id))];
-      const { data: events } = eventIds.length ? await serviceClient.from('events').select('id, title, date, status').in('id', eventIds) : { data: [] };
-      return json({ methods: visibleMethods, events: events ?? [] });
+      const { data: assignments, error: assignmentError } = await serviceClient
+        .from('event_payment_method_assignments')
+        .select('payment_method_id, event_id, is_active');
+      if (assignmentError) return json({ error: 'Event penggunaan informasi pembayaran gagal dimuat.' }, 500);
+      const scopedAssignments = await Promise.all((assignments ?? []).map(async (assignment) => (
+        isAdmin || await hasEventScope(assignment.event_id, 'admin_ticket') ? assignment : null
+      )));
+      const visibleAssignments = scopedAssignments.filter((assignment): assignment is NonNullable<typeof assignment> => Boolean(assignment));
+      const visibleMethodIds = [...new Set(visibleAssignments.map((assignment) => assignment.payment_method_id))];
+      const visibleEventIds = [...new Set(visibleAssignments.map((assignment) => assignment.event_id))];
+      const { data: visibleEvents, error: eventError } = visibleEventIds.length
+        ? await serviceClient.from('events').select('id, title, date, status').in('id', visibleEventIds)
+        : { data: [], error: null };
+      if (eventError) return json({ error: 'Event penggunaan informasi pembayaran gagal dimuat.' }, 500);
+      const eventById = new Map((visibleEvents ?? []).map((event) => [event.id, event]));
+      const visibleMethods = (methods ?? []).filter((method) => visibleMethodIds.includes(method.id)).map((method) => {
+        const methodAssignments = (assignments ?? []).filter((assignment) => assignment.payment_method_id === method.id);
+        const visibleMethodAssignments = visibleAssignments.filter((assignment) => assignment.payment_method_id === method.id);
+        return {
+          ...method,
+          events: visibleMethodAssignments.map((assignment) => ({
+            ...eventById.get(assignment.event_id),
+            is_active: assignment.is_active,
+          })),
+          can_delete: isAdmin || visibleMethodAssignments.length === methodAssignments.length,
+        };
+      });
+      return json({ methods: visibleMethods, events: visibleEvents ?? [], supports_multi_event: true });
     }
 
     if (body.action === 'save-payment-method') {
       if (!isAdmin && !isTicketAdmin) return json({ error: 'Akses pengelolaan pembayaran ditolak.' }, 403);
-      const method = body.payment_method as { id?: string; event_id?: string; recipient_name?: string; bank_name?: string; account_number?: string; qris_storage_path?: string; note?: string } | undefined;
-      if (!method?.event_id || !method.recipient_name?.trim()) return json({ error: 'Event dan nama penerima wajib diisi.' }, 400);
-      if (!await hasEventScope(method.event_id, 'admin_ticket')) return json({ error: 'Event di luar scope Admin Tiket.' }, 403);
+      const method = body.payment_method;
+      const eventIds = method?.event_ids;
+      if (!Array.isArray(eventIds) || !eventIds.length || eventIds.some((eventId) => typeof eventId !== 'string') || !method?.recipient_name?.trim()) {
+        return json({ error: 'Pilih minimal satu Event dan isi nama penerima.' }, 400);
+      }
+      if (new Set(eventIds).size !== eventIds.length) return json({ error: 'Event yang dipilih tidak boleh duplikat.' }, 400);
+      if (!(await Promise.all(eventIds.map((eventId) => hasEventScope(eventId, 'admin_ticket')))).every(Boolean)) {
+        return json({ error: 'Satu atau lebih Event berada di luar scope Admin Tiket.' }, 403);
+      }
       const accountNumber = method.account_number?.trim() || null;
       const qrisPath = method.qris_storage_path?.trim() || null;
       if (!accountNumber && !qrisPath) return json({ error: 'Isi nomor rekening atau upload QRIS.' }, 400);
-      if (qrisPath && !qrisPath.startsWith(`payment-methods/${method.event_id}/`)) return json({ error: 'Lokasi QRIS tidak valid untuk Event ini.' }, 400);
-      const payload = {
-        event_id: method.event_id,
-        recipient_name: method.recipient_name.trim(),
-        bank_name: method.bank_name?.trim() || null,
-        account_number: accountNumber,
-        qris_storage_path: qrisPath,
-        note: method.note?.trim() || null,
-        updated_at: new Date().toISOString(),
-      };
-      const query = method.id
-        ? await serviceClient.from('event_payment_methods').update(payload).eq('id', method.id).eq('event_id', method.event_id).select().maybeSingle()
-        : await serviceClient.from('event_payment_methods').insert(payload).select().single();
-      if (query.error || !query.data) return json({ error: query.error?.message ?? 'Informasi pembayaran gagal disimpan.' }, 400);
-      return json({ method: query.data });
+      let eventIdsToSave = [...eventIds];
+      let previousQrisPath: string | null = null;
+      if (method.id) {
+        const { data: existing, error: existingError } = await serviceClient.from('event_payment_methods')
+          .select('id, qris_storage_path').eq('id', method.id).maybeSingle();
+        if (existingError) return json({ error: 'Informasi pembayaran gagal dimuat.' }, 500);
+        if (!existing) return json({ error: 'Informasi pembayaran tidak ditemukan.' }, 404);
+        previousQrisPath = existing.qris_storage_path;
+        const { data: existingAssignments, error: existingAssignmentError } = await serviceClient
+          .from('event_payment_method_assignments').select('event_id').eq('payment_method_id', method.id);
+        if (existingAssignmentError) return json({ error: 'Event penggunaan informasi pembayaran gagal dimuat.' }, 500);
+        if (!existingAssignments?.length) return json({ error: 'Informasi pembayaran tidak memiliki Event.' }, 409);
+        const visibleExisting = await Promise.all(existingAssignments.map(async (assignment) => (
+          isAdmin || await hasEventScope(assignment.event_id, 'admin_ticket') ? assignment.event_id : null
+        )));
+        if (!visibleExisting.some(Boolean)) return json({ error: 'Informasi pembayaran tidak ditemukan atau di luar scope.' }, 404);
+        eventIdsToSave = [...new Set([...eventIdsToSave, ...visibleExisting.filter((eventId): eventId is string => Boolean(eventId) && !eventIds.includes(eventId))])];
+      }
+      const qrisBelongsToSelection = qrisPath && eventIdsToSave.some((eventId) => qrisPath.startsWith(`payment-methods/${eventId}/`));
+      if (qrisPath && qrisPath !== previousQrisPath && !qrisBelongsToSelection) return json({ error: 'Lokasi QRIS tidak valid untuk Event yang dipilih.' }, 400);
+      const { data: savedMethodId, error: saveError } = await serviceClient.rpc('save_ticket_payment_method', {
+        p_method_id: method.id ?? null,
+        p_event_ids: eventIdsToSave,
+        p_recipient_name: method.recipient_name.trim(),
+        p_bank_name: method.bank_name?.trim() || null,
+        p_account_number: accountNumber,
+        p_qris_storage_path: qrisPath,
+        p_note: method.note?.trim() || null,
+      });
+      if (saveError || !savedMethodId) return json({ error: saveError?.message ?? 'Informasi pembayaran gagal disimpan.' }, 400);
+      return json({ method_id: savedMethodId });
     }
 
     if (body.action === 'activate-payment-method' || body.action === 'deactivate-payment-method') {
       if (!isAdmin && !isTicketAdmin) return json({ error: 'Akses pengelolaan pembayaran ditolak.' }, 403);
-      if (!body.payment_method_id) return json({ error: 'Pilih informasi pembayaran.' }, 400);
-      const { data: method } = await serviceClient.from('event_payment_methods').select('id, event_id').eq('id', body.payment_method_id).maybeSingle();
-      if (!method || !await hasEventScope(method.event_id, 'admin_ticket')) return json({ error: 'Informasi pembayaran tidak ditemukan atau di luar scope.' }, 404);
+      if (!body.payment_method_id || !body.event_id) return json({ error: 'Pilih informasi pembayaran dan Event.' }, 400);
+      if (!await hasEventScope(body.event_id, 'admin_ticket')) return json({ error: 'Event di luar scope Admin Tiket.' }, 403);
       if (body.action === 'activate-payment-method') {
-        const { error } = await serviceClient.rpc('set_ticket_payment_method_active', { p_method_id: method.id, p_actor_id: authData.user.id });
+        const { error } = await serviceClient.rpc('set_ticket_payment_method_active', {
+          p_method_id: body.payment_method_id,
+          p_event_id: body.event_id,
+          p_actor_id: authData.user.id,
+        });
         if (error) return json({ error: error.message }, 400);
       } else {
-        const { error } = await serviceClient.from('event_payment_methods').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', method.id);
+        const { data, error } = await serviceClient.from('event_payment_method_assignments')
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .eq('payment_method_id', body.payment_method_id).eq('event_id', body.event_id)
+          .select('payment_method_id').maybeSingle();
         if (error) return json({ error: error.message }, 400);
+        if (!data) return json({ error: 'Informasi pembayaran tidak ditugaskan ke Event ini.' }, 404);
       }
       return json({ updated: true });
     }
@@ -522,11 +622,13 @@ serve(async (request) => {
     if (body.action === 'delete-payment-method') {
       if (!isAdmin && !isTicketAdmin) return json({ error: 'Akses pengelolaan pembayaran ditolak.' }, 403);
       if (!body.payment_method_id) return json({ error: 'Pilih informasi pembayaran.' }, 400);
-      const { data: method, error: methodError } = await serviceClient.from('event_payment_methods')
-        .select('id, event_id').eq('id', body.payment_method_id).maybeSingle();
-      if (methodError) return json({ error: 'Informasi pembayaran gagal dimuat.' }, 500);
-      if (!method || !await hasEventScope(method.event_id, 'admin_ticket')) return json({ error: 'Informasi pembayaran tidak ditemukan atau di luar scope.' }, 404);
-      const { error } = await serviceClient.from('event_payment_methods').delete().eq('id', method.id).eq('event_id', method.event_id);
+      const { data: assignedEvents, error: assignmentError } = await serviceClient.from('event_payment_method_assignments')
+        .select('event_id').eq('payment_method_id', body.payment_method_id);
+      if (assignmentError) return json({ error: 'Event penggunaan informasi pembayaran gagal dimuat.' }, 500);
+      if (!assignedEvents?.length) return json({ error: 'Informasi pembayaran tidak ditemukan.' }, 404);
+      const allEventsInScope = await Promise.all(assignedEvents.map((assignment) => hasEventScope(assignment.event_id, 'admin_ticket')));
+      if (!allEventsInScope.every(Boolean)) return json({ error: 'Informasi ini juga dipakai Event di luar scope. Hapus atau ubah penugasan Event tersebut terlebih dahulu.' }, 403);
+      const { error } = await serviceClient.from('event_payment_methods').delete().eq('id', body.payment_method_id);
       if (error) return json({ error: error.message }, 400);
       return json({ deleted: true });
     }
@@ -701,12 +803,189 @@ serve(async (request) => {
       });
     }
 
+    if (body.action === 'issue-free-pass') {
+      if (!encryptionKey || !accessCodePepper) return json({ error: 'Secret Ticketing belum dikonfigurasi.' }, 500);
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!body.event_id || !uuidPattern.test(body.event_id) || !body.ticket_id || !uuidPattern.test(body.ticket_id)
+        || !body.full_name?.trim() || body.full_name.trim().length > 160 || !body.whatsapp?.trim()
+        || !body.free_pass_reason?.trim() || !Number.isInteger(body.quantity) || (body.quantity ?? 0) < 1
+        || (body.quantity ?? 0) > 10 || (!isAdmin && !isTicketAdmin)) {
+        return json({ error: 'Lengkapi Event, kategori, nama maksimal 160 karakter, WhatsApp, jumlah 1–10, dan alasan Free Pass.' }, 400);
+      }
+      const ticketPageUrl = getTicketPageUrl(request.headers.get('origin'));
+      if (!ticketPageUrl) return json({ error: 'Domain halaman tiket tidak dapat ditentukan dari request.' }, 400);
+      if (body.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email.trim())) {
+        return json({ error: 'Alamat email penerima tidak valid.' }, 400);
+      }
+      if (body.free_pass_reason.trim().length > 300) {
+        return json({ error: 'Alasan Free Pass maksimal 300 karakter.' }, 400);
+      }
+      if (!await hasEventScope(body.event_id, 'admin_ticket')) return json({ error: 'Event berada di luar scope Admin Tiket.' }, 403);
+
+      const [{ data: event, error: eventError }, { data: category, error: categoryError }] = await Promise.all([
+        serviceClient.from('events').select('id, title, status, date, time, venue, location').eq('id', body.event_id).maybeSingle(),
+        serviceClient.from('event_tickets').select('id, event_id, name, status').eq('id', body.ticket_id).eq('event_id', body.event_id).maybeSingle(),
+      ]);
+      if (eventError || categoryError) return json({ error: 'Informasi Event atau kategori gagal dimuat.' }, 500);
+      if (!event || !category || category.status !== 'active') return json({ error: 'Event atau kategori tiket tidak tersedia.' }, 404);
+
+      const normalizedPhone = normalizeWhatsapp(body.whatsapp);
+      if (normalizedPhone.length < 10 || normalizedPhone.length > 15) return json({ error: 'Nomor WhatsApp penerima tidak valid.' }, 400);
+      const { data: previousCodes, error: previousCodesError } = await serviceClient.from('ticket_access_codes')
+        .select('whatsapp_code_hash').eq('whatsapp_normalized', normalizedPhone);
+      if (previousCodesError) return json({ error: 'Riwayat Kode Akses gagal dimuat.' }, 500);
+      const usedCodeHashes = new Set((previousCodes ?? []).map((entry) => entry.whatsapp_code_hash));
+
+      let issuedData: unknown = null;
+      let issueError: { message: string; code?: string } | null = null;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const orderNumber = createTicketOrderNumber(event.title);
+        const accessCode = createAccessCode();
+        const phoneCodeHash = await whatsappAccessCodeHash(normalizedPhone, accessCode, accessCodePepper);
+        if (usedCodeHashes.has(phoneCodeHash)) continue;
+        const codeHash = await accessCodeHash(body.event_id, normalizedPhone, accessCode, accessCodePepper);
+        const codeCiphertext = await encryptSecret(accessCode, encryptionKey);
+        const qrTokens = await Promise.all(Array.from({ length: body.quantity! }, async () => {
+          const token = randomToken();
+          return { hash: await sha256(token), ciphertext: await encryptSecret(token, encryptionKey) };
+        }));
+        const result = await serviceClient.rpc('issue_ticket_free_pass', {
+          p_order_number: orderNumber,
+          p_event_id: body.event_id,
+          p_ticket_id: body.ticket_id,
+          p_full_name: body.full_name.trim(),
+          p_email: body.email?.trim().toLowerCase() || null,
+          p_whatsapp: normalizedPhone,
+          p_quantity: body.quantity,
+          p_reason: body.free_pass_reason.trim(),
+          p_actor_id: authData.user.id,
+          p_access_code_hash: codeHash,
+          p_whatsapp_code_hash: phoneCodeHash,
+          p_access_code_ciphertext: codeCiphertext,
+          p_qr_tokens: qrTokens,
+        });
+        issuedData = result.data;
+        issueError = result.error;
+        if (!issueError || issueError.code !== '23505') break;
+      }
+      if (issueError) return json({ error: issueError.message }, 400);
+      const issued = Array.isArray(issuedData) ? issuedData[0] : issuedData as Record<string, unknown> | null;
+      if (!issued?.issued_order_id || typeof issued.resolved_access_code_id !== 'string') {
+        return json({ error: 'Free Pass tidak berhasil diterbitkan.' }, 500);
+      }
+
+      const { data: codeRecord, error: codeError } = await serviceClient.from('ticket_access_codes')
+        .select('access_code_ciphertext').eq('id', issued.resolved_access_code_id).maybeSingle();
+      if (codeError || !codeRecord) return json({ error: 'Free Pass terbit, tetapi Kode Akses belum dapat dibaca. Gunakan fitur kirim ulang akses.' }, 500);
+      const accessCode = await decryptSecret(codeRecord.access_code_ciphertext, encryptionKey);
+      const order = {
+        full_name: body.full_name.trim(),
+        whatsapp: normalizedPhone,
+        ticket_category: category.name,
+        quantity: body.quantity!,
+        order_number: '',
+      };
+      const { data: createdOrder, error: createdOrderError } = await serviceClient.from('ticket_orders')
+        .select('order_number').eq('id', issued.issued_order_id).maybeSingle();
+      if (createdOrderError || !createdOrder?.order_number) return json({ error: 'Free Pass terbit, tetapi nomor order belum dapat dibaca.' }, 500);
+      order.order_number = createdOrder.order_number;
+
+      let emailStatus: 'sent' | 'failed' | 'skipped' = 'skipped';
+      let emailMessage = body.email?.trim() ? 'Email belum terkirim.' : 'Email dilewati karena alamat email tidak diisi.';
+      const recipientEmail = body.email?.trim().toLowerCase() || null;
+      const { data: emailLog, error: emailLogError } = await serviceClient.from('ticket_email_logs')
+        .insert({
+          order_id: issued.issued_order_id,
+          recipient_email: recipientEmail,
+          email_type: 'free_pass_access',
+          status: recipientEmail ? 'pending' : 'skipped',
+          error_message: recipientEmail ? null : 'Email penerima Free Pass tidak diisi.',
+        })
+        .select('id')
+        .maybeSingle();
+      if (emailLogError || !emailLog) {
+        emailStatus = 'failed';
+        emailMessage = 'Tiket terbit, tetapi status email tidak dapat dicatat.';
+        console.error('free pass email log could not be reserved');
+      } else if (recipientEmail) {
+        const resendApiKey = Deno.env.get('RESEND_API_KEY');
+        const emailContent = freePassConfirmationEmailHtml(order, event, accessCode, ticketPageUrl);
+        if (!resendApiKey) {
+          emailStatus = 'failed';
+          emailMessage = 'Tiket terbit, tetapi konfigurasi layanan email belum tersedia.';
+          const { error: logUpdateError } = await serviceClient.from('ticket_email_logs')
+            .update({ status: 'failed', error_message: 'Konfigurasi Resend belum tersedia.' }).eq('id', emailLog.id);
+          if (logUpdateError) console.error('free pass email failure could not be saved');
+        } else {
+          try {
+            const resendResponse = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${resendApiKey}`,
+                'Content-Type': 'application/json',
+                'Idempotency-Key': `free-pass-access/${String(issued.issued_order_id)}`,
+                'User-Agent': 'standupindo-cilegon-ticketing/1.0',
+              },
+              body: JSON.stringify({
+                from: 'noreply@komediterus.shop',
+                to: [recipientEmail],
+                subject: emailContent.subject,
+                html: emailContent.html,
+                text: emailContent.text,
+              }),
+              signal: AbortSignal.timeout(10000),
+            });
+            const resendResult = await resendResponse.clone().json().catch(() => null) as { id?: string } | null;
+            if (!resendResponse.ok) {
+              emailStatus = 'failed';
+              emailMessage = 'Tiket terbit, tetapi email gagal dikirim. Kirim akses lewat WhatsApp.';
+              const errorMessage = await resendErrorMessage(resendResponse, [resendApiKey, accessCode]);
+              const { error: logUpdateError } = await serviceClient.from('ticket_email_logs')
+                .update({ status: 'failed', error_message: errorMessage }).eq('id', emailLog.id);
+              if (logUpdateError) console.error('free pass email failure could not be saved');
+            } else {
+              emailStatus = 'sent';
+              emailMessage = 'Email akses tiket berhasil dikirim.';
+              const { error: sentLogError } = await serviceClient.from('ticket_email_logs')
+                .update({
+                  status: 'sent',
+                  resend_message_id: typeof resendResult?.id === 'string' ? resendResult.id : null,
+                  error_message: null,
+                  sent_at: new Date().toISOString(),
+                }).eq('id', emailLog.id);
+              if (sentLogError) console.error('free pass email sent but its log could not be updated');
+            }
+          } catch {
+            emailStatus = 'failed';
+            emailMessage = 'Tiket terbit, tetapi koneksi email gagal. Kirim akses lewat WhatsApp.';
+            const { error: logUpdateError } = await serviceClient.from('ticket_email_logs')
+              .update({ status: 'failed', error_message: 'Koneksi ke layanan Resend gagal atau melewati batas waktu.' }).eq('id', emailLog.id);
+            if (logUpdateError) console.error('free pass email failure could not be saved');
+          }
+        }
+      }
+
+      const whatsappMessage = freePassMessage(order.full_name, event.title, order.order_number, accessCode, ticketPageUrl);
+      const freePassWhatsappUrl = whatsappUrl(normalizedPhone, whatsappMessage);
+      return json({
+        status: 'issued',
+        order_id: issued.issued_order_id,
+        order_number: order.order_number,
+        access_code_id: issued.resolved_access_code_id,
+        access_code: accessCode,
+        whatsapp_url: freePassWhatsappUrl,
+        ticket_count: issued.issued_ticket_count,
+        email_status: emailStatus,
+        email_message: emailMessage,
+      });
+    }
+
     if (body.action === 'resend-access-code') {
       if (!encryptionKey || !body.order_id || (!isAdmin && !isTicketAdmin)) return json({ error: 'Akses resend ditolak.' }, 403);
       const ticketPageUrl = getTicketPageUrl(request.headers.get('origin'));
       if (!ticketPageUrl) return json({ error: 'Domain halaman tiket tidak dapat ditentukan dari request.' }, 400);
       const { data: order } = await serviceClient.from('ticket_orders')
-        .select('id, order_number, event_id, full_name, whatsapp, status, access_code_id')
+        .select('id, order_number, event_id, full_name, whatsapp, status, access_code_id, order_type')
         .eq('id', body.order_id).maybeSingle();
       if (!order || order.status !== 'Lunas' || !order.access_code_id) return json({ error: 'Order belum memiliki Access Code aktif.' }, 409);
       if (!await hasEventScope(order.event_id, 'admin_ticket')) return json({ error: 'Event di luar scope akun ini.' }, 403);
@@ -715,7 +994,10 @@ serve(async (request) => {
       if (!codeRecord || codeRecord.status !== 'active') return json({ error: 'Access Code sudah tidak aktif.' }, 410);
       const accessCode = await decryptSecret(codeRecord.access_code_ciphertext, encryptionKey);
       const { data: event } = await serviceClient.from('events').select('title').eq('id', order.event_id).maybeSingle();
-      return json({ access_code_id: order.access_code_id, access_code: accessCode, whatsapp_url: whatsappUrl(order.whatsapp, accessMessage(order.full_name, event?.title ?? 'Event', order.order_number ?? order.id, accessCode, ticketPageUrl)), last_sent_at: codeRecord.last_sent_at, send_count: codeRecord.send_count });
+      const message = order.order_type === 'free_pass'
+        ? freePassMessage(order.full_name, event?.title ?? 'Event', order.order_number ?? order.id, accessCode, ticketPageUrl)
+        : accessMessage(order.full_name, event?.title ?? 'Event', order.order_number ?? order.id, accessCode, ticketPageUrl);
+      return json({ access_code_id: order.access_code_id, access_code: accessCode, whatsapp_url: whatsappUrl(order.whatsapp, message), last_sent_at: codeRecord.last_sent_at, send_count: codeRecord.send_count });
     }
 
     if (body.action === 'mark-access-code-sent') {
@@ -745,9 +1027,19 @@ serve(async (request) => {
           const expiryError = await expireUnusedTickets(body.event_id);
           if (expiryError) return json({ error: 'Tiket yang masa check-in-nya berakhir gagal diperbarui.' }, 500);
         }
+        const { data: categories, error: categoryError } = await serviceClient.from('event_tickets')
+          .select('id, name').eq('event_id', body.event_id).eq('status', 'active');
+        if (categoryError) return json({ error: 'Kategori tiket Gate gagal dimuat.' }, 500);
+        const categoryNameById = new Map((categories ?? []).map((category) => [category.id, category.name]));
         return json({
           gates_enabled: settings?.gates_enabled ?? false,
-          gates: settings?.gates_enabled ? (gates ?? []).map((gate) => ({ id: gate.id, name: gate.name })) : [],
+          gates: settings?.gates_enabled ? (gates ?? []).map((gate) => ({
+            id: gate.id,
+            name: gate.name,
+            categories: (gate.event_gate_ticket_categories ?? [])
+              .map((category: { event_ticket_id: string }) => categoryNameById.get(category.event_ticket_id))
+              .filter((name): name is string => Boolean(name)),
+          })) : [],
         });
       }
       const { data: categories, error: categoryError } = await serviceClient.from('event_tickets')
@@ -818,7 +1110,7 @@ serve(async (request) => {
       }
       if (ticket && ['checked_in', 'already_used'].includes(String(result.status))) {
         const { data: order, error: orderError } = await serviceClient.from('ticket_orders')
-          .select('full_name, ticket_category, order_number').eq('id', ticket.ticket_order_id).maybeSingle();
+          .select('full_name, ticket_category, order_number, order_type').eq('id', ticket.ticket_order_id).maybeSingle();
         if (orderError) return json({ error: 'Data order tiket gagal dimuat.' }, 500);
         let previousCheckInAt = ticket.checked_in_at;
         let previousCheckInSource = ticket.check_in_source;
@@ -842,6 +1134,7 @@ serve(async (request) => {
           ticket_category: ticketCategory?.name ?? order?.ticket_category,
           ticket_number: ticket.sequence_no,
           order_number: order?.order_number,
+          order_type: order?.order_type,
           checked_in_at: result.status === 'already_used' ? result.checked_in_at ?? previousCheckInAt : result.checked_in_at,
           gate: gateName,
         });
@@ -858,7 +1151,7 @@ serve(async (request) => {
       if (!encryptionKey) return json({ error: 'Secret Ticketing belum dikonfigurasi.' }, 500);
 
       const { data: order, error: orderError } = await serviceClient.from('ticket_orders')
-        .select('id, full_name, order_number, ticket_category').eq('event_id', body.event_id).eq('order_number', body.order_number.trim()).maybeSingle();
+        .select('id, full_name, order_number, ticket_category, order_type').eq('event_id', body.event_id).eq('order_number', body.order_number.trim()).maybeSingle();
       if (orderError) return json({ error: 'Order tiket gagal dimuat.' }, 500);
       if (!order) return json({ error: 'Order tidak ditemukan untuk Event ini.' }, 404);
 
@@ -878,6 +1171,7 @@ serve(async (request) => {
           ticket_category: order.ticket_category,
           ticket_number: usedTicket.sequence_no,
           order_number: order.order_number,
+          order_type: order.order_type,
           checked_in_at: usedTicket.checked_in_at,
           gate: usedTicket.check_in_source ?? 'Gate Scanner',
         });
@@ -907,6 +1201,7 @@ serve(async (request) => {
           ticket_category: checkInResult.ticket_category ?? order.ticket_category,
           ticket_number: ticket.sequence_no,
           order_number: order.order_number,
+          order_type: order.order_type,
         });
       }
       return json({ ok: false, status: 'already_used', message: 'Semua tiket pada order ini sudah digunakan.' });
@@ -961,6 +1256,7 @@ serve(async (request) => {
       let attendees: Array<{
         full_name: string;
         order_number: string | null;
+        order_type: 'paid' | 'free_pass';
         sequence_no: number;
         checked_in_at: string | null;
       }> = [];
@@ -968,7 +1264,7 @@ serve(async (request) => {
         const selectedEvent = scopedEvents.find((event) => event.id === body.event_id);
         if (!selectedEvent) return json({ error: 'Event di luar scope Admin QR atau tidak ditemukan.' }, 403);
         const { data: paidOrders, error: paidOrdersError } = await fetchAllPages((from, to) => serviceClient.from('ticket_orders')
-          .select('id, order_number, full_name')
+          .select('id, order_number, full_name, order_type')
           .eq('event_id', selectedEvent.id).eq('status', 'Lunas')
           .order('created_at', { ascending: true }).order('id', { ascending: true }).range(from, to));
         if (paidOrdersError) return json({ error: 'Daftar order lunas gagal dimuat.' }, 500);
@@ -990,6 +1286,7 @@ serve(async (request) => {
             return order ? [{
               full_name: order.full_name,
               order_number: order.order_number,
+              order_type: order.order_type,
               sequence_no: ticket.sequence_no,
               checked_in_at: ticket.checked_in_at,
             }] : [];

@@ -466,9 +466,31 @@
       visibility: hidden !important;
     }
 
-    body[data-print-mode="ticket-check-in-report"] .print-sheet:not(.ticket-check-in-report-print),
-    body[data-print-mode="ticket-check-in-report"] .print-sheet:not(.ticket-check-in-report-print) * {
+    body[data-print-mode="ticket-check-in-report"] * {
       visibility: hidden !important;
+    }
+
+    body[data-print-mode="ticket-check-in-report"] .ticket-check-in-report-print,
+    body[data-print-mode="ticket-check-in-report"] .ticket-check-in-report-print * {
+      visibility: visible !important;
+    }
+
+    body[data-print-mode="ticket-check-in-report"] nav {
+      display: none !important;
+    }
+
+    body[data-print-mode="ticket-audience"] .print-sheet:not(.ticket-audience-print),
+    body[data-print-mode="ticket-audience"] .print-sheet:not(.ticket-audience-print) * {
+      visibility: hidden !important;
+    }
+
+    body[data-print-mode="ticket-audience"] * {
+      visibility: hidden !important;
+    }
+
+    body[data-print-mode="ticket-audience"] .ticket-audience-print,
+    body[data-print-mode="ticket-audience"] .ticket-audience-print * {
+      visibility: visible !important;
     }
 
     .print-sheet {
@@ -619,6 +641,39 @@
     .ticket-check-in-report-print .ticket-check-in-number {
       text-align: right;
       font-variant-numeric: tabular-nums;
+    }
+
+    .ticket-audience-print {
+      padding: 10mm;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 8.5pt;
+    }
+
+    .ticket-audience-print .print-brand {
+      margin-bottom: 5mm;
+    }
+
+    .ticket-audience-print h1 {
+      font-size: 18pt;
+    }
+
+    .ticket-audience-print table {
+      table-layout: auto;
+      font-size: 8pt;
+    }
+
+    .ticket-audience-print thead {
+      display: table-header-group;
+    }
+
+    .ticket-audience-print tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .ticket-audience-print th,
+    .ticket-audience-print td {
+      padding: 2mm 1.5mm;
     }
 
     .ticket-orders-print .print-brand {

@@ -134,12 +134,17 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
       if (eventRow) {
         const { data: ticketData } = await supabase.from('event_tickets').select('*').eq('id', ticketId).eq('event_id', eventRow.id).eq('status', 'active').maybeSingle();
         if (active) setTicket((ticketData as EventTicket) ?? null);
-        const { data: paymentData, error: paymentError } = await supabase.from('event_payment_methods')
-          .select('recipient_name, bank_name, account_number, qris_storage_path, note')
+        const { data: paymentAssignment, error: assignmentError } = await supabase.from('event_payment_method_assignments')
+          .select('payment_method_id')
           .eq('event_id', eventRow.id).eq('is_active', true).maybeSingle();
+        const { data: paymentData, error: paymentError } = paymentAssignment
+          ? await supabase.from('event_payment_methods')
+            .select('recipient_name, bank_name, account_number, qris_storage_path, note')
+            .eq('id', paymentAssignment.payment_method_id).maybeSingle()
+          : { data: null, error: assignmentError };
         if (active) {
           setPaymentMethod((paymentData as PaymentSnapshot | null) ?? null);
-          if (paymentError) setPaymentMethodError('Informasi pembayaran Event gagal dimuat. Muat ulang halaman sebelum mengirim order.');
+          if (assignmentError || paymentError) setPaymentMethodError('Informasi pembayaran Event gagal dimuat. Muat ulang halaman sebelum mengirim order.');
           else if (!paymentData) setPaymentMethodError('Informasi pembayaran untuk Event ini belum tersedia.');
         }
       }

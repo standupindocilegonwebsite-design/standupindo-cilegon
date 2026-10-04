@@ -262,10 +262,14 @@ export async function createETicketPdfDocument({
   return doc;
 }
 
-export async function downloadETicketPdf(input: Parameters<typeof createETicketPdfDocument>[0]) {
+export async function downloadETicketPdf(
+  input: Parameters<typeof createETicketPdfDocument>[0],
+  ticketSequenceNo?: number,
+) {
   const doc = await createETicketPdfDocument(input);
-  const fileOrder = (input.order.order_number || input.order.id).replace(/[^A-Za-z0-9_-]/g, '-');
-  doc.save(`E-Tiket-${fileOrder}.pdf`);
+  const fileOrder = sanitizeFilenamePart(input.order.order_number || input.order.id);
+  const ticketSuffix = ticketSequenceNo === undefined ? '' : `-Tiket-${ticketSequenceNo}`;
+  doc.save(`E-Tiket-${fileOrder}${ticketSuffix}.pdf`);
   return { pages: doc.getNumberOfPages() };
 }
 
@@ -279,10 +283,4 @@ function sanitizeFilenamePart(value: string) {
     .replace(/-+/g, '-')
     .replace(/^[.-]+|[.-]+$/g, '')
     || 'Tiket';
-}
-
-export async function createETicketPdfFile(input: Parameters<typeof createETicketPdfDocument>[0]) {
-  const doc = await createETicketPdfDocument(input);
-  const fileName = `E-Tiket-${sanitizeFilenamePart(input.event.title)}-${sanitizeFilenamePart(input.order.full_name)}.pdf`;
-  return new File([doc.output('blob')], fileName, { type: 'application/pdf' });
 }

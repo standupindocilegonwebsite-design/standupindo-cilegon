@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, BarChart3, Bell, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, DoorOpen, Eye, EyeOff, FolderOpen, History, ImagePlus, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Power, Printer, RefreshCw, Search, Settings, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Archive, BarChart3, Bell, CalendarDays, Camera, Check, ChevronDown, ChevronRight, Clock3, DoorOpen, Eye, EyeOff, FolderOpen, History, ImagePlus, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Power, Printer, RefreshCw, Search, Settings, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, MemberOpenMicHistoryStatus, MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -125,7 +125,7 @@ function getWorkspaceNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin
     { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
   ];
   if (isQrScanner) return [
-    { key: 'scan' as Section, label: 'Scan', icon: TicketIcon },
+    { key: 'scan' as Section, label: 'Scan', icon: Camera },
     { key: 'events' as Section, label: 'Event', icon: CalendarDays },
     { key: 'dashboard' as Section, label: 'Ringkasan', icon: BarChart3 },
     { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
@@ -152,7 +152,7 @@ function getWorkspaceBottomNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEven
     { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
   ];
   if (isQrScanner) return [
-    { key: 'scan' as Section, label: 'Scan', icon: TicketIcon },
+    { key: 'scan' as Section, label: 'Scan', icon: Camera },
     { key: 'events' as Section, label: 'Event', icon: CalendarDays },
     { key: 'dashboard' as Section, label: 'Ringkasan', icon: BarChart3 },
     { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
@@ -233,7 +233,9 @@ function ScopedEventList({ events, loading, onManageTickets }: { events: EventIt
     if (eventFilter !== 'all') return event.id === eventFilter;
     const status = getEventStatus(event.status, event.date);
     return status === statusFilter;
-  }).sort((first, second) => first.date.localeCompare(second.date)), [eventFilter, events, statusFilter]);
+  }).sort((first, second) => statusFilter === 'completed'
+    ? second.date.localeCompare(first.date)
+    : first.date.localeCompare(second.date)), [eventFilter, events, statusFilter]);
   const filters: Array<{ value: typeof statusFilter; label: string }> = [
     { value: 'upcoming', label: 'Mendatang' },
     { value: 'completed', label: 'Selesai' },
@@ -330,8 +332,10 @@ function TicketAdminDashboard({ orders, events, loading, onNavigate }: { orders:
   const [statsError, setStatsError] = useState('');
   const waitingPayment = orders.filter((order) => order.status === 'Menunggu Pembayaran').length;
   const waitingVerification = orders.filter((order) => order.status === 'Menunggu Verifikasi' || order.status === 'Sudah Bayar').length;
-  const paidOrders = orders.filter((order) => order.status === 'Lunas' || order.status === 'Terverifikasi' || order.status === 'Selesai');
+  const issuedOrders = orders.filter((order) => order.status === 'Lunas' || order.status === 'Terverifikasi' || order.status === 'Selesai');
+  const paidOrders = issuedOrders.filter((order) => order.order_type !== 'free_pass');
   const soldTickets = paidOrders.reduce((total, order) => total + order.quantity, 0);
+  const issuedTickets = issuedOrders.reduce((total, order) => total + order.quantity, 0);
   useEffect(() => {
     let active = true;
     void supabase.functions.invoke('ticketing-admin', { body: { action: 'scanner-summary', scope_role: 'admin_ticket' } }).then(({ data, error }) => {
@@ -342,7 +346,7 @@ function TicketAdminDashboard({ orders, events, loading, onNavigate }: { orders:
     });
     return () => { active = false; };
   }, []);
-  return <div className="space-y-5"><WorkspacePageHeader title="Ringkasan Ticketing" subtitle="Statistik order sesuai Event dalam scope akun." eyebrow="Admin Tiket" /><div className="grid grid-cols-2 gap-3 xl:grid-cols-3"><StatCard label="Total Order" value={orders.length} icon={TicketIcon} tone="bg-blue-50 text-blue-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Menunggu Pembayaran" value={waitingPayment} icon={Clock3} tone="bg-amber-50 text-amber-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Menunggu Verifikasi" value={waitingVerification} icon={Eye} tone="bg-orange-50 text-orange-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Order Lunas" value={paidOrders.length} icon={Check} tone="bg-emerald-50 text-emerald-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Tiket Terjual" value={ticketStats?.total_tickets ?? soldTickets} icon={TicketIcon} tone="bg-indigo-50 text-indigo-700" onClick={() => onNavigate('tickets')} loading={loading || statsLoading} /><StatCard label="Tiket Check-in" value={ticketStats?.checked_in ?? 0} icon={UserCheck} tone="bg-emerald-50 text-emerald-700" onClick={() => onNavigate('tickets')} loading={statsLoading} /><StatCard label="Belum Check-in" value={ticketStats?.not_checked_in ?? 0} icon={Clock3} tone="bg-sky-50 text-sky-700" onClick={() => onNavigate('tickets')} loading={statsLoading} /></div>{statsError && <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">{statsError}</p>}<p className="text-xs text-slate-500">Event dalam scope: {events.length}</p></div>;
+  return <div className="space-y-5"><WorkspacePageHeader title="Ringkasan Ticketing" subtitle="Statistik order sesuai Event dalam scope akun." eyebrow="Admin Tiket" /><div className="grid grid-cols-2 gap-3 xl:grid-cols-3"><StatCard label="Total Order" value={orders.length} icon={TicketIcon} tone="bg-blue-50 text-blue-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Menunggu Pembayaran" value={waitingPayment} icon={Clock3} tone="bg-amber-50 text-amber-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Menunggu Verifikasi" value={waitingVerification} icon={Eye} tone="bg-orange-50 text-orange-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Order Lunas (berbayar)" value={paidOrders.length} icon={Check} tone="bg-emerald-50 text-emerald-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Tiket Terjual" value={soldTickets} icon={TicketIcon} tone="bg-indigo-50 text-indigo-700" onClick={() => onNavigate('tickets')} loading={loading} /><StatCard label="Tiket Diterbitkan" value={ticketStats?.total_tickets ?? issuedTickets} icon={TicketIcon} tone="bg-blue-50 text-blue-700" onClick={() => onNavigate('tickets')} loading={loading || statsLoading} /><StatCard label="Tiket Check-in" value={ticketStats?.checked_in ?? 0} icon={UserCheck} tone="bg-emerald-50 text-emerald-700" onClick={() => onNavigate('tickets')} loading={statsLoading} /><StatCard label="Belum Check-in" value={ticketStats?.not_checked_in ?? 0} icon={Clock3} tone="bg-sky-50 text-sky-700" onClick={() => onNavigate('tickets')} loading={statsLoading} /></div>{statsError && <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">{statsError}</p>}<p className="text-xs text-slate-500">Event dalam scope: {events.length}</p></div>;
 }
 
 interface QrScannerAttendee {

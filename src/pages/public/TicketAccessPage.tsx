@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, Download, History, KeyRound, LogOut, Maximize2, Share2, Smartphone, Ticket, X, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, Download, History, KeyRound, LogOut, Maximize2, Smartphone, Ticket, X, XCircle } from 'lucide-react';
 import { QRCodeCanvas, QRCodeSVG } from 'qrcode.react';
 import type { Router } from '@/lib/router';
 import { supabase } from '@/lib/supabase';
 import { TicketPagination } from '@/components/TicketPagination';
 import { LOGO_URL } from '@/lib/types';
 import { formatDate, formatPrice, getEventStatus } from '@/lib/format';
-import { createETicketPdfFile, downloadETicketPdf } from '@/lib/ticket-pdf';
+import { downloadETicketPdf } from '@/lib/ticket-pdf';
 
 const ORDER_PAGE_SIZE = 10;
 
@@ -95,7 +95,7 @@ export function TicketAccessPage({ router }: { router: Router }) {
   const [activeTicketIndexes, setActiveTicketIndexes] = useState<Record<string, number>>({});
   const [fullscreenTicketOrder, setFullscreenTicketOrder] = useState<string | null>(null);
   const [downloadingOrder, setDownloadingOrder] = useState<string | null>(null);
-  const [sharingOrder, setSharingOrder] = useState<string | null>(null);
+  const [downloadingTicket, setDownloadingTicket] = useState<string | null>(null);
   const [pdfErrors, setPdfErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -264,47 +264,26 @@ export function TicketAccessPage({ router }: { router: Router }) {
     }
   }
 
-  async function shareOrderTickets(order: GuestOrder) {
+  async function downloadSingleTicket(order: GuestOrder, ticket: GuestTicket) {
     if (!session) return;
-    setSharingOrder(order.id);
+    setDownloadingTicket(ticket.id);
     setPdfErrors((current) => ({ ...current, [order.id]: '' }));
     try {
-      if (typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function' || typeof File === 'undefined') {
-        setPdfErrors((current) => ({
-          ...current,
-          [order.id]: 'Browser ini belum mendukung berbagi file PDF langsung. Gunakan Download E-Tiket terlebih dahulu, lalu bagikan file PDF yang sudah tersimpan.',
-        }));
-        return;
-      }
-      const tickets = session.tickets.filter((ticket) => ticket.ticket_order_id === order.id);
-      const qrCanvases = new Map<string, HTMLCanvasElement>();
-      tickets.forEach((ticket) => {
-        const canvas = ticketQrCanvases.current[ticket.id];
-        if (canvas) qrCanvases.set(ticket.id, canvas);
-      });
-      const pdfFile = await createETicketPdfFile({
+      const qrCanvas = ticketQrCanvases.current[ticket.id];
+      if (!ticket.qr_token || !qrCanvas) throw new Error(`QR untuk tiket ${ticket.sequence_no} belum siap. Buka detail tiket, lalu coba unduh kembali.`);
+      await downloadETicketPdf({
         event: session.event,
         order,
-        tickets,
-        qrCanvases,
-      });
-      const shareData = { files: [pdfFile] };
-      if (!navigator.canShare(shareData)) {
-        setPdfErrors((current) => ({
-          ...current,
-          [order.id]: 'Browser atau perangkat ini belum mendukung berbagi file PDF langsung. Gunakan Download E-Tiket terlebih dahulu, lalu bagikan file PDF yang sudah tersimpan.',
-        }));
-        return;
-      }
-      await navigator.share(shareData);
-    } catch (shareError) {
-      if (shareError instanceof DOMException && shareError.name === 'AbortError') return;
+        tickets: [ticket],
+        qrCanvases: new Map([[ticket.id, qrCanvas]]),
+      }, ticket.sequence_no);
+    } catch (downloadError) {
       setPdfErrors((current) => ({
         ...current,
-        [order.id]: 'E-Tiket gagal dibagikan sebagai file. Gunakan Download E-Tiket terlebih dahulu, lalu bagikan file PDF yang sudah tersimpan.',
+        [order.id]: downloadError instanceof Error ? downloadError.message : 'E-Tiket gagal dibuat. Silakan coba lagi.',
       }));
     } finally {
-      setSharingOrder(null);
+      setDownloadingTicket(null);
     }
   }
 
@@ -389,35 +368,27 @@ export function TicketAccessPage({ router }: { router: Router }) {
             return <section key={order.id} className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_4px_14px_rgba(15,23,42,0.08)]">
               <button type="button" onClick={() => setExpandedOrder(isExpanded ? null : order.id)} className="flex w-full items-center justify-between gap-3 p-4 text-left sm:p-5"><span className="min-w-0"><span className="block font-mono text-xs font-bold text-blue-700">{order.order_number ?? order.id}</span><span className="mt-1 block truncate font-extrabold text-slate-900">{order.ticket_category} · {order.quantity} tiket</span></span><span className="shrink-0 text-sm font-bold text-slate-500">{isExpanded ? 'Tutup' : 'Lihat tiket'}</span></button>
               {isExpanded && <div className={fullscreenTicketOrder === order.id ? 'fixed inset-x-0 top-16 bottom-[calc(4.625rem+var(--safe-bottom))] z-40 flex flex-col bg-slate-200 sm:top-[4.5rem]' : 'border-t border-slate-100 p-4 sm:p-5'} role="region" aria-label={`Tiket ${order.order_number ?? order.id}`}>
-                <div className={`flex shrink-0 items-center justify-between gap-3 ${fullscreenTicketOrder === order.id ? 'border-b border-slate-300 bg-white px-4 py-3 shadow-sm sm:px-6' : 'mb-3'}`}>
+                <div className={`flex shrink-0 flex-wrap items-center gap-2 ${fullscreenTicketOrder === order.id ? 'border-b border-slate-300 bg-white px-4 py-3 shadow-sm sm:px-6' : 'mb-3'}`}>
                   {fullscreenTicketOrder === order.id
-                    ? <div className="min-w-0">
+                    ? <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-extrabold text-slate-950">{order.ticket_category} · {order.quantity} tiket</p>
                       <p className="truncate font-mono text-[11px] text-slate-500">{order.order_number ?? order.id}</p>
                     </div>
-                    : <p className="text-center text-xs font-bold uppercase tracking-wider text-slate-500">{orderTickets.length > 1 ? 'Geser untuk melihat tiket lainnya' : 'Detail tiket'}</p>}
-                  <button
-                    type="button"
-                    onClick={() => void downloadOrderTickets(order)}
-                    disabled={downloadingOrder === order.id || sharingOrder === order.id || orderTickets.length === 0}
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-700 px-3 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 sm:px-4 sm:text-sm"
-                  >
-                    <Download className="h-4 w-4" />
-                    {downloadingOrder === order.id ? 'Membuat PDF...' : 'Download E-Tiket'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void shareOrderTickets(order)}
-                    disabled={downloadingOrder === order.id || sharingOrder === order.id || orderTickets.length === 0}
-                    aria-label={sharingOrder === order.id ? 'Menyiapkan E-Tiket untuk dibagikan' : 'Bagikan E-Tiket'}
-                    title="Bagikan E-Tiket"
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-white text-blue-800 shadow-sm transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
-                  >
-                    <Share2 className="h-4 w-4" />
-                  </button>
-                  <button type="button" onClick={() => fullscreenTicketOrder === order.id ? setFullscreenTicketOrder(null) : setFullscreenTicketOrder(order.id)} aria-label={fullscreenTicketOrder === order.id ? 'Tutup layar penuh' : 'Lihat layar penuh'} title={fullscreenTicketOrder === order.id ? 'Tutup layar penuh' : 'Lihat layar penuh'} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                    {fullscreenTicketOrder === order.id ? <X className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                  </button>
+                    : <p className="w-full text-center text-xs font-bold uppercase tracking-wider text-slate-500">{orderTickets.length > 1 ? 'Geser untuk melihat tiket lainnya' : 'Detail tiket'}</p>}
+                  <div className="ml-auto flex w-full items-center justify-end gap-2 sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => void downloadOrderTickets(order)}
+                      disabled={downloadingOrder !== null || downloadingTicket !== null || orderTickets.length === 0}
+                      className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-700 px-3 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 sm:flex-none sm:px-4 sm:text-sm"
+                    >
+                      <Download className="h-4 w-4 shrink-0" />
+                      {downloadingOrder === order.id ? 'Membuat PDF...' : 'Download E-Tiket'}
+                    </button>
+                    <button type="button" onClick={() => fullscreenTicketOrder === order.id ? setFullscreenTicketOrder(null) : setFullscreenTicketOrder(order.id)} aria-label={fullscreenTicketOrder === order.id ? 'Tutup layar penuh' : 'Lihat layar penuh'} title={fullscreenTicketOrder === order.id ? 'Tutup layar penuh' : 'Lihat layar penuh'} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                      {fullscreenTicketOrder === order.id ? <X className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 {pdfErrors[order.id] && <p role="alert" className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{pdfErrors[order.id]}</p>}
                 {orderTickets.length ? <><div ref={(node) => { ticketCarouselRefs.current[order.id] = node; }} onScroll={(event) => {
@@ -440,6 +411,15 @@ export function TicketAccessPage({ router }: { router: Router }) {
                     {ticket.qr_token && <QRCodeCanvas ref={(node) => { ticketQrCanvases.current[ticket.id] = node; }} value={ticket.qr_token} size={640} level="M" includeMargin className="fixed -left-[10000px] top-0 h-[640px] w-[640px]" aria-hidden="true" />}
                     <p className="text-xl font-black uppercase tracking-wide text-slate-900">TIKET {ticket.sequence_no}</p>
                     <p className="rounded-xl border border-slate-300 bg-white px-4 py-2 font-mono text-base font-extrabold tracking-wide text-slate-900 shadow-sm">{order.order_number ?? order.id} / {ticket.sequence_no}</p>
+                    <button
+                      type="button"
+                      onClick={() => void downloadSingleTicket(order, ticket)}
+                      disabled={downloadingOrder !== null || downloadingTicket !== null || !ticket.qr_token}
+                      className="inline-flex min-h-11 w-full max-w-xs items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-extrabold text-blue-800 shadow-sm transition hover:bg-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <Download className="h-4 w-4 shrink-0" />
+                      {downloadingTicket === ticket.id ? 'Membuat PDF tiket...' : 'Unduh PDF tiket ini'}
+                    </button>
                   </article>)}
                 </div>
                 {orderTickets.length > 1 && <div className={`flex shrink-0 items-center justify-center gap-2 ${fullscreenTicketOrder === order.id ? 'border-t border-slate-300 bg-white px-4 py-3' : 'mt-2'}`} aria-label="Pilih nomor tiket">

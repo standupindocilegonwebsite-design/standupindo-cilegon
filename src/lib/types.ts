@@ -132,6 +132,9 @@ export interface TicketOrder {
   reviewed_at?: string | null;
   review_note?: string | null;
   access_code_id?: string | null;
+  order_type?: 'paid' | 'free_pass';
+  free_pass_reason?: string | null;
+  issued_by?: string | null;
   created_at: string;
   updated_at: string;
 }
