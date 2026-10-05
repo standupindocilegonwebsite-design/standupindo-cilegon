@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Calendar, ChevronDown, ClipboardList, Clock, ExternalLink, Info, MessageCircle, Ticket } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { EventItem, EventTicket, EventPartnership, Partner, SiteSettings } from '@/lib/types';
@@ -68,13 +68,241 @@ function EventPartnerMarquee({ partners, logoSize, role }: { partners: Partner[]
   </div>;
 }
 
+function EventDocumentationGallery({ photos, eventTitle, eventDate, eventVenue, eventLocation, lightboxIndex, onLightboxIndexChange }: { photos: string[]; eventTitle: string; eventDate: string; eventVenue: string; eventLocation: string; lightboxIndex: number | null; onLightboxIndexChange: (index: number | null) => void }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [photoTransition, setPhotoTransition] = useState<{ from: string; to: string; visible: boolean } | null>(null);
+  const [autoplayPaused, setAutoplayPaused] = useState(false);
+  const thumbnailStripRef = useRef<HTMLDivElement>(null);
+  const thumbnailRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const didSwipe = useRef(false);
+  const resumeTimer = useRef<number | null>(null);
+  const transitionFrame = useRef<number | null>(null);
+  const transitionTimer = useRef<number | null>(null);
+
+  const changeActivePhoto = useCallback((index: number) => {
+    const from = photos[activeIndex];
+    const to = photos[index];
+    if (from && to && from !== to) {
+      if (transitionFrame.current !== null) window.cancelAnimationFrame(transitionFrame.current);
+      if (transitionTimer.current !== null) window.clearTimeout(transitionTimer.current);
+      setPhotoTransition({ from, to, visible: false });
+      transitionFrame.current = window.requestAnimationFrame(() => {
+        setPhotoTransition({ from, to, visible: true });
+        transitionFrame.current = null;
+      });
+      transitionTimer.current = window.setTimeout(() => {
+        setPhotoTransition(null);
+        transitionTimer.current = null;
+      }, 700);
+    }
+    setActiveIndex(index);
+  }, [activeIndex, photos]);
+
+  useEffect(() => {
+    if (photos.length < 2 || autoplayPaused || lightboxIndex !== null || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const timer = window.setInterval(() => {
+      changeActivePhoto((activeIndex + 1) % photos.length);
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [activeIndex, autoplayPaused, changeActivePhoto, lightboxIndex, photos.length]);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    changeActivePhoto(lightboxIndex);
+    setAutoplayPaused(true);
+  }, [changeActivePhoto, lightboxIndex]);
+
+  useEffect(() => {
+    const strip = thumbnailStripRef.current;
+    const activeThumbnail = thumbnailRefs.current[activeIndex];
+    if (!strip || !activeThumbnail) return;
+    const left = activeThumbnail.offsetLeft - strip.offsetLeft;
+    const right = left + activeThumbnail.offsetWidth;
+    if (left < strip.scrollLeft) {
+      strip.scrollTo({ left, behavior: 'smooth' });
+    } else if (right > strip.scrollLeft + strip.clientWidth) {
+      strip.scrollTo({ left: right - strip.clientWidth, behavior: 'smooth' });
+    }
+  }, [activeIndex]);
+
+  useEffect(() => () => {
+    if (resumeTimer.current !== null) window.clearTimeout(resumeTimer.current);
+    if (transitionFrame.current !== null) window.cancelAnimationFrame(transitionFrame.current);
+    if (transitionTimer.current !== null) window.clearTimeout(transitionTimer.current);
+  }, []);
+
+  function pauseAutoplay() {
+    if (resumeTimer.current !== null) window.clearTimeout(resumeTimer.current);
+    setAutoplayPaused(true);
+  }
+
+  function resumeAutoplaySoon() {
+    if (resumeTimer.current !== null) window.clearTimeout(resumeTimer.current);
+    resumeTimer.current = window.setTimeout(() => {
+      setAutoplayPaused(false);
+      resumeTimer.current = null;
+    }, 1600);
+  }
+
+  function selectPhoto(index: number) {
+    changeActivePhoto(index);
+    resumeAutoplaySoon();
+  }
+
+  function movePhoto(direction: -1 | 1) {
+    const nextIndex = (activeIndex + direction + photos.length) % photos.length;
+    changeActivePhoto(nextIndex);
+    if (lightboxIndex !== null) onLightboxIndexChange(nextIndex);
+  }
+
+  function finishSwipe(deltaX: number, deltaY: number) {
+    if (Math.abs(deltaX) < 45 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    didSwipe.current = true;
+    pauseAutoplay();
+    movePhoto(deltaX < 0 ? 1 : -1);
+    resumeAutoplaySoon();
+  }
+
+  const activePhoto = photos[activeIndex];
+
+  return (
+    <>
+      <div className="space-y-3">
+        <div
+          className="group relative aspect-[4/3] overflow-hidden rounded-2xl bg-slate-100 sm:aspect-[16/9]"
+          onTouchStart={(event) => {
+          pauseAutoplay();
+          const touch = event.touches[0];
+          if (touch) touchStart.current = { x: touch.clientX, y: touch.clientY };
+          }}
+          onTouchEnd={(event) => {
+          const start = touchStart.current;
+          const touch = event.changedTouches[0];
+          touchStart.current = null;
+          if (start && touch) finishSwipe(touch.clientX - start.x, touch.clientY - start.y);
+          resumeAutoplaySoon();
+          }}
+          onTouchCancel={() => {
+          touchStart.current = null;
+          resumeAutoplaySoon();
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              if (didSwipe.current) {
+                didSwipe.current = false;
+                return;
+              }
+              pauseAutoplay();
+              onLightboxIndexChange(activeIndex);
+            }}
+            aria-label={`Perbesar foto dokumentasi ${activeIndex + 1}`}
+            className="absolute inset-0 h-full w-full touch-pan-y focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-blue-500"
+          >
+            {photoTransition ? (
+              <>
+                <img
+                  src={photoTransition.from}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+                <img
+                  src={photoTransition.to}
+                  alt={`${eventTitle} — dokumentasi ${activeIndex + 1}`}
+                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-in-out motion-reduce:transition-none ${photoTransition.visible ? 'opacity-100' : 'opacity-0'}`}
+                />
+              </>
+            ) : (
+              <img
+                src={activePhoto}
+                alt={`${eventTitle} — dokumentasi ${activeIndex + 1}`}
+                loading={activeIndex === 0 ? 'eager' : 'lazy'}
+                className="h-full w-full object-cover"
+              />
+            )}
+          </button>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-gradient-to-t from-slate-950/90 via-slate-950/55 to-transparent px-4 pb-8 pt-20 sm:px-7 sm:pb-10 sm:pt-28">
+            <p className="mb-2 w-fit rounded-sm bg-blue-600 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white sm:text-xs">Dokumentasi</p>
+            <h3 className="max-w-3xl text-xl font-extrabold leading-tight text-white drop-shadow sm:text-3xl">{eventTitle}</h3>
+            <div className="mt-2 space-y-1 text-xs font-semibold leading-snug text-white/90 drop-shadow sm:text-sm">
+              <p>{formatDate(eventDate)}</p>
+              <p className="line-clamp-1">{eventVenue}{eventLocation ? `, ${eventLocation}` : ''}</p>
+            </div>
+          </div>
+          {event.poster && (
+            <ImageLightbox
+              src={event.poster}
+              alt={`${event.title} poster`}
+              open={posterLightboxOpen}
+              onClose={() => setPosterLightboxOpen(false)}
+            />
+          )}
+        </div>
+
+        {photos.length > 1 && (
+          <div
+            ref={thumbnailStripRef}
+            className="flex gap-2 overflow-x-auto overscroll-x-contain scroll-smooth py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            onPointerDown={pauseAutoplay}
+            onPointerUp={resumeAutoplaySoon}
+            onPointerCancel={resumeAutoplaySoon}
+            onTouchStart={pauseAutoplay}
+            onTouchEnd={resumeAutoplaySoon}
+            onTouchCancel={resumeAutoplaySoon}
+            onFocusCapture={pauseAutoplay}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) resumeAutoplaySoon();
+            }}
+          >
+            {photos.map((photo, index) => (
+              <button
+                key={`${photo}-${index}`}
+                ref={(element) => { thumbnailRefs.current[index] = element; }}
+                type="button"
+                onClick={() => selectPhoto(index)}
+                aria-label={`Tampilkan foto dokumentasi ${index + 1}`}
+                aria-current={activeIndex === index ? 'true' : undefined}
+                className={`h-14 w-[4.5rem] shrink-0 overflow-hidden rounded-lg border-2 bg-slate-100 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:h-16 sm:w-24 ${activeIndex === index ? 'border-blue-600 opacity-100' : 'border-transparent opacity-70 hover:opacity-100'}`}
+              >
+                <img src={photo} alt="" loading="lazy" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <p className="text-xs font-medium text-slate-500">Pilih foto untuk memperbesar</p>
+        </div>
+      </div>
+
+      {lightboxIndex !== null && photos[lightboxIndex] && (
+        <ImageLightbox
+          src={photos[lightboxIndex]}
+          alt={`${eventTitle} — dokumentasi ${lightboxIndex + 1}`}
+          open
+          onClose={() => {
+            onLightboxIndexChange(null);
+            resumeAutoplaySoon();
+          }}
+          onPrevious={() => movePhoto(-1)}
+          onNext={() => movePhoto(1)}
+        />
+      )}
+    </>
+  );
+}
+
 export function EventDetailPage({ router, slug, settings }: Props) {
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState<EventItem | null>(null);
+  const [documentationLightboxIndex, setDocumentationLightboxIndex] = useState<number | null>(null);
+  const [posterLightboxOpen, setPosterLightboxOpen] = useState(false);
   const [tickets, setTickets] = useState<EventTicket[]>([]);
   const [lineup, setLineup] = useState<{ id: string; stage_name: string; community: string | null; instagram: string | null }[]>([]);
   const [partnersByRole, setPartnersByRole] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [infoTab, setInfoTab] = useState<'about' | 'rules'>('about');
   const [infoExpanded, setInfoExpanded] = useState(false);
 
@@ -165,6 +393,10 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const isFreeEvent = tickets.length === 0 && cheapestTicketPrice <= 0;
   const pageUrl = `${window.location.origin}/event/${event.slug}`;
   const currentStatus = getEventStatus(event.status, event.date);
+  const documentationPhotos = [
+    ...(event.poster ? [event.poster] : []),
+    ...(event.documentation_photos ?? []),
+  ];
 
   return (
     <div className="animate-fade-in">
@@ -176,7 +408,11 @@ export function EventDetailPage({ router, slug, settings }: Props) {
           <div className="lg:col-span-2">
             <div className="max-h-[18rem] overflow-hidden rounded-2xl bg-slate-100 shadow-soft sm:max-h-none">
               {event.poster ? (
-                <button onClick={() => setLightboxImage(event.poster)} aria-label={`Lihat poster ${event.title}`} className="block w-full">
+                <button
+                  onClick={() => currentStatus === 'completed' ? setDocumentationLightboxIndex(0) : setPosterLightboxOpen(true)}
+                  aria-label={currentStatus === 'completed' ? `Lihat dokumentasi ${event.title}` : `Lihat poster ${event.title}`}
+                  className="block w-full"
+                >
                   <img src={event.poster} alt={`${event.title} poster`} className={`aspect-[4/3] max-h-[18rem] w-full object-contain transition-transform duration-500 hover:scale-105 sm:max-h-none ${currentStatus === 'completed' ? 'grayscale' : ''}`} />
                 </button>
               ) : (
@@ -280,31 +516,17 @@ export function EventDetailPage({ router, slug, settings }: Props) {
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Kenangan acara</p>
                 <h2 className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">Foto Dokumentasi</h2>
               </div>
-              {(event.documentation_photos ?? []).length > 0 && (
-                <span className="text-xs font-semibold text-slate-500">{event.documentation_photos.length} foto</span>
-              )}
             </div>
-            {(event.documentation_photos ?? []).length > 0 ? (
-              <>
-                <div className="flex gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2">
-                  {Array.from({ length: Math.ceil(event.documentation_photos.length / 4) }, (_, pageIndex) => {
-                    const photos = event.documentation_photos.slice(pageIndex * 4, pageIndex * 4 + 4);
-                    return (
-                      <div key={pageIndex} className="grid min-w-full snap-start grid-cols-2 grid-rows-2 gap-3">
-                        {photos.map((photo, photoIndex) => {
-                          const index = pageIndex * 4 + photoIndex;
-                          return (
-                            <button key={`${photo}-${index}`} type="button" onClick={() => setLightboxIndex(index)} aria-label={`Lihat foto dokumentasi ${index + 1}`} className="group relative aspect-[4/3] min-w-0 overflow-hidden rounded-2xl bg-slate-100 text-left">
-                              <img src={photo} alt={`${event.title} — dokumentasi ${index + 1}`} loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="mt-2 text-xs font-medium text-slate-500">Geser untuk melihat halaman foto lainnya. Pilih foto untuk memperbesar.</p>
-              </>
+            {documentationPhotos.length > 0 ? (
+              <EventDocumentationGallery
+                photos={documentationPhotos}
+                eventTitle={event.title}
+                eventDate={event.date}
+                eventVenue={event.venue}
+                eventLocation={event.location}
+                lightboxIndex={documentationLightboxIndex}
+                onLightboxIndexChange={setDocumentationLightboxIndex}
+              />
             ) : (
               <EmptyState title="Foto dokumentasi belum tersedia." />
             )}
@@ -391,16 +613,12 @@ export function EventDetailPage({ router, slug, settings }: Props) {
           </section>
         )}
       </div>
-
-      {lightboxIndex !== null && event.documentation_photos[lightboxIndex] && (
+      {event.poster && (
         <ImageLightbox
-          src={event.documentation_photos[lightboxIndex]}
-          alt={`${event.title} — dokumentasi ${lightboxIndex + 1}`}
-          open
-          onClose={() => setLightboxIndex(null)}
-          onPrevious={() => setLightboxIndex((index) => index === null ? null : (index - 1 + event.documentation_photos.length) % event.documentation_photos.length)}
-          onNext={() => setLightboxIndex((index) => index === null ? null : (index + 1) % event.documentation_photos.length)}
-          positionLabel={`${lightboxIndex + 1} / ${event.documentation_photos.length}`}
+          src={event.poster}
+          alt={`${event.title} poster`}
+          open={posterLightboxOpen}
+          onClose={() => setPosterLightboxOpen(false)}
         />
       )}
     </div>

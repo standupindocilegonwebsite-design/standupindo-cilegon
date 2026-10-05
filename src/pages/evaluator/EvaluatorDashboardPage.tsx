@@ -103,9 +103,11 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
     const upcoming = assignments.filter((item) => item.open_mic && item.open_mic.date >= today.toISOString().slice(0, 10)).length;
     return { total, upcoming };
   }, [assignments]);
+  const today = new Date().toISOString().slice(0, 10);
+  const finishedAssignments = useMemo(() => assignments.filter(({ open_mic: mic }) => mic && (mic.status === 'completed' || mic.date < today)), [assignments, today]);
   const filteredAssignments = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return assignments.filter(({ open_mic: mic }) => {
+    return finishedAssignments.filter(({ open_mic: mic }) => {
       if (!mic) return false;
       const progress = progressByMic[mic.id] ?? { evaluated: 0, total: 0 };
       const isCompleted = progress.total === 0 || progress.evaluated >= progress.total;
@@ -113,7 +115,7 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
       if (progressFilter === 'completed' && !isCompleted) return false;
       return !query || `${mic.title} ${mic.date} ${mic.time} ${mic.venue} ${mic.location} ${mic.status} ${komikaByMic[mic.id] ?? ''}`.toLowerCase().includes(query);
     });
-  }, [assignments, komikaByMic, progressByMic, progressFilter, search]);
+  }, [finishedAssignments, komikaByMic, progressByMic, progressFilter, search]);
 
   useEffect(() => {
     setVisibleLimit(10);
@@ -177,8 +179,8 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
               {orderedAssignments.length === 0 ? (
                 <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
                   <Search className="mx-auto h-6 w-6 text-slate-400" />
-                  <p className="mt-2 text-sm font-bold text-slate-700">Tidak ada hasil yang cocok</p>
-                  <p className="mt-1 text-xs text-slate-500">Coba cari berdasarkan judul Open Mic, tanggal, venue, atau nama komika.</p>
+                  <p className="mt-2 text-sm font-bold text-slate-700">{finishedAssignments.length === 0 ? 'Belum ada Open Mic yang selesai.' : 'Tidak ada hasil yang cocok'}</p>
+                  <p className="mt-1 text-xs text-slate-500">{finishedAssignments.length === 0 ? 'Open Mic akan muncul di sini setelah acaranya selesai.' : 'Coba cari berdasarkan judul Open Mic, tanggal, venue, atau nama komika.'}</p>
                 </div>
               ) : (
                 <>

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Search } from 'lucide-react';
+import { History, Plus, Search } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { OpenMic } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatDate, getOpenMicNumbers } from '@/lib/format';
+import { MemberPerformanceHistoryPage } from '@/pages/member/MemberPerformanceHistoryPage';
 
 type PerformerSummary = {
   id: string;
@@ -21,6 +22,7 @@ type PerformerSummary = {
     id: string;
     title: string;
     openMicNumber: number | undefined;
+    appearanceNumber: number;
     venue: string;
     date: string;
     stageName: string;
@@ -38,11 +40,15 @@ type PerformerRegistration = {
   attendance_status: string;
 };
 
+type MemberOpenMicTab = 'upcoming' | 'history';
+
 function normalizePerformerValue(value: string | null): string {
   return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 export function OpenMicPage({ router }: { router: Router }) {
+  const isMemberPage = router.path === '/member/open-mic';
+  const [memberTab, setMemberTab] = useState<MemberOpenMicTab>('upcoming');
   const [loading, setLoading] = useState(true);
   const [mics, setMics] = useState<OpenMic[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -110,7 +116,7 @@ export function OpenMicPage({ router }: { router: Router }) {
           const current = summaryByIdentity.get(identityKey);
           if (current) {
             current.totalAppearances += 1;
-            current.appearances.push({ id: row.open_mic_id, title: event?.title ?? 'Open Mic', openMicNumber: openMicNumbersForHistory.get(row.open_mic_id), venue: event?.venue ?? 'Lokasi tidak tersedia', date: eventDate, stageName: row.stage_name, community: row.community });
+            current.appearances.push({ id: row.open_mic_id, title: event?.title ?? 'Open Mic', openMicNumber: openMicNumbersForHistory.get(row.open_mic_id), appearanceNumber: 0, venue: event?.venue ?? 'Lokasi tidak tersedia', date: eventDate, stageName: row.stage_name, community: row.community });
             if (eventDate > current.latestDate) {
               current.latestDate = eventDate;
               current.community = row.community;
@@ -130,11 +136,19 @@ export function OpenMicPage({ router }: { router: Router }) {
             instagram: profile?.instagram_url ?? row.instagram,
             community: row.community,
             totalAppearances: 1,
-            appearances: [{ id: row.open_mic_id, title: event?.title ?? 'Open Mic', openMicNumber: openMicNumbersForHistory.get(row.open_mic_id), venue: event?.venue ?? 'Lokasi tidak tersedia', date: eventDate, stageName: row.stage_name, community: row.community }],
+            appearances: [{ id: row.open_mic_id, title: event?.title ?? 'Open Mic', openMicNumber: openMicNumbersForHistory.get(row.open_mic_id), appearanceNumber: 0, venue: event?.venue ?? 'Lokasi tidak tersedia', date: eventDate, stageName: row.stage_name, community: row.community }],
             latestDate: eventDate,
           });
         });
-        summaryByIdentity.forEach((summary) => summary.appearances.sort((first, second) => second.date.localeCompare(first.date)));
+        summaryByIdentity.forEach((summary) => {
+          summary.appearances.sort((first, second) => first.date.localeCompare(second.date)
+            || (list.find((mic) => mic.id === first.id)?.time ?? '').localeCompare(list.find((mic) => mic.id === second.id)?.time ?? '')
+            || first.id.localeCompare(second.id));
+          summary.appearances.forEach((appearance, index) => {
+            appearance.appearanceNumber = index + 1;
+          });
+          summary.appearances.reverse();
+        });
         setPerformerSummaries([...summaryByIdentity.values()]);
       }
       setLoading(false);
@@ -163,6 +177,46 @@ export function OpenMicPage({ router }: { router: Router }) {
     <div className="animate-fade-in">
       <PageHeader router={router} title="Open Mic" subtitle="Temukan panggungmu." />
 
+      {isMemberPage && (
+        <div className="container-app pt-5">
+          <div className="flex items-center gap-3">
+            <div className="grid min-w-0 flex-1 grid-cols-2 gap-1.5 rounded-2xl border border-slate-200 bg-slate-100 p-1.5" role="tablist" aria-label="Menu Open Mic Member">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={memberTab === 'upcoming'}
+                onClick={() => setMemberTab('upcoming')}
+                className={`rounded-xl border px-2 py-2.5 text-[10px] font-extrabold tracking-wide transition sm:text-xs ${memberTab === 'upcoming' ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'border-transparent bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-900'}`}
+              >
+                MENDATANG
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={memberTab === 'history'}
+                onClick={() => setMemberTab('history')}
+                className={`flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-[10px] font-extrabold tracking-wide transition sm:text-xs ${memberTab === 'history' ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'border-transparent bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-900'}`}
+              >
+                <History className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">RIWAYAT OPEN MIC KU</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.navigate('/member/open-mic-history')}
+              aria-label="Open Mic Eksternal"
+              title="Open Mic Eksternal"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)] transition hover:bg-blue-700 active:scale-95"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isMemberPage && memberTab === 'history' ? (
+        <MemberPerformanceHistoryPage router={router} embedded />
+      ) : (
       <div className="container-app space-y-8 py-8">
         <section data-scroll-reveal className="scroll-reveal is-visible">
           <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-blue-600" /><h2 className="text-xl font-extrabold text-slate-900">Mendatang</h2><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">{upcoming.length}</span></div>
@@ -191,7 +245,7 @@ export function OpenMicPage({ router }: { router: Router }) {
                 </button>
                   {selectedPerformerId === performer.id && <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-2.5">
                     <div className="mb-2 flex items-center justify-between gap-2"><p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-600">Riwayat tampil</p><span className="text-xs font-black uppercase tracking-[0.08em] text-blue-700">{performer.totalAppearances} OPEN MIC</span></div>
-                    <div className="space-y-1.5">{performer.appearances.map((appearance) => <div key={appearance.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs shadow-sm"><div className="min-w-0"><p className="truncate font-extrabold text-slate-900">{appearance.openMicNumber ? `Open Mic #${appearance.openMicNumber} · ` : ''}{appearance.title}</p><p className="mt-0.5 truncate font-semibold text-slate-600">{appearance.stageName} · {appearance.community ?? 'Komunitas belum dicatat'}</p></div><span className="shrink-0 text-right font-bold leading-5 text-slate-600">{formatDate(appearance.date)}<br />{appearance.venue}</span></div>)}</div>
+                    <div className="space-y-1.5">{performer.appearances.map((appearance) => <div key={appearance.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs shadow-sm"><div className="min-w-0"><p className="truncate font-extrabold text-slate-900">{appearance.openMicNumber ? `Open Mic #${appearance.openMicNumber} · ` : ''}{appearance.title}</p><p className="mt-0.5 truncate font-semibold text-slate-600">{appearance.stageName} · {appearance.community ?? 'Komunitas belum dicatat'}</p><p className="mt-1 text-[10px] font-bold text-blue-700">Open Mic ke-{appearance.appearanceNumber} di Standupindo Cilegon</p></div><span className="shrink-0 text-right font-bold leading-5 text-slate-600">{formatDate(appearance.date)}<br />{appearance.venue}</span></div>)}</div>
                 </div>}
               </div>)}
             </div>
@@ -205,6 +259,7 @@ export function OpenMicPage({ router }: { router: Router }) {
           )}
         </section>
       </div>
+      )}
     </div>
   );
 }

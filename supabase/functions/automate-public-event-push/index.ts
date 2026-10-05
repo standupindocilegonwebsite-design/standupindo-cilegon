@@ -16,6 +16,7 @@ type PublicItem = {
   time: string;
   status: string;
   published: boolean;
+  poster?: string | null;
   registration_status?: string;
 };
 type NotificationCycle = {
@@ -30,9 +31,10 @@ type ScheduledNotification = {
   title: string;
   body: string;
   url: string;
-  audience: 'public' | 'event_admin' | 'qr_admin';
+  audience: 'public' | 'member' | 'member-attendees' | 'event_admin' | 'qr_admin';
 };
 type SubscriptionRow = { id: string; user_id: string | null; app_identity: 'public' | 'admin' | 'member' };
+type OpenMicLineupContext = { names: string[]; registeredMemberUserIds: string[] };
 
 function response(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -147,7 +149,7 @@ function buildNotifications(kind: EntityKind, item: PublicItem, cycle: Notificat
       }
     }
 
-    for (const days of [35, 28, 21, 14, 7, 3, 1, 0]) {
+    for (const days of [35, 28, 21, 14, 7, 5, 3, 2, 1, 0]) {
       const scheduledAt = jakartaDateTime(item.date, 9, 0) - days * DAY_MS;
       if (scheduledAt >= eventStart || now < scheduledAt || now >= scheduledAt + DUE_WINDOW_MS) continue;
       const message = countdownMessage(kind, days, item.title);
@@ -216,8 +218,10 @@ function buildNotifications(kind: EntityKind, item: PublicItem, cycle: Notificat
   const daysAtPublish = dateDayDifference(item.date, jakartaDateString(new Date(cycleStart)));
   const openMicStages = [
     { days: 7, minimumDaysAtPublish: 7 },
-    { days: 3, minimumDaysAtPublish: 5 },
-    { days: 1, minimumDaysAtPublish: 3 },
+    { days: 5, minimumDaysAtPublish: 5 },
+    { days: 3, minimumDaysAtPublish: 3 },
+    { days: 2, minimumDaysAtPublish: 2 },
+    { days: 1, minimumDaysAtPublish: 1 },
     { days: 0, minimumDaysAtPublish: 1 },
   ];
   if (item.registration_status === 'open' && now < eventStart) {
@@ -250,19 +254,50 @@ function buildNotifications(kind: EntityKind, item: PublicItem, cycle: Notificat
       url: `${detailUrl}#lineup`,
       audience: 'public',
     });
+    due.push({
+      stage: 'member-lineup-h-plus-1',
+      scheduledAt: oneDayAfter,
+      title: '🎤 Lineup Open Mic Kemarin',
+      body: `${item.title} sudah selesai! Yuk lihat lineup komika yang tampil kemarin. 👀`,
+      url: `${detailUrl}#lineup`,
+      audience: 'member',
+    });
+    due.push({
+      stage: 'member-lineup-attendee-h-plus-1',
+      scheduledAt: oneDayAfter,
+      title: '🎤 Open Mic Kemarin',
+      body: `${item.title} sudah selesai. Lihat lineup komika yang tampil kemarin!`,
+      url: `${detailUrl}#lineup`,
+      audience: 'member-attendees',
+    });
   }
   return due;
 }
 
-async function hasPublishedLineup(adminClient: ReturnType<typeof createClient>, openMicId: string) {
-  const { data, error } = await adminClient.from('open_mic_registrations')
-    .select('id')
+async function loadOpenMicLineupContext(adminClient: ReturnType<typeof createClient>, openMicId: string): Promise<OpenMicLineupContext> {
+  const { data: registrations, error } = await adminClient.from('open_mic_registrations')
+    .select('stage_name, status, attendance_status, komika_id')
     .eq('open_mic_id', openMicId)
-    .eq('status', 'confirmed')
-    .eq('attendance_status', 'attended')
-    .limit(1);
+    .in('status', ['pending', 'confirmed']);
   if (error) throw error;
-  return Boolean(data?.length);
+  const rows = registrations ?? [];
+  const names = [...new Set(rows
+    .filter((row) => row.status === 'confirmed' && row.attendance_status === 'attended')
+    .map((row) => row.stage_name.trim())
+    .filter(Boolean))];
+  const komikaIds = [...new Set(rows
+    .map((row) => row.komika_id)
+    .filter((id): id is string => typeof id === 'string' && Boolean(id)))];
+  if (komikaIds.length === 0) return { names, registeredMemberUserIds: [] };
+
+  const { data: profiles, error: profileError } = await adminClient.from('komika')
+    .select('id, user_id')
+    .in('id', komikaIds);
+  if (profileError) throw profileError;
+  const registeredMemberUserIds = [...new Set((profiles ?? [])
+    .map((profile) => profile.user_id)
+    .filter((id): id is string => typeof id === 'string' && Boolean(id)))];
+  return { names, registeredMemberUserIds };
 }
 
 function hasRole(user: { app_metadata?: Record<string, unknown> }, roles: string[]) {
@@ -274,11 +309,24 @@ function hasRole(user: { app_metadata?: Record<string, unknown> }, roles: string
 async function loadSubscriptionsForAudience(
   adminClient: ReturnType<typeof createClient>,
   audience: ScheduledNotification['audience'],
+  memberUserIds?: string[],
+  excludedMemberUserIds: string[] = [],
 ): Promise<SubscriptionRow[]> {
   if (audience === 'public') {
     const { data, error } = await adminClient.from('push_subscriptions').select('id, user_id, app_identity').eq('app_identity', 'public');
     if (error) throw error;
     return (data ?? []) as SubscriptionRow[];
+  }
+
+  if (audience === 'member' || audience === 'member-attendees') {
+    const targetMemberUserIds = memberUserIds ?? [];
+    if (audience === 'member-attendees' && targetMemberUserIds.length === 0) return [];
+    let query = adminClient.from('push_subscriptions').select('id, user_id, app_identity').eq('app_identity', 'member');
+    if (audience === 'member-attendees') query = query.in('user_id', targetMemberUserIds);
+    const { data, error } = await query;
+    if (error) throw error;
+    return ((data ?? []) as SubscriptionRow[]).filter((subscription) =>
+      !subscription.user_id || !excludedMemberUserIds.includes(subscription.user_id));
   }
 
   const roles = audience === 'event_admin' ? ['admin', 'event_admin'] : ['admin', 'admin_qr'];
@@ -321,6 +369,12 @@ async function dispatchPendingEvaluatorAssignments(
       .eq('app_identity', 'member');
     if (subscriptionError) throw subscriptionError;
     if (!subscriptions?.length) continue;
+    const { data: openMic, error: openMicError } = await adminClient.from('open_mics')
+      .select('poster')
+      .eq('id', assignment.open_mic_id)
+      .maybeSingle();
+    if (openMicError) console.warn('failed to load Open Mic poster for evaluator push', { openMicId: assignment.open_mic_id, error: openMicError });
+    const image = typeof openMic?.poster === 'string' && openMic.poster.trim() ? openMic.poster.trim() : undefined;
 
     let assignmentSent = true;
     for (const subscription of subscriptions) {
@@ -397,6 +451,7 @@ async function dispatchPendingEvaluatorAssignments(
             body: 'Tugas evaluasi Open Mic baru tersedia untuk kamu.',
             url: `/evaluator/${assignment.open_mic_id}`,
             tag: notificationId,
+            ...(image ? { image } : {}),
           }),
         });
         const payload = await result.json().catch(() => null) as { sent?: number; error?: string } | null;
@@ -435,9 +490,15 @@ async function dispatchScheduledNotification(
   notification: ScheduledNotification,
   supabaseUrl: string,
   webhookSecret: string,
+  lineupContext?: OpenMicLineupContext,
 ) {
   const notificationId = `${kind}:${item.id}:${cycle.id}:${notification.stage}`;
-  const subscriptions = await loadSubscriptionsForAudience(adminClient, notification.audience);
+  const subscriptions = await loadSubscriptionsForAudience(
+    adminClient,
+    notification.audience,
+    lineupContext?.registeredMemberUserIds,
+    notification.audience === 'member' ? lineupContext?.registeredMemberUserIds : [],
+  );
   if (notification.audience === 'public') {
     const { data: legacyDelivery, error: legacyDeliveryError } = await adminClient.from('push_notification_automation_deliveries')
       .select('id')
@@ -512,6 +573,7 @@ async function dispatchScheduledNotification(
           body: notification.body,
           url: notification.url,
           tag: `${notificationId}:${subscription.id}`,
+          ...(typeof item.poster === 'string' && item.poster.trim() ? { image: item.poster.trim() } : {}),
         }),
       });
       const payload = await result.json().catch(() => null) as { sent?: number; error?: string } | null;
@@ -556,8 +618,8 @@ serve(async (request) => {
     ['open-mic', new Map()],
   ]);
   const [eventsResult, openMicsResult] = await Promise.all([
-    adminClient.from('events').select('id, title, slug, date, time, status, published').eq('published', true),
-    adminClient.from('open_mics').select('id, title, slug, date, time, status, published, registration_status').eq('published', true),
+    adminClient.from('events').select('id, title, slug, poster, date, time, status, published').eq('published', true),
+    adminClient.from('open_mics').select('id, title, slug, poster, date, time, status, published, registration_status').eq('published', true),
   ]);
   if (eventsResult.error || openMicsResult.error) {
     console.error('failed to load published public events', eventsResult.error ?? openMicsResult.error);
@@ -575,11 +637,22 @@ serve(async (request) => {
     if (!item || item.status === 'cancelled') continue;
     try {
       const notifications = buildNotifications(cycle.entity_type, item, cycle, now);
+      let lineupContext: OpenMicLineupContext | undefined;
       for (const notification of notifications) {
-        if (cycle.entity_type === 'open-mic' && notification.stage === 'lineup-h-plus-1'
-          && !await hasPublishedLineup(adminClient, item.id)) continue;
+        let preparedNotification = notification;
+        if (cycle.entity_type === 'open-mic' && notification.stage.includes('lineup-')) {
+          lineupContext ??= await loadOpenMicLineupContext(adminClient, item.id);
+          if (lineupContext.names.length === 0) continue;
+          const names = lineupContext.names.length <= 5
+            ? lineupContext.names.join(', ')
+            : `${lineupContext.names.slice(0, 5).join(', ')} dan ${lineupContext.names.length - 5} komika lainnya`;
+          const body = notification.audience === 'member-attendees'
+            ? `Kamu terdaftar di ${item.title} yang berlangsung kemarin. Komika yang tampil: ${names}.`
+            : `${item.title} sudah selesai. Komika yang tampil: ${names}.`;
+          preparedNotification = { ...notification, body };
+        }
         attempted += 1;
-        const result = await dispatchScheduledNotification(adminClient, item, cycle, cycle.entity_type, notification, supabaseUrl, webhookSecret);
+        const result = await dispatchScheduledNotification(adminClient, item, cycle, cycle.entity_type, preparedNotification, supabaseUrl, webhookSecret, lineupContext);
         duplicates += result.duplicates;
         sent += result.sent;
       }

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import type { IScannerControls } from '@zxing/browser';
-import { Camera, CameraOff, Check, CheckCircle2, Clock3, Maximize2, Minimize2, QrCode, RefreshCw, SwitchCamera, Ticket, XCircle } from 'lucide-react';
+import { Camera, CameraOff, Check, CheckCircle2, Clock3, Maximize2, Minimize2, QrCode, RefreshCw, SwitchCamera, Ticket, Trash2, XCircle } from 'lucide-react';
 import type { EventItem } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth-context';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
 import { getEventStatus } from '@/lib/format';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -42,7 +43,14 @@ interface ScanResult {
   gate_name?: string;
   allowed_categories?: string[];
 }
+interface ScanHistoryEntry {
+  id: string;
+  scanned_at: string;
+  event_title: string;
+  result: ScanResult;
+}
 interface ScannerGate { id: string; name: string; categories?: string[]; }
+interface ScannerSelection { event_id: string; gate_id: string; applied_gate_id: string; }
 type FullscreenElement = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
 type FullscreenDocument = Document & {
   webkitFullscreenElement?: Element | null;
@@ -52,6 +60,28 @@ type FullscreenDocument = Document & {
 function getFullscreenElement() {
   const fullscreenDocument = document as FullscreenDocument;
   return document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement ?? null;
+}
+
+function scannerSelectionStorageKey(userId: string) {
+  return `admin-qr-scanner-selection:${userId}`;
+}
+
+function readScannerSelection(userId: string | undefined): ScannerSelection | null {
+  if (!userId) return null;
+  try {
+    const stored = localStorage.getItem(scannerSelectionStorageKey(userId));
+    if (!stored) return null;
+    const parsed: unknown = JSON.parse(stored);
+    if (!parsed || typeof parsed !== 'object' || !('event_id' in parsed)
+      || typeof parsed.event_id !== 'string' || !('gate_id' in parsed) || typeof parsed.gate_id !== 'string'
+      || !('applied_gate_id' in parsed) || typeof parsed.applied_gate_id !== 'string') {
+      throw new Error('Format pilihan Event/Gate tersimpan tidak valid.');
+    }
+    return parsed as ScannerSelection;
+  } catch (error) {
+    console.error('Pilihan scanner tersimpan gagal dibaca.', error);
+    return null;
+  }
 }
 
 async function invokeScanner<T>(body: Record<string, unknown>) {
@@ -70,11 +100,13 @@ async function invokeScanner<T>(body: Record<string, unknown>) {
 }
 
 export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
+  const { user } = useAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraFrameRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const scanningRef = useRef(false);
-  const [eventId, setEventId] = useState('');
+  const scanHistoryRef = useRef<ScanHistoryEntry[]>([]);
+  const [eventId, setEventId] = useState(() => readScannerSelection(user?.id)?.event_id ?? '');
   const [gateId, setGateId] = useState('');
   const [appliedGateId, setAppliedGateId] = useState('');
   const [gates, setGates] = useState<ScannerGate[]>([]);
@@ -87,6 +119,7 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<ScannerSummary | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [scanHistory, setScanHistory] = useState<ScanHistoryEntry[]>([]);
   const [manualOrderNumber, setManualOrderNumber] = useState('');
   const [error, setError] = useState('');
   const recentCheckIns = useMemo(() => (summary?.attendees ?? [])
@@ -96,6 +129,38 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
   const selectableEvents = useMemo(() => events
     .filter((event) => getEventStatus(event.status, event.date) !== 'completed')
     .map((event) => ({ id: event.id, title: event.title, subtitle: `${event.date} · ${event.venue}` })), [events]);
+  const scanHistoryStorageKey = user?.id && eventId ? `admin-qr-scan-history:${user.id}:${eventId}` : '';
+
+  const saveScannerSelection = useCallback((selection: ScannerSelection) => {
+    if (!user?.id) return;
+    try {
+      localStorage.setItem(scannerSelectionStorageKey(user.id), JSON.stringify(selection));
+    } catch (storageError) {
+      setError(storageError instanceof Error ? `Pilihan Event/Gate gagal disimpan: ${storageError.message}` : 'Pilihan Event/Gate gagal disimpan di perangkat ini.');
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    scanHistoryRef.current = [];
+    setScanHistory([]);
+    if (!scanHistoryStorageKey) return;
+    try {
+      const storedHistory = localStorage.getItem(scanHistoryStorageKey);
+      if (!storedHistory) return;
+      const parsed: unknown = JSON.parse(storedHistory);
+      if (!Array.isArray(parsed) || parsed.some((entry) => !entry || typeof entry !== 'object'
+        || typeof entry.id !== 'string' || typeof entry.scanned_at !== 'string'
+        || !entry.result || typeof entry.result !== 'object')) {
+        throw new Error('Format riwayat scan lokal tidak valid.');
+      }
+      const history = (parsed as ScanHistoryEntry[]).slice(0, 1);
+      scanHistoryRef.current = history;
+      setScanHistory(history);
+      if (history.length !== parsed.length) localStorage.setItem(scanHistoryStorageKey, JSON.stringify(history));
+    } catch (historyError) {
+      setError(historyError instanceof Error ? historyError.message : 'Riwayat scan lokal gagal dibaca.');
+    }
+  }, [scanHistoryStorageKey]);
 
   const loadSummary = useCallback(async () => {
     const { data, error: summaryError } = await invokeScanner<ScannerSummary>({
@@ -126,14 +191,25 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
         return;
       }
       const availableGates = (data.gates ?? []).map((gate) => ({ ...gate, categories: gate.categories ?? [] }));
+      const savedSelection = readScannerSelection(user?.id);
+      const selectedGateId = availableGates.some((gate) => gate.id === savedSelection?.gate_id)
+        ? savedSelection?.gate_id ?? ''
+        : availableGates[0]?.id ?? '';
+      const selectedAppliedGateId = data.gates_enabled && selectedGateId === savedSelection?.gate_id
+        && selectedGateId === savedSelection?.applied_gate_id ? selectedGateId : '';
       setGates(availableGates);
       setGatesEnabled(data.gates_enabled);
-      setGateId(availableGates[0]?.id ?? '');
-      setAppliedGateId('');
+      setGateId(selectedGateId);
+      setAppliedGateId(selectedAppliedGateId);
+      saveScannerSelection({
+        event_id: eventId,
+        gate_id: selectedGateId,
+        applied_gate_id: selectedAppliedGateId,
+      });
       setGateSettingsLoaded(true);
     });
     return () => { active = false; };
-  }, [eventId]);
+  }, [eventId, saveScannerSelection, user?.id]);
   useEffect(() => {
     const syncFullscreenState = () => setCameraFullscreen(getFullscreenElement() === cameraFrameRef.current);
     document.addEventListener('fullscreenchange', syncFullscreenState);
@@ -144,17 +220,25 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
     };
   }, []);
   useEffect(() => {
-    if (eventId && !selectableEvents.some((event) => event.id === eventId)) {
+    if (eventId && selectableEvents.length && !selectableEvents.some((event) => event.id === eventId)) {
       setEventId('');
       setGateId('');
       setAppliedGateId('');
       setGateSettingsLoaded(false);
       setResult(null);
+      saveScannerSelection({ event_id: '', gate_id: '', applied_gate_id: '' });
       controlsRef.current?.stop();
       controlsRef.current = null;
       setCameraActive(false);
     }
-  }, [eventId, selectableEvents]);
+  }, [eventId, saveScannerSelection, selectableEvents]);
+  useEffect(() => {
+    if (!eventId) return;
+    const channel = supabase.channel(`ticket-checkins-${eventId}`)
+      .on('broadcast', { event: 'check-in-updated' }, () => { void loadSummary(); })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [eventId, loadSummary]);
   useEffect(() => {
     const interval = window.setInterval(() => { if (document.visibilityState === 'visible') void loadSummary(); }, 20000);
     return () => window.clearInterval(interval);
@@ -172,11 +256,11 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
       gate_id: gatesEnabled ? appliedGateId : null,
       qr_token: token,
     });
-    if (scanError || !data) {
-      setResult({ ok: false, status: 'error', message: scanError ?? 'QR gagal divalidasi.' });
-    } else {
-      setResult({ ...data, gate_name: data.gate_name ?? gates.find((gate) => gate.id === appliedGateId)?.name });
-    }
+    const scanResult: ScanResult = scanError || !data
+      ? { ok: false, status: 'error', message: scanError ?? 'QR gagal divalidasi.' }
+      : { ...data, gate_name: data.gate_name ?? gates.find((gate) => gate.id === appliedGateId)?.name };
+    setResult(scanResult);
+    saveScanHistory(scanResult);
     setBusy(false);
     stopCamera(false);
     void loadSummary();
@@ -200,14 +284,63 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
     setBusy(false);
     scanningRef.current = false;
     if (checkInError || !data) {
-      setResult({ ok: false, status: 'error', message: checkInError ?? 'Check-in manual gagal.' });
+      const scanResult = { ok: false, status: 'error', message: checkInError ?? 'Check-in manual gagal.' };
+      setResult(scanResult);
+      saveScanHistory(scanResult);
       return;
     }
     setResult(data);
+    saveScanHistory(data);
     if (data.ok) {
       setManualOrderNumber('');
     }
     void loadSummary();
+  }
+
+  function saveScanHistory(scanResult: ScanResult) {
+    const scannedAt = new Date().toISOString();
+    const entry: ScanHistoryEntry = {
+      id: `${scannedAt}-${crypto.randomUUID()}`,
+      scanned_at: scannedAt,
+      event_title: selectableEvents.find((event) => event.id === eventId)?.title ?? 'Event',
+      result: scanResult,
+    };
+    const nextHistory = [entry];
+    scanHistoryRef.current = nextHistory;
+    setScanHistory(nextHistory);
+    if (!scanHistoryStorageKey) return;
+    try {
+      localStorage.setItem(scanHistoryStorageKey, JSON.stringify(nextHistory));
+    } catch (historyError) {
+      setError(historyError instanceof Error ? `Riwayat scan gagal disimpan: ${historyError.message}` : 'Riwayat scan gagal disimpan di perangkat ini.');
+    }
+  }
+
+  function clearScanHistory() {
+    scanHistoryRef.current = [];
+    setScanHistory([]);
+    if (!scanHistoryStorageKey) return;
+    try {
+      localStorage.removeItem(scanHistoryStorageKey);
+    } catch (historyError) {
+      setError(historyError instanceof Error ? `Riwayat scan gagal dihapus: ${historyError.message}` : 'Riwayat scan gagal dihapus dari perangkat ini.');
+    }
+  }
+
+  function getScanHistoryTitle(status: string) {
+    if (status === 'checked_in') return 'CHECK-IN BERHASIL';
+    if (status === 'already_used') return 'SUDAH DIGUNAKAN';
+    if (status === 'checkin_not_open') return 'CHECK-IN BELUM DIBUKA';
+    if (status === 'checkin_closed') return 'CHECK-IN SUDAH DITUTUP';
+    if (status === 'gate_mismatch') return 'AKSES GATE TIDAK SESUAI';
+    if (status === 'error') return 'SCAN GAGAL';
+    return 'TIKET TIDAK VALID';
+  }
+
+  function getScanHistoryTone(status: string) {
+    if (status === 'checked_in') return 'border-emerald-200 bg-emerald-50 text-emerald-900';
+    if (status === 'error') return 'border-amber-200 bg-amber-50 text-amber-900';
+    return 'border-red-200 bg-red-50 text-red-900';
   }
 
   async function startCamera(cameraId = selectedCameraId) {
@@ -383,6 +516,7 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
                 setGateSettingsLoaded(false);
                 setResult(null);
                 setError('');
+                saveScannerSelection({ event_id: nextEventId, gate_id: '', applied_gate_id: '' });
               }}
               allLabel="Pilih Event"
               ariaLabel="Pilih Event untuk scan"
@@ -390,7 +524,7 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
           </div>
           <div className="space-y-2">
             <label className="label-field" htmlFor="scanner-gate">Gate</label>
-            <select id="scanner-gate" value={gatesEnabled ? gateId : ''} onChange={(event) => { setGateId(event.target.value); setAppliedGateId(''); setError(''); }} disabled={!eventId || !gateSettingsLoaded || !gatesEnabled || !gates.length || cameraActive || busy} className="input-field">
+            <select id="scanner-gate" value={gatesEnabled ? gateId : ''} onChange={(event) => { setGateId(event.target.value); setAppliedGateId(''); saveScannerSelection({ event_id: eventId, gate_id: event.target.value, applied_gate_id: '' }); setError(''); }} disabled={!eventId || !gateSettingsLoaded || !gatesEnabled || !gates.length || cameraActive || busy} className="input-field">
               {!eventId && <option value="">Pilih Event terlebih dahulu</option>}
               {eventId && !gateSettingsLoaded && <option value="">Memuat Gate...</option>}
               {gateSettingsLoaded && !gatesEnabled && <option value="">Semua kategori</option>}
@@ -412,7 +546,7 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
                 {selectedGate?.categories?.length
                   ? <div className="flex flex-wrap gap-1.5">{selectedGate.categories.map((category) => <span key={category} className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${gateIsApplied ? 'bg-white text-emerald-800' : 'bg-white text-slate-700 ring-1 ring-slate-200'}`}>{category}</span>)}</div>
                   : <p className="text-xs text-amber-800">Tidak ada kategori tiket aktif yang terdaftar pada Gate ini.</p>}
-                {!gateIsApplied && <button type="button" onClick={() => { setAppliedGateId(gateId); setResult(null); setError(''); }} disabled={!gateId || !selectedGate?.categories?.length || cameraActive || busy} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-3 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">
+                {!gateIsApplied && <button type="button" onClick={() => { setAppliedGateId(gateId); saveScannerSelection({ event_id: eventId, gate_id: gateId, applied_gate_id: gateId }); setResult(null); setError(''); }} disabled={!gateId || !selectedGate?.categories?.length || cameraActive || busy} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-3 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">
                   <Check className="h-4 w-4" /> Gunakan Gate
                 </button>}
               </div>;
@@ -464,8 +598,33 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
           </form>
         </div>
         <div className="min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex items-center justify-between gap-2"><h2 className="font-extrabold text-slate-900">Hasil Scan</h2><button type="button" onClick={() => { setResult(null); void loadSummary(); }} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Refresh hasil"><RefreshCw className="h-4 w-4" /></button></div>
-          {busy ? <div className="flex min-h-40 items-center justify-center text-sm font-semibold text-slate-500"><span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700" />Memeriksa tiket...</div> : <div className="flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 text-center text-sm text-slate-500"><QrCode className="mb-2 h-8 w-8 text-slate-300" />Arahkan QR tiket ke kamera untuk memeriksa status.</div>}
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-extrabold text-slate-900">Hasil Scan</h2>
+            <div className="flex items-center gap-1">
+              {scanHistory.length > 0 && <button type="button" onClick={clearScanHistory} className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-700" aria-label="Hapus riwayat hasil scan" title="Hapus riwayat"><Trash2 className="h-4 w-4" /></button>}
+              <button type="button" onClick={() => { void loadSummary(); }} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Refresh hasil"><RefreshCw className="h-4 w-4" /></button>
+            </div>
+          </div>
+          {busy && <div className="flex min-h-20 items-center justify-center text-sm font-semibold text-slate-500"><span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700" />Memeriksa tiket...</div>}
+          {scanHistory.length
+            ? <div>
+              {scanHistory.slice(0, 1).map((entry) => {
+                const historyResult = entry.result;
+                const statusTone = getScanHistoryTone(historyResult.status);
+                return <article key={entry.id} className={`rounded-xl border p-3 ${statusTone}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-extrabold">{getScanHistoryTitle(historyResult.status)}</p>
+                      <p className="mt-1 truncate text-sm font-bold text-slate-900">{historyResult.full_name || historyResult.message}</p>
+                      {(historyResult.order_number || historyResult.ticket_number) && <p className="mt-0.5 truncate text-xs text-slate-600">{historyResult.order_number ? `Order ${historyResult.order_number}` : ''}{historyResult.order_number && historyResult.ticket_number ? ' · ' : ''}{historyResult.ticket_number ? `Tiket #${historyResult.ticket_number}` : ''}</p>}
+                      <p className="mt-0.5 truncate text-[11px] text-slate-500">{entry.event_title}</p>
+                    </div>
+                    <time className="shrink-0 text-right text-[10px] font-medium text-slate-500">{new Date(entry.scanned_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</time>
+                  </div>
+                </article>;
+              })}
+            </div>
+            : !busy && <div className="flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 text-center text-sm text-slate-500"><QrCode className="mb-2 h-8 w-8 text-slate-300" />Arahkan QR tiket ke kamera untuk memeriksa status.</div>}
           <div className="border-t border-slate-100 pt-3">
             <h3 className="mb-2 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500"><Clock3 className="h-4 w-4" /> Check-in Terakhir</h3>
             {!eventId

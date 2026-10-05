@@ -1,14 +1,14 @@
-import { ArrowLeftRight, BookOpen, CircleHelp, History, KeyRound, LogOut, ShieldCheck } from 'lucide-react';
+import { ArrowLeftRight, CircleHelp, ClipboardCheck, KeyRound, LogOut, ShieldCheck } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 
 export function MemberMorePage({ router }: { router: Router }) {
-  const { signOut } = useAuth();
+  const { isEvaluator, signOut } = useAuth();
 
-  const items = [
-    { label: 'Buku Materi', description: 'Simpan dan kembangkan materi stand-up kamu', icon: BookOpen, onClick: () => router.navigate('/member/materials') },
-    { label: 'Riwayat Open Mic', description: 'Lihat dan kirim riwayat penampilan', icon: History, onClick: () => router.navigate('/member/open-mic-history') },
+  const items: Array<{ label: string; description?: string; icon: LucideIcon; onClick: () => void }> = [
+    ...(isEvaluator ? [{ label: 'Evaluator', icon: ClipboardCheck, onClick: () => router.navigate('/evaluator') }] : []),
     { label: 'Akun', icon: KeyRound, onClick: () => router.navigate('/member/settings') },
     { label: 'Peran', icon: ShieldCheck, onClick: () => router.navigate('/member/roles') },
     { label: 'Bantuan', icon: CircleHelp, onClick: () => router.navigate('/member/help') },
@@ -49,7 +49,7 @@ export function MemberMorePage({ router }: { router: Router }) {
                   </div>
                   <span className="flex-1">
                     <span className="block text-sm font-bold text-slate-800">{item.label}</span>
-                    {'description' in item && item.description && <span className="mt-0.5 block text-xs text-slate-500">{item.description}</span>}
+                    {item.description && <span className="mt-0.5 block text-xs text-slate-500">{item.description}</span>}
                   </span>
                   <span className="text-xl leading-none text-slate-300 transition group-hover:text-blue-600">›</span>
                 </button>

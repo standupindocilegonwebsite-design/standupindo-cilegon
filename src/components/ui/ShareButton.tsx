@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Send, Check } from 'lucide-react';
 
 interface ShareButtonProps {
@@ -9,13 +9,42 @@ interface ShareButtonProps {
   className?: string;
 }
 
-export function ShareButton({ title, text, url, className = '' }: ShareButtonProps) {
+export function ShareButton({ title, text, url, image, className = '' }: ShareButtonProps) {
   const [copied, setCopied] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    setImageFile(null);
+    if (!image || typeof navigator === 'undefined' || typeof navigator.canShare !== 'function') return;
+
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(image, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Gagal mengambil gambar untuk dibagikan (${response.status}).`);
+        const imageBlob = await response.blob();
+        if (!imageBlob.type.startsWith('image/')) throw new Error('File yang akan dibagikan bukan gambar.');
+
+        const extension = imageBlob.type === 'image/png' ? 'png' : imageBlob.type === 'image/webp' ? 'webp' : 'jpg';
+        const candidate = new File([imageBlob], `standupindo-poster.${extension}`, { type: imageBlob.type });
+        if (!controller.signal.aborted && navigator.canShare({ files: [candidate] })) setImageFile(candidate);
+      } catch (error) {
+        if (!controller.signal.aborted) console.error('Gagal menyiapkan poster untuk dibagikan.', error);
+      }
+    })();
+
+    return () => controller.abort();
+  }, [image]);
 
   async function handleShare() {
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
-        await navigator.share({ title, text, url });
+        await navigator.share({
+          title,
+          text,
+          ...(!text.includes(url) ? { url } : {}),
+          ...(imageFile && navigator.canShare?.({ files: [imageFile] }) ? { files: [imageFile] } : {}),
+        });
         return;
       } catch (err) {
         if ((err as DOMException)?.name === 'AbortError') return;

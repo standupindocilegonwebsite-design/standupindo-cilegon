@@ -25,6 +25,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
+  const [profileNotice, setProfileNotice] = useState('');
   const [previewPhoto, setPreviewPhoto] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [form, setForm] = useState({ stage_name: '', full_name: '', whatsapp: '', bio: '', karya_url: '', instagram_url: '', tiktok_url: '', youtube_url: '', photo: '' });
@@ -117,7 +118,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
     setSaving(false);
     if (!error) {
       setEditingProfile(false);
-      window.alert('Profil berhasil disimpan.');
+      setProfileNotice('Profil berhasil disimpan.');
     } else {
       window.alert('Gagal menyimpan profil: ' + error.message);
     }
@@ -170,10 +171,10 @@ export function MemberProfilePage({ router }: { router: Router }) {
       <div className="container-app py-6 sm:py-8">
         <div className="mx-auto max-w-2xl space-y-5">
           <div className="rounded-[28px] border border-blue-700 bg-blue-700 p-3 text-white shadow-[0_14px_32px_rgba(11,60,93,0.12)] sm:p-4">
-            <div className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-4">
-              <div className="overflow-hidden rounded-2xl border border-white/35 bg-white/15 ring-1 ring-white/30">
+            <div className="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-4">
+              <div className={`${editingProfile ? 'overflow-visible' : 'overflow-hidden'} rounded-2xl border border-white/35 bg-white/15 ring-1 ring-white/30`}>
                 {editingProfile ? (
-                  <div className="p-1">
+                  <div>
                     <ImageUpload label="Foto Profil" folder="komika" value={form.photo} onChange={(url) => setForm({ ...form, photo: url })} aspect="portrait" processingProfile="avatar" avatar onPreview={() => setPreviewPhoto(true)} />
                   </div>
                 ) : (
@@ -194,8 +195,8 @@ export function MemberProfilePage({ router }: { router: Router }) {
                       <X className="h-4 w-4" /> Batal
                     </button>
                   ) : (
-                    <button type="button" onClick={() => setEditingProfile(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-extrabold text-blue-700 transition hover:bg-blue-50">
-                      <Pencil className="h-3.5 w-3.5" /> Edit Profile
+                    <button type="button" onClick={() => { setProfileNotice(''); setEditingProfile(true); }} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 transition hover:bg-blue-50 active:scale-95" aria-label="Edit profil" title="Edit profil">
+                      <Pencil className="h-4 w-4" />
                     </button>
                   )}
                 </div>
@@ -207,6 +208,8 @@ export function MemberProfilePage({ router }: { router: Router }) {
               </div>
             </div>
           </div>
+
+          {profileNotice && <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{profileNotice}</div>}
 
           {editingProfile ? (
             <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">

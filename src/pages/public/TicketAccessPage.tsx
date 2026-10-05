@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, Download, History, KeyRound, LogOut, Maximize2, Smartphone, Ticket, X, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, Download, History, KeyRound, LogOut, Maximize2, MessageCircle, Ticket, X, XCircle } from 'lucide-react';
 import { QRCodeCanvas, QRCodeSVG } from 'qrcode.react';
 import type { Router } from '@/lib/router';
 import { supabase } from '@/lib/supabase';
@@ -310,42 +310,47 @@ export function TicketAccessPage({ router }: { router: Router }) {
         </div>
       </header>}
       <div className={`container-app ${session ? 'bg-slate-200 py-5 pb-[calc(6rem+var(--safe-bottom))] sm:py-7 sm:pb-[calc(6rem+var(--safe-bottom))]' : 'min-h-screen w-full max-w-none px-0 py-0'}`}>
-        {!session ? <div className="relative isolate flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#1b3d82] via-[#111c3d] to-[#080d1e] px-4 py-8 sm:px-6">
-          <div aria-hidden="true" className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
-          <div aria-hidden="true" className="pointer-events-none absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-amber-400/10 blur-3xl" />
-          <section className="relative w-full max-w-md overflow-hidden rounded-[28px] border-[3px] border-blue-700 bg-white px-5 pb-6 pt-7 shadow-[0_24px_55px_-12px_rgba(0,0,0,0.62)] sm:px-9 sm:pb-9 sm:pt-9">
-            <form onSubmit={(event) => { event.preventDefault(); void login(); }} className="space-y-5">
-              <div className="text-center">
-                <img src={LOGO_URL} alt="Standupindo Cilegon" className="mx-auto h-[4.5rem] w-[4.5rem] rounded-2xl bg-white object-contain shadow-[0_8px_24px_rgba(15,23,42,0.12)] ring-1 ring-slate-100" />
-                <p className="mt-3 text-xs font-black tracking-[0.12em] text-slate-900">STANDUPINDO <span className="text-blue-700">CILEGON</span></p>
-                <p className="mt-6 inline-flex rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-blue-800">Akses pemegang tiket</p>
-                <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-[28px]">AKSES TIKET EVENT</h1>
-                <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">Masuk untuk melihat tiket dan QR Code Event kamu.</p>
-              </div>
-              <div>
-                <label htmlFor="ticket-access-whatsapp" className="mb-1.5 block text-xs font-extrabold text-slate-700">Nomor WhatsApp</label>
-                <p className="mb-2 text-xs leading-5 text-slate-500">Gunakan nomor WhatsApp yang kamu daftarkan saat membeli tiket.</p>
-                <div className="relative">
-                  <Smartphone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input id="ticket-access-whatsapp" type="tel" inputMode="numeric" autoComplete="tel" required value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} className="input-field min-h-12 rounded-xl pl-10 font-semibold" placeholder="Contoh: 081234567890" />
+        {!session ? <div className="relative isolate flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-[#06264b] px-4 py-8 sm:px-6 sm:py-12">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_45%,#0c3a6b_0%,#082c53_48%,#041a35_100%)]" />
+          <div aria-hidden="true" className="pointer-events-none absolute -left-[12%] -top-[8%] h-[44%] w-[56%] -skew-x-[38deg] bg-gradient-to-br from-blue-400/20 via-blue-500/10 to-transparent" />
+          <div aria-hidden="true" className="pointer-events-none absolute -bottom-[18%] -right-[14%] h-[45%] w-[62%] -skew-x-[38deg] bg-gradient-to-tl from-blue-600/40 via-blue-500/15 to-transparent" />
+          <div aria-hidden="true" className="pointer-events-none absolute -bottom-[23%] -right-[20%] h-[34%] w-[68%] -skew-x-[38deg] border-t border-blue-400/15 bg-blue-500/10" />
+          <div className="relative z-10 flex w-full flex-col items-center">
+            <span className="ticket-access-logo mb-6 h-[4.5rem] w-[4.5rem] rounded-xl shadow-[0_0_28px_rgba(96,165,250,0.4)] sm:mb-7">
+              <img src={LOGO_URL} alt="Standupindo Cilegon" className="relative z-0 h-full w-full rounded-xl bg-white p-1 object-contain shadow-lg" />
+            </span>
+            <section className="relative w-full max-w-[580px] overflow-hidden rounded-[22px] bg-gradient-to-br from-white via-[#f8fbff] to-[#edf5ff] px-6 py-7 shadow-[0_24px_60px_rgba(0,10,28,0.35)] sm:rounded-[24px] sm:px-11 sm:py-11">
+              <div aria-hidden="true" className="pointer-events-none absolute -left-1 top-0 h-[68px] w-[68px] bg-gradient-to-br from-blue-500 to-blue-400 [clip-path:polygon(0_0,100%_0,0_100%)]" />
+              <div aria-hidden="true" className="pointer-events-none absolute -bottom-1 -right-1 h-[68px] w-[68px] bg-gradient-to-tl from-blue-600 to-blue-400 [clip-path:polygon(100%_0,100%_100%,0_100%)]" />
+              <form onSubmit={(event) => { event.preventDefault(); void login(); }} className="relative space-y-6 sm:space-y-7">
+                <div className="text-center">
+                  <h1 className="text-4xl font-black tracking-tight text-[#0b1f44] sm:text-[52px]">Akses <span className="text-blue-600">Tiket</span></h1>
+                  <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-500 sm:text-base">Masukkan nomor WhatsApp dan kode akses tiketmu.</p>
                 </div>
-              </div>
-              <div>
-                <label htmlFor="ticket-access-code" className="mb-1.5 block text-xs font-extrabold text-slate-700">Kode Akses</label>
-                <div className="relative">
-                  <KeyRound className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input id="ticket-access-code" required autoCapitalize="characters" autoComplete="one-time-code" value={accessCode} onChange={(event) => setAccessCode(event.target.value.toUpperCase())} className="input-field min-h-12 rounded-xl pl-10 font-mono font-bold tracking-[0.18em]" placeholder="ABCD-1234" />
+                <div>
+                  <label htmlFor="ticket-access-whatsapp" className="mb-2 block text-sm font-bold text-slate-600">Nomor WhatsApp</label>
+                  <div className="relative">
+                    <MessageCircle className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-500" />
+                    <input id="ticket-access-whatsapp" type="tel" inputMode="numeric" autoComplete="tel" required value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} className="min-h-16 w-full rounded-2xl border border-blue-200 bg-white/60 py-4 pl-14 pr-4 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 sm:text-base" placeholder="Contoh: 081234567890" />
+                  </div>
                 </div>
-              </div>
-              {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-semibold leading-5 text-red-700">{error}</p>}
-              <button type="submit" disabled={loading} className="group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 px-4 py-3 text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(37,99,235,0.25)] transition hover:from-blue-800 hover:to-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
-                {loading ? 'Memeriksa tiket...' : <>Buka Tiket Saya <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></>}
-              </button>
-            </form>
-          </section>
-          <button type="button" onClick={() => router.navigate('/event')} className="mt-4 flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white/90 backdrop-blur transition hover:bg-white/15 hover:text-white">
-            <ArrowLeft className="h-4 w-4" /> Lihat Event
-          </button>
+                <div>
+                  <label htmlFor="ticket-access-code" className="mb-2 block text-sm font-bold text-slate-600">Kode Akses</label>
+                  <div className="relative">
+                    <KeyRound className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-500" />
+                    <input id="ticket-access-code" required autoCapitalize="characters" autoComplete="one-time-code" value={accessCode} onChange={(event) => setAccessCode(event.target.value.toUpperCase())} className="min-h-16 w-full rounded-2xl border border-blue-200 bg-white/60 py-4 pl-14 pr-4 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 sm:text-base" placeholder="Contoh: ABCD-1234" />
+                  </div>
+                </div>
+                {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-semibold leading-5 text-red-700">{error}</p>}
+                <button type="submit" disabled={loading} className="group inline-flex min-h-[60px] w-full items-center justify-center gap-4 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-4 text-base font-extrabold text-white shadow-[0_12px_24px_rgba(37,99,235,0.25)] transition hover:from-blue-700 hover:to-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 sm:text-lg">
+                  {loading ? 'Memeriksa tiket...' : <>Lihat Tiket <ArrowRight className="h-6 w-6 transition-transform group-hover:translate-x-1" /></>}
+                </button>
+              </form>
+            </section>
+            <button type="button" onClick={() => router.navigate('/event')} className="mt-6 inline-flex items-center gap-3 px-4 py-2 text-sm font-semibold text-blue-200 transition hover:text-white sm:mt-7">
+              <ArrowLeft className="h-5 w-5" /> Kembali ke Event
+            </button>
+          </div>
         </div> : ticketTab === 'tickets' ? <div className="mx-auto max-w-3xl space-y-4">
           <section className={`overflow-hidden rounded-2xl border shadow-sm ${session.event.status === 'cancelled' ? 'border-red-300 bg-red-50' : 'border-blue-200 bg-white'}`}>
             <div className="p-4 sm:p-5">

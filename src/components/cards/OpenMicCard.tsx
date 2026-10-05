@@ -121,7 +121,18 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
           </div>
 
           {isCompleted ? (
-            <div className="mt-3 border-t border-slate-300 pt-2.5"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Lineup</p><p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-700">{lineup.length > 0 ? lineup.join(' · ') : 'Belum ada data lineup'}</p></div>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                router.navigate(`/open-mic/${mic.slug}#lineup`);
+              }}
+              aria-label={`Buka Arsip Lineup ${mic.title}`}
+              className="mt-3 w-full border-t border-slate-300 pt-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Lineup</p>
+              <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-700">{lineup.length > 0 ? lineup.join(' · ') : 'Belum ada data lineup'}</p>
+            </button>
           ) : <p className="mt-3 text-sm font-semibold text-slate-700">{filled} Komika</p>}
           <div className={isCompleted ? 'mt-3' : 'mt-1'}>
             <NoSmokeAreaNotice compact={isCompleted} />

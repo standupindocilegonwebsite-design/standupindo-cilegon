@@ -70,6 +70,7 @@ Admin Settings dapat mengubah sebagian branding database, tetapi bukan semua tek
 - `index.html`: title, description, favicon, Open Graph/Twitter image, dan theme color.
 - `src/lib/types.ts`, `src/lib/useSiteSettings.ts`: fallback nama, logo, sosial media, dan alamat.
 - Halaman publik serta formulir admin yang memiliki teks/lokasi default Cilegon.
+- Footer di `src/components/AppShell.tsx`: copyright memakai nama situs dari Settings; periksa teks deskripsi dan informasi/footer statis lain agar sesuai dengan komunitas baru. `src/components/AppCredit.tsx` memuat kredit pembuat tetap—tentukan apakah kredit itu dipertahankan atau diganti sesuai kebutuhan clone.
 - `public/`: logo, ikon PWA, manifest, service worker, dan gambar fallback.
 - Supabase Edge Functions: template email, nama pengirim, URL tiket, pesan push/WhatsApp.
 - Seed SQL: nama, lokasi, URL, dan data contoh.

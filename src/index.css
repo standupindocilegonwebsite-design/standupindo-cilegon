@@ -136,6 +136,59 @@
     background: linear-gradient(135deg, #172554 0%, #1d4ed8 52%, #2563eb 100%);
   }
 
+  .ticket-access-logo {
+    position: relative;
+    display: block;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .ticket-access-logo::after {
+    position: absolute;
+    z-index: 1;
+    inset: -25% auto -25% -70%;
+    width: 48%;
+    content: '';
+    transform: skewX(-24deg);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12) 18%, rgba(255, 255, 255, 0.92) 48%, rgba(147, 197, 253, 0.32) 68%, transparent);
+    filter: blur(2px);
+    animation: ticketLogoLightLeak 4.8s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .site-brand-logo-light-leak::after {
+    position: absolute;
+    z-index: 1;
+    inset: -25% auto -25% -70%;
+    width: 48%;
+    content: '';
+    transform: skewX(-24deg);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08) 18%, rgba(255, 255, 255, 0.82) 48%, rgba(147, 197, 253, 0.24) 68%, transparent);
+    filter: blur(2px);
+    animation: ticketLogoLightLeak 5.6s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .site-brand-light-leak-text {
+    position: relative;
+    display: inline-block;
+    isolation: isolate;
+  }
+
+  .site-brand-light-leak-text::after {
+    position: absolute;
+    inset: 0;
+    content: attr(data-light-leak);
+    color: transparent;
+    background: linear-gradient(105deg, transparent 34%, rgba(255, 255, 255, 0.12) 42%, rgba(255, 255, 255, 0.95) 50%, rgba(191, 219, 254, 0.42) 56%, transparent 64%);
+    background-size: 260% 100%;
+    background-position: 150% 0;
+    background-clip: text;
+    -webkit-background-clip: text;
+    animation: siteBrandTextLightLeak 5.6s ease-in-out infinite;
+    pointer-events: none;
+  }
+
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 shadow-sm transition-all duration-200 hover:border-blue-400 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
     min-height: 44px;
@@ -1180,6 +1233,20 @@
   to { opacity: 1; transform: scale(1); }
 }
 
+@keyframes ticketLogoLightLeak {
+  0%, 18% { transform: translateX(0) skewX(-24deg); opacity: 0; }
+  25% { opacity: 1; }
+  58% { transform: translateX(390%) skewX(-24deg); opacity: 0.85; }
+  68%, 100% { transform: translateX(390%) skewX(-24deg); opacity: 0; }
+}
+
+@keyframes siteBrandTextLightLeak {
+  0%, 18% { background-position: 150% 0; opacity: 0; }
+  24% { opacity: 1; }
+  58% { background-position: -60% 0; opacity: 0.9; }
+  68%, 100% { background-position: -60% 0; opacity: 0; }
+}
+
 @keyframes mobileNavPop {
   0% { transform: translateY(3px) scale(0.84); opacity: 0.55; }
   55% { transform: translateY(-2px) scale(1.08); opacity: 1; }
@@ -1194,7 +1261,10 @@
 @media (prefers-reduced-motion: reduce) {
   .mobile-nav-item-active,
   .mobile-nav-icon-active,
-  .mobile-nav-label-active {
+  .mobile-nav-label-active,
+  .ticket-access-logo::after,
+  .site-brand-logo-light-leak::after,
+  .site-brand-light-leak-text::after {
     animation: none;
     transform: none;
   }
@@ -1208,6 +1278,113 @@
   from { opacity: 0; transform: translateY(14px) scale(0.992); }
   65% { opacity: 1; transform: translateY(-2px) scale(1.001); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.home-hero-cta-icon {
+  animation: homeCtaIconFloat 2.8s ease-in-out infinite;
+}
+
+.home-hero-cta-icon-event {
+  animation-delay: 0.45s;
+}
+
+.home-event-cta-light-leak {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.home-open-mic-cta:hover,
+.home-open-mic-cta:focus-visible {
+  background-color: #2563eb;
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(216, 180, 254, 0.95), 0 0 24px 5px rgba(168, 85, 247, 0.85), 0 14px 28px rgba(11, 31, 68, 0.3), inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  transform: translateY(-3px) scale(1.035);
+  transition-timing-function: cubic-bezier(0.22, 1.4, 0.36, 1);
+}
+
+.home-open-mic-cta {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid transparent;
+}
+
+.home-open-mic-cta:hover,
+.home-open-mic-cta:focus-visible {
+  border-color: #e9d5ff;
+  outline: 1px solid rgba(216, 180, 254, 0.9);
+  outline-offset: 2px;
+}
+
+.home-open-mic-cta::after {
+  position: absolute;
+  inset: -40% auto -40% -45%;
+  z-index: 0;
+  width: 32%;
+  content: "";
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.75), rgba(191, 219, 254, 0.36), transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: skewX(-20deg);
+}
+
+.home-open-mic-cta:hover::after,
+.home-open-mic-cta:focus-visible::after {
+  animation: homeEventCtaLightLeak 0.8s ease-in-out both;
+}
+
+.home-event-cta-light-leak::after {
+  position: absolute;
+  inset: -40% auto -40% -45%;
+  z-index: 0;
+  width: 32%;
+  content: "";
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.48), rgba(191, 219, 254, 0.2), transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: skewX(-20deg);
+}
+
+.home-event-cta-light-leak:hover {
+  border-color: rgba(255, 255, 255, 0.7);
+  background-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 22px rgba(8, 37, 92, 0.22), inset 0 0 18px rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+.home-event-cta-light-leak:hover::after {
+  animation: homeEventCtaLightLeak 0.8s ease-in-out both;
+}
+
+.home-event-cta-light-leak[data-event-light-leak-active="true"]::after {
+  animation: homeEventCtaLightLeak 1.2s ease-in-out both;
+}
+
+@keyframes homeCtaIconFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+@keyframes homeEventCtaLightLeak {
+  0% { opacity: 0; transform: translateX(0) skewX(-20deg); }
+  18% { opacity: 0.85; }
+  75% { opacity: 0.7; }
+  100% { opacity: 0; transform: translateX(520%) skewX(-20deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero-cta-icon,
+  .home-open-mic-cta::after,
+  .home-event-cta-light-leak::after {
+    animation: none;
+  }
+
+  .home-open-mic-cta:hover,
+  .home-open-mic-cta:focus-visible {
+    transform: none;
+    transition-timing-function: ease;
+  }
 }
 
 @media (min-width: 768px) {
@@ -1262,4 +1439,29 @@
 .home-stagger > [data-carousel-highlight="amber"] > article {
   outline-color: rgba(245, 158, 11, 0.9);
   filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.46));
+}
+
+.home-stagger[data-light-leak-active="true"] > [data-carousel-highlight] > article::after {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  content: '';
+  transform: translateX(-130%) skewX(-18deg);
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.02) 43%, rgba(255, 255, 255, 0.34) 50%, rgba(191, 219, 254, 0.08) 56%, transparent 64%);
+  pointer-events: none;
+  animation: homeCardLightLeak 1.8s ease-in-out 1 both;
+}
+
+@keyframes homeCardLightLeak {
+  0% { transform: translateX(-130%) skewX(-18deg); opacity: 0; }
+  18% { opacity: 0.4; }
+  78% { transform: translateX(130%) skewX(-18deg); opacity: 0.32; }
+  100% { transform: translateX(180%) skewX(-18deg); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-stagger[data-light-leak-active="true"] > [data-carousel-highlight] > article::after {
+    animation: none;
+    opacity: 0;
+  }
 }

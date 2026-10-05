@@ -38,6 +38,7 @@ type RequestBody = {
   order_number?: string;
   ticket_id?: string;
   full_name?: string;
+  include_stats?: boolean;
   email?: string;
   quantity?: number;
   free_pass_reason?: string;
@@ -273,6 +274,19 @@ serve(async (request) => {
 
   const userClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  async function publishCheckInUpdate(eventId: string) {
+    const channel = serviceClient.channel(`ticket-checkins-${eventId}`);
+    try {
+      const status = await channel.send({
+        type: 'broadcast',
+        event: 'check-in-updated',
+        payload: {},
+      });
+      if (status !== 'ok') console.error('ticket check-in broadcast failed', status);
+    } catch (error) {
+      console.error('ticket check-in broadcast failed', error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
   const { data: authData, error: authError } = await userClient.auth.getUser();
   if (authError || !authData.user) return json({ error: 'Sesi Admin tidak valid.' }, 401);
   const metadata = authData.user.app_metadata as Record<string, unknown> | undefined;
@@ -1097,6 +1111,7 @@ serve(async (request) => {
       });
       if (error) return json({ error: error.message }, 403);
       const result = data as Record<string, unknown>;
+      if (result.status === 'checked_in') await publishCheckInUpdate(body.event_id);
       if (result.status === 'checkin_closed' && result.expired === true) {
         const expiryError = await expireUnusedTickets(body.event_id);
         if (expiryError) return json({ error: 'Tiket yang masa check-in-nya berakhir gagal diperbarui.' }, 500);
@@ -1191,6 +1206,7 @@ serve(async (request) => {
         });
         if (error) return json({ error: error.message }, 403);
         const checkInResult = data as Record<string, unknown>;
+        if (checkInResult.status === 'checked_in') await publishCheckInUpdate(body.event_id);
         if (checkInResult.status === 'checkin_closed' && checkInResult.expired === true) {
           const expiryError = await expireUnusedTickets(body.event_id);
           if (expiryError) return json({ error: 'Tiket yang masa check-in-nya berakhir gagal diperbarui.' }, 500);
@@ -1215,6 +1231,32 @@ serve(async (request) => {
       if (!isAdmin && !(scopeRole === 'admin_qr' ? isQrScanner : isTicketAdmin)) {
         return json({ error: 'Akses ringkasan tiket ditolak.' }, 403);
       }
+      if (body.event_id && body.include_stats === false) {
+        const selectedEventId = body.event_id;
+        if (!await hasEventScope(selectedEventId, scopeRole)) {
+          return json({ error: 'Event di luar scope Admin QR atau tidak ditemukan.' }, 403);
+        }
+        const { data: attendeeTickets, error } = await fetchAllPages((from, to) => serviceClient.from('ticket_instances')
+          .select('sequence_no, status, checked_in_at, ticket_order:ticket_orders!inner(order_number, full_name, order_type)')
+          .eq('event_id', selectedEventId)
+          .eq('ticket_order.status', 'Lunas')
+          .or('status.in.(active,expired),checked_in_at.not.is.null')
+          .order('ticket_order_id', { ascending: true }).order('sequence_no', { ascending: true }).range(from, to));
+        if (error) return json({ error: 'Daftar peserta Event gagal dimuat.' }, 500);
+        const attendees = (attendeeTickets ?? []).flatMap((ticket) => {
+          const order = ticket.ticket_order;
+          if (!order) return [];
+          if (!ticket.status || (!['active', 'expired'].includes(ticket.status) && !ticket.checked_in_at)) return [];
+          return [{
+            full_name: order.full_name,
+            order_number: order.order_number,
+            order_type: order.order_type,
+            sequence_no: ticket.sequence_no,
+            checked_in_at: ticket.checked_in_at,
+          }];
+        });
+        return json({ total_tickets: 0, checked_in: 0, not_checked_in: 0, attendees });
+      }
       let scopedEventIds: string[] | null = null;
       if (!isAdmin) {
         const { data: scopes, error: scopeError } = await serviceClient.from('admin_event_scopes')
@@ -1237,21 +1279,26 @@ serve(async (request) => {
       }
       scopedEvents.sort((first, second) => first.date.localeCompare(second.date));
       const eventIds = (scopedEvents ?? []).map((event) => event.id);
-      const instances: Array<{ id: string; event_id: string; status: string; checked_in_at: string | null }> = [];
-      for (const ids of chunkValues(eventIds)) {
-        const { data, error } = await fetchAllPages((from, to) => serviceClient.from('ticket_instances')
-          .select('id, event_id, status, checked_in_at').in('event_id', ids).order('id', { ascending: true }).range(from, to));
-        if (error) return json({ error: 'Statistik tiket gagal dimuat.' }, 500);
-        instances.push(...(data ?? []));
-      }
       const byEvent = new Map<string, { total: number; checked_in: number }>();
-      (instances ?? []).forEach((ticket) => {
-        if (!['active', 'expired'].includes(ticket.status) && !ticket.checked_in_at) return;
-        const counts = byEvent.get(ticket.event_id) ?? { total: 0, checked_in: 0 };
-        counts.total += 1;
-        if (ticket.checked_in_at) counts.checked_in += 1;
-        byEvent.set(ticket.event_id, counts);
-      });
+      if (body.include_stats !== false) {
+        for (const ids of chunkValues(eventIds, 20)) {
+          const counts = await Promise.all(ids.map(async (id) => {
+            const [totalResult, checkedInResult] = await Promise.all([
+              serviceClient.from('ticket_instances').select('id', { count: 'exact', head: true })
+                .eq('event_id', id).or('status.in.(active,expired),checked_in_at.not.is.null'),
+              serviceClient.from('ticket_instances').select('id', { count: 'exact', head: true })
+                .eq('event_id', id).not('checked_in_at', 'is', null),
+            ]);
+            return { id, totalResult, checkedInResult };
+          }));
+          if (counts.some(({ totalResult, checkedInResult }) => totalResult.error || checkedInResult.error)) {
+            return json({ error: 'Statistik tiket gagal dimuat.' }, 500);
+          }
+          counts.forEach(({ id, totalResult, checkedInResult }) => {
+            byEvent.set(id, { total: totalResult.count ?? 0, checked_in: checkedInResult.count ?? 0 });
+          });
+        }
+      }
       const eventSummaries = (scopedEvents ?? []).map((event) => ({ ...event, ...(byEvent.get(event.id) ?? { total: 0, checked_in: 0 }) }));
       let attendees: Array<{
         full_name: string;
@@ -1263,23 +1310,21 @@ serve(async (request) => {
       if (body.event_id) {
         const selectedEvent = scopedEvents.find((event) => event.id === body.event_id);
         if (!selectedEvent) return json({ error: 'Event di luar scope Admin QR atau tidak ditemukan.' }, 403);
-        const { data: paidOrders, error: paidOrdersError } = await fetchAllPages((from, to) => serviceClient.from('ticket_orders')
-          .select('id, order_number, full_name, order_type')
-          .eq('event_id', selectedEvent.id).eq('status', 'Lunas')
-          .order('created_at', { ascending: true }).order('id', { ascending: true }).range(from, to));
-        if (paidOrdersError) return json({ error: 'Daftar order lunas gagal dimuat.' }, 500);
-        const orderIds = (paidOrders ?? []).map((order) => order.id);
-        const attendeeTickets: Array<{ ticket_order_id: string; sequence_no: number; status: string; checked_in_at: string | null }> = [];
-        for (const ids of chunkValues(orderIds)) {
-          const { data, error } = await fetchAllPages((from, to) => serviceClient.from('ticket_instances')
+        const [{ data: paidOrders, error: paidOrdersError }, { data: attendeeTickets, error: attendeeTicketsError }] = await Promise.all([
+          fetchAllPages((from, to) => serviceClient.from('ticket_orders')
+            .select('id, order_number, full_name, order_type')
+            .eq('event_id', selectedEvent.id).eq('status', 'Lunas')
+            .order('created_at', { ascending: true }).order('id', { ascending: true }).range(from, to)),
+          fetchAllPages((from, to) => serviceClient.from('ticket_instances')
             .select('ticket_order_id, sequence_no, status, checked_in_at')
-            .eq('event_id', selectedEvent.id).in('ticket_order_id', ids)
-            .order('ticket_order_id', { ascending: true }).order('sequence_no', { ascending: true }).range(from, to));
-          if (error) return json({ error: 'Daftar tiket Event gagal dimuat.' }, 500);
-          attendeeTickets.push(...(data ?? []));
-        }
+            .eq('event_id', selectedEvent.id)
+            .or('status.in.(active,expired),checked_in_at.not.is.null')
+            .order('ticket_order_id', { ascending: true }).order('sequence_no', { ascending: true }).range(from, to)),
+        ]);
+        if (paidOrdersError) return json({ error: 'Daftar order lunas gagal dimuat.' }, 500);
+        if (attendeeTicketsError) return json({ error: 'Daftar tiket Event gagal dimuat.' }, 500);
         const ordersById = new Map((paidOrders ?? []).map((order) => [order.id, order]));
-        attendees = attendeeTickets
+        attendees = (attendeeTickets ?? [])
           .filter((ticket) => ticket.status === 'active' || ticket.status === 'expired' || ticket.checked_in_at)
           .flatMap((ticket) => {
             const order = ordersById.get(ticket.ticket_order_id);

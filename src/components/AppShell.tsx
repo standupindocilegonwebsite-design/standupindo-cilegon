@@ -145,7 +145,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
           </div>
 
           <div className="mt-8 border-t border-slate-100 pt-5 text-center text-xs text-slate-400">
-            &copy; {year} {settings.site_name}. <span className="text-blue-600">Komunitas Stand Up Comedy Cilegon.</span>
+            &copy; {year} {settings.site_name}.
           </div>
           <AppCredit className="mt-3" />
         </div>

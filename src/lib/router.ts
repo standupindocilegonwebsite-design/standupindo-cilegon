@@ -18,10 +18,10 @@ export function useRouter() {
   }, []);
 
   const navigate = useCallback((to: string) => {
-    window.history.pushState({}, '', to);
+    window.history.pushState({ appPreviousPath: state.path }, '', to);
     setState(parse());
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-  }, []);
+  }, [state.path]);
 
   return { path: state.path, query: state.query, navigate };
 }

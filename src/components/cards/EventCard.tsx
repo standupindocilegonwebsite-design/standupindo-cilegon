@@ -27,14 +27,18 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
             router.navigate(`/event/${event.slug}`);
           }
         }}
-        className={`group w-full min-w-0 max-w-full cursor-pointer overflow-hidden ${isCompleted ? 'rounded-2xl border-2 border-slate-500 bg-slate-50 shadow-[0_8px_20px_rgba(15,23,42,0.12)]' : 'card card-hover rounded-[22px] border-2 border-amber-400 border-t-4 border-t-amber-700 bg-white shadow-[0_0_0_1px_rgba(245,158,11,0.18),0_10px_26px_rgba(245,158,11,0.2)]'}`}
+        className={`group w-full min-w-0 max-w-full cursor-pointer overflow-hidden ${isCompleted ? 'rounded-2xl border-2 border-slate-400 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.16)]' : 'card card-hover rounded-[22px] border-2 border-amber-400 border-t-4 border-t-amber-700 bg-white shadow-[0_0_0_1px_rgba(245,158,11,0.18),0_10px_26px_rgba(245,158,11,0.2)]'}`}
         role="button"
         tabIndex={0}
       >
         <div className={isCompleted ? 'flex w-full min-w-0 items-stretch' : ''}>
         <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[4/5] w-[30%] min-w-[88px] max-w-[150px] shrink-0 sm:aspect-[16/10] sm:w-[34%]' : 'aspect-[4/5]'}`}>
           {event.poster && !posterFailed ? (
-            <button onClick={() => setLightbox(true)} aria-label={`Lihat poster ${event.title}`} className="block h-full w-full">
+            <button
+              onClick={() => isCompleted ? router.navigate(`/event/${event.slug}`) : setLightbox(true)}
+              aria-label={isCompleted ? `Lihat Event ${event.title}` : `Lihat poster ${event.title}`}
+              className="block h-full w-full"
+            >
               <img
                 src={event.poster}
                 alt={`${event.title} poster`}
@@ -75,7 +79,7 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
         </div>
         </div>
       </article>
-      {event.poster && !posterFailed && (
+      {event.poster && !posterFailed && !isCompleted && (
         <ImageLightbox src={event.poster} alt={`${event.title} poster`} open={lightbox} onClose={() => setLightbox(false)} />
       )}
     </>

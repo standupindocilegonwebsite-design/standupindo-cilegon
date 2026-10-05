@@ -1,5 +1,5 @@
 import { cloneElement, isValidElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Mic, CalendarDays, ArrowRight, Sparkles, Handshake } from 'lucide-react';
+import { Mic, CalendarDays, ArrowRight, Sparkles, Handshake, Drama } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { OpenMic, EventItem, Komika, EventTicket, Partner } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -16,7 +16,7 @@ interface Props {
   router: Router;
 }
 
-function AutoSlideRow({ children, className, intervalMs = 5000, highlightActive = false, highlightTone = 'blue' }: { children: ReactNode[]; className: string; intervalMs?: number; highlightActive?: boolean; highlightTone?: 'blue' | 'amber' }) {
+function AutoSlideRow({ children, className, intervalMs = 5000, highlightActive = false, highlightTone = 'blue', lightLeakSlot, activeLightLeakSlot }: { children: ReactNode[]; className: string; intervalMs?: number; highlightActive?: boolean; highlightTone?: 'blue' | 'amber'; lightLeakSlot?: 'open-mic' | 'event' | 'komika'; activeLightLeakSlot?: 'open-mic' | 'event' | 'komika' | 'event-cta' | null }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const activeIndexRef = useRef(0);
   const [paused, setPaused] = useState(false);
@@ -47,7 +47,7 @@ function AutoSlideRow({ children, className, intervalMs = 5000, highlightActive 
   }, [children.length, highlightActive, intervalMs, paused]);
 
   return (
-    <div ref={rowRef} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onTouchStart={() => setPaused(true)} onTouchEnd={() => setPaused(false)} className={className}>
+    <div ref={rowRef} data-light-leak-active={lightLeakSlot && lightLeakSlot === activeLightLeakSlot ? 'true' : undefined} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onTouchStart={() => setPaused(true)} onTouchEnd={() => setPaused(false)} className={className}>
       {children.map((child, index) => {
         if (!isValidElement(child)) return child;
         const activeHighlight = highlightActive && index === activeIndex;
@@ -117,6 +117,7 @@ function carouselEndPadding(itemCount: number): string {
 export function HomePage({ router }: Props) {
   const revealRootRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
+  const [activeLightLeakSlot, setActiveLightLeakSlot] = useState<'open-mic' | 'event' | 'komika' | 'event-cta' | null>(null);
   const [mics, setMics] = useState<OpenMic[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [komika, setKomika] = useState<Komika[]>([]);
@@ -124,6 +125,24 @@ export function HomePage({ router }: Props) {
   const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
   const [confirmedCounts, setConfirmedCounts] = useState<Record<string, number>>({});
   const openMicNumbers = useMemo(() => getOpenMicNumbers(mics), [mics]);
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const slots = ['open-mic', 'event', 'komika', 'event-cta'] as const;
+    let slotIndex = 0;
+    let interval: number | null = null;
+    const startTimer = window.setTimeout(() => {
+      setActiveLightLeakSlot(slots[slotIndex]);
+      interval = window.setInterval(() => {
+        slotIndex = (slotIndex + 1) % slots.length;
+        setActiveLightLeakSlot(slots[slotIndex]);
+      }, 8000);
+    }, 1500);
+    return () => {
+      window.clearTimeout(startTimer);
+      if (interval !== null) window.clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const root = revealRootRef.current;
@@ -227,11 +246,15 @@ export function HomePage({ router }: Props) {
               Menjadi ruang bertemunya komika, penikmat komedi, dan insan kreatif untuk berbagi tawa, mengembangkan potensi, serta membangun ekosistem stand up comedy di Cilegon.
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:mt-7 sm:flex-row">
-              <button onClick={() => router.navigate('/open-mic')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-[#0B1F44] shadow-[0_12px_24px_rgba(11,31,68,0.22)] transition-all hover:scale-[1.02] hover:shadow-[0_16px_28px_rgba(11,31,68,0.28)] active:scale-95">
-                <Mic className="h-4 w-4" /> Temukan Open Mic
+              <button onClick={() => router.navigate('/open-mic')} className="home-open-mic-cta inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-[#0B1F44] shadow-[0_12px_24px_rgba(11,31,68,0.22)] transition-all hover:scale-[1.02] hover:shadow-[0_16px_28px_rgba(11,31,68,0.28)] active:scale-95">
+                <span className="relative z-10 inline-flex items-center gap-2">
+                  <Mic aria-hidden="true" className="home-hero-cta-icon home-hero-cta-icon-mic h-5 w-5 sm:h-[1.375rem] sm:w-[1.375rem]" /> Temukan Open Mic
+                </span>
               </button>
-              <button onClick={() => router.navigate('/event')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/35 bg-white/8 px-6 py-3.5 text-sm font-bold text-white backdrop-blur transition-all hover:bg-white/15 active:scale-95">
-                <CalendarDays className="h-4 w-4" /> Lihat Event
+              <button onClick={() => router.navigate('/event')} data-event-light-leak-active={activeLightLeakSlot === 'event-cta' ? 'true' : undefined} className="home-event-cta-light-leak inline-flex items-center justify-center gap-2 rounded-xl border border-white/35 bg-white/8 px-6 py-3.5 text-sm font-bold text-white backdrop-blur transition-all hover:bg-white/15 active:scale-95">
+                <span className="relative z-10 inline-flex items-center gap-2">
+                  <CalendarDays aria-hidden="true" className="home-hero-cta-icon home-hero-cta-icon-event h-5 w-5 sm:h-[1.375rem] sm:w-[1.375rem]" /> Lihat Event
+                </span>
               </button>
             </div>
           </div>
@@ -244,6 +267,7 @@ export function HomePage({ router }: Props) {
         <section data-home-reveal className="home-reveal">
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
             <div className="min-w-0 flex-1 border-l-4 border-l-blue-700 pl-3 sm:pl-4"><SectionHeader title="Open Mic Terdekat" subtitle="Panggung terbuka untuk kamu tampil." /></div>
+            <button type="button" onClick={() => router.navigate('/open-mic')} aria-label="Lihat semua Open Mic" className="mr-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center text-blue-700 sm:mr-2"><Mic aria-hidden="true" className="h-8 w-8 sm:h-9 sm:w-9" /></button>
             <button onClick={() => router.navigate('/open-mic')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
               Lihat semua <ArrowRight className="h-4 w-4" />
             </button>
@@ -258,7 +282,7 @@ export function HomePage({ router }: Props) {
             ) : mics.length === 0 ? (
               <EmptyState title="Belum ada Open Mic yang tersedia." description="Pantau terus untuk panggung berikutnya." noSmokeArea />
             ) : (
-              <AutoSlideRow highlightActive highlightTone="blue" className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(Math.min(mics.length, 3))} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
+              <AutoSlideRow highlightActive highlightTone="blue" lightLeakSlot="open-mic" activeLightLeakSlot={activeLightLeakSlot} className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(Math.min(mics.length, 3))} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
                 {mics.slice(0, 3).map((m) => (
                   <div key={m.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                     <OpenMicCard mic={m} openMicNumber={openMicNumbers.get(m.id)} confirmedCount={confirmedCounts[m.id] ?? 0} router={router} />
@@ -273,6 +297,7 @@ export function HomePage({ router }: Props) {
         <section data-home-reveal className="home-reveal">
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
             <div className="min-w-0 flex-1 border-l-4 border-l-amber-600 pl-3 sm:pl-4"><SectionHeader title="Event Mendatang" subtitle="Malam penuh tawa bersama komika terbaik." /></div>
+            <button type="button" onClick={() => router.navigate('/event')} aria-label="Lihat semua Event" className="mr-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center text-amber-700 sm:mr-2"><CalendarDays aria-hidden="true" className="h-8 w-8 sm:h-9 sm:w-9" /></button>
             <button onClick={() => router.navigate('/event')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
               Lihat semua <ArrowRight className="h-4 w-4" />
             </button>
@@ -286,7 +311,7 @@ export function HomePage({ router }: Props) {
             ) : events.length === 0 ? (
               <EmptyState title="Belum ada event mendatang." noSmokeArea />
             ) : (
-              <AutoSlideRow highlightActive highlightTone="amber" className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(events.length)} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
+              <AutoSlideRow highlightActive highlightTone="amber" lightLeakSlot="event" activeLightLeakSlot={activeLightLeakSlot} className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(events.length)} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
                 {events.map((e) => (
                   <div key={e.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                     <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
@@ -301,6 +326,7 @@ export function HomePage({ router }: Props) {
         <section data-home-reveal className="home-reveal">
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
             <div className="min-w-0 flex-1 border-l-4 border-l-blue-500 pl-3 sm:pl-4"><SectionHeader title="Komika" subtitle="Kenali talent Standupindo Cilegon." /></div>
+            <button type="button" onClick={() => router.navigate('/komika')} aria-label="Lihat semua Komika" className="mr-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center text-blue-600 sm:mr-2"><Drama aria-hidden="true" className="h-8 w-8 sm:h-9 sm:w-9" /></button>
             <button onClick={() => router.navigate('/komika')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
               Lihat semua <ArrowRight className="h-4 w-4" />
             </button>
@@ -316,7 +342,7 @@ export function HomePage({ router }: Props) {
             ) : komika.length === 0 ? (
               <EmptyState title="Belum ada komika." />
             ) : (
-              <AutoSlideRow intervalMs={2500} highlightActive className="home-stagger -mx-3 flex gap-4 overflow-x-auto px-3 pt-3 pb-6 snap-x snap-mandatory scroll-px-3 lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0">
+              <AutoSlideRow intervalMs={2500} highlightActive lightLeakSlot="komika" activeLightLeakSlot={activeLightLeakSlot} className="home-stagger -mx-3 flex gap-4 overflow-x-auto px-3 pt-3 pb-6 snap-x snap-mandatory scroll-px-3 lg:mx-0 lg:grid lg:grid-cols-4 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0">
                 {komika.map((k) => (
                   <div key={k.id} className="h-fit min-w-[160px] max-w-[160px] shrink-0 self-start snap-start sm:min-w-[180px] lg:min-w-0 lg:max-w-none">
                     <KomikaCard komika={k} router={router} />

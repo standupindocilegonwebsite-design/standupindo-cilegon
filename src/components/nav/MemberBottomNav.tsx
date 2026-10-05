@@ -1,18 +1,16 @@
-import { ClipboardCheck, ClipboardList, House, Menu, Mic, UserRound } from 'lucide-react';
+import { BookOpen, ClipboardList, House, Menu, Mic, UserRound } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import { useAuth } from '@/lib/auth-context';
 
 const ITEMS = [
   { to: '/member', label: 'Home', icon: House },
   { to: '/member/open-mic', label: 'Open Mic', icon: Mic },
+  { to: '/member/materials', label: 'Buku Materi', icon: BookOpen },
   { to: '/member/profile', label: 'Profile', icon: UserRound },
   { to: '/member/evaluations', label: 'Evaluasi', icon: ClipboardList },
   { to: '/member/more', label: 'More', icon: Menu },
 ];
 
 export function MemberBottomNav({ router }: { router: Router }) {
-  const { isEvaluator } = useAuth();
-  const items = isEvaluator ? [...ITEMS.slice(0, 2), { to: '/evaluator', label: 'Evaluator', icon: ClipboardCheck }, ...ITEMS.slice(2)] : ITEMS;
   const isActive = (to: string) => {
     if (to === '/member') return router.path === '/member';
     return router.path === to || router.path.startsWith(`${to}/`);
@@ -24,8 +22,8 @@ export function MemberBottomNav({ router }: { router: Router }) {
       style={{ paddingBottom: 'var(--safe-bottom)' }}
       aria-label="Navigasi member"
     >
-      <div className={`mx-auto grid max-w-md ${isEvaluator ? 'grid-cols-6' : 'grid-cols-5'}`}>
-        {items.map((item) => {
+      <div className="mx-auto grid max-w-md grid-cols-6">
+        {ITEMS.map((item) => {
           const active = isActive(item.to);
           const Icon = item.icon;
           return (

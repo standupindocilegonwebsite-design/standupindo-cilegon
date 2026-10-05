@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, CalendarDays, CheckCircle2, Clock3, ExternalLink, MapPin, Trash2, XCircle } from 'lucide-react';
+import { AlertCircle, CalendarDays, CheckCircle2, Clock3, MapPin, Trash2, XCircle } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { MemberOpenMicHistorySubmission } from '@/lib/types';
 import { PageHeader } from '@/components/PageHeader';
@@ -8,12 +8,14 @@ import { supabase } from '@/lib/supabase';
 import { formatDate } from '@/lib/format';
 import { CommunityCombobox } from '@/components/ui/CommunityCombobox';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { ImageLightbox } from '@/components/ui/ImageLightbox';
 
 type FormState = { title: string; organizer_name: string; event_date: string; venue: string; city: string; notes: string; proof_url: string };
 
 const emptyForm: FormState = { title: '', organizer_name: '', event_date: '', venue: '', city: '', notes: '', proof_url: '' };
 
 function SubmissionCard({ item, deleting, onDelete }: { item: MemberOpenMicHistorySubmission; deleting: boolean; onDelete: (item: MemberOpenMicHistorySubmission) => void }) {
+  const [proofOpen, setProofOpen] = useState(false);
   const status = item.status === 'approved'
     ? { label: 'Disetujui', icon: CheckCircle2, className: 'bg-emerald-50 text-emerald-700' }
     : item.status === 'rejected'
@@ -35,9 +37,10 @@ function SubmissionCard({ item, deleting, onDelete }: { item: MemberOpenMicHisto
       </div>
       {item.admin_note && item.status === 'rejected' && <p className="mt-2 rounded-xl bg-red-50 p-2.5 text-xs text-red-700">{item.admin_note}</p>}
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-        {item.proof_url && <a href={item.proof_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline">Lihat bukti <ExternalLink className="h-3 w-3" /></a>}
+        {item.proof_url && <button type="button" onClick={() => setProofOpen(true)} className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline">Lihat bukti</button>}
         {item.status === 'rejected' && <button type="button" disabled={deleting} onClick={() => onDelete(item)} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-60" aria-label={deleting ? 'Menghapus pengajuan' : 'Hapus pengajuan'} title={deleting ? 'Menghapus pengajuan' : 'Hapus pengajuan'}><Trash2 className="h-3.5 w-3.5" /></button>}
       </div>
+      {item.proof_url && <ImageLightbox src={item.proof_url} alt={`Bukti penampilan ${item.title}`} open={proofOpen} onClose={() => setProofOpen(false)} closeAriaLabel="Tutup bukti penampilan" />}
     </div>
   );
 }

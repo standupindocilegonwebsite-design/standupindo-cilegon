@@ -22,6 +22,7 @@ type WebhookPayload = {
   title?: string;
   body?: string;
   url?: string;
+  image?: string;
   tag?: string;
 };
 
@@ -41,6 +42,7 @@ type PushPayload = {
   body: string;
   url: string;
   tag: string;
+  image?: string;
 };
 
 function response(body: Record<string, unknown>, status = 200) {
@@ -106,6 +108,19 @@ async function getKomikaUserId(adminClient: ReturnType<typeof createClient>, kom
   return typeof data?.user_id === 'string' ? data.user_id : null;
 }
 
+async function getEvaluatorName(adminClient: ReturnType<typeof createClient>, evaluatorUserId: unknown): Promise<string> {
+  if (typeof evaluatorUserId !== 'string' || !evaluatorUserId) return 'Evaluator';
+  const { data, error } = await adminClient
+    .from('komika')
+    .select('stage_name, full_name')
+    .eq('user_id', evaluatorUserId)
+    .maybeSingle();
+  if (error) throw error;
+  const stageName = typeof data?.stage_name === 'string' ? data.stage_name.trim() : '';
+  const fullName = typeof data?.full_name === 'string' ? data.full_name.trim() : '';
+  return stageName || fullName || 'Evaluator';
+}
+
 async function getOpenMicSlug(adminClient: ReturnType<typeof createClient>, openMicId: unknown): Promise<string | null> {
   if (typeof openMicId !== 'string' || !openMicId) return null;
   const { data, error } = await adminClient.from('open_mics').select('slug').eq('id', openMicId).maybeSingle();
@@ -118,6 +133,32 @@ async function getEventSlug(adminClient: ReturnType<typeof createClient>, eventI
   const { data, error } = await adminClient.from('events').select('slug').eq('id', eventId).maybeSingle();
   if (error) throw error;
   return typeof data?.slug === 'string' ? data.slug : null;
+}
+
+type PublicPushItemDetails = { title?: string; date?: string; poster?: string };
+
+async function getPublicPushItemDetails(adminClient: ReturnType<typeof createClient>, table: 'events' | 'open_mics', id: unknown): Promise<PublicPushItemDetails> {
+  if (typeof id !== 'string' || !id) return {};
+  const { data, error } = await adminClient.from(table).select('title, date, poster').eq('id', id).maybeSingle();
+  if (error) {
+    console.warn(`failed to load ${table} details for push notification`, { id, error });
+    return {};
+  }
+  return {
+    ...(typeof data?.title === 'string' && data.title.trim() ? { title: data.title.trim() } : {}),
+    ...(typeof data?.date === 'string' && data.date.trim() ? { date: data.date.trim() } : {}),
+    ...(typeof data?.poster === 'string' && data.poster.trim() ? { poster: data.poster.trim() } : {}),
+  };
+}
+
+function getNotificationName(record: Record<string, unknown>): string {
+  return typeof record.full_name === 'string' ? record.full_name.trim() : '';
+}
+
+function openMicRegistrationMessage(name: string, details: PublicPushItemDetails): string {
+  const openMic = details.title || 'Open Mic';
+  const date = details.date ? formatDate(details.date) : '';
+  return `${name} mendaftar di ${openMic}${date ? `, ${date}` : ''}.`;
 }
 
 async function loadSubscriptions(
@@ -198,7 +239,16 @@ function buildAnnouncement(table: 'open_mics' | 'events', record: Record<string,
     : `${String(record.title ?? '')} — ${locationLabel(record)}, ${formatDate(record.date)}. Buruan beli tiket!`;
   const id = String(record.id);
   const slug = String(record.slug ?? '');
-  return { notification_id: `${kind}-announcement:${id}`, type: `${kind}-announcement`, title, body, url: table === 'open_mics' ? `/open-mic/${slug}` : `/event/${slug}`, tag: `${kind}-announcement:${id}` };
+  const image = typeof record.poster === 'string' ? record.poster.trim() : '';
+  return {
+    notification_id: `${kind}-announcement:${id}`,
+    type: `${kind}-announcement`,
+    title,
+    body,
+    url: table === 'open_mics' ? `/open-mic/${slug}` : `/event/${slug}`,
+    tag: `${kind}-announcement:${id}`,
+    ...(image ? { image } : {}),
+  };
 }
 
 async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, webhook: WebhookPayload) {
@@ -217,6 +267,7 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
       body: `${String(record.title ?? 'Event')} telah ditambahkan.`,
       url: '/admin/events',
       tag: `event-admin-created:${record.id}`,
+      ...(typeof record.poster === 'string' && record.poster.trim() ? { image: record.poster.trim() } : {}),
     }, 'admin');
   }
 
@@ -227,7 +278,17 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
   if (table === 'open_mic_registrations') {
     if (type === 'INSERT' && record.status === 'pending') {
       const userIds = await listUsersByRoles(adminClient, ['admin', 'open_mic_admin']);
-      return sendForUsers(adminClient, userIds, { notification_id: `open-mic-registration:${record.id}:pending`, type: 'admin-notification', title: 'Pendaftar Open Mic Baru', body: 'Ada pendaftar baru untuk Open Mic.', url: '/admin/open-mic-list', tag: `open-mic-registration:${record.id}:pending` }, 'admin');
+      const details = await getPublicPushItemDetails(adminClient, 'open_mics', record.open_mic_id);
+      const name = getNotificationName(record);
+      return sendForUsers(adminClient, userIds, {
+        notification_id: `open-mic-registration:${record.id}:pending`,
+        type: 'admin-notification',
+        title: 'Pendaftar Open Mic Baru',
+        body: name ? openMicRegistrationMessage(name, details) : 'Ada pendaftar baru untuk Open Mic.',
+        url: '/admin/open-mic-list',
+        tag: `open-mic-registration:${record.id}:pending`,
+        ...(details.poster ? { image: details.poster } : {}),
+      }, 'admin');
     }
     if (type === 'UPDATE' && isStatusTransition(record, oldRecord, ['confirmed', 'rejected', 'cancelled'])) {
       const userId = await getKomikaUserId(adminClient, record.komika_id);
@@ -235,14 +296,25 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
       const status = String(record.status);
       const label = status === 'confirmed' ? 'Dikonfirmasi' : status === 'rejected' ? 'Ditolak' : 'Dibatalkan';
       const slug = await getOpenMicSlug(adminClient, record.open_mic_id);
-      return sendForUsers(adminClient, [userId], { notification_id: `registration:${record.id}:${status}`, type: 'member-notification', title: `Pendaftaran Open Mic ${label}`, body: `Pendaftaran Open Mic kamu telah ${label.toLowerCase()}.`, url: slug ? `/member/open-mic/${slug}` : '/member/open-mic', tag: `registration:${record.id}:${status}` }, 'member');
+      const details = await getPublicPushItemDetails(adminClient, 'open_mics', record.open_mic_id);
+      const name = getNotificationName(record);
+      return sendForUsers(adminClient, [userId], {
+        notification_id: `registration:${record.id}:${status}`,
+        type: 'member-notification',
+        title: `Pendaftaran Open Mic ${label}`,
+        body: name ? `${name}, pendaftaran Open Mic kamu telah ${label.toLowerCase()}.` : `Pendaftaran Open Mic kamu telah ${label.toLowerCase()}.`,
+        url: slug ? `/member/open-mic/${slug}` : '/member/open-mic',
+        tag: `registration:${record.id}:${status}`,
+        ...(details.poster ? { image: details.poster } : {}),
+      }, 'member');
     }
   }
 
   if (table === 'event_participants') {
     if (type === 'INSERT' && record.status === 'pending') {
       const userIds = await listUsersByRoles(adminClient, ['admin', 'event_admin']);
-      return sendForUsers(adminClient, userIds, { notification_id: `event-participant:${record.id}:pending`, type: 'admin-notification', title: 'Pendaftar Event Baru', body: 'Ada pendaftar baru untuk Event.', url: `/admin/event-pendaftar/${String(record.event_id ?? '')}`, tag: `event-participant:${record.id}:pending` }, 'admin');
+      const details = await getPublicPushItemDetails(adminClient, 'events', record.event_id);
+      return sendForUsers(adminClient, userIds, { notification_id: `event-participant:${record.id}:pending`, type: 'admin-notification', title: 'Pendaftar Event Baru', body: 'Ada pendaftar baru untuk Event.', url: `/admin/event-pendaftar/${String(record.event_id ?? '')}`, tag: `event-participant:${record.id}:pending`, ...(details.poster ? { image: details.poster } : {}) }, 'admin');
     }
     if (type === 'UPDATE' && isStatusTransition(record, oldRecord, ['approved', 'rejected'])) {
       const userId = await getKomikaUserId(adminClient, record.komika_id);
@@ -250,14 +322,17 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
       const status = String(record.status);
       const label = status === 'approved' ? 'disetujui' : 'ditolak';
       const slug = await getEventSlug(adminClient, record.event_id);
-      return sendForUsers(adminClient, [userId], { notification_id: `event:${record.id}:${status}`, type: 'member-notification', title: `Pendaftaran Event ${status === 'approved' ? 'Disetujui' : 'Ditolak'}`, body: `Pendaftaran Event kamu telah ${label}.`, url: slug ? `/event/${slug}` : '/event', tag: `event:${record.id}:${status}` }, 'member');
+      const details = await getPublicPushItemDetails(adminClient, 'events', record.event_id);
+      return sendForUsers(adminClient, [userId], { notification_id: `event:${record.id}:${status}`, type: 'member-notification', title: `Pendaftaran Event ${status === 'approved' ? 'Disetujui' : 'Ditolak'}`, body: `Pendaftaran Event kamu telah ${label}.`, url: slug ? `/event/${slug}` : '/event', tag: `event:${record.id}:${status}`, ...(details.poster ? { image: details.poster } : {}) }, 'member');
     }
   }
 
   if (table === 'evaluations' && isStatusTransition(record, oldRecord, ['submitted'])) {
     const userId = await getKomikaUserId(adminClient, record.performer_komika_id);
     if (!userId) return { sent: 0, removed: 0, failed: 0 };
-    return sendForUsers(adminClient, [userId], { notification_id: `evaluation:${record.id}:submitted`, type: 'member-notification', title: 'Evaluasi Baru Tersedia', body: 'Evaluasi penampilan kamu sudah tersedia.', url: '/member/evaluations', tag: `evaluation:${record.id}:submitted` }, 'member');
+    const details = await getPublicPushItemDetails(adminClient, 'open_mics', record.open_mic_id);
+    const evaluatorName = await getEvaluatorName(adminClient, record.evaluator_user_id);
+    return sendForUsers(adminClient, [userId], { notification_id: `evaluation:${record.id}:submitted`, type: 'member-notification', title: 'Evaluasi Baru Tersedia', body: `Evaluasi penampilan kamu sudah tersedia dari ${evaluatorName}.`, url: '/member/evaluations', tag: `evaluation:${record.id}:submitted`, ...(details.poster ? { image: details.poster } : {}) }, 'member');
   }
 
   if (table === 'community_applications' && type === 'INSERT' && record.status === 'pending') {
@@ -268,14 +343,24 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
   const ticketOrderAttentionStatuses = ['Draft Pembayaran', 'Menunggu Pembayaran', 'Menunggu Verifikasi', 'Sudah Bayar'];
   if (table === 'ticket_orders' && ((type === 'INSERT' && ticketOrderAttentionStatuses.includes(String(record.status))) || (type === 'UPDATE' && isStatusTransition(record, oldRecord, ticketOrderAttentionStatuses)))) {
     const newPurchase = type === 'INSERT';
-    const userIds = await listUsersByRoles(adminClient, newPurchase ? ['admin', 'admin_ticket'] : ['admin']);
+    const userIds = await listUsersByRoles(adminClient, newPurchase ? ['admin', 'event_admin', 'admin_ticket'] : ['admin']);
+    const details = await getPublicPushItemDetails(adminClient, 'events', record.event_id);
+    const name = getNotificationName(record);
+    const quantity = typeof record.quantity === 'number' && Number.isInteger(record.quantity) && record.quantity > 0
+      ? record.quantity
+      : null;
+    const ticketDescription = quantity === null ? 'tiket' : `${quantity} tiket`;
+    const purchaseBody = name
+      ? `${name} membeli ${ticketDescription} ${details.title || 'Event'}.`
+      : 'Ada pembelian tiket baru yang perlu ditinjau.';
     return sendForUsers(adminClient, userIds, {
       notification_id: `ticket-order:${record.id}:${record.status}`,
       type: 'admin-notification',
       title: newPurchase ? 'Pembelian Tiket Baru' : 'Status Pesanan Tiket Diperbarui',
-      body: newPurchase ? 'Ada pembelian tiket baru yang perlu ditinjau.' : 'Status pesanan tiket berubah.',
+      body: newPurchase ? purchaseBody : 'Status pesanan tiket berubah.',
       url: '/admin/ticket-orders',
       tag: `ticket-order:${record.id}:${record.status}`,
+      ...(details.poster ? { image: details.poster } : {}),
     }, 'admin');
   }
 
@@ -352,6 +437,9 @@ serve(async (request) => {
       const body = webhook.body?.trim() ?? '';
       const url = webhook.url?.trim() ?? '';
       const tag = webhook.tag?.trim() ?? '';
+      const image = type === 'event-reminder' || type === 'open-mic-reminder' || type === 'evaluator-assignment'
+        ? (typeof webhook.image === 'string' ? webhook.image.trim() : undefined)
+        : undefined;
       const targetSubscriptionId = webhook.target_subscription_id?.trim() ?? '';
       const targetAppIdentity = webhook.target_app_identity;
       if (!/^(event|open-mic)-reminder$/.test(type) && type !== 'evaluator-assignment'
@@ -380,6 +468,7 @@ serve(async (request) => {
         body,
         url,
         tag,
+        ...(image ? { image } : {}),
       });
       return response({ success: true, ...summary });
     }

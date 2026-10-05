@@ -1,64 +1,16 @@
-import { useCallback, useState } from 'react';
-import Cropper, { type Area } from 'react-easy-crop';
-import { Check, Move, RotateCcw, ZoomIn, X } from 'lucide-react';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Check, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getImageFileExtension, processImageForUpload, type ImageProcessingProfile } from '@/lib/image-processing';
 
-function createImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.addEventListener('load', () => resolve(image));
-    image.addEventListener('error', (error) => reject(error));
-    image.setAttribute('crossOrigin', 'anonymous');
-    image.src = url;
-  });
-}
-
-async function getCroppedImage(imageSrc: string, pixelCrop: Area): Promise<Blob | null> {
-  const image = await createImage(imageSrc);
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-
-  if (!ctx) return null;
-
-  const maxSize = 1600;
-  const scale = Math.min(maxSize / image.width, maxSize / image.height, 1);
-  const outputWidth = Math.max(1, Math.round(image.width * scale));
-  const outputHeight = Math.max(1, Math.round(image.height * scale));
-  canvas.width = outputWidth;
-  canvas.height = outputHeight;
-
-  const sourceX = Math.max(0, pixelCrop.x * (image.width / outputWidth));
-  const sourceY = Math.max(0, pixelCrop.y * (image.height / outputHeight));
-  const sourceWidth = Math.min(image.width - sourceX, outputWidth);
-  const sourceHeight = Math.min(image.height - sourceY, outputHeight);
-
-  ctx.clearRect(0, 0, outputWidth, outputHeight);
-  ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, outputWidth, outputHeight);
-
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.92);
-  });
-}
-
 export function PhotoCropper({ src, originalFile, folder, processingProfile, onSave, onCancel }: { src: string; originalFile: File; folder: string; processingProfile: ImageProcessingProfile; onSave: (url: string) => void; onCancel: () => void }) {
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const handleCropComplete = useCallback((_: unknown, areaPixels: Area) => {
-    setCroppedAreaPixels(areaPixels);
-  }, []);
-
   async function handleSave() {
-    if (!croppedAreaPixels) return;
     setSaving(true);
     try {
-      const blob = await getCroppedImage(src, croppedAreaPixels);
-      if (!blob) throw new Error('Gagal memproses crop foto.');
-
-      const uploadFile = await processImageForUpload(originalFile, processingProfile, blob);
+      const uploadFile = await processImageForUpload(originalFile, processingProfile);
       const fileName = `${crypto.randomUUID()}.${getImageFileExtension(uploadFile.type)}`;
       const uploadPath = `${folder}/${fileName}`;
       const { error: uploadError } = await supabase.storage.from('standupindo-media').upload(uploadPath, uploadFile, { cacheControl: '3600', upsert: false, contentType: uploadFile.type });
@@ -67,72 +19,43 @@ export function PhotoCropper({ src, originalFile, folder, processingProfile, onS
       const { data } = supabase.storage.from('standupindo-media').getPublicUrl(uploadPath);
       onSave(data.publicUrl);
     } catch (error) {
-      console.error('Failed to crop profile image', error);
-      window.alert('Gagal menyimpan hasil crop foto. Silakan coba lagi.');
+      console.error('Failed to save profile image', error);
+      window.alert('Gagal menyimpan foto. Silakan coba lagi.');
     } finally {
       setSaving(false);
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 p-3">
-      <div className="w-full max-w-2xl overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.3)]">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-5">
+  return createPortal(
+    <div className="fixed inset-x-0 top-0 bottom-[calc(4.5rem+var(--safe-bottom))] z-[1000] flex items-center justify-center overflow-y-auto overscroll-contain px-3 py-[calc(1rem+env(safe-area-inset-top))] md:inset-0 md:p-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-slate-950/65 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative z-10 flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.3)] md:max-h-[min(90dvh,760px)] md:rounded-[28px]">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
           <div>
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-blue-700">Sesuaikan foto</p>
-            <h3 className="mt-1 text-lg font-black text-slate-900">Atur posisi & ukuran</h3>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Foto Profil</p>
+            <h3 className="mt-0.5 text-base font-black text-slate-900 sm:text-lg">Atur foto</h3>
           </div>
-          <button type="button" onClick={onCancel} className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-slate-200" aria-label="Tutup crop foto">
+          <button type="button" onClick={onCancel} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95" aria-label="Tutup crop foto">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="relative h-[420px] w-full bg-slate-100">
-          <Cropper
-            image={src}
-            crop={crop}
-            zoom={zoom}
-            aspect={4 / 4.5}
-            cropShape="rect"
-            showGrid={false}
-            onCropChange={setCrop}
-            onZoomChange={setZoom}
-            onCropComplete={handleCropComplete}
-          />
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="flex h-[min(42dvh,360px)] min-h-[160px] w-full shrink-0 items-center justify-center bg-slate-100 p-3 sm:p-4 md:h-[min(52dvh,460px)]">
+            <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <img src={src} alt="Pratinjau foto profil utuh" className="h-full w-full object-contain" />
+            </div>
+          </div>
         </div>
 
-        <div className="space-y-4 border-t border-slate-100 bg-slate-50 px-4 py-4 sm:px-5">
-          <div className="flex items-center gap-3">
-            <ZoomIn className="h-4 w-4 text-slate-500" />
-            <input
-              type="range"
-              min={1}
-              max={3}
-              step={0.01}
-              value={zoom}
-              onChange={(event) => setZoom(Number(event.target.value))}
-              className="h-2 w-full accent-blue-600"
-              aria-label="Zoom foto profil"
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-              <Move className="h-4 w-4" /> Drag untuk atur posisi
-            </div>
-            <button type="button" onClick={() => { setCrop({ x: 0, y: 0 }); setZoom(1); }} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:border-slate-300">
-              <RotateCcw className="h-3.5 w-3.5" /> Reset
-            </button>
-          </div>
-
-          <div className="flex gap-3">
-            <button type="button" onClick={onCancel} className="btn-secondary flex-1">Batal</button>
-            <button type="button" onClick={() => void handleSave()} disabled={saving || !croppedAreaPixels} className="btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-70">
-              {saving ? 'Menyimpan...' : <><Check className="h-4 w-4" /> Simpan Foto</>}
-            </button>
-          </div>
+        <div className="flex shrink-0 gap-2 border-t border-slate-100 bg-white px-4 pb-3 pt-3 sm:justify-end sm:px-5 sm:pb-4">
+          <button type="button" onClick={onCancel} disabled={saving} className="btn-secondary min-h-11 min-w-0 flex-1 whitespace-nowrap rounded-xl px-3 text-sm active:scale-[0.98] sm:flex-none sm:min-w-32 sm:px-5">Batal</button>
+          <button type="button" onClick={() => void handleSave()} disabled={saving} className="btn-primary min-h-11 min-w-0 flex-1 whitespace-nowrap rounded-xl px-3 text-sm active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 sm:flex-none sm:min-w-36 sm:px-5">
+            {saving ? 'Menyimpan...' : <><Check className="h-4 w-4" /> Simpan Foto</>}
+          </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

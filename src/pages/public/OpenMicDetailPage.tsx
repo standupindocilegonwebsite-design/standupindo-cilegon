@@ -41,6 +41,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
   const [otherLineups, setOtherLineups] = useState<Record<string, string[]>>({});
   const [lightbox, setLightbox] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [posterShareFile, setPosterShareFile] = useState<File | null>(null);
   const [stageInfoExpanded, setStageInfoExpanded] = useState(false);
   const [lineupSearch, setLineupSearch] = useState('');
   const [otherMicSearch, setOtherMicSearch] = useState('');
@@ -99,6 +100,31 @@ export function OpenMicDetailPage({ router, slug }: Props) {
       setLoading(false);
     })();
   }, [slug]);
+
+  useEffect(() => {
+    setPosterShareFile(null);
+    const posterUrl = mic?.poster;
+    const openMicSlug = mic?.slug;
+    if (!posterUrl || !openMicSlug || typeof navigator === 'undefined' || typeof navigator.canShare !== 'function') return;
+
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(posterUrl, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Gagal mengambil poster Open Mic (${response.status}).`);
+        const posterBlob = await response.blob();
+        if (!posterBlob.type.startsWith('image/')) throw new Error('Poster Open Mic bukan file gambar yang dapat dibagikan.');
+
+        const extension = posterBlob.type === 'image/png' ? 'png' : posterBlob.type === 'image/webp' ? 'webp' : 'jpg';
+        const candidate = new File([posterBlob], `${openMicSlug}-poster.${extension}`, { type: posterBlob.type });
+        if (!controller.signal.aborted && navigator.canShare({ files: [candidate] })) setPosterShareFile(candidate);
+      } catch (error) {
+        if (!controller.signal.aborted) console.error('Gagal menyiapkan poster Open Mic untuk dibagikan.', error);
+      }
+    })();
+
+    return () => controller.abort();
+  }, [mic?.poster, mic?.slug]);
 
   useEffect(() => {
     if (!mic) return;
@@ -171,12 +197,46 @@ export function OpenMicDetailPage({ router, slug }: Props) {
       otherMic.location,
     ].some((value) => value?.toLocaleLowerCase().includes(normalizedOtherMicSearch)))
     : otherMics.slice(0, 3);
-  const shareText = [`Lineup *${mic.title}*`, 'Standupindo Cilegon', '', 'Komika:', lineupText || 'Belum ada komika yang dikonfirmasi.', '', `📍 *${mic.venue}${mic.location ? `, ${mic.location}` : ''}*`, `📅 ${formatDate(mic.date)}`, `⏰ *${mic.time} WIB*`, '', 'Lihat lineup lengkap:'].join('\n');
+  const shareText = currentStatus === 'completed'
+    ? [
+      'Pecah banget! Terima kasih buat semua yang sudah hadir meramaikan dan para komika yang sudah sukses mengocok perut di acara kemarin! 🔥🎤',
+      '',
+      `Daftar Lineup Perform di *${mic.title}* (Selesai)`,
+      'Standupindo Cilegon',
+      '',
+      'Komika:',
+      lineupText || 'Belum ada komika yang dikonfirmasi hadir.',
+      '',
+      `📍 *${mic.venue}${mic.location ? `, ${mic.location}` : ''}*`,
+      `📅 ${formatDate(mic.date)}`,
+      `⏰ *${mic.time} WIB*`,
+      '',
+      'Mau lihat arsip lineup lengkap atau keseruan acaranya? Cek di sini ya:',
+    ].join('\n')
+    : [
+      'Siapin mental buat ketawa bareng! Datang langsung yuk tonton keseruannya, atau kalau mau ikutan tampil juga bisa banget lho! 👇',
+      '',
+      `Daftar Lineup Sementara di *${mic.title}*`,
+      'Standupindo Cilegon',
+      '',
+      'Komika:',
+      lineupText || 'Belum ada komika yang dikonfirmasi.',
+      '',
+      `📍 *${mic.venue}${mic.location ? `, ${mic.location}` : ''}*`,
+      `📅 ${formatDate(mic.date)}`,
+      `⏰ *${mic.time} WIB*`,
+      '',
+      'Mau datang nonton atau mau daftar jadi penampil? Cek info lengkapnya di sini:',
+    ].join('\n');
 
   async function shareLineup() {
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
-        await navigator.share({ title: shareTitle, text: `${shareText}\n${pageUrl}`, url: pageUrl });
+        await navigator.share({
+          title: shareTitle,
+          text: `${shareText}\n${pageUrl}`,
+          ...(posterShareFile && navigator.canShare?.({ files: [posterShareFile] }) ? { files: [posterShareFile] } : {}),
+        });
         return;
       } catch (error) {
         if ((error as DOMException)?.name === 'AbortError') return;
@@ -288,8 +348,8 @@ export function OpenMicDetailPage({ router, slug }: Props) {
         <section id="lineup" data-scroll-reveal className="scroll-reveal is-visible scroll-mt-24">
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-slate-900 sm:text-xl">{currentStatus === 'completed' ? 'Arsip Lineup' : 'Lineup'}</h2>
-              <p className="mt-1 text-sm font-semibold text-slate-800">{confirmed.length} Komika {currentStatus === 'completed' ? 'tampil' : 'terdaftar'}</p>
+              <h2 className="text-lg font-bold text-slate-900 sm:text-xl">{currentStatus === 'completed' ? 'DAFTAR LINEUP' : 'LINEUP SEMENTARA'}</h2>
+              <p className="mt-1 text-sm font-semibold text-slate-800">{currentStatus === 'completed' ? `${confirmed.length} KOMIKA PERFORM` : `${confirmed.length} KOMIKA TERDAFTAR`}</p>
             </div>
             <button onClick={() => void shareLineup()} aria-label={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} title={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} className="inline-flex shrink-0 items-center justify-center rounded-full bg-blue-50 p-2.5 text-blue-700 transition hover:bg-blue-100 active:scale-[0.98]">
               {copied ? <Check className="h-4 w-4 text-green-600" /> : <Send className="h-4 w-4" />}

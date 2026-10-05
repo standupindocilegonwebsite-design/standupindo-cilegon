@@ -34,14 +34,33 @@ self.addEventListener('push', (event) => {
   }
 
   const title = typeof payload.title === 'string' ? payload.title : 'Standupindo Cilegon';
+  let image;
+  if (typeof payload.image === 'string' && payload.image.trim()) {
+    try {
+      const imageUrl = new URL(payload.image, self.location.origin);
+      if (imageUrl.protocol === 'http:' || imageUrl.protocol === 'https:') image = imageUrl.href;
+    } catch {
+      image = undefined;
+    }
+  }
   const options = {
     body: typeof payload.body === 'string' ? payload.body : 'Ada informasi baru untuk kamu.',
     icon: '/assets/images/favicon.png?v=3',
     badge: '/assets/images/favicon.png?v=3',
     tag: typeof payload.tag === 'string' ? payload.tag : undefined,
     data: { url: typeof payload.url === 'string' ? payload.url : '/' },
+    ...(image ? { image } : {}),
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil((async () => {
+    try {
+      await self.registration.showNotification(title, options);
+    } catch (error) {
+      if (!image) throw error;
+      const fallbackOptions = { ...options };
+      delete fallbackOptions.image;
+      await self.registration.showNotification(title, fallbackOptions);
+    }
+  })());
 });
 
 self.addEventListener('notificationclick', (event) => {
