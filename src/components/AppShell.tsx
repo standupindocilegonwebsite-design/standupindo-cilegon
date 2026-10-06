@@ -6,6 +6,7 @@ import type { SiteSettings } from '@/lib/types';
 import { Instagram, Youtube, MapPin, MessageCircle } from 'lucide-react';
 import { waLink } from '@/lib/format';
 import { AppCredit } from './AppCredit';
+import { FollowInstagramPopup } from './FollowInstagramPopup';
 
 function TikTokIcon({ className }: { className?: string }) {
   return (
@@ -152,6 +153,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
       </footer>}
 
       {!isTicketAccessPage && <MobileBottomNav router={router} />}
+      <FollowInstagramPopup router={router} settings={settings} />
     </div>
   );
 }

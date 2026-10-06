@@ -191,8 +191,8 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload }: { o
 
   function exportCsv() {
     const rows: Array<Array<string | number>> = [
-      ['Order', 'Event', 'Nama', 'WhatsApp', 'Tiket', 'Jumlah', 'Jenis order', 'Alasan Free Pass', 'Total', 'Status', 'Waktu'],
-      ...filteredOrders.map((order) => [order.order_number ?? order.id, eventById.get(order.event_id)?.title ?? '', order.full_name, order.whatsapp, order.ticket_category, order.quantity, order.order_type === 'free_pass' ? 'Free Pass' : 'Berbayar', order.free_pass_reason ?? '', order.order_type === 'free_pass' ? 'Gratis' : order.total_price, order.status, order.created_at]),
+      ['Order', 'Event', 'Nama', 'WhatsApp', 'Tiket', 'Jumlah', 'Sumber Transaksi', 'Jenis order', 'Alasan Free Pass', 'Total', 'Status', 'Waktu'],
+      ...filteredOrders.map((order) => [order.order_number ?? order.id, eventById.get(order.event_id)?.title ?? '', order.full_name, order.whatsapp, order.ticket_category, order.quantity, order.sale_channel === 'ots' ? 'OTS' : order.order_type === 'free_pass' ? 'Free Pass' : 'Online', order.order_type === 'free_pass' ? 'Free Pass' : 'Berbayar', order.free_pass_reason ?? '', order.order_type === 'free_pass' ? 'Gratis' : order.total_price, order.status, order.created_at]),
     ];
     const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
@@ -228,6 +228,7 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload }: { o
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="truncate text-sm font-extrabold text-slate-950">{order.full_name}</h2>
               <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${statusTone(order.status)}`}>{order.status}</span>
+              {order.sale_channel === 'ots' && <span className="shrink-0 rounded-full bg-violet-100 px-2 py-1 text-[10px] font-extrabold text-violet-800">OTS</span>}
               {order.order_type === 'free_pass' && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-extrabold text-amber-900"><Gift className="h-3 w-3" />FREE PASS</span>}
             </div>
             <p className="mt-1 truncate text-xs text-slate-600">{event?.title ?? 'Event'}</p>

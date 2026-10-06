@@ -47,7 +47,7 @@ export function MemberDashboardPage({ router }: { router: Router }) {
       if (memberKomikaId) {
         const [{ data }, { data: history }] = await Promise.all([
           supabase.from('open_mic_registrations').select('*').eq('komika_id', memberKomikaId).order('created_at', { ascending: false }),
-          supabase.from('member_open_mic_history_submissions').select('*').eq('komika_id', memberKomikaId).eq('status', 'approved').order('event_date', { ascending: false }),
+          supabase.from('member_open_mic_history_submissions').select('*').eq('komika_id', memberKomikaId).eq('status', 'approved').eq('activity_type', 'performance').order('event_date', { ascending: false }),
         ]);
         regData = (data as OpenMicRegistration[]) ?? [];
         historyData = (history as MemberOpenMicHistorySubmission[]) ?? [];

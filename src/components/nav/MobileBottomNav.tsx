@@ -1,5 +1,6 @@
 import { Home, Mic, CalendarDays, Drama, Menu } from 'lucide-react';
 import type { Router } from '@/lib/router';
+import { MobileBottomNavPortal } from '@/components/nav/MobileBottomNavPortal';
 
 const ITEMS = [
   { to: '/', label: 'Home', icon: Home },
@@ -14,10 +15,9 @@ export function MobileBottomNav({ router }: { router: Router }) {
     to === '/' ? router.path === '/' : router.path.startsWith(to);
 
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-blue-100 bg-white/90 shadow-[0_-8px_24px_rgba(11,60,93,0.08)] backdrop-blur-xl md:hidden"
-      style={{ paddingBottom: 'var(--safe-bottom)' }}
-      aria-label="Navigasi utama"
+    <MobileBottomNavPortal
+      className="fixed inset-x-0 z-40 border-t border-blue-100 bg-white/90 shadow-[0_-8px_24px_rgba(11,60,93,0.08)] backdrop-blur-xl md:hidden"
+      ariaLabel="Navigasi utama"
     >
       <div className="mx-auto grid max-w-md grid-cols-5">
         {ITEMS.map((item) => {
@@ -44,6 +44,6 @@ export function MobileBottomNav({ router }: { router: Router }) {
           );
         })}
       </div>
-    </nav>
+    </MobileBottomNavPortal>
   );
 }

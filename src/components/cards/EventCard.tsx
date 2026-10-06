@@ -12,7 +12,7 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
   const [lightbox, setLightbox] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   const currentStatus = getEventStatus(event.status, event.date);
-  const displayPrice = price ?? event.ticket_price ?? 0;
+  const displayPrice = price === undefined ? event.ticket_price ?? 0 : price;
   const isCompleted = currentStatus === 'completed';
   return (
     <>
@@ -32,12 +32,12 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
         tabIndex={0}
       >
         <div className={isCompleted ? 'flex w-full min-w-0 items-stretch' : ''}>
-        <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[4/5] w-[30%] min-w-[88px] max-w-[150px] shrink-0 sm:aspect-[16/10] sm:w-[34%]' : 'aspect-[4/5]'}`}>
+        <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[4/5] w-[30%] min-w-[88px] max-w-[150px] shrink-0 sm:aspect-[16/10] sm:w-[34%]' : 'aspect-[4/5] bg-slate-900'}`}>
           {event.poster && !posterFailed ? (
             <button
               onClick={() => isCompleted ? router.navigate(`/event/${event.slug}`) : setLightbox(true)}
               aria-label={isCompleted ? `Lihat Event ${event.title}` : `Lihat poster ${event.title}`}
-              className="block h-full w-full"
+              className="absolute inset-0 z-0 block h-full w-full"
             >
               <img
                 src={event.poster}
@@ -54,25 +54,52 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
           <div className="absolute left-3 top-3">
             <StatusBadge status={currentStatus} />
           </div>
+          {!isCompleted && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent px-3 pb-3 pt-20 sm:px-4 sm:pb-4 sm:pt-24">
+              <h3 className="mb-2 line-clamp-2 break-words text-left text-base font-extrabold leading-5 text-white sm:text-lg sm:leading-6">{event.title}</h3>
+              <div className="space-y-1.5 text-left text-xs font-semibold leading-4 text-white sm:text-sm">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Calendar className="h-4 w-4 shrink-0 text-sky-300" />
+                  <span className="truncate">{formatDate(event.date)}</span>
+                </div>
+                <div className="flex min-w-0 items-center gap-2">
+                  <Clock className="h-4 w-4 shrink-0 text-sky-300" />
+                  <span className="truncate">{event.time} WIB</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className={isCompleted ? 'flex min-w-0 flex-1 flex-col overflow-hidden p-3 sm:p-4' : 'p-4'}>
-          <h3 className="line-clamp-2 break-words text-base font-extrabold tracking-[-0.02em] text-slate-900 sm:text-lg">{event.title}</h3>
+        <div className={isCompleted ? 'flex min-w-0 flex-1 flex-col overflow-hidden p-3 sm:p-4' : 'p-3 sm:p-4'}>
+          {isCompleted && <h3 className="line-clamp-2 break-words text-base font-extrabold tracking-[-0.02em] text-slate-900 sm:text-lg">{event.title}</h3>}
 
-          <div className="mt-2 space-y-1.5 text-sm text-slate-600">
+          {isCompleted && <div className="mt-2 space-y-1.5 text-sm text-slate-600">
             <div className="flex min-w-0 items-center gap-2"><Calendar className="h-4 w-4 shrink-0 text-blue-600" /><span className="min-w-0 truncate">{formatDate(event.date)}</span></div>
             <div className="flex min-w-0 items-center gap-2"><Clock className="h-4 w-4 shrink-0 text-blue-600" /><span className="min-w-0 truncate">{event.time} WIB</span></div>
             <LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="mt-0.5 w-full min-w-0" />
-            {!isCompleted && <div className="flex items-center gap-2"><Ticket className="h-4 w-4 text-blue-600" /> <span className="font-bold text-slate-900">{formatPrice(displayPrice)}</span></div>}
-          </div>
-          <div className="mt-3">
-            <NoSmokeAreaNotice compact={isCompleted} />
-          </div>
+          </div>}
+          {!isCompleted && <LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="mb-2 w-full min-w-0" />}
+          {!isCompleted ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {displayPrice !== null && (
+                <div className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1.5">
+                  <Ticket className="h-4 w-4 shrink-0 text-blue-700" />
+                  <span className="text-sm font-extrabold leading-none text-slate-950">{formatPrice(displayPrice)}</span>
+                </div>
+              )}
+              <NoSmokeAreaNotice />
+            </div>
+          ) : (
+            <div className="mt-3">
+              <NoSmokeAreaNotice compact />
+            </div>
+          )}
 
           {!isCompleted && event.description && <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-500">{event.description}</p>}
 
-          <div className={`${isCompleted ? 'mt-auto pt-3' : 'mt-4 border-t border-slate-100 pt-3'}`}>
-            <button onClick={() => router.navigate(`/event/${event.slug}`)} className={`w-full !justify-center !px-3 !py-2.5 text-[12px] font-bold shadow-[0_6px_14px_rgba(29,78,216,0.2)] transition hover:-translate-y-0.5 sm:!text-sm ${isCompleted ? 'btn-primary !rounded-lg !border-slate-800 !bg-slate-800 !text-white hover:!bg-slate-700' : 'btn-primary !rounded-xl'}`}>
+          <div className={`${isCompleted ? 'mt-auto pt-3' : 'mt-2 border-t border-slate-100 pt-2'}`}>
+            <button onClick={() => router.navigate(`/event/${event.slug}`)} className={`inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold text-white shadow-[0_7px_16px_rgba(29,78,216,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(29,78,216,0.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:text-sm ${isCompleted ? '!rounded-lg bg-slate-800 hover:bg-slate-700' : 'bg-gradient-to-r from-blue-700 to-blue-600 hover:from-blue-800 hover:to-blue-700'}`}>
               Lihat Event <ArrowRight className="h-4 w-4" />
             </button>
           </div>

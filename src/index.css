@@ -71,7 +71,6 @@
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     @apply bg-[#F1F5FB] text-slate-900 antialiased;
     overscroll-behavior-y: contain;
-    -webkit-overflow-scrolling: touch;
     overflow-x: hidden;
   }
 
@@ -1294,6 +1293,48 @@
   overflow: hidden;
 }
 
+.event-ticket-light-leak {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.event-ticket-light-leak > span {
+  position: relative;
+  z-index: 2;
+}
+
+.event-ticket-light-leak::after {
+  position: absolute;
+  inset: -40% auto -40% -45%;
+  z-index: 1;
+  width: 32%;
+  content: "";
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.5), rgba(191, 219, 254, 0.22), transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: skewX(-20deg);
+  animation: homeEventCtaLightLeak 5.6s ease-in-out infinite;
+}
+
+.komika-card-light-leak::after {
+  position: absolute;
+  inset: -35% auto -35% -45%;
+  z-index: 1;
+  width: 28%;
+  content: "";
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.04) 20%, rgba(255, 255, 255, 0.34) 50%, rgba(216, 180, 254, 0.14) 68%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: skewX(-20deg);
+}
+
+.komika-card-light-leak:hover::after,
+.komika-card-light-leak:focus-visible::after,
+.komika-card-light-leak:active::after {
+  animation: homeEventCtaLightLeak 0.55s ease-in-out both;
+}
+
 .home-open-mic-cta:hover,
 .home-open-mic-cta:focus-visible {
   background-color: #2563eb;
@@ -1376,7 +1417,9 @@
 @media (prefers-reduced-motion: reduce) {
   .home-hero-cta-icon,
   .home-open-mic-cta::after,
-  .home-event-cta-light-leak::after {
+  .home-event-cta-light-leak::after,
+  .event-ticket-light-leak::after,
+  .komika-card-light-leak::after {
     animation: none;
   }
 

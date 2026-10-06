@@ -14,6 +14,8 @@ import { EventPage } from '@/pages/public/EventPage';
 import { EventDetailPage } from '@/pages/public/EventDetailPage';
 import { TicketOrderPage } from '@/pages/public/TicketOrderPage';
 import { TicketAccessPage } from '@/pages/public/TicketAccessPage';
+import { TicketSelectionPage } from '@/pages/public/TicketSelectionPage';
+import { TicketLegalPage } from '@/pages/public/TicketLegalPage';
 import { KomikaPage } from '@/pages/public/KomikaPage';
 import { KomikaDetailPage } from '@/pages/public/KomikaDetailPage';
 import { MorePage } from '@/pages/public/MorePage';
@@ -48,6 +50,8 @@ function updateSeo(path: string, siteName: string) {
     '/': `${siteName} — Komunitas Stand Up Comedy`,
     '/open-mic': `Open Mic — ${siteName}`,
     '/event': `Event — ${siteName}`,
+    '/syarat-ketentuan': `Syarat & Ketentuan — ${siteName}`,
+    '/kebijakan-privasi': `Kebijakan Privasi — ${siteName}`,
     '/tiket': `Tiket Saya — ${siteName}`,
     '/komika': `Komika — ${siteName}`,
     '/member': `Member — ${siteName}`,
@@ -213,6 +217,7 @@ function RoutedApp() {
   const openMicDetail = matchRoute(router.path, '/open-mic/[slug]');
   const eventDetail = matchRoute(router.path, '/event/[slug]');
   const ticketOrder = matchRoute(router.path, '/event/[slug]/tiket/[ticketId]');
+  const ticketSelection = matchRoute(router.path, '/event/[slug]/tiket');
   const eventRegister = matchRoute(router.path, '/event/[slug]/daftar');
   const komikaDetail = matchRoute(router.path, '/komika/[slug]');
 
@@ -224,8 +229,11 @@ function RoutedApp() {
   else if (openMicDetail) content = <OpenMicDetailPage router={router} slug={openMicDetail.slug} />;
   else if (router.path === '/event') content = <EventPage router={router} />;
   else if (ticketOrder) content = <TicketOrderPage router={router} slug={ticketOrder.slug} ticketId={ticketOrder.ticketId} />;
+  else if (ticketSelection) content = <TicketSelectionPage router={router} slug={ticketSelection.slug} />;
   else if (eventRegister) content = <EventRegisterPage router={router} slug={eventRegister.slug} />;
   else if (eventDetail) content = <EventDetailPage router={router} slug={eventDetail.slug} settings={settings} />;
+  else if (router.path === '/syarat-ketentuan') content = <TicketLegalPage router={router} settings={settings} document="terms" />;
+  else if (router.path === '/kebijakan-privasi') content = <TicketLegalPage router={router} settings={settings} document="privacy" />;
   else if (router.path === '/komika') content = <KomikaPage router={router} />;
   else if (komikaDetail) content = <KomikaDetailPage router={router} slug={komikaDetail.slug} />;
   else if (router.path === '/more') content = <MorePage router={router} settings={settings} />;

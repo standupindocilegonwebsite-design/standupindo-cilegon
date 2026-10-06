@@ -5,6 +5,7 @@ interface EventOption {
   id: string;
   title: string;
   subtitle?: string;
+  poster?: string | null;
 }
 
 interface SearchableEventSelectProps {
@@ -20,7 +21,8 @@ export function SearchableEventSelect({ options, value, onChange, allLabel, aria
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const selectedLabel = value === 'all' ? allLabel : options.find((option) => option.id === value)?.title ?? allLabel;
+  const selectedOption = options.find((option) => option.id === value);
+  const selectedLabel = value === 'all' ? allLabel : selectedOption?.title ?? allLabel;
   const filteredOptions = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('id-ID');
     return options.filter((option) => !normalizedQuery
@@ -66,7 +68,11 @@ export function SearchableEventSelect({ options, value, onChange, allLabel, aria
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{selectedLabel}</span>
+        {selectedOption?.poster && <img src={selectedOption.poster} alt="" className="h-10 w-9 shrink-0 rounded-lg border border-slate-200 object-cover" />}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-slate-800">{selectedLabel}</span>
+          {selectedOption?.subtitle && <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-500">{selectedOption.subtitle}</span>}
+        </span>
         <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-[0_16px_36px_rgba(15,23,42,0.2)]">
@@ -106,8 +112,11 @@ export function SearchableEventSelect({ options, value, onChange, allLabel, aria
             role="option"
             aria-selected={value === option.id}
             onClick={() => choose(option.id)}
-            className={`flex min-h-10 w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${value === option.id ? 'bg-blue-50 font-bold text-blue-800' : 'text-slate-700 hover:bg-slate-50'}`}
+            className={`flex min-h-14 w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition ${value === option.id ? 'bg-blue-50 font-bold text-blue-800' : 'text-slate-700 hover:bg-slate-50'}`}
           >
+            {option.poster
+              ? <img src={option.poster} alt="" loading="lazy" className="h-12 w-10 shrink-0 rounded-lg border border-slate-200 bg-slate-100 object-cover" />
+              : <span aria-hidden="true" className="h-12 w-10 shrink-0 rounded-lg border border-slate-200 bg-slate-100" />}
             <span className="min-w-0 flex-1">
               <span className="block truncate">{option.title}</span>
               {option.subtitle && <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-500">{option.subtitle}</span>}

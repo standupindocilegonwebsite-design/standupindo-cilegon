@@ -1,5 +1,6 @@
 import { BookOpen, ClipboardList, House, Menu, Mic, UserRound } from 'lucide-react';
 import type { Router } from '@/lib/router';
+import { MobileBottomNavPortal } from '@/components/nav/MobileBottomNavPortal';
 
 const ITEMS = [
   { to: '/member', label: 'Home', icon: House },
@@ -17,10 +18,9 @@ export function MemberBottomNav({ router }: { router: Router }) {
   };
 
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-blue-100 bg-white/90 shadow-[0_-8px_24px_rgba(11,60,93,0.08)] backdrop-blur-xl md:hidden"
-      style={{ paddingBottom: 'var(--safe-bottom)' }}
-      aria-label="Navigasi member"
+    <MobileBottomNavPortal
+      className="fixed inset-x-0 z-40 border-t border-blue-100 bg-white/90 shadow-[0_-8px_24px_rgba(11,60,93,0.08)] backdrop-blur-xl md:hidden"
+      ariaLabel="Navigasi member"
     >
       <div className="mx-auto grid max-w-md grid-cols-6">
         {ITEMS.map((item) => {
@@ -48,6 +48,6 @@ export function MemberBottomNav({ router }: { router: Router }) {
           );
         })}
       </div>
-    </nav>
+    </MobileBottomNavPortal>
   );
 }

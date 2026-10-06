@@ -198,14 +198,14 @@ export function OpenMicPage({ router }: { router: Router }) {
                 className={`flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-[10px] font-extrabold tracking-wide transition sm:text-xs ${memberTab === 'history' ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'border-transparent bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-900'}`}
               >
                 <History className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">RIWAYAT OPEN MIC KU</span>
+                <span className="truncate">RIWAYAT PENGALAMANKU</span>
               </button>
             </div>
             <button
               type="button"
-              onClick={() => router.navigate('/member/open-mic-history')}
-              aria-label="Open Mic Eksternal"
-              title="Open Mic Eksternal"
+              onClick={() => router.navigate('/member/open-mic-history?add=1')}
+              aria-label="Tambahkan riwayat"
+              title="Tambahkan riwayat"
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)] transition hover:bg-blue-700 active:scale-95"
             >
               <Plus className="h-5 w-5" />

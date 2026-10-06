@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Calendar, ChevronDown, ClipboardList, Clock, ExternalLink, Info, MessageCircle, Ticket } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ArrowRight, Calendar, ChevronDown, ClipboardList, Clock, Info, MessageCircle } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { EventItem, EventTicket, EventPartnership, Partner, SiteSettings } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -301,6 +302,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const [documentationLightboxIndex, setDocumentationLightboxIndex] = useState<number | null>(null);
   const [posterLightboxOpen, setPosterLightboxOpen] = useState(false);
   const [tickets, setTickets] = useState<EventTicket[]>([]);
+  const [ticketLoadError, setTicketLoadError] = useState('');
   const [lineup, setLineup] = useState<{ id: string; stage_name: string; community: string | null; instagram: string | null }[]>([]);
   const [partnersByRole, setPartnersByRole] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
   const [infoTab, setInfoTab] = useState<'about' | 'rules'>('about');
@@ -313,7 +315,8 @@ export function EventDetailPage({ router, slug, settings }: Props) {
       setEvent(ev);
 
       if (ev) {
-        const { data: ticketData } = await supabase.from('event_tickets').select('*').eq('event_id', ev.id).order('sort_order', { ascending: true }).order('price', { ascending: true });
+        const { data: ticketData, error: ticketError } = await supabase.from('event_tickets').select('*').eq('event_id', ev.id).eq('status', 'active').eq('available_public', true).order('sort_order', { ascending: true }).order('price', { ascending: true });
+        if (ticketError) setTicketLoadError('Informasi tiket belum dapat dimuat. Coba segarkan halaman.');
         setTickets((ticketData as EventTicket[]) ?? []);
 
         const { data: participantData } = await supabase
@@ -389,10 +392,15 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const defaultWaMessage = `Halo Admin Standupindo Cilegon, saya ingin membeli tiket ${event.title}.`;
   const waMessage = event.whatsapp_message?.trim() ? event.whatsapp_message.trim() : defaultWaMessage;
   const buyTicketNumber = event.whatsapp_number || settings.whatsapp_ticket || settings.whatsapp_admin;
-  const cheapestTicketPrice = tickets.length > 0 ? tickets.reduce((lowest, ticket) => ticket.price < lowest.price ? ticket : lowest, tickets[0]).price : (event.ticket_price ?? 0);
-  const isFreeEvent = tickets.length === 0 && cheapestTicketPrice <= 0;
+  const cheapestTicketPrice = tickets.length > 0 ? Math.min(...tickets.map((ticket) => ticket.price)) : null;
+  const isFreeEvent = tickets.length === 0 && (event.ticket_price ?? 0) <= 0;
   const pageUrl = `${window.location.origin}/event/${event.slug}`;
   const currentStatus = getEventStatus(event.status, event.date);
+  const shareMessage = currentStatus === 'completed'
+    ? `Terima kasih sudah menjadi bagian dari keseruan *${event.title}* bersama Standupindo Cilegon! 🙌\n\nKenangan dan informasi lengkap event:\n${pageUrl}`
+    : currentStatus === 'upcoming'
+      ? `🔥 SIAP-SIAP KETAWA!\n\n*${event.title}* bakal hadir di *${event.venue}${event.location ? `, ${event.location}` : ''}*!\n\n📅 ${formatDate(event.date)}\n⏰ *${event.time} WIB*\n\n🎟️ Tiket & info lengkap:\n${pageUrl}`
+      : `Informasi *${event.title}* bersama Standupindo Cilegon.\n\nEvent ini dibatalkan. Informasi selengkapnya:\n${pageUrl}`;
   const documentationPhotos = [
     ...(event.poster ? [event.poster] : []),
     ...(event.documentation_photos ?? []),
@@ -425,7 +433,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
               <StatusBadge status={currentStatus} />
               <ShareButton
                 title={`${event.title} — Standupindo Cilegon`}
-                text={`🔥 SIAP-SIAP KETAWA!\n\n*${event.title}* bakal hadir di *${event.venue}${event.location ? `, ${event.location}` : ''}*!\n\n📅 ${formatDate(event.date)}\n⏰ *${event.time} WIB*\n\n🎟️ Tiket & info lengkap:\n${pageUrl}`}
+                text={shareMessage}
                 url={pageUrl}
                 image={event.poster}
               />
@@ -434,13 +442,23 @@ export function EventDetailPage({ router, slug, settings }: Props) {
               <div className="flex items-center gap-2.5 px-3.5 py-3"><Calendar className="h-5 w-5 shrink-0 text-blue-600" /> <span>{formatDate(event.date)}</span></div>
               <div className="flex items-center gap-2.5 border-t border-slate-100 px-3.5 py-3"><Clock className="h-5 w-5 shrink-0 text-blue-600" /> <span>{event.time} WIB</span></div>
               <div className="border-t border-slate-100"><LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="items-center gap-2.5 !rounded-none !border-0 !shadow-none !px-3.5 !py-3" /></div>
-              <div className="flex items-center gap-2.5 border-t border-slate-100 px-3.5 py-3"><Ticket className="h-5 w-5 shrink-0 text-blue-600" /> <span className="font-bold text-slate-900">{formatPrice(cheapestTicketPrice)}</span></div>
             </div>
+            {currentStatus === 'upcoming' && !ticketLoadError && isFreeEvent && <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">Acara gratis. Tidak perlu membeli tiket.</p>}
+            {ticketLoadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{ticketLoadError}</p>}
             {currentStatus !== 'completed' && <NoSmokeAreaNotice detail context="event" />}
 
             {currentStatus === 'upcoming' && (
               <div className="space-y-2">
-                {tickets.length === 0 && !isFreeEvent && <a href={waLink(buyTicketNumber, waMessage)} target="_blank" rel="noopener noreferrer" className="btn-primary w-full !py-3.5 text-base">
+                {!ticketLoadError && tickets.length > 0 && (
+                  <button type="button" onClick={() => router.navigate(`/event/${event.slug}/tiket`)} className="btn-primary event-ticket-light-leak group hidden w-full !min-h-[4.5rem] items-center justify-between !rounded-2xl !bg-gradient-to-r !from-blue-700 !via-blue-600 !to-indigo-600 !px-5 !py-3 text-left shadow-[0_12px_26px_rgba(37,99,235,0.36)] ring-1 ring-blue-500/30 transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(37,99,235,0.44)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 focus-visible:ring-offset-2 active:translate-y-0 active:scale-[0.99] md:flex">
+                    <span className="min-w-0">
+                      <span className="block text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-100">Harga Mulai Dari</span>
+                      <span className="mt-0.5 block text-xl font-black leading-tight text-white">{formatPrice(cheapestTicketPrice ?? 0)}</span>
+                    </span>
+                    <span className="ml-4 inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-white/40 bg-white px-4 text-sm font-extrabold text-blue-800 shadow-sm transition group-hover:bg-blue-50">Beli Tiket <ArrowRight className="h-4 w-4" /></span>
+                  </button>
+                )}
+                {!ticketLoadError && tickets.length === 0 && !isFreeEvent && <a href={waLink(buyTicketNumber, waMessage)} target="_blank" rel="noopener noreferrer" className="btn-primary w-full !py-3.5 text-base">
                   <MessageCircle className="h-5 w-5" /> Beli Tiket via WhatsApp
                 </a>}
                 {event.registration_status === 'open' && <button onClick={() => router.navigate(`/event/${event.slug}/daftar`)} className="btn-secondary w-full !py-3.5 text-base">Daftar sebagai Peserta</button>}
@@ -448,6 +466,21 @@ export function EventDetailPage({ router, slug, settings }: Props) {
             )}
           </div>
         </div>
+
+        {currentStatus === 'upcoming' && !ticketLoadError && tickets.length > 0 && createPortal(
+          <div className="fixed inset-x-0 z-30 px-4 md:hidden" style={{ bottom: 'calc(5.5rem + var(--safe-bottom))' }}>
+            <div className="mx-auto max-w-3xl">
+              <button type="button" onClick={() => router.navigate(`/event/${event.slug}/tiket`)} className="btn-primary event-ticket-light-leak group flex w-full !min-h-[4rem] items-center justify-between !rounded-2xl !bg-gradient-to-r !from-blue-700 !via-blue-600 !to-indigo-600 !px-4 !py-2.5 text-left shadow-[0_12px_30px_rgba(29,78,216,0.46)] ring-1 ring-white/30 transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(29,78,216,0.54)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 focus-visible:ring-offset-2 active:translate-y-0 active:scale-[0.99]">
+                <span className="min-w-0">
+                  <span className="block text-[9px] font-extrabold uppercase tracking-[0.14em] text-blue-100">Harga Mulai Dari</span>
+                  <span className="block text-lg font-black leading-tight text-white">{formatPrice(cheapestTicketPrice ?? 0)}</span>
+                </span>
+                <span className="ml-3 inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border border-white/40 bg-white px-3 text-xs font-extrabold text-blue-800 shadow-sm">Beli Tiket <ArrowRight className="h-4 w-4" /></span>
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
 
         <section data-scroll-reveal className="scroll-reveal">
           <div className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
@@ -531,50 +564,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
               <EmptyState title="Foto dokumentasi belum tersedia." />
             )}
           </section>
-        ) : (
-          <section data-scroll-reveal className="scroll-reveal border-t border-slate-200 pt-8 sm:pt-10">
-            {/* Tickets */}
-            <div className="mb-4 flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Akses acara</p>
-                <h2 className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">{isFreeEvent ? 'Acara Gratis' : 'Pilih tiket'}</h2>
-              </div>
-              {tickets.length > 0 && <span className="text-right text-xs font-semibold text-slate-500">{tickets.length} pilihan tersedia</span>}
-            </div>
-            {tickets.length === 0 ? (
-              <EmptyState title={isFreeEvent ? 'Tidak perlu membeli tiket untuk menghadiri acara ini.' : 'Informasi tiket segera hadir.'} />
-            ) : (
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-                {tickets.map((t) => {
-                  const hasUrl = t.ticket_url && /^https?:\/\//i.test(t.ticket_url);
-                  return (
-                    <div key={t.id} className="grid gap-4 border-b border-slate-100 p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-6 sm:p-5">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Ticket className="h-4 w-4" /></div>
-                        <div className="min-w-0">
-                          <h3 className="font-bold text-slate-900">{t.name}</h3>
-                          {t.description && <p className="mt-1 text-xs leading-5 text-slate-500">{t.description}</p>}
-                        </div>
-                      </div>
-                      <span className="text-lg font-extrabold tracking-tight text-slate-900 sm:text-right">{formatPrice(t.price)}</span>
-                      {currentStatus === 'upcoming' && (
-                        hasUrl ? (
-                          <a href={t.ticket_url!} target="_blank" rel="noopener noreferrer" aria-label={`Beli tiket ${t.name} melalui link ticketing`} title="Beli melalui link ticketing" className="btn-primary !min-h-10 !rounded-xl !px-4 !py-2.5 text-sm">
-                            <ExternalLink className="h-4 w-4" /> <span>Beli</span>
-                          </a>
-                        ) : (
-                          <button type="button" onClick={() => router.navigate(`/event/${event.slug}/tiket/${t.id}`)} aria-label={`Isi form pembelian tiket ${t.name}`} title="Isi form pembelian tiket" className="btn-primary !min-h-10 !rounded-xl !px-4 !py-2.5 text-sm">
-                            <MessageCircle className="h-4 w-4" /> <span>Beli</span>
-                          </button>
-                        )
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        )}
+        ) : null}
 
         {/* Partnership */}
         {(['sponsor', 'support', 'media_partner'] as const).some((role) => partnersByRole[role].length > 0) && (

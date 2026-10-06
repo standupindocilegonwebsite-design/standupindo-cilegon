@@ -21,7 +21,7 @@ export function EventPage({ router }: { router: Router }) {
     (async () => {
       const [{ data: eventData, error: eventError }, { data: ticketData }] = await Promise.all([
         supabase.from('events').select('*').eq('published', true).order('date', { ascending: true }),
-        supabase.from('event_tickets').select('event_id, price').order('price', { ascending: true }),
+        supabase.from('event_tickets').select('event_id, price').eq('status', 'active').eq('available_public', true).order('price', { ascending: true }),
       ]);
 
       setLoadError(Boolean(eventError));
@@ -78,7 +78,7 @@ export function EventPage({ router }: { router: Router }) {
             <div className="flex gap-4 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
               {upcoming.map((e) => (
                 <div key={e.id} className="min-w-[270px] max-w-[270px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
-                  <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
+                  <EventCard event={e} router={router} price={ticketPrices[e.id] ?? null} />
                 </div>
               ))}
             </div>
@@ -92,7 +92,7 @@ export function EventPage({ router }: { router: Router }) {
             {completed.length === 0 ? <EmptyState title="Riwayat event tidak ditemukan." /> : <div className="grid min-w-0 gap-3 lg:grid-cols-2">
               {completed.map((e) => (
                 <div key={e.id} className="min-w-0">
-                  <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
+                  <EventCard event={e} router={router} price={ticketPrices[e.id] ?? null} />
                 </div>
               ))}
             </div>}

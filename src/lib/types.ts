@@ -97,6 +97,9 @@ export interface EventTicket {
   event_id: string;
   name: string;
   price: number;
+  available_public: boolean;
+  available_ots: boolean;
+  ots_price: number | null;
   quota?: number | null;
   description: string | null;
   ticket_url: string | null;
@@ -133,6 +136,7 @@ export interface TicketOrder {
   review_note?: string | null;
   access_code_id?: string | null;
   order_type?: 'paid' | 'free_pass';
+  sale_channel?: 'online' | 'ots' | 'free_pass';
   free_pass_reason?: string | null;
   issued_by?: string | null;
   created_at: string;
@@ -218,9 +222,12 @@ export interface MemberOpenMicHistorySubmission {
   id: string;
   user_id: string;
   komika_id: string;
+  activity_type?: 'performance' | 'mc_internal' | 'mc_external';
+  internal_open_mic_id?: string | null;
   title: string;
   organizer_name: string;
   event_date: string;
+  event_time?: string | null;
   venue: string;
   city: string | null;
   notes: string | null;

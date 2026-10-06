@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Building2, Check, CreditCard, ImagePlus, Pencil, Plus, Power, Save, Search, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Archive, Building2, Check, ChevronDown, CreditCard, ImagePlus, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import type { TicketPaymentMethod } from '@/lib/types';
+import { formatDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
 import { Modal } from '@/components/ui/Modal';
@@ -34,6 +35,15 @@ async function paymentAction<T>(body: Record<string, unknown>) {
 
 const EMPTY_DRAFT: PaymentDraft = { event_ids: [], recipient_name: '', bank_name: '', account_number: '', qris_storage_path: '', note: '' };
 
+function isArchivedEvent(event: EventOption) {
+  if (event.status === 'completed' || event.status === 'cancelled') return true;
+  const eventDate = new Date(`${event.date}T00:00:00`);
+  if (Number.isNaN(eventDate.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return eventDate < today;
+}
+
 export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOption[]; onBack: () => void }) {
   const [methods, setMethods] = useState<PaymentMethodView[]>([]);
   const [supportsMultiEvent, setSupportsMultiEvent] = useState(false);
@@ -42,8 +52,10 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
   const [qrisFile, setQrisFile] = useState<File | null>(null);
   const [eventSearch, setEventSearch] = useState('');
   const [methodSearch, setMethodSearch] = useState('');
+  const [expandedArchives, setExpandedArchives] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [togglingEvents, setTogglingEvents] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -155,19 +167,52 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
   }
 
   async function toggleMethod(method: PaymentMethodView, eventId: string, isActive: boolean) {
-    setSaving(true);
+    const toggleKey = `${method.id}:${eventId}`;
+    setTogglingEvents((current) => new Set(current).add(toggleKey));
     setError('');
-    const { error: actionError } = await paymentAction({
-      action: isActive ? 'deactivate-payment-method' : 'activate-payment-method',
-      payment_method_id: method.id,
-      event_id: eventId,
-    });
-    setSaving(false);
-    if (actionError) {
-      setError(actionError);
-      return;
+    setMethods((current) => current.map((currentMethod) => currentMethod.id !== method.id
+      ? currentMethod
+      : {
+        ...currentMethod,
+        events: currentMethod.events.map((event) => event.id === eventId
+          ? { ...event, is_active: !isActive }
+          : event),
+      }));
+    try {
+      const { error: actionError } = await paymentAction({
+        action: isActive ? 'deactivate-payment-method' : 'activate-payment-method',
+        payment_method_id: method.id,
+        event_id: eventId,
+      });
+      if (actionError) {
+        setMethods((current) => current.map((currentMethod) => currentMethod.id !== method.id
+          ? currentMethod
+          : {
+            ...currentMethod,
+            events: currentMethod.events.map((event) => event.id === eventId
+              ? { ...event, is_active: isActive }
+              : event),
+          }));
+        setError(actionError);
+        return;
+      }
+    } catch (actionError) {
+      setMethods((current) => current.map((currentMethod) => currentMethod.id !== method.id
+        ? currentMethod
+        : {
+          ...currentMethod,
+          events: currentMethod.events.map((event) => event.id === eventId
+            ? { ...event, is_active: isActive }
+            : event),
+        }));
+      setError(actionError instanceof Error ? `Status pembayaran gagal diperbarui: ${actionError.message}` : 'Status pembayaran gagal diperbarui.');
+    } finally {
+      setTogglingEvents((current) => {
+        const next = new Set(current);
+        next.delete(toggleKey);
+        return next;
+      });
     }
-    await load();
   }
 
   async function deleteMethod(method: PaymentMethodView) {
@@ -265,12 +310,78 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
       </Modal>}
       {draft && !draft.id && paymentForm}
       {!loading && methods.length > 0 && <label className="relative block"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input className="input-field pl-9" value={methodSearch} onChange={(event) => setMethodSearch(event.target.value)} placeholder="Cari nama Event, penerima, atau bank..." /></label>}
-      {loading ? <div className="h-24 skeleton rounded-2xl" /> : !methods.length ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Belum ada informasi pembayaran.</div> : !filteredMethods.length ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Tidak ada informasi pembayaran yang cocok.</div> : <div className="space-y-3">{filteredMethods.map((method) => <article key={method.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">{method.qris_storage_path ? <ImagePlus className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}</span><div className="min-w-0 flex-1"><h2 className="font-extrabold text-slate-900">{method.recipient_name}</h2>{method.bank_name && <p className="mt-1 text-sm text-slate-700">{method.bank_name} · {method.account_number}</p>}{method.note && <p className="mt-1 text-xs text-slate-500">{method.note}</p>}</div></div>
-        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Event yang menggunakan</p>{method.events.map((event) => <div key={event.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2"><div><p className="text-sm font-semibold text-slate-800">{event.title}</p><p className="text-xs text-slate-500">{event.date}</p></div><div className="flex items-center gap-2"><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${event.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>{event.is_active ? 'Aktif' : 'Nonaktif'}</span><button type="button" onClick={() => void toggleMethod(method, event.id, event.is_active)} disabled={saving} className={`inline-flex min-h-9 items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${event.is_active ? 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}><Power className="h-3.5 w-3.5" />{event.is_active ? 'Nonaktifkan' : <><Check className="h-3.5 w-3.5" /> Aktifkan</>}</button></div></div>)}</div>
-        {method.qris_storage_path && <img src={signedQrisUrl(method.qris_storage_path)} alt={`QRIS ${method.recipient_name}`} className="mt-3 max-h-44 rounded-xl border border-slate-200 object-contain" />}
-        <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => openEdit(method)} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs"><Pencil className="h-4 w-4" /> Edit</button>{method.can_delete && <button type="button" onClick={() => void deleteMethod(method)} disabled={saving} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs text-red-700"><Trash2 className="h-4 w-4" /> Hapus</button>}</div>
-      </article>)}</div>}
-      <p className="flex items-center gap-2 text-xs text-slate-500"><CreditCard className="h-4 w-4" /> Order menyimpan snapshot tujuan pembayaran saat dibuat.</p>
+      {loading ? <div className="h-24 skeleton rounded-2xl" /> : !methods.length ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Belum ada informasi pembayaran.</div> : !filteredMethods.length ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Tidak ada informasi pembayaran yang cocok.</div> : <div className="space-y-3">{filteredMethods.map((method) => {
+        const currentEvents = method.events.filter((event) => !isArchivedEvent(event))
+          .sort((first, second) => first.date.localeCompare(second.date));
+        const archivedEvents = method.events.filter(isArchivedEvent)
+          .sort((first, second) => second.date.localeCompare(first.date));
+        const searchQuery = methodSearch.trim().toLocaleLowerCase('id-ID');
+        const archiveMatchesSearch = Boolean(searchQuery) && archivedEvents.some((event) => event.title.toLocaleLowerCase('id-ID').includes(searchQuery));
+        const archiveExpanded = expandedArchives.has(method.id) || archiveMatchesSearch;
+        const updateArchiveExpanded = () => setExpandedArchives((current) => {
+          const next = new Set(current);
+          if (next.has(method.id)) next.delete(method.id);
+          else next.add(method.id);
+          return next;
+        });
+        const renderEvent = (event: EventOption & { is_active: boolean }, archived: boolean) => {
+          const toggleKey = `${method.id}:${event.id}`;
+          const isToggling = togglingEvents.has(toggleKey);
+          return <div key={event.id} className={`flex min-w-0 items-center justify-between gap-2 rounded-xl px-2.5 py-2 sm:px-3 ${archived ? 'bg-white/80' : 'bg-slate-50'}`}>
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-2 text-sm font-semibold leading-5 text-slate-800">{event.title}</p>
+              <p className="text-xs text-slate-500">{formatDate(event.date)}</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={event.is_active}
+              aria-label={`${event.is_active ? 'Nonaktifkan' : 'Aktifkan'} informasi pembayaran untuk ${event.title}`}
+              onClick={() => void toggleMethod(method, event.id, event.is_active)}
+              disabled={isToggling}
+              className={`inline-flex h-8 w-[88px] shrink-0 items-center justify-between rounded-full px-1.5 text-[11px] font-extrabold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-70 ${event.is_active ? 'bg-emerald-600 text-white focus-visible:ring-emerald-500' : 'bg-slate-300 text-slate-700 focus-visible:ring-slate-400'}`}
+            >
+              {event.is_active
+                ? <><span>Aktif</span><span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-emerald-700"><Check className="h-3 w-3" /></span></>
+                : <><span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full bg-white"><span className="h-1.5 w-1.5 rounded-full bg-slate-400" /></span><span>Nonaktif</span></>}
+            </button>
+          </div>;
+        };
+        return <article key={method.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">{method.qris_storage_path ? <ImagePlus className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}</span>
+            <div className="min-w-0 flex-1">
+              <h2 className="font-extrabold text-slate-900">{method.recipient_name}</h2>
+              {method.bank_name && <p className="mt-1 text-sm text-slate-700">{method.bank_name} · {method.account_number}</p>}
+              {method.note && <p className="mt-1 text-xs text-slate-500">{method.note}</p>}
+            </div>
+          </div>
+          <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-1">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Event yang menggunakan</p>
+              <span className="text-[11px] font-semibold text-slate-500">{method.events.length} Event · {currentEvents.length} mendatang/berjalan · {archivedEvents.length} arsip</span>
+            </div>
+            {currentEvents.length
+              ? <div className="space-y-2">{currentEvents.map((event) => renderEvent(event, false))}</div>
+              : <p className="rounded-xl border border-dashed border-slate-200 px-3 py-3 text-xs text-slate-500">Tidak ada Event aktif atau mendatang.</p>}
+            {archivedEvents.length > 0 && <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+              <button
+                type="button"
+                onClick={updateArchiveExpanded}
+                aria-expanded={archiveExpanded}
+                className="flex min-h-9 w-full items-center justify-between gap-2 rounded-lg px-2 text-left text-xs font-bold text-slate-700 transition hover:bg-white"
+              >
+                <span className="inline-flex items-center gap-2"><Archive className="h-4 w-4 text-slate-500" /> Arsip Event Selesai ({archivedEvents.length})</span>
+                <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${archiveExpanded ? 'rotate-180' : ''}`} />
+              </button>
+              {archiveExpanded && <div className="mt-2 space-y-2 border-t border-slate-200 pt-2">{archivedEvents.map((event) => renderEvent(event, true))}</div>}
+            </div>}
+          </div>
+          {method.qris_storage_path && <img src={signedQrisUrl(method.qris_storage_path)} alt={`QRIS ${method.recipient_name}`} className="mt-3 max-h-44 rounded-xl border border-slate-200 object-contain" />}
+          <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => openEdit(method)} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs"><Pencil className="h-4 w-4" /> Edit</button>{method.can_delete && <button type="button" onClick={() => void deleteMethod(method)} disabled={saving} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs text-red-700"><Trash2 className="h-4 w-4" /> Hapus</button>}</div>
+        </article>;
+      })}</div>}
+      <p className="flex items-center gap-2 text-xs text-slate-500"><CreditCard className="h-4 w-4" /> Informasi pembayaran otomatis nonaktif H+2 setelah tanggal Event (WIB). Order lama tetap menyimpan snapshot tujuan pembayaran.</p>
     </div>
   );
 }

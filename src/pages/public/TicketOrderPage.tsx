@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, CreditCard, Eye, Ticket, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, CreditCard, Eye, Landmark, QrCode, Ticket, Upload } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { LOGO_URL, type EventItem, type EventTicket } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -18,6 +18,10 @@ interface PaymentSnapshot {
 }
 
 function PaymentInstructions({ method, totalPrice }: { method: PaymentSnapshot; totalPrice: number }) {
+  const qrisPath = method.qris_storage_path;
+  const hasBankTransfer = Boolean(method.bank_name || method.account_number);
+  const hasQris = Boolean(qrisPath);
+  const [selectedMethod, setSelectedMethod] = useState<'bank' | 'qris'>(hasBankTransfer ? 'bank' : 'qris');
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
 
@@ -42,32 +46,68 @@ function PaymentInstructions({ method, totalPrice }: { method: PaymentSnapshot; 
           <p className="mt-0.5 text-xs text-slate-500">Transfer sesuai jumlah total berikut</p>
         </div>
       </div>
-      <div className="space-y-4 p-4 sm:p-5">
-        {method.bank_name && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Transfer Bank</p>
-            <p className="mt-1 font-extrabold text-slate-900">{method.bank_name}</p>
+      <div className="space-y-3 p-3 sm:p-4">
+        {hasBankTransfer && hasQris && (
+          <div className="grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-100 p-1" role="tablist" aria-label="Pilih metode pembayaran">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={selectedMethod === 'bank'}
+              onClick={() => setSelectedMethod('bank')}
+              className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-2.5 py-2 text-sm font-bold transition ${selectedMethod === 'bank' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}
+            >
+              <Landmark className="h-4 w-4" /> Transfer Bank
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={selectedMethod === 'qris'}
+              onClick={() => setSelectedMethod('qris')}
+              className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-2.5 py-2 text-sm font-bold transition ${selectedMethod === 'qris' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}
+            >
+              <QrCode className="h-4 w-4" /> QRIS
+            </button>
+          </div>
+        )}
+        {hasBankTransfer && (!hasQris || selectedMethod === 'bank') && (
+          <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3 sm:p-4">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700"><Landmark className="h-4 w-4" /></span>
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Transfer Bank</p>
+                <p className="text-sm font-extrabold text-slate-900">{method.bank_name || 'Rekening Bank'}</p>
+              </div>
+            </div>
             {method.account_number && (
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
-                <span className="min-w-0 break-all font-mono text-lg font-extrabold tracking-wide text-slate-900">{method.account_number}</span>
-                <button type="button" onClick={() => void copyAccountNumber()} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label={copied ? 'Nomor rekening tersalin' : 'Salin nomor rekening'} title={copied ? 'Nomor rekening tersalin' : 'Salin nomor rekening'}>
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Nomor rekening</p>
+                  <span className="block break-all font-mono text-base font-extrabold tracking-wide text-slate-900">{method.account_number}</span>
+                </div>
+                <button type="button" onClick={() => void copyAccountNumber()} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 transition hover:bg-blue-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label={copied ? 'Nomor rekening tersalin' : 'Salin nomor rekening'} title={copied ? 'Nomor rekening tersalin' : 'Salin nomor rekening'}>
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </button>
               </div>
             )}
-            <p className="mt-2 text-xs text-slate-500">Nama penerima</p>
-            <p className="text-sm font-semibold text-slate-800">{method.recipient_name}</p>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-xs text-slate-500">Nama penerima</span>
+              <span className="text-sm font-semibold text-slate-800">{method.recipient_name}</span>
+            </div>
             {copyError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">{copyError}</p>}
           </div>
         )}
-        {method.qris_storage_path && (
-          <div className="rounded-xl border border-slate-200 p-3 sm:p-4">
-            <p className="mb-3 text-sm font-bold text-slate-800">QRIS · {method.recipient_name}</p>
-            <img src={supabase.storage.from('standupindo-media').getPublicUrl(method.qris_storage_path).data.publicUrl} alt="QRIS pembayaran Event" className="mx-auto max-h-72 rounded-xl border border-slate-200" />
+        {hasQris && (!hasBankTransfer || selectedMethod === 'qris') && (
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="mb-2 flex items-center gap-2">
+              <QrCode className="h-4 w-4 text-blue-700" />
+              <p className="text-sm font-bold text-slate-800">Bayar dengan QRIS</p>
+            </div>
+            <p className="mb-3 text-xs text-slate-500">Pindai kode QR menggunakan aplikasi pembayaran. Penerima: <span className="font-semibold text-slate-700">{method.recipient_name}</span></p>
+            {qrisPath && <img src={supabase.storage.from('standupindo-media').getPublicUrl(qrisPath).data.publicUrl} alt="QRIS pembayaran Event" className="mx-auto max-h-64 rounded-lg border border-slate-200 object-contain" />}
           </div>
         )}
-        {method.note && <p className="text-xs leading-5 text-slate-500">{method.note}</p>}
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        {method.note && <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">{method.note}</p>}
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 sm:p-4">
           <p className="text-xs font-bold uppercase tracking-wider text-amber-800">Jumlah transfer wajib sama</p>
           <p className="mt-1 text-2xl font-black text-slate-900">{formatPrice(totalPrice)}</p>
           <p className="mt-1 text-xs leading-5 text-amber-900">Pastikan jumlah yang ditransfer sama persis dengan total pembayaran agar order dapat diverifikasi.</p>
@@ -112,6 +152,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
   const [proofPreviewUrl, setProofPreviewUrl] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('Draft Pembayaran');
   const [uploadingProof, setUploadingProof] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
 
   useEffect(() => {
     if (!proofFile) {
@@ -132,7 +173,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
       setEvent(eventRow);
 
       if (eventRow) {
-        const { data: ticketData } = await supabase.from('event_tickets').select('*').eq('id', ticketId).eq('event_id', eventRow.id).eq('status', 'active').maybeSingle();
+        const { data: ticketData } = await supabase.from('event_tickets').select('*').eq('id', ticketId).eq('event_id', eventRow.id).eq('status', 'active').eq('available_public', true).maybeSingle();
         if (active) setTicket((ticketData as EventTicket) ?? null);
         const { data: paymentAssignment, error: assignmentError } = await supabase.from('event_payment_method_assignments')
           .select('payment_method_id')
@@ -178,6 +219,10 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
     if (!event || !ticket) return;
     setError('');
 
+    if (!legalAccepted) {
+      setError('Setujui Syarat & Ketentuan serta Kebijakan Privasi sebelum melanjutkan.');
+      return;
+    }
     if (!form.full_name.trim() || !form.email.trim() || !form.whatsapp.trim()) {
       setError('Lengkapi nama lengkap, email, dan nomor WhatsApp.');
       return;
@@ -227,6 +272,11 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
   }
 
   async function confirmPaymentProof() {
+    if (!legalAccepted) {
+      setError('Setujui Syarat & Ketentuan serta Kebijakan Privasi sebelum mengirim order.');
+      setPaymentConfirmationOpen(false);
+      return;
+    }
     if (!event || !ticket || !proofFile) return;
     setUploadingProof(true);
     setError('');
@@ -394,8 +444,8 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
                 {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
                 <div className="flex flex-col-reverse gap-2 sm:flex-row">
                   <button type="button" onClick={() => setPaymentConfirmationOpen(false)} disabled={uploadingProof} className="btn-secondary flex-1">Periksa Lagi</button>
-                  <button type="button" onClick={() => void confirmPaymentProof()} disabled={uploadingProof} className="btn-primary flex-1">
-                    {uploadingProof ? 'Membuat order dan mengirim bukti...' : <><ArrowRight className="h-4 w-4" /> Konfirmasi & Kirim Order</>}
+                  <button type="button" onClick={() => void confirmPaymentProof()} disabled={uploadingProof || !legalAccepted} className="btn-primary flex-1">
+                    {uploadingProof ? 'Membuat order dan mengirim bukti...' : <><ArrowRight className="h-4 w-4" /> Konfirmasi &amp; Kirim Orderan</>}
                   </button>
                 </div>
               </div>
@@ -409,24 +459,25 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader router={router} title="Pesan Tiket" subtitle={event.title} />
+      <PageHeader router={router} title="Pesan Tiket" />
       <div className="container-app py-8 sm:py-10">
         <div className="mx-auto max-w-xl">
           <form data-scroll-reveal onSubmit={submit} className="scroll-reveal card space-y-4 p-5 sm:p-7">
-            <div className="flex items-start gap-3 border-b border-slate-100 pb-5">
+            <div className="flex items-stretch gap-3 border-b border-slate-100 pb-5">
               {event.poster ? (
-                <img src={event.poster} alt={`Poster ${event.title}`} className="h-16 w-24 shrink-0 rounded-xl object-cover ring-1 ring-slate-200 sm:h-20 sm:w-28" />
+                <img src={event.poster} alt={`Poster ${event.title}`} className="w-24 shrink-0 self-stretch rounded-xl bg-white object-contain ring-1 ring-slate-200 sm:w-28" />
               ) : (
-                <span className="flex h-16 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-blue-100 sm:h-20 sm:w-28">
+                <span className="flex w-24 shrink-0 items-center justify-center self-stretch overflow-hidden rounded-xl bg-white ring-1 ring-blue-100 sm:w-28">
                   <img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-9 w-9 object-contain" />
                 </span>
               )}
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Ticket className="h-5 w-5" /></span>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
+                <p className="mb-1 line-clamp-2 text-xs font-semibold leading-4 text-slate-500">{event.title}</p>
                 <h2 className="font-extrabold text-slate-900">{ticket.name}</h2>
                 <p className="mt-1 text-sm text-slate-500">{formatDate(event.date)} · {event.venue}</p>
-                <p className="mt-1 text-sm font-bold text-slate-900">{formatPrice(ticket.price)} / tiket</p>
+                <p className="mt-1 text-sm font-bold text-slate-900">{formatPrice(ticket.price)}</p>
               </div>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Ticket className="h-5 w-5" /></span>
             </div>
 
             <div>
@@ -465,9 +516,25 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
               <input id="ticket-payment-proof" type="file" accept="image/jpeg,image/png,image/webp" onChange={(input) => setProofFile(input.target.files?.[0] ?? null)} className="input-field" required />
               <p className="mt-1 text-xs text-slate-500">JPG, PNG, WEBP · Maks. 5 MB</p>
             </div>
+            <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+              <input
+                id="ticket-legal-consent"
+                type="checkbox"
+                required
+                checked={legalAccepted}
+                onChange={(input) => setLegalAccepted(input.target.checked)}
+                className="mt-1 h-5 w-5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+              />
+              <label htmlFor="ticket-legal-consent" className="text-sm leading-6 text-slate-700">
+                Saya telah membaca dan menyetujui{' '}
+                <a href={`/syarat-ketentuan?backTo=${encodeURIComponent(`/event/${slug}/tiket/${ticketId}`)}`} target="_blank" rel="noopener noreferrer" onClick={(click) => click.stopPropagation()} className="font-bold text-blue-700 underline underline-offset-2">Syarat &amp; Ketentuan</a>
+                {' '}serta{' '}
+                <a href={`/kebijakan-privasi?backTo=${encodeURIComponent(`/event/${slug}/tiket/${ticketId}`)}`} target="_blank" rel="noopener noreferrer" onClick={(click) => click.stopPropagation()} className="font-bold text-blue-700 underline underline-offset-2">Kebijakan Privasi</a>.
+              </label>
+            </div>
             {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
-            <button type="submit" disabled={uploadingProof || !paymentMethod} className="btn-primary w-full !py-3.5 text-base">
-              {uploadingProof ? 'Mengirim order...' : <><ArrowRight className="h-4 w-4" /> Konfirmasi & Kirim Order</>}
+            <button type="submit" disabled={uploadingProof || !paymentMethod || !legalAccepted} className="btn-primary w-full !py-3.5 text-base">
+              {uploadingProof ? 'Mengirim order...' : <><ArrowRight className="h-4 w-4" /> Konfirmasi &amp; Kirim Orderan</>}
             </button>
           </form>
           <Modal open={paymentConfirmationOpen} onClose={() => !uploadingProof && setPaymentConfirmationOpen(false)} title="Konfirmasi Order" size="md">
@@ -485,8 +552,8 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
               {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
               <div className="flex flex-col-reverse gap-2 sm:flex-row">
                 <button type="button" onClick={() => setPaymentConfirmationOpen(false)} disabled={uploadingProof} className="btn-secondary flex-1">Periksa Lagi</button>
-                <button type="button" onClick={() => void confirmPaymentProof()} disabled={uploadingProof} className="btn-primary flex-1">
-                  {uploadingProof ? 'Mengirim order...' : <><ArrowRight className="h-4 w-4" /> Kirim Order</>}
+                <button type="button" onClick={() => void confirmPaymentProof()} disabled={uploadingProof || !legalAccepted} className="btn-primary flex-1">
+                  {uploadingProof ? 'Mengirim order...' : <><ArrowRight className="h-4 w-4" /> Konfirmasi &amp; Kirim Orderan</>}
                 </button>
               </div>
             </div>

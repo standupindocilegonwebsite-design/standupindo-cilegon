@@ -179,7 +179,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
                   </div>
                 ) : (
                   <button type="button" onClick={() => form.photo && setPreviewPhoto(true)} className="block h-full w-full" aria-label={form.photo ? 'Lihat foto profil' : undefined}>
-                    {form.photo ? <img src={form.photo} alt="Foto profil" className="aspect-[4/4.5] w-full object-cover bg-slate-100" /> : <div className="flex aspect-[4/4.5] w-full items-center justify-center bg-white text-blue-600"><UserRound className="h-9 w-9" /></div>}
+                    {form.photo ? <img src={form.photo} alt="Foto profil" className="aspect-[4/4.5] w-full bg-slate-100 object-contain" /> : <div className="flex aspect-[4/4.5] w-full items-center justify-center bg-white text-blue-600"><UserRound className="h-9 w-9" /></div>}
                   </button>
                 )}
               </div>

@@ -454,10 +454,10 @@ serve(async (request) => {
       ticketRows.sort((first, second) => second.issued_at.localeCompare(first.issued_at));
       const orderIds = [...new Set(ticketRows.map((ticket) => ticket.ticket_order_id))];
       const eventIds = [...new Set(ticketRows.map((ticket) => ticket.event_id))];
-      const orders: Array<{ id: string; order_number: string | null; full_name: string; whatsapp: string; ticket_category: string; status: string; order_type: 'paid' | 'free_pass'; free_pass_reason: string | null }> = [];
+      const orders: Array<{ id: string; order_number: string | null; full_name: string; whatsapp: string; ticket_category: string; status: string; order_type: 'paid' | 'free_pass'; sale_channel: 'online' | 'ots' | 'free_pass'; free_pass_reason: string | null }> = [];
       for (const ids of chunkValues(orderIds)) {
         const { data, error } = await fetchAllPages((from, to) => serviceClient.from('ticket_orders')
-          .select('id, order_number, full_name, whatsapp, ticket_category, status, order_type, free_pass_reason').in('id', ids).order('id', { ascending: true }).range(from, to));
+          .select('id, order_number, full_name, whatsapp, ticket_category, status, order_type, sale_channel, free_pass_reason').in('id', ids).order('id', { ascending: true }).range(from, to));
         if (error) return json({ error: 'Detail order gagal dimuat.' }, 500);
         orders.push(...(data ?? []));
       }
@@ -814,6 +814,115 @@ serve(async (request) => {
         send_count: codeRecord.send_count,
         whatsapp_url: whatsappUrl(order.whatsapp, accessMessage(order.full_name, event?.title ?? 'Event', order.order_number ?? order.id, accessCode, ticketPageUrl)),
         ticket_count: result.issued_ticket_count,
+      });
+    }
+
+    if (body.action === 'issue-ots-sale') {
+      if (!encryptionKey || !accessCodePepper) return json({ error: 'Secret Ticketing belum dikonfigurasi.' }, 500);
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!body.event_id || !uuidPattern.test(body.event_id) || !body.ticket_id || !uuidPattern.test(body.ticket_id)
+        || !body.full_name?.trim() || body.full_name.trim().length > 160 || !body.whatsapp?.trim()
+        || !Number.isInteger(body.quantity) || (body.quantity ?? 0) < 1 || (body.quantity ?? 0) > 10
+        || (!isAdmin && !isTicketAdmin)) {
+        return json({ error: 'Lengkapi Event, kategori, nama maksimal 160 karakter, WhatsApp, dan jumlah 1–10.' }, 400);
+      }
+      const ticketPageUrl = getTicketPageUrl(request.headers.get('origin'));
+      if (!ticketPageUrl) return json({ error: 'Domain halaman tiket tidak dapat ditentukan dari request.' }, 400);
+      if (!await hasEventScope(body.event_id, 'admin_ticket')) return json({ error: 'Event berada di luar scope Admin Tiket.' }, 403);
+
+      const [{ data: event, error: eventError }, { data: category, error: categoryError }] = await Promise.all([
+        serviceClient.from('events').select('id, title, status, date, time, venue, location, poster, event_rules').eq('id', body.event_id).maybeSingle(),
+        serviceClient.from('event_tickets').select('id, event_id, name, status, available_ots, ots_price')
+          .eq('id', body.ticket_id).eq('event_id', body.event_id).maybeSingle(),
+      ]);
+      if (eventError || categoryError) return json({ error: 'Informasi Event atau kategori gagal dimuat.' }, 500);
+      if (!event || event.status !== 'upcoming' || !category || category.status !== 'active'
+        || !category.available_ots || category.ots_price === null) {
+        return json({ error: 'Event atau kategori tiket tidak tersedia untuk penjualan OTS.' }, 404);
+      }
+
+      const normalizedPhone = normalizeWhatsapp(body.whatsapp);
+      if (normalizedPhone.length < 10 || normalizedPhone.length > 15) return json({ error: 'Nomor WhatsApp penerima tidak valid.' }, 400);
+      const { data: previousCodes, error: previousCodesError } = await serviceClient.from('ticket_access_codes')
+        .select('whatsapp_code_hash').eq('whatsapp_normalized', normalizedPhone);
+      if (previousCodesError) return json({ error: 'Riwayat Kode Akses gagal dimuat.' }, 500);
+      const usedCodeHashes = new Set((previousCodes ?? []).map((entry) => entry.whatsapp_code_hash));
+
+      let issuedData: unknown = null;
+      let issueError: { message: string; code?: string } | null = null;
+      let orderNumber = '';
+      let qrTokenValues: string[] = [];
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        orderNumber = createTicketOrderNumber(event.title);
+        const accessCode = createAccessCode();
+        const phoneCodeHash = await whatsappAccessCodeHash(normalizedPhone, accessCode, accessCodePepper);
+        if (usedCodeHashes.has(phoneCodeHash)) continue;
+        const codeHash = await accessCodeHash(body.event_id, normalizedPhone, accessCode, accessCodePepper);
+        const codeCiphertext = await encryptSecret(accessCode, encryptionKey);
+        qrTokenValues = Array.from({ length: body.quantity! }, () => randomToken());
+        const qrTokens = await Promise.all(qrTokenValues.map(async (token) => {
+          return { hash: await sha256(token), ciphertext: await encryptSecret(token, encryptionKey) };
+        }));
+        const result = await serviceClient.rpc('issue_ticket_ots', {
+          p_order_number: orderNumber,
+          p_event_id: body.event_id,
+          p_ticket_id: body.ticket_id,
+          p_full_name: body.full_name.trim(),
+          p_whatsapp: normalizedPhone,
+          p_quantity: body.quantity,
+          p_actor_id: authData.user.id,
+          p_access_code_hash: codeHash,
+          p_whatsapp_code_hash: phoneCodeHash,
+          p_access_code_ciphertext: codeCiphertext,
+          p_qr_tokens: qrTokens,
+        });
+        issuedData = result.data;
+        issueError = result.error;
+        if (!issueError || issueError.code !== '23505') break;
+      }
+      if (issueError) return json({ error: issueError.message }, 400);
+      const issued = Array.isArray(issuedData) ? issuedData[0] : issuedData as Record<string, unknown> | null;
+      if (!issued?.issued_order_id || typeof issued.resolved_access_code_id !== 'string') {
+        return json({ error: 'Penjualan OTS tidak berhasil diterbitkan.' }, 500);
+      }
+
+      const { data: codeRecord, error: codeError } = await serviceClient.from('ticket_access_codes')
+        .select('access_code_ciphertext').eq('id', issued.resolved_access_code_id).maybeSingle();
+      if (codeError || !codeRecord) return json({ error: 'Tiket terbit, tetapi Kode Akses belum dapat dibaca.' }, 500);
+      const accessCode = await decryptSecret(codeRecord.access_code_ciphertext, encryptionKey);
+      const { data: ticketRows, error: ticketRowsError } = await serviceClient.from('ticket_instances')
+        .select('id, sequence_no, qr_token_ciphertext')
+        .eq('ticket_order_id', issued.issued_order_id)
+        .order('sequence_no', { ascending: true });
+      if (ticketRowsError || !ticketRows || ticketRows.length !== body.quantity) {
+        return json({ error: `Order ${orderNumber} sudah terbit, tetapi data QR tiket untuk PDF gagal dimuat. Jangan buat order ulang; muat ulang daftar tiket dan hubungi admin jika QR belum tersedia.` }, 500);
+      }
+      const tickets = await Promise.all(ticketRows.map(async (ticket) => ({
+        id: ticket.id,
+        sequence_no: ticket.sequence_no,
+        qr_token: await decryptSecret(ticket.qr_token_ciphertext, encryptionKey),
+      })));
+      const message = `Halo *${body.full_name.trim()}*, tiket OTS untuk *${event.title}* sudah berhasil dibuat.\n\nOrder *#${orderNumber}* · ${body.quantity} tiket ${category.name}\nKode Akses: *${accessCode}*\n\nBuka tiket dan QR: ${ticketPageUrl}\n\nMasuk menggunakan nomor WhatsApp yang terdaftar dan Kode Akses tersebut.`;
+      return json({
+        order_number: orderNumber,
+        access_code: accessCode,
+        whatsapp_url: whatsappUrl(normalizedPhone, message),
+        whatsapp_message: message,
+        ticket_count: body.quantity,
+        unit_price: category.ots_price,
+        total_price: category.ots_price * body.quantity,
+        tickets,
+        event: {
+          title: event.title,
+          date: event.date,
+          time: event.time ?? '',
+          venue: event.venue ?? '',
+          location: event.location,
+          poster: event.poster,
+          event_rules: event.event_rules,
+        },
+        category: category.name,
+        full_name: body.full_name.trim(),
       });
     }
 

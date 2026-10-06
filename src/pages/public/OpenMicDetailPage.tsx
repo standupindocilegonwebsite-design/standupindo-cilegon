@@ -13,6 +13,8 @@ import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
+import { ShareLineupModal } from '@/components/open-mic/ShareLineupModal';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 
 interface Props {
   router: Router;
@@ -32,6 +34,7 @@ function setOgTags(title: string, description: string, image: string, url: strin
 }
 
 export function OpenMicDetailPage({ router, slug }: Props) {
+  const { settings } = useSiteSettings();
   const [loading, setLoading] = useState(true);
   const [mic, setMic] = useState<OpenMic | null>(null);
   const [confirmed, setConfirmed] = useState<OpenMicRegistration[]>([]);
@@ -42,6 +45,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
   const [lightbox, setLightbox] = useState(false);
   const [copied, setCopied] = useState(false);
   const [posterShareFile, setPosterShareFile] = useState<File | null>(null);
+  const [shareLineupOpen, setShareLineupOpen] = useState(false);
   const [stageInfoExpanded, setStageInfoExpanded] = useState(false);
   const [lineupSearch, setLineupSearch] = useState('');
   const [otherMicSearch, setOtherMicSearch] = useState('');
@@ -105,7 +109,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
     setPosterShareFile(null);
     const posterUrl = mic?.poster;
     const openMicSlug = mic?.slug;
-    if (!posterUrl || !openMicSlug || typeof navigator === 'undefined' || typeof navigator.canShare !== 'function') return;
+    if (!posterUrl || !openMicSlug || !mic || getOpenMicStatus(mic.status, mic.date) === 'completed' || typeof navigator === 'undefined' || typeof navigator.canShare !== 'function') return;
 
     const controller = new AbortController();
     void (async () => {
@@ -124,7 +128,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
     })();
 
     return () => controller.abort();
-  }, [mic?.poster, mic?.slug]);
+  }, [mic?.poster, mic?.slug, mic?.status, mic?.date]);
 
   useEffect(() => {
     if (!mic) return;
@@ -351,7 +355,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
               <h2 className="text-lg font-bold text-slate-900 sm:text-xl">{currentStatus === 'completed' ? 'DAFTAR LINEUP' : 'LINEUP SEMENTARA'}</h2>
               <p className="mt-1 text-sm font-semibold text-slate-800">{currentStatus === 'completed' ? `${confirmed.length} KOMIKA PERFORM` : `${confirmed.length} KOMIKA TERDAFTAR`}</p>
             </div>
-            <button onClick={() => void shareLineup()} aria-label={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} title={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} className="inline-flex shrink-0 items-center justify-center rounded-full bg-blue-50 p-2.5 text-blue-700 transition hover:bg-blue-100 active:scale-[0.98]">
+            <button onClick={() => currentStatus === 'completed' ? setShareLineupOpen(true) : void shareLineup()} aria-label={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} title={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} className="inline-flex shrink-0 items-center justify-center rounded-full bg-blue-50 p-2.5 text-blue-700 transition hover:bg-blue-100 active:scale-[0.98]">
               {copied ? <Check className="h-4 w-4 text-green-600" /> : <Send className="h-4 w-4" />}
             </button>
           </div>
@@ -460,6 +464,15 @@ export function OpenMicDetailPage({ router, slug }: Props) {
         <ImageLightbox src={mic.poster} alt={`${mic.title} poster`} open={lightbox} onClose={() => setLightbox(false)} />
       )}
 
+      <ShareLineupModal
+        open={shareLineupOpen && currentStatus === 'completed'}
+        onClose={() => setShareLineupOpen(false)}
+        mic={mic}
+        performers={confirmed}
+        shareText={`${shareText}\n${pageUrl}`}
+        siteLogo={settings.logo_url}
+        affiliationLogo={settings.affiliation_logo_url}
+      />
     </div>
   );
 }
@@ -467,7 +480,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
 function publicLineupQuery(openMicId: string, onlyAttended: boolean) {
   const query = supabase
     .from('open_mic_registrations')
-    .select('id, open_mic_id, stage_name, community, instagram, status, created_at')
+    .select('id, open_mic_id, komika_id, stage_name, community, instagram, status, created_at')
     .eq('open_mic_id', openMicId)
     .eq('status', 'confirmed')
     .order('created_at', { ascending: true });

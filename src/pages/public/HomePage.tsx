@@ -171,9 +171,9 @@ export function HomePage({ router }: Props) {
       const today = new Date().toISOString().slice(0, 10);
       const [{ data: micData }, { data: eventData }, { data: komikaData }, { data: ticketData }, { data: partnerData }] = await Promise.all([
         supabase.from('open_mics').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }),
-        supabase.from('events').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(3),
+        supabase.from('events').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(5),
         supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active'),
-        supabase.from('event_tickets').select('event_id, price').eq('status', 'active').order('price', { ascending: true }),
+        supabase.from('event_tickets').select('event_id, price').eq('status', 'active').eq('available_public', true).order('price', { ascending: true }),
         supabase.from('partners').select('*').eq('is_published', true).order('sort_order', { ascending: true }).order('name', { ascending: true }),
       ]);
 
@@ -274,7 +274,9 @@ export function HomePage({ router }: Props) {
           </div>
           <div className="mt-6">
             {loading ? (
-              <div className={`-mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(3)} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
+              <div className={`-mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(5)} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
+                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
+                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
@@ -282,8 +284,8 @@ export function HomePage({ router }: Props) {
             ) : mics.length === 0 ? (
               <EmptyState title="Belum ada Open Mic yang tersedia." description="Pantau terus untuk panggung berikutnya." noSmokeArea />
             ) : (
-              <AutoSlideRow highlightActive highlightTone="blue" lightLeakSlot="open-mic" activeLightLeakSlot={activeLightLeakSlot} className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(Math.min(mics.length, 3))} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
-                {mics.slice(0, 3).map((m) => (
+              <AutoSlideRow highlightActive highlightTone="blue" lightLeakSlot="open-mic" activeLightLeakSlot={activeLightLeakSlot} className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(Math.min(mics.length, 5))} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
+                {mics.slice(0, 5).map((m) => (
                   <div key={m.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                     <OpenMicCard mic={m} openMicNumber={openMicNumbers.get(m.id)} confirmedCount={confirmedCounts[m.id] ?? 0} router={router} />
                   </div>
@@ -304,14 +306,17 @@ export function HomePage({ router }: Props) {
           </div>
           <div className="mt-6">
             {loading ? (
-              <div className={`-mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(2)} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
+              <div className={`-mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(5)} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
+                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
+                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
+                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
               </div>
             ) : events.length === 0 ? (
               <EmptyState title="Belum ada event mendatang." noSmokeArea />
             ) : (
-              <AutoSlideRow highlightActive highlightTone="amber" lightLeakSlot="event" activeLightLeakSlot={activeLightLeakSlot} className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(events.length)} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
+              <AutoSlideRow highlightActive highlightTone="amber" lightLeakSlot="event" activeLightLeakSlot={activeLightLeakSlot} className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(Math.min(events.length, 5))} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
                 {events.map((e) => (
                   <div key={e.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
                     <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
