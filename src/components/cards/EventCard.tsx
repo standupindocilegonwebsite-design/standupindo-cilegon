@@ -56,15 +56,16 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
           </div>
           {!isCompleted && (
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent px-3 pb-3 pt-20 sm:px-4 sm:pb-4 sm:pt-24">
+              <p className="mb-2 w-fit rounded-sm bg-blue-600 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white sm:text-xs">Event</p>
               <h3 className="mb-2 line-clamp-2 break-words text-left text-base font-extrabold leading-5 text-white sm:text-lg sm:leading-6">{event.title}</h3>
               <div className="space-y-1.5 text-left text-xs font-semibold leading-4 text-white sm:text-sm">
-                <div className="flex min-w-0 items-center gap-2">
-                  <Calendar className="h-4 w-4 shrink-0 text-sky-300" />
-                  <span className="truncate">{formatDate(event.date)}</span>
+                <div className="flex w-fit max-w-full min-w-0 items-center gap-2 rounded-md border border-white/20 bg-slate-950/55 px-2 py-1 backdrop-blur-sm">
+                  <Calendar className="h-4 w-4 shrink-0 text-sky-200" />
+                  <span className="truncate drop-shadow-sm">{formatDate(event.date)}</span>
                 </div>
-                <div className="flex min-w-0 items-center gap-2">
-                  <Clock className="h-4 w-4 shrink-0 text-sky-300" />
-                  <span className="truncate">{event.time} WIB</span>
+                <div className="flex w-fit max-w-full min-w-0 items-center gap-2 rounded-md border border-white/20 bg-slate-950/55 px-2 py-1 backdrop-blur-sm">
+                  <Clock className="h-4 w-4 shrink-0 text-sky-200" />
+                  <span className="truncate drop-shadow-sm">{event.time} WIB</span>
                 </div>
               </div>
             </div>
@@ -72,7 +73,10 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
         </div>
 
         <div className={isCompleted ? 'flex min-w-0 flex-1 flex-col overflow-hidden p-3 sm:p-4' : 'p-3 sm:p-4'}>
-          {isCompleted && <h3 className="line-clamp-2 break-words text-base font-extrabold tracking-[-0.02em] text-slate-900 sm:text-lg">{event.title}</h3>}
+          {isCompleted && <>
+            <p className="mb-2 w-fit rounded-sm bg-blue-600 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white sm:text-xs">Event</p>
+            <h3 className="line-clamp-2 break-words text-base font-extrabold tracking-[-0.02em] text-slate-900 sm:text-lg">{event.title}</h3>
+          </>}
 
           {isCompleted && <div className="mt-2 space-y-1.5 text-sm text-slate-600">
             <div className="flex min-w-0 items-center gap-2"><Calendar className="h-4 w-4 shrink-0 text-blue-600" /><span className="min-w-0 truncate">{formatDate(event.date)}</span></div>

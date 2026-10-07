@@ -1,6 +1,7 @@
 import { BookOpen, ClipboardList, House, Menu, Mic, UserRound } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { MobileBottomNavPortal } from '@/components/nav/MobileBottomNavPortal';
+import { useMemberNotificationCounts } from '@/components/nav/member-notification-counts';
 
 const ITEMS = [
   { to: '/member', label: 'Home', icon: House },
@@ -12,6 +13,7 @@ const ITEMS = [
 ];
 
 export function MemberBottomNav({ router }: { router: Router }) {
+  const { openMic: openMicNotifications, evaluations: evaluationNotifications } = useMemberNotificationCounts();
   const isActive = (to: string) => {
     if (to === '/member') return router.path === '/member';
     return router.path === to || router.path.startsWith(`${to}/`);
@@ -26,6 +28,9 @@ export function MemberBottomNav({ router }: { router: Router }) {
         {ITEMS.map((item) => {
           const active = isActive(item.to);
           const Icon = item.icon;
+          const notificationCount = item.to === '/member/open-mic'
+            ? openMicNotifications
+            : item.to === '/member/evaluations' ? evaluationNotifications : 0;
           return (
             <button
               key={item.to}
@@ -35,11 +40,12 @@ export function MemberBottomNav({ router }: { router: Router }) {
               aria-current={active ? 'page' : undefined}
             >
               <span
-                className={`mobile-nav-icon flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 ${
+                className={`mobile-nav-icon relative flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 ${
                   active ? 'mobile-nav-icon-active bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)]' : 'text-slate-400'
                 }`}
               >
                 <Icon className="h-5 w-5" />
+                {notificationCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold text-white">{notificationCount > 99 ? '99+' : notificationCount}</span>}
               </span>
               <span className={`mobile-nav-label text-[10px] font-semibold ${active ? 'mobile-nav-label-active text-blue-700' : 'text-slate-400'}`}>
                 {item.label}

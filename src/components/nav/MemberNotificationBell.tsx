@@ -1,10 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Bell, CheckCircle2, ChevronRight, ClipboardCheck } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
+import { MemberNotificationCountsContext, useMemberNotificationCounts } from '@/components/nav/member-notification-counts';
 
 type MemberNotification = { id: string; title: string; description: string; href: string; kind: 'registration' | 'event' | 'evaluation' };
+
+export function MemberNotificationCountsProvider({ children }: { children: ReactNode }) {
+  const [counts, setCounts] = useState({ openMic: 0, evaluations: 0 });
+  const updateCounts = useCallback((items: Array<{ kind: MemberNotification['kind'] }>) => {
+    setCounts({
+      openMic: items.filter((item) => item.kind !== 'evaluation').length,
+      evaluations: items.filter((item) => item.kind === 'evaluation').length,
+    });
+  }, []);
+  const value = useMemo(() => ({ ...counts, setCounts: updateCounts }), [counts, updateCounts]);
+
+  return <MemberNotificationCountsContext.Provider value={value}>{children}</MemberNotificationCountsContext.Provider>;
+}
 
 async function fetchReadIds(userId: string): Promise<Set<string>> {
   const { data, error } = await supabase.from('member_notification_reads').select('notification_key').eq('user_id', userId);
@@ -14,6 +28,7 @@ async function fetchReadIds(userId: string): Promise<Set<string>> {
 
 export function MemberNotificationBell({ router }: { router: Router }) {
   const { user } = useAuth();
+  const { setCounts } = useMemberNotificationCounts();
   const [items, setItems] = useState<MemberNotification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -117,6 +132,7 @@ export function MemberNotificationBell({ router }: { router: Router }) {
 
   const unreadCount = items.length;
   const groupedLabel = useMemo(() => unreadCount > 99 ? '99+' : String(unreadCount), [unreadCount]);
+  useEffect(() => { setCounts(items); }, [items, setCounts]);
 
   async function markRead(item: MemberNotification) {
     if (!user?.id) return;

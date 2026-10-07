@@ -104,6 +104,8 @@ Panduan lama pernah mencantumkan baseline sampai fitur September, tetapi belum m
 
 **Status praktis:** sebelum paket migration bersih tersebut tersedia dan lolos uji dari nol, tahap database adalah blocker; jangan publish ke pengguna dan jangan mengarang urutan dengan memilih timestamp sendiri.
 
+**Hasil pemeriksaan source 7 Oktober 2026:** `npm run build` berhasil, tetapi `npm run typecheck` dan `npm run lint` masih gagal pada source saat ini. Selesaikan atau tinjau error tersebut terlebih dahulu; jangan melewati quality gate hanya karena bundle dapat dibangun.
+
 ### CLI atau SQL Editor?
 
 - **Rekomendasi: Supabase CLI** setelah paket migration bersih tersedia. CLI menyimpan/mengecek riwayat migration dan mengurangi risiko file dijalankan salah urut.
@@ -126,6 +128,18 @@ Setelah schema lolos validasi dan diterapkan ke project baru:
 7. Periksa log function setelah deploy. Jangan mengaktifkan scheduler sebelum secrets dan endpoint target telah benar.
 
 Daftar nama secret harus diinventarisasi dari `Deno.env.get(...)` di setiap function yang akan dideploy. Masukkan hanya secret yang memang diperlukan fungsi tersebut, dan simpan nilainya secara privat.
+
+### Fitur terbaru yang perlu disiapkan pada clone
+
+Fitur di bawah sudah ada pada source saat runbook ini diperbarui. Jika fitur dipakai di komunitas baru, masukkan migration dan konfigurasinya ke baseline bersih yang telah diuji; jangan menyalin data atau secrets produksi Cilegon.
+
+| Fitur | Yang wajib disesuaikan atau diuji |
+| --- | --- |
+| Login lintas perangkat | Migration `20261007134000_add_account_active_sessions.sql` membuat catatan perangkat aktif, RLS, dan Realtime. Sertakan dalam paket migration tervalidasi dan terapkan sebelum frontend yang memakai fitur ini. Uji login Admin dan Member di dua browser/perangkat, pilihan batal dan pindah, serta logout. Realtime mengeluarkan sesi aplikasi lama; Supabase tidak dapat membatalkan access JWT yang sudah diterbitkan sebelum masa berlakunya habis. |
+| Email dan akses tiket | `ticketing-admin` saat ini memakai `noreply@standupindocilegon.id` dan tautan `https://standupindocilegon.id/tiket` secara hardcode. Ganti keduanya dengan domain komunitas clone, verifikasi domain di Resend, dan set `RESEND_API_KEY` milik komunitas. Buat nilai rahasia unik untuk `TICKET_ACCESS_CODE_ENCRYPTION_KEY`, `TICKET_ACCESS_CODE_PEPPER`, dan `TICKET_ACCESS_RATE_LIMIT_PEPPER` sesuai kebutuhan `ticketing-admin`/`ticketing-public`; jangan gunakan ulang nilai Cilegon. |
+| Ketersediaan tiket | Uji kategori yang kuotanya benar-benar habis (tidak dapat dipesan dan tidak ditawarkan sebagai tiket tersedia) terpisah dari kategori yang kuotanya sedang tertahan order belum selesai (tetap terlihat tetapi pemesanan nonaktif). Pastikan pemeriksaan server pada `ticketing-public` tetap menjadi otoritas, bukan hanya status UI. |
+| Notifikasi Admin dan Member | Buat order tiket uji dan pastikan notifikasi Admin Tiket menampilkan nama pembeli, event, dan kategori/status yang tepat. Pastikan badge mengikuti menu tujuan untuk setiap role Admin dan Member, bukan hanya total lonceng. Uji perubahan status/realtime dan hak akses tiap role. |
+| Popup Instagram | Isi `instagram_url` pada Settings dengan URL HTTPS Instagram komunitas baru. Popup hanya untuk pengunjung yang belum login, menunggu sekitar 4 detik, dan tidak tampil di halaman tiket/pendaftaran. Batas saat ini maksimal 3 kali per 30 hari, minimal jeda 1 hari, jeda 7 hari setelah ditutup, dan 30 hari setelah follow. Status tersimpan di browser, bukan di akun; uji tampil/tutup/follow pada browser bersih. |
 
 ## Tahap 6 — Isi data dan branding
 
@@ -211,6 +225,10 @@ Perubahan `.env` frontend memerlukan build dan upload ulang `dist`.
 - [ ] Admin baru dibuat; migration seed credential tidak dijalankan.
 - [ ] Resend account, domain, sender, dan API key mandiri.
 - [ ] Push secrets/VAPID/Vault mandiri jika push diaktifkan.
+- [ ] Secrets ticket-access unik; sender email dan tautan tiket tidak lagi menunjuk ke Cilegon.
+- [ ] Login lintas perangkat diuji setelah migration aktif dan sebelum frontend dirilis.
+- [ ] Ketersediaan tiket, notifikasi pembeli, serta badge per-menu diuji untuk role terkait.
+- [ ] Popup Instagram memakai URL komunitas baru dan aturan tampilnya diuji.
 - [ ] Branding statis dan dinamis sudah diperiksa.
 - [ ] `.env` hanya berisi URL/key publik dari project baru dan tidak di-commit.
 - [ ] `npm run typecheck`, `npm run lint`, dan `npm run build` lulus.

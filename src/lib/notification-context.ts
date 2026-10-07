@@ -2,7 +2,13 @@ import { createContext, useContext } from 'react';
 
 export type NotificationSource = 'ticket-orders' | 'open-mic' | 'event-participants' | 'applications';
 
-export type NotificationRecord = { id: string; status: string; source: NotificationSource };
+export type NotificationRecord = {
+  id: string;
+  status: string;
+  source: NotificationSource;
+  fullName?: string;
+  eventTitle?: string;
+};
 
 export type NotificationContextValue = {
   unreadCount: number;

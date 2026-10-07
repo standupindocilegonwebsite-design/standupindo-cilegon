@@ -31,6 +31,18 @@ type RequestBody = {
   replace_existing?: boolean;
 };
 
+type PublicTicketAvailability = {
+  id: string;
+  quota: number | null;
+};
+
+type TicketOrderReservation = {
+  ticket_id: string;
+  quantity: number;
+  status: string;
+  expires_at: string | null;
+};
+
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 }
@@ -61,6 +73,58 @@ serve(async (request) => {
   try { body = await request.json(); } catch { return json({ error: 'Data permintaan tidak valid.' }, 400); }
 
   try {
+    if (body.action === 'ticket-availability') {
+      if (!body.event_id) return json({ error: 'Event wajib dipilih.' }, 400);
+
+      const { data: event, error: eventError } = await serviceClient.from('events')
+        .select('id').eq('id', body.event_id).eq('published', true).eq('status', 'upcoming').maybeSingle();
+      if (eventError) return json({ error: 'Status ketersediaan tiket gagal diperiksa.' }, 500);
+      if (!event) return json({ error: 'Event tidak menerima pemesanan tiket.' }, 404);
+
+      const { data: tickets, error: ticketError } = await serviceClient.from('event_tickets')
+        .select('id, quota').eq('event_id', event.id).eq('status', 'active').eq('available_public', true);
+      if (ticketError) return json({ error: 'Status ketersediaan tiket gagal diperiksa.' }, 500);
+
+      const limitedTickets = (tickets ?? []) as PublicTicketAvailability[];
+      const limitedTicketIds = limitedTickets.filter((ticket) => ticket.quota !== null).map((ticket) => ticket.id);
+      const quantitiesByTicket = new Map<string, { confirmed: number; reserved: number }>();
+      const confirmedStatuses = new Set(['Lunas', 'Terverifikasi', 'Selesai']);
+      const reservationStatuses = ['Menunggu Pembayaran', 'Menunggu Verifikasi', 'Sudah Bayar'];
+      const now = Date.now();
+
+      for (const ticketIds of chunkValues(limitedTicketIds)) {
+        const { data: orders, error: orderError } = await fetchAllPages((from, to) => serviceClient.from('ticket_orders')
+          .select('ticket_id, quantity, status, expires_at')
+          .in('ticket_id', ticketIds)
+          .in('status', [...reservationStatuses, ...confirmedStatuses])
+          .range(from, to));
+        if (orderError) return json({ error: 'Status ketersediaan tiket gagal diperiksa.' }, 500);
+
+        for (const order of (orders ?? []) as TicketOrderReservation[]) {
+          const counts = quantitiesByTicket.get(order.ticket_id) ?? { confirmed: 0, reserved: 0 };
+          if (confirmedStatuses.has(order.status)) {
+            counts.confirmed += order.quantity;
+          } else if (!order.expires_at || new Date(order.expires_at).getTime() > now) {
+            counts.reserved += order.quantity;
+          }
+          quantitiesByTicket.set(order.ticket_id, counts);
+        }
+      }
+
+      const availability = limitedTickets.map((ticket) => {
+        if (ticket.quota === null) {
+          return { ticket_id: ticket.id, sold_out: false, temporarily_unavailable: false };
+        }
+        const counts = quantitiesByTicket.get(ticket.id) ?? { confirmed: 0, reserved: 0 };
+        return {
+          ticket_id: ticket.id,
+          sold_out: counts.confirmed >= ticket.quota,
+          temporarily_unavailable: counts.confirmed < ticket.quota && counts.confirmed + counts.reserved >= ticket.quota,
+        };
+      });
+      return json({ availability });
+    }
+
     if (body.action === 'create-order') {
       if (!body.order_number || !body.event_id || !body.ticket_id || !body.full_name || !body.email || !body.whatsapp || !body.quantity) {
         return json({ error: 'Lengkapi Event, tiket, nama, email, WhatsApp, dan jumlah tiket.' }, 400);

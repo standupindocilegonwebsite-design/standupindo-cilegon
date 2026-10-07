@@ -1,6 +1,7 @@
 import { ClipboardCheck, ClipboardList, House, Menu, Mic, UserRound } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { MemberNotificationBell } from '@/components/nav/MemberNotificationBell';
+import { useMemberNotificationCounts } from '@/components/nav/member-notification-counts';
 import { useAuth } from '@/lib/auth-context';
 
 const LINKS = [
@@ -13,6 +14,7 @@ const LINKS = [
 
 export function MemberDesktopNav({ router, sticky = true, compact = false }: { router: Router; sticky?: boolean; compact?: boolean }) {
   const { isEvaluator } = useAuth();
+  const { openMic: openMicNotifications, evaluations: evaluationNotifications } = useMemberNotificationCounts();
   const links = isEvaluator ? [...LINKS.slice(0, 2), { to: '/evaluator', label: 'Evaluator', icon: ClipboardCheck }, ...LINKS.slice(2)] : LINKS;
   const isActive = (to: string) => {
     if (to === '/member') return router.path === '/member';
@@ -36,6 +38,9 @@ export function MemberDesktopNav({ router, sticky = true, compact = false }: { r
           {links.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.to);
+            const notificationCount = item.to === '/member/open-mic'
+              ? openMicNotifications
+              : item.to === '/member/evaluations' ? evaluationNotifications : 0;
             return (
               <button
                 key={item.to}
@@ -45,8 +50,11 @@ export function MemberDesktopNav({ router, sticky = true, compact = false }: { r
                   active ? 'bg-white text-blue-700 shadow-sm' : 'text-blue-50 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <Icon className="h-4 w-4" />
-                {item.label}
+                <span className="relative inline-flex">
+                  <Icon className="h-4 w-4" />
+                  {notificationCount > 0 && <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold text-white">{notificationCount > 99 ? '99+' : notificationCount}</span>}
+                </span>
+                <span>{item.label}</span>
               </button>
             );
           })}

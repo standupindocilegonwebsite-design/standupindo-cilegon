@@ -41,6 +41,7 @@ import { MemberInfoPage } from '@/pages/member/MemberInfoPage';
 import { EvaluatorDashboardPage } from '@/pages/evaluator/EvaluatorDashboardPage';
 import { MemberBottomNav } from '@/components/nav/MemberBottomNav';
 import { MemberDesktopNav } from '@/components/nav/MemberDesktopNav';
+import { MemberNotificationCountsProvider } from '@/components/nav/MemberNotificationBell';
 import { EvaluatorEvaluationPage } from '@/pages/evaluator/EvaluatorEvaluationPage';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { AppCredit } from '@/components/AppCredit';
@@ -62,7 +63,7 @@ function updateSeo(path: string, siteName: string) {
 }
 
 function ProtectedAdmin({ router, settings }: { router: Router; settings: ReturnType<typeof useSiteSettings>['settings'] }) {
-  const { session, loading, isAdminApp } = useAuth();
+  const { session, loading, isAdminApp, deviceSwitchPending } = useAuth();
   const [authWaitExpired, setAuthWaitExpired] = useState(false);
 
   useEffect(() => {
@@ -81,6 +82,7 @@ function ProtectedAdmin({ router, settings }: { router: Router; settings: Return
   }, [loading, session, isAdminApp, router]);
 
   if (loading && !authWaitExpired) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat panel admin...</div>;
+  if (deviceSwitchPending) return <AdminLoginPage router={router} />;
   if (!session || !isAdminApp) {
     return <AdminLoginPage router={router} />;
   }
@@ -88,7 +90,7 @@ function ProtectedAdmin({ router, settings }: { router: Router; settings: Return
 }
 
 function ProtectedMember({ router }: { router: Router }) {
-  const { session, loading, isMember } = useAuth();
+  const { session, loading, isMember, deviceSwitchPending } = useAuth();
   const [authWaitExpired, setAuthWaitExpired] = useState(false);
 
   useEffect(() => {
@@ -107,6 +109,7 @@ function ProtectedMember({ router }: { router: Router }) {
   }, [loading, session, isMember, router]);
 
   if (loading && !authWaitExpired) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Memuat area member...</div>;
+  if (deviceSwitchPending) return <MemberLoginPage router={router} />;
   if (!session || !isMember) {
     return <MemberLoginPage router={router} />;
   }
@@ -186,7 +189,7 @@ function RoutedApp() {
       : <ProtectedMember router={router} />;
 
     return (
-      <>
+      <MemberNotificationCountsProvider>
         <div className="flex min-h-screen flex-col bg-slate-50">
           {router.path !== '/member/login' && <MemberDesktopNav router={router} compact={router.path.startsWith('/member/materials/')} />}
           <main className="flex-1 pb-safe-nav md:pb-0">{memberContent}</main>
@@ -197,19 +200,21 @@ function RoutedApp() {
           )}
           {router.path !== '/member/login' && <MemberBottomNav router={router} />}
         </div>
-      </>
+      </MemberNotificationCountsProvider>
     );
   }
   if (router.path === '/evaluator' || router.path.startsWith('/evaluator/')) {
     return (
-      <div className="flex min-h-screen flex-col bg-slate-50">
-        <MemberDesktopNav router={router} />
-        <main className="flex-1 pb-safe-nav md:pb-0"><ProtectedEvaluator router={router} /></main>
-        <footer className="border-t border-slate-200 bg-white px-4 py-2 pb-[calc(4.5rem+var(--safe-bottom))] md:py-4 md:pb-4">
-          <AppCredit />
-        </footer>
-        <MemberBottomNav router={router} />
-      </div>
+      <MemberNotificationCountsProvider>
+        <div className="flex min-h-screen flex-col bg-slate-50">
+          <MemberDesktopNav router={router} />
+          <main className="flex-1 pb-safe-nav md:pb-0"><ProtectedEvaluator router={router} /></main>
+          <footer className="border-t border-slate-200 bg-white px-4 py-2 pb-[calc(4.5rem+var(--safe-bottom))] md:py-4 md:pb-4">
+            <AppCredit />
+          </footer>
+          <MemberBottomNav router={router} />
+        </div>
+      </MemberNotificationCountsProvider>
     );
   }
 

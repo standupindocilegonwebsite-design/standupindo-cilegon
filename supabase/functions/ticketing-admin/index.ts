@@ -778,7 +778,7 @@ serve(async (request) => {
               ticket_category: order.ticket_category,
               quantity: order.quantity,
               total_price: order.total_price,
-            }, event, accessCode, 'https://komediterus.shop/tiket');
+            }, event, accessCode, 'https://standupindocilegon.id/tiket');
             try {
               const resendResponse = await fetch('https://api.resend.com/emails', {
                 method: 'POST',
@@ -789,7 +789,7 @@ serve(async (request) => {
                   'User-Agent': 'standupindo-cilegon-ticketing/1.0',
                 },
                 body: JSON.stringify({
-                  from: 'noreply@komediterus.shop',
+                  from: 'noreply@standupindocilegon.id',
                   to: [recipientEmail],
                   subject: emailContent.subject,
                   html: emailContent.html,
@@ -1069,7 +1069,7 @@ serve(async (request) => {
                 'User-Agent': 'standupindo-cilegon-ticketing/1.0',
               },
               body: JSON.stringify({
-                from: 'noreply@komediterus.shop',
+                from: 'noreply@standupindocilegon.id',
                 to: [recipientEmail],
                 subject: emailContent.subject,
                 html: emailContent.html,

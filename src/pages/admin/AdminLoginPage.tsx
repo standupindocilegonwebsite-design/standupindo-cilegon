@@ -5,26 +5,31 @@ import { useAuth } from '@/lib/auth-context';
 import { LOGO_URL } from '@/lib/types';
 
 export function AdminLoginPage({ router }: { router: Router }) {
-  const { signIn } = useAuth();
+  const { signIn, deviceSwitchPending, sessionNotice, clearSessionNotice, confirmDeviceSwitch, cancelDeviceSwitch } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [activeDeviceLabel, setActiveDeviceLabel] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setActiveDeviceLabel('');
+    clearSessionNotice();
     setLoading(true);
     try {
       const result = await Promise.race([
         signIn(email, password, { requireRole: 'admin-app' }),
-        new Promise<{ error: string }>((resolve) => {
+        new Promise<Awaited<ReturnType<typeof signIn>>>((resolve) => {
           window.setTimeout(() => resolve({ error: 'Permintaan login terlalu lama. Periksa koneksi lalu coba lagi.' }), 15000);
         }),
       ]);
       if (result.error) {
         setError(result.error);
+      } else if (result.requiresDeviceConfirmation) {
+        setActiveDeviceLabel(result.activeDeviceLabel ?? 'Perangkat lain');
       } else {
         router.navigate('/admin');
       }
@@ -34,6 +39,23 @@ export function AdminLoginPage({ router }: { router: Router }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleConfirmDeviceSwitch() {
+    setError('');
+    setLoading(true);
+    const result = await confirmDeviceSwitch();
+    if (result.error) setError(result.error);
+    else router.navigate('/admin');
+    setLoading(false);
+  }
+
+  async function handleCancelDeviceSwitch() {
+    setLoading(true);
+    await cancelDeviceSwitch();
+    setActiveDeviceLabel('');
+    setPassword('');
+    setLoading(false);
   }
 
   return (
@@ -46,6 +68,17 @@ export function AdminLoginPage({ router }: { router: Router }) {
         </div>
 
         <form onSubmit={handleSubmit} className="rounded-2xl bg-white p-6 shadow-xl space-y-4">
+          {sessionNotice && <div role="status" className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 ring-1 ring-amber-200">{sessionNotice}<button type="button" onClick={clearSessionNotice} className="ml-2 font-bold underline">Tutup</button></div>}
+          {deviceSwitchPending && (
+            <div role="alert" className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+              <p className="font-extrabold">Akun ini sedang aktif di perangkat lain ({activeDeviceLabel}).</p>
+              <p>Jika login dipindahkan ke perangkat ini, sesi pada perangkat lama akan dihentikan.</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => void handleConfirmDeviceSwitch()} disabled={loading} className="btn-primary flex-1 !py-2.5">{loading ? 'Memproses...' : 'Pindahkan login ke perangkat ini'}</button>
+                <button type="button" onClick={() => void handleCancelDeviceSwitch()} disabled={loading} className="btn-secondary flex-1">Batal</button>
+              </div>
+            </div>
+          )}
           <div>
             <label className="label-field" htmlFor="email">Email</label>
             <div className="relative">
@@ -64,11 +97,11 @@ export function AdminLoginPage({ router }: { router: Router }) {
             </div>
           </div>
 
-          {error && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</div>}
+          {error && <div role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</div>}
 
-          <button type="submit" disabled={loading} className="btn-primary w-full !py-3.5">
+          {!deviceSwitchPending && <button type="submit" disabled={loading} className="btn-primary w-full !py-3.5">
             {loading ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Memproses...</> : 'Masuk'}
-          </button>
+          </button>}
 
           <button type="button" onClick={() => router.navigate('/')} className="flex w-full items-center justify-center gap-1.5 text-sm font-semibold text-slate-500 transition hover:text-blue-700">
             <ArrowLeft className="h-4 w-4" /> Kembali ke website

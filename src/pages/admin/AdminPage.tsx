@@ -635,7 +635,7 @@ function QrScannerDashboard({ events, onNavigate }: { events: EventItem[]; onNav
 }
 
 const NOTIFICATION_LABELS: Record<NotificationSource, string> = {
-  'ticket-orders': 'Data Penonton',
+  'ticket-orders': 'Pembeli Tiket',
   'open-mic': 'Pendaftar Open Mic',
   'event-participants': 'Pendaftar Event',
   applications: 'Gabung Komunitas',
@@ -733,6 +733,12 @@ function NotificationBell({
                   <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-bold text-slate-800">{NOTIFICATION_LABELS[notification.source]}</span>
+                    {notification.source === 'ticket-orders' && (
+                      <>
+                        <span className="mt-0.5 block truncate text-xs font-semibold text-slate-700">{notification.fullName || 'Nama pembeli tidak tersedia'}</span>
+                        <span className="mt-0.5 block truncate text-xs text-slate-500">Event: {notification.eventTitle || 'Event tidak tersedia'}</span>
+                      </>
+                    )}
                     <span className="mt-0.5 block text-xs text-slate-500">Status: {notification.status}</span>
                   </span>
                   <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-300" />
@@ -990,12 +996,23 @@ export function AdminPage({ router, settings }: Props) {
               const Icon = item.icon;
               const pendingEventCount = notificationCounts['event-participants'];
               const communityPendingCount = notificationCounts.applications;
-              const showPendingBadge = ((item.key === 'open-mic-list') && pendingRegistrationCount > 0) || (item.key === 'open-mic-history' && pendingHistoryCount > 0) || (item.key === 'events' && pendingEventCount > 0) || (item.key === 'applications' && communityPendingCount > 0);
+              const menuBadgeCount = item.key === 'ticket-orders'
+                ? notificationCounts['ticket-orders']
+                : item.key === 'open-mic-list'
+                  ? pendingRegistrationCount
+                  : item.key === 'open-mic' && !isOpenMicAdmin
+                    ? pendingRegistrationCount
+                  : item.key === 'open-mic-history'
+                    ? pendingHistoryCount
+                    : item.key === 'events'
+                      ? pendingEventCount
+                      : item.key === 'applications' ? communityPendingCount : 0;
+              const showPendingBadge = menuBadgeCount > 0;
               return (
                 <button key={item.key} onClick={() => navigateSection(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${sidebarCollapsed ? 'justify-center px-2' : ''} ${(item.key === 'more' ? isMoreNavigationActive(section, isTicketAdmin, isQrScanner) : section === item.key) ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`} title={sidebarCollapsed ? item.label : undefined}>
                   <Icon className="h-5 w-5" />
                   {!sidebarCollapsed && <span className="flex-1 text-left">{item.label}</span>}
-                  {showPendingBadge && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-extrabold leading-none text-white" aria-label="Data menunggu review">{item.key === 'open-mic-list' ? pendingRegistrationCount : item.key === 'open-mic-history' ? pendingHistoryCount : item.key === 'events' ? pendingEventCount : communityPendingCount}</span>}
+                  {showPendingBadge && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-extrabold leading-none text-white" aria-label="Data menunggu review">{menuBadgeCount > 99 ? '99+' : menuBadgeCount}</span>}
                 </button>
               );
             })}
@@ -1051,7 +1068,7 @@ export function AdminPage({ router, settings }: Props) {
           {section === 'check-in-report' && isQrScanner && <TicketCheckInReportPage onBack={() => navigateSection('more')} />}
           {section === 'maintenance' && (isAdmin || isEventAdmin) && <TicketMaintenancePage events={events} />}
           {section === 'settings' && <SettingsPanel settings={settings} onSaved={load} onNotice={setNotice} />}
-          {section === 'more' && <MorePage onNavigate={navigateSection} onSignOut={async () => { await signOut(); router.navigate('/admin/login'); }} ticketOrderUnreadCount={notificationCounts['ticket-orders']} isAdmin={isAdmin} isOpenMicAdmin={isOpenMicAdmin} isEventAdmin={isEventAdmin} isTicketAdmin={isTicketAdmin} isQrScanner={isQrScanner} />}
+          {section === 'more' && <MorePage onNavigate={navigateSection} onSignOut={async () => { await signOut(); router.navigate('/admin/login'); }} ticketOrderUnreadCount={notificationCounts['ticket-orders']} applicationUnreadCount={notificationCounts.applications} isAdmin={isAdmin} isOpenMicAdmin={isOpenMicAdmin} isEventAdmin={isEventAdmin} isTicketAdmin={isTicketAdmin} isQrScanner={isQrScanner} />}
         </main>
       </div>
 
@@ -1069,7 +1086,23 @@ export function AdminPage({ router, settings }: Props) {
             const Icon = item.icon;
             const pendingEventCount = notificationCounts['event-participants'];
             const communityPendingCount = notificationCounts.applications;
-            const showPendingBadge = ((item.key === 'open-mic-list') && pendingRegistrationCount > 0) || (item.key === 'open-mic-history' && pendingHistoryCount > 0) || (item.key === 'events' && pendingEventCount > 0) || (item.key === 'applications' && communityPendingCount > 0);
+            const moreUnreadCount = isAdmin
+              ? notificationCounts['ticket-orders'] + communityPendingCount
+              : 0;
+            const menuBadgeCount = item.key === 'ticket-orders'
+              ? notificationCounts['ticket-orders']
+              : item.key === 'open-mic-list'
+                ? pendingRegistrationCount
+                : item.key === 'open-mic'
+                  ? pendingRegistrationCount
+                : item.key === 'open-mic-history'
+                  ? pendingHistoryCount
+                  : item.key === 'events'
+                    ? pendingEventCount
+                    : item.key === 'applications'
+                      ? communityPendingCount
+                      : item.key === 'more' ? moreUnreadCount : 0;
+            const showPendingBadge = menuBadgeCount > 0;
             const isActive = item.key === 'dashboard'
               ? section === 'dashboard'
               : item.key === 'open-mic'
@@ -1092,9 +1125,7 @@ export function AdminPage({ router, settings }: Props) {
               >
                 <span className={`mobile-nav-icon relative flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 ${isActive ? 'mobile-nav-icon-active bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)]' : 'text-slate-400'}`}>
                   <Icon className="h-5 w-5" />
-                  {showPendingBadge && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white" aria-label="Data menunggu review">{item.key === 'open-mic-list' ? pendingRegistrationCount : item.key === 'open-mic-history' ? pendingHistoryCount : item.key === 'events' ? pendingEventCount : communityPendingCount}</span>}
-                  {item.key === 'dashboard' && unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white" aria-label={`Notifikasi admin, ${unreadCount} belum dibaca`}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
-                  {item.key === 'more' && unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white" aria-label={`Notifikasi admin, ${unreadCount} belum dibaca`}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
+                  {showPendingBadge && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white" aria-label="Data menunggu review">{menuBadgeCount > 99 ? '99+' : menuBadgeCount}</span>}
                 </span>
                 <span className={`mobile-nav-label text-[10px] font-semibold ${isActive ? 'mobile-nav-label-active text-blue-700' : 'text-slate-400'}`}>
                   {item.label}
@@ -3481,14 +3512,14 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
   );
 }
 
-function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner }: { onNavigate: (s: Section) => void; onSignOut: () => void; ticketOrderUnreadCount: number; isAdmin: boolean; isOpenMicAdmin: boolean; isEventAdmin: boolean; isTicketAdmin: boolean; isQrScanner: boolean }) {
+function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUnreadCount, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner }: { onNavigate: (s: Section) => void; onSignOut: () => void; ticketOrderUnreadCount: number; applicationUnreadCount: number; isAdmin: boolean; isOpenMicAdmin: boolean; isEventAdmin: boolean; isTicketAdmin: boolean; isQrScanner: boolean }) {
   const items: { label: string; icon: typeof BarChart3; onClick: () => void; section?: Section; badge?: number }[] = [
     ...(isEventAdmin ? [{ label: 'Akun Admin Tiket / QR', icon: ShieldPlus, onClick: () => onNavigate('admin-accounts'), section: 'admin-accounts' as Section }] : []),
     ...(isTicketAdmin ? [{ label: 'Informasi Pembayaran', icon: TicketIcon, onClick: () => onNavigate('payment-info'), section: 'payment-info' as Section }] : []),
     ...(isTicketAdmin ? [{ label: 'Laporan Tiket', icon: Printer, onClick: () => onNavigate('ticket-report'), section: 'ticket-report' as Section }] : []),
     ...(isQrScanner ? [{ label: 'Laporan Check-in', icon: Printer, onClick: () => onNavigate('check-in-report'), section: 'check-in-report' as Section }] : []),
     ...(isQrScanner ? [{ label: 'Riwayat Scan', icon: TicketIcon, onClick: () => onNavigate('tickets'), section: 'tickets' as Section }] : []),
-    { label: 'Gabung Komunitas', icon: UserPlus, onClick: () => onNavigate('applications'), section: 'applications' },
+    { label: 'Gabung Komunitas', icon: UserPlus, onClick: () => onNavigate('applications'), section: 'applications', badge: applicationUnreadCount },
     ...(!isEventAdmin && !isTicketAdmin ? [{ label: 'Data Penonton', icon: TicketIcon, onClick: () => onNavigate('ticket-orders'), section: 'ticket-orders' as Section, badge: ticketOrderUnreadCount }] : []),
     { label: 'Akun Member', icon: UserPlus, onClick: () => onNavigate('member-accounts'), section: 'member-accounts' },
     ...(isAdmin ? [{ label: 'Akun Admin', icon: ShieldPlus, onClick: () => onNavigate('admin-accounts'), section: 'admin-accounts' as Section }] : []),

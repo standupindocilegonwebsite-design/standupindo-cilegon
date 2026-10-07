@@ -64,19 +64,47 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       setRecords(new Map());
       return;
     }
-    const results = await Promise.all(activeSources.map((source) => source === 'ticket-orders'
-      ? supabase.from('ticket_orders').select('id, status')
-      : source === 'open-mic'
-        ? supabase.from('open_mic_registrations').select('id, status')
-        : source === 'event-participants'
-          ? supabase.from('event_participants').select('id, status')
-          : supabase.from('community_applications').select('id, status')));
-    if (results.some((result) => result.error)) return;
+    const ticketOrdersRequest = activeSources.includes('ticket-orders')
+      ? supabase.from('ticket_orders').select('id, status, full_name, event_id')
+        .in('status', ['Draft Pembayaran', 'Menunggu Pembayaran', 'Menunggu Verifikasi', 'Sudah Bayar'])
+      : null;
+    const otherSources = activeSources.filter((source) => source !== 'ticket-orders');
+    const results = await Promise.all(otherSources.map((source) => source === 'open-mic'
+      ? supabase.from('open_mic_registrations').select('id, status')
+      : source === 'event-participants'
+        ? supabase.from('event_participants').select('id, status')
+        : supabase.from('community_applications').select('id, status')));
+    const ticketOrdersResult = ticketOrdersRequest ? await ticketOrdersRequest : null;
+    if (results.some((result) => result.error) || ticketOrdersResult?.error) return;
+
+    const ticketOrders = (ticketOrdersResult?.data ?? []) as {
+      id: string;
+      status: string;
+      full_name: string;
+      event_id: string;
+    }[];
+    const eventIds = [...new Set(ticketOrders.map((order) => order.event_id))];
+    const { data: events, error: eventsError } = eventIds.length > 0
+      ? await supabase.from('events').select('id, title').in('id', eventIds)
+      : { data: [], error: null };
+    if (eventsError) return;
+    const eventTitles = new Map((events ?? []).map((event) => [event.id, event.title]));
+
     const next = new Map<string, NotificationRecord>();
     results.forEach((result, index) => {
-      const source = activeSources[index];
+      const source = otherSources[index];
       (result.data as { id: string; status: string }[]).forEach((row) => {
         if (isAttentionStatus(source, row.status) && !isRead(readStorageKey, source, row.id)) next.set(`${source}:${row.id}`, { ...row, source });
+      });
+    });
+    ticketOrders.forEach((order) => {
+      if (isRead(readStorageKey, 'ticket-orders', order.id)) return;
+      next.set(`ticket-orders:${order.id}`, {
+        id: order.id,
+        status: order.status,
+        source: 'ticket-orders',
+        fullName: order.full_name,
+        eventTitle: eventTitles.get(order.event_id),
       });
     });
     setRecords(next);
@@ -105,8 +133,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     void resync();
     const channel = supabase.channel(`admin-notifications-${activeSources.join('-')}`);
-    if (activeSources.includes('ticket-orders')) channel.on('postgres_changes', { event: '*', schema: 'public', table: 'ticket_orders' }, (payload) => {
-        applyRow('ticket-orders', (payload.eventType === 'DELETE' ? payload.old : payload.new) as { id: string; status: string });
+    if (activeSources.includes('ticket-orders')) channel.on('postgres_changes', { event: '*', schema: 'public', table: 'ticket_orders' }, () => {
+        void resync();
         broadcast?.postMessage({ type: 'notification-changed' });
       });
     if (activeSources.includes('open-mic')) channel.on('postgres_changes', { event: '*', schema: 'public', table: 'open_mic_registrations' }, (payload) => {

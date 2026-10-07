@@ -165,9 +165,9 @@ export function FollowInstagramPopup({ router, settings }: { router: Router; set
   if (!instagramUrl) return null;
 
   return (
-    <Modal open={open} onClose={() => closeWithCooldown('dismissed')} ariaLabel="Follow Standupindo Cilegon" panelClassName="!border-blue-300 !bg-gradient-to-br !from-blue-100 !via-blue-50 !to-sky-100" size="sm">
+    <Modal open={open} onClose={() => closeWithCooldown('dismissed')} ariaLabel="Follow Standupindo Cilegon" panelClassName="!border-white/60 !bg-sky-50/70 !shadow-[0_26px_80px_rgba(11,31,68,0.38)] !backdrop-blur-2xl [&>div:first-child]:!bg-transparent [&>div:first-child>button]:!bg-white/70 [&>div:first-child>button]:!backdrop-blur-md" size="sm">
       <div className="flex flex-col items-center px-2 pb-1 pt-1 text-center sm:px-3">
-        <div className="mb-3 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-blue-100 bg-white p-2 shadow-[0_8px_20px_rgba(37,99,235,0.12)]">
+        <div className="mb-3 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-white/70 bg-white/65 p-2 shadow-[0_8px_20px_rgba(37,99,235,0.12)] backdrop-blur-md">
           <img src={settings.logo_url ?? LOGO_URL} alt="Logo Standupindo Cilegon" className="h-full w-full object-contain" />
         </div>
         <h2 className="flex flex-col items-center text-base font-black leading-tight tracking-tight text-slate-900 sm:text-lg">

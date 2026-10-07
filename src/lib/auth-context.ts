@@ -15,7 +15,12 @@ export interface AuthContextValue {
   isMember: boolean;
   isEvaluator: boolean;
   isAuthenticated: boolean;
-  signIn: (email: string, password: string, options?: { requireRole?: 'admin-app' | 'admin' | 'member' | 'evaluator' | 'ticket-admin' | 'qr-scanner' | 'any' }) => Promise<{ error: string | null }>;
+  deviceSwitchPending: boolean;
+  sessionNotice: string;
+  clearSessionNotice: () => void;
+  confirmDeviceSwitch: () => Promise<{ error: string | null }>;
+  cancelDeviceSwitch: () => Promise<void>;
+  signIn: (email: string, password: string, options?: { requireRole?: 'admin-app' | 'admin' | 'member' | 'evaluator' | 'ticket-admin' | 'qr-scanner' | 'any' }) => Promise<{ error: string | null; requiresDeviceConfirmation?: boolean; activeDeviceLabel?: string }>;
   signOut: () => Promise<void>;
 }
 
