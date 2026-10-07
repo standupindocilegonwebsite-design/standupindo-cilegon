@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Check, ChevronDown, ChevronUp, Download, Eye, Gift, Mail, MessageCircle, Plus, Search, Share2, Store, Ticket } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronUp, Download, Eye, Gift, Mail, MessageCircle, Plus, Search, Share2, Store, Ticket } from 'lucide-react';
 import { formatDate, getEventStatus, normalizeWhatsappNumber } from '@/lib/format';
 import type { EventStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -12,6 +12,38 @@ import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
 import { Modal } from '@/components/ui/Modal';
 
 const PAGE_SIZE = 30;
+
+function TicketQuantityStepper({ value, max, disabled, onChange }: {
+  value: string;
+  max: number;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const quantity = Number.parseInt(value, 10) || 1;
+  const limit = Math.max(1, Math.min(10, max));
+
+  function setQuantity(nextValue: string) {
+    const digits = nextValue.replace(/\D/g, '').slice(0, 2);
+    const parsed = Number.parseInt(digits, 10);
+    onChange(digits && parsed > limit ? String(limit) : digits);
+  }
+
+  function adjustQuantity(change: number) {
+    onChange(String(Math.max(1, Math.min(limit, quantity + change))));
+  }
+
+  return (
+    <div className="mt-1 inline-flex h-11 items-center overflow-hidden rounded-xl border border-slate-300 bg-white">
+      <button type="button" aria-label="Kurangi jumlah tiket" disabled={disabled || quantity <= 1} onClick={() => adjustQuantity(-1)} className="flex h-full w-11 items-center justify-center text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40">
+        <ArrowLeft className="h-4 w-4" />
+      </button>
+      <input required type="text" inputMode="numeric" pattern="[1-9]|10" maxLength={2} value={value} onChange={(event) => setQuantity(event.target.value)} disabled={disabled} className="h-full w-10 border-x border-slate-200 bg-transparent p-0 text-center text-base font-semibold text-slate-900 outline-none disabled:opacity-50" aria-label="Jumlah tiket" />
+      <button type="button" aria-label="Tambah jumlah tiket" disabled={disabled || quantity >= limit} onClick={() => adjustQuantity(1)} className="flex h-full w-11 items-center justify-center text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40">
+        <ArrowRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
 
 interface TicketRow {
   id: string;
@@ -196,6 +228,12 @@ export function TicketAdminTicketsPage() {
   const otsRemaining = selectedOtsCategory?.quota == null ? null : Math.max(0, selectedOtsCategory.quota - quotaOrders
     .filter((order) => order.ticket_id === selectedOtsCategory.id)
     .reduce((total, order) => total + order.quantity, 0));
+  const selectedFreePassCategory = freePassCategories.find((category) => category.id === freePassForm.ticket_id) ?? null;
+  const freePassRemaining = selectedFreePassCategory?.quota == null ? null : Math.max(0, selectedFreePassCategory.quota - quotaOrders
+    .filter((order) => order.ticket_id === selectedFreePassCategory.id)
+    .reduce((total, order) => total + order.quantity, 0));
+  const otsQuantityLimit = Math.min(10, otsRemaining ?? 10);
+  const freePassQuantityLimit = Math.min(10, freePassRemaining ?? 10);
   const canCreateOts = eligibleOtsEvents.some((event) => eventFilter === 'all' || event.id === eventFilter);
   const canCreateFreePass = eligibleFreePassEvents.some((event) => eventFilter === 'all' || event.id === eventFilter);
   const visibleEventIds = useMemo(() => new Set(visibleEvents.map((event) => event.id)), [visibleEvents]);
@@ -329,6 +367,12 @@ export function TicketAdminTicketsPage() {
       setOtsError('Lengkapi Event, kategori, nama, dan nomor WhatsApp.');
       return;
     }
+    if (!Number.isInteger(Number(otsForm.quantity)) || Number(otsForm.quantity) < 1 || Number(otsForm.quantity) > otsQuantityLimit) {
+      setOtsError(otsQuantityLimit > 0
+        ? `Jumlah tiket harus antara 1 dan ${otsQuantityLimit}.`
+        : 'Kuota kategori tiket sudah habis.');
+      return;
+    }
     if (normalizeWhatsappNumber(otsForm.whatsapp).length < 10) {
       setOtsError('Nomor WhatsApp penerima tidak valid.');
       return;
@@ -448,35 +492,26 @@ export function TicketAdminTicketsPage() {
 
   async function shareOtsPdf() {
     if (!otsResult) return;
+    if (!otsResult.whatsapp_url || otsResult.whatsapp_url === '#') {
+      setOtsPdfMessage('Nomor WhatsApp penerima tidak tersedia. Periksa kembali data penjualan OTS.');
+      return;
+    }
     setOtsPdfBusy(true);
     setOtsPdfMessage('');
     setOtsPdfFallbackReady(false);
-    let generatedPdf: { blob: Blob; filename: string } | null = null;
+    const whatsappWindow = window.open('about:blank', '_blank');
+    if (whatsappWindow) whatsappWindow.opener = null;
     try {
       const { blob, filename } = await createOtsTicketPdf();
-      generatedPdf = { blob, filename };
-      const file = new File([blob], filename, { type: 'application/pdf' });
-      const shareData: ShareData = {
-        files: [file],
-        title: `Tiket Open Mic ${otsResult.event.title}`,
-        text: otsResult.whatsapp_message,
-      };
-      if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-        await navigator.share(shareData);
-      } else {
-        saveOtsPdf(blob, filename);
-        setOtsPdfFallbackReady(true);
-        setOtsPdfMessage('PDF berhasil diunduh. Buka WhatsApp, lalu lampirkan file PDF yang baru diunduh sebelum mengirim.');
-      }
+      saveOtsPdf(blob, filename);
+      if (whatsappWindow) whatsappWindow.location.href = otsResult.whatsapp_url;
+      else setOtsPdfFallbackReady(true);
+      setOtsPdfMessage(whatsappWindow
+        ? 'PDF berhasil diunduh dan chat WhatsApp penerima langsung dibuka. Lampirkan PDF yang baru diunduh sebelum mengirim.'
+        : 'PDF berhasil diunduh, tetapi browser memblokir pembukaan WhatsApp otomatis. Buka WhatsApp melalui tombol di bawah, lalu lampirkan PDF sebelum mengirim.');
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') return;
-      if (generatedPdf) {
-        saveOtsPdf(generatedPdf.blob, generatedPdf.filename);
-        setOtsPdfFallbackReady(true);
-        setOtsPdfMessage('Berbagi file tidak tersedia pada browser ini. PDF sudah diunduh; buka WhatsApp lalu lampirkan file tersebut.');
-      } else {
-        setOtsPdfMessage(error instanceof Error ? `PDF tiket gagal dibuat: ${error.message}` : 'PDF tiket gagal dibuat.');
-      }
+      whatsappWindow?.close();
+      setOtsPdfMessage(error instanceof Error ? `PDF tiket gagal dibuat: ${error.message}` : 'PDF tiket gagal dibuat.');
     } finally {
       setOtsPdfBusy(false);
     }
@@ -487,6 +522,12 @@ export function TicketAdminTicketsPage() {
     if (!freePassForm.event_id || !freePassForm.ticket_id || !freePassForm.full_name.trim()
       || !freePassForm.whatsapp.trim() || !freePassForm.reason.trim()) {
       setFreePassError('Lengkapi Event, kategori, nama, WhatsApp, dan alasan Free Pass.');
+      return;
+    }
+    if (!Number.isInteger(Number(freePassForm.quantity)) || Number(freePassForm.quantity) < 1 || Number(freePassForm.quantity) > freePassQuantityLimit) {
+      setFreePassError(freePassQuantityLimit > 0
+        ? `Jumlah tiket harus antara 1 dan ${freePassQuantityLimit}.`
+        : 'Kuota kategori tiket sudah habis.');
       return;
     }
     if (normalizeWhatsappNumber(freePassForm.whatsapp).length < 10) {
@@ -629,7 +670,7 @@ export function TicketAdminTicketsPage() {
                   {otsResult.tickets.map((ticket) => <QRCodeCanvas key={ticket.id} id={`ots-ticket-qr-${ticket.id}`} value={ticket.qr_token} size={256} level="H" />)}
           </div>
           <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-900">
-            Setiap tiket dibuat sebagai satu halaman PDF dengan QR unik. Perangkat yang mendukung berbagi file dapat mengirim PDF dan teks melalui menu Share; jika tidak, PDF diunduh dan WhatsApp dibuka agar file dapat dilampirkan.
+            Setiap tiket dibuat sebagai satu halaman PDF dengan QR unik. Tombol kirim akan mengunduh PDF dan langsung membuka chat WhatsApp ke nomor penerima; lampirkan PDF di chat sebelum mengirim.
           </div>
           {otsPdfMessage && <p role="status" className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700">{otsPdfMessage}</p>}
           {otsPdfFallbackReady && otsResult.whatsapp_url && <a href={otsResult.whatsapp_url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-emerald-800"><MessageCircle className="h-4 w-4" />Buka WhatsApp untuk mengirim</a>}
@@ -673,10 +714,10 @@ export function TicketAdminTicketsPage() {
             <label className="block text-xs font-bold text-slate-700">Nomor WhatsApp
               <input required type="tel" inputMode="numeric" autoComplete="tel" value={otsForm.whatsapp} onChange={(event) => setOtsForm((current) => ({ ...current, whatsapp: event.target.value.replace(/\D/g, '') }))} className="input-field mt-1" placeholder="Contoh: 081234567890" />
             </label>
-            <label className="block text-xs font-bold text-slate-700">Jumlah Tiket
-              <select required value={otsForm.quantity} onChange={(event) => setOtsForm((current) => ({ ...current, quantity: event.target.value }))} className="input-field mt-1" disabled={!selectedOtsCategory}>
-                {Array.from({ length: Math.min(10, otsRemaining ?? 10) }, (_, index) => index + 1).map((quantity) => <option key={quantity} value={quantity}>{quantity} tiket</option>)}
-              </select>
+            <label className="block text-xs font-bold text-slate-700">
+              <span className="block">Jumlah Tiket</span>
+              <TicketQuantityStepper value={otsForm.quantity} max={otsQuantityLimit} disabled={!selectedOtsCategory || otsQuantityLimit < 1} onChange={(quantity) => setOtsForm((current) => ({ ...current, quantity }))} />
+              <span className="mt-1 block text-[11px] font-medium text-slate-500">{selectedOtsCategory ? `Maksimal ${otsQuantityLimit} tiket per penjualan.` : 'Pilih kategori tiket terlebih dahulu.'}</span>
             </label>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Total OTS</p>
@@ -686,7 +727,7 @@ export function TicketAdminTicketsPage() {
           {otsError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-700">{otsError}</p>}
           <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:justify-end">
             <button type="button" disabled={otsSaving} onClick={() => setOtsOpen(false)} className="btn-secondary min-h-11 w-full sm:w-auto">Batal</button>
-            <button type="submit" disabled={otsSaving || !eligibleOtsEvents.length || !selectedOtsCategory} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
+            <button type="submit" disabled={otsSaving || !eligibleOtsEvents.length || !selectedOtsCategory || otsQuantityLimit < 1} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
               <Store className="h-4 w-4" />{otsSaving ? 'Menerbitkan tiket...' : 'Simpan Penjualan OTS'}
             </button>
           </div>
@@ -731,7 +772,7 @@ export function TicketAdminTicketsPage() {
                   value={freePassForm.event_id}
                   onChange={(nextEventId) => {
                 const firstCategory = categories.find((category) => category.event_id === nextEventId && category.status === 'active');
-                setFreePassForm((current) => ({ ...current, event_id: nextEventId, ticket_id: firstCategory?.id ?? '' }));
+                setFreePassForm((current) => ({ ...current, event_id: nextEventId, ticket_id: firstCategory?.id ?? '', quantity: '1' }));
                   }}
                   allLabel="Pilih Event"
                   ariaLabel="Event Free Pass"
@@ -739,7 +780,7 @@ export function TicketAdminTicketsPage() {
               </div>
             </label>
             <label className="block text-xs font-bold text-slate-700">Kategori Tiket
-              <select required value={freePassForm.ticket_id} onChange={(event) => setFreePassForm((current) => ({ ...current, ticket_id: event.target.value }))} className="input-field mt-1" disabled={!freePassForm.event_id}>
+              <select required value={freePassForm.ticket_id} onChange={(event) => setFreePassForm((current) => ({ ...current, ticket_id: event.target.value, quantity: '1' }))} className="input-field mt-1" disabled={!freePassForm.event_id}>
                 <option value="">Pilih kategori</option>
                 {freePassCategories.map((category) => <option key={category.id} value={category.id}>{category.name}{category.quota === null ? ' · kuota tanpa batas' : ` · kuota ${category.quota}`}</option>)}
               </select>
@@ -754,10 +795,10 @@ export function TicketAdminTicketsPage() {
               <input type="email" autoComplete="email" value={freePassForm.email} onChange={(event) => setFreePassForm((current) => ({ ...current, email: event.target.value }))} className="input-field mt-1" placeholder="nama@email.com" />
               <span className="mt-1 block text-[11px] font-medium leading-4 text-slate-500">Jika diisi, informasi Free Pass dan Kode Akses dikirim otomatis lewat email.</span>
             </label>
-            <label className="block text-xs font-bold text-slate-700">Jumlah Tiket
-              <select required value={freePassForm.quantity} onChange={(event) => setFreePassForm((current) => ({ ...current, quantity: event.target.value }))} className="input-field mt-1">
-                {Array.from({ length: 10 }, (_, index) => index + 1).map((quantity) => <option key={quantity} value={quantity}>{quantity} tiket</option>)}
-              </select>
+            <label className="block text-xs font-bold text-slate-700">
+              <span className="block">Jumlah Tiket</span>
+              <TicketQuantityStepper value={freePassForm.quantity} max={freePassQuantityLimit} disabled={!selectedFreePassCategory || freePassQuantityLimit < 1} onChange={(quantity) => setFreePassForm((current) => ({ ...current, quantity }))} />
+              <span className="mt-1 block text-[11px] font-medium text-slate-500">{freePassQuantityLimit > 0 ? `Maksimal ${freePassQuantityLimit} tiket per penerbitan.` : 'Kuota kategori tiket sudah habis.'}</span>
             </label>
             <label className="block text-xs font-bold text-slate-700 sm:col-span-2">Sumber / Alasan Free Pass
               <textarea required maxLength={300} rows={2} value={freePassForm.reason} onChange={(event) => setFreePassForm((current) => ({ ...current, reason: event.target.value }))} className="input-field mt-1 resize-y" placeholder="Contoh: Media partner — Cilegon Update" />
@@ -767,7 +808,7 @@ export function TicketAdminTicketsPage() {
           {freePassError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-700">{freePassError}</p>}
           <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:justify-end">
             <button type="button" disabled={freePassSaving} onClick={() => setFreePassOpen(false)} className="btn-secondary min-h-11 w-full sm:w-auto">Batal</button>
-            <button type="submit" disabled={freePassSaving || !eligibleFreePassEvents.length} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
+            <button type="submit" disabled={freePassSaving || !eligibleFreePassEvents.length || !selectedFreePassCategory || freePassQuantityLimit < 1} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
               <Gift className="h-4 w-4" />{freePassSaving ? 'Menerbitkan tiket...' : 'Terbitkan Free Pass'}
             </button>
           </div>

@@ -491,10 +491,10 @@ function normalizeInstagram(value: string | null): { label: string; url: string 
   const input = value?.trim();
   if (!input) return null;
   if (/^https?:\/\//i.test(input)) {
-    const username = input.replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/\/?(?:\?.*)?$/, '');
-    return { label: `@${username}`, url: input };
+    const username = input.replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/\/?(?:\?.*)?$/, '').toLowerCase();
+    return { label: `@${username}`, url: `https://instagram.com/${encodeURIComponent(username)}` };
   }
-  const username = input.replace(/^@/, '').replace(/^instagram\.com\//i, '').replace(/\/?(?:\?.*)?$/, '');
+  const username = input.replace(/^@/, '').replace(/^instagram\.com\//i, '').replace(/\/?(?:\?.*)?$/, '').toLowerCase();
   if (!username) return null;
   return { label: `@${username}`, url: `https://instagram.com/${encodeURIComponent(username)}` };
 }

@@ -69,7 +69,8 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
       .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
       .replace(/^@/, '')
       .replace(/\s+/g, '')
-      .replace(/\/.*$/, '');
+      .replace(/\/.*$/, '')
+      .toLowerCase();
 
     return cleaned ? `@${cleaned}` : '';
   }

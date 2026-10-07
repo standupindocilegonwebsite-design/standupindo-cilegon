@@ -25,7 +25,6 @@ const HEIGHT = 1920;
 const COMMUNITY_LOGO = '/assets/images/standup-indo-logo.png';
 const AFFILIATION_LOGO = '/assets/images/image.png';
 const NAME_FONT = '700 28px Arial, sans-serif';
-const DETAIL_FONT = '500 19px Arial, sans-serif';
 
 function roundedRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   context.beginPath();
@@ -103,7 +102,8 @@ function instagramHandle(value: string | null) {
     .trim()
     .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
     .replace(/^@/, '')
-    .replace(/\/.*$/, '');
+    .replace(/\/.*$/, '')
+    .toLowerCase();
 }
 
 function drawHeader(context: CanvasRenderingContext2D, communityLogo: HTMLImageElement | null, affiliationLogo: HTMLImageElement | null) {
@@ -178,27 +178,10 @@ function preparePerformers(context: CanvasRenderingContext2D, performers: Lineup
   });
 }
 
-function paginatePerformers(performers: CanvasLineup[], availableHeight: number) {
+function paginatePerformers(performers: CanvasLineup[]) {
   const pages: CanvasLineup[][] = [];
-  let offset = 0;
-  while (offset < performers.length) {
-    let page: CanvasLineup[] = [];
-    let bestPage: CanvasLineup[] = [];
-    const maxCount = Math.min(20, performers.length - offset);
-    for (let count = 1; count <= maxCount; count += 1) {
-      const candidate = performers.slice(offset, offset + count);
-      const leftCount = Math.ceil(candidate.length / 2);
-      let usedHeight = 0;
-      for (let row = 0; row < leftCount; row += 1) {
-        const left = candidate[row];
-        const right = candidate[leftCount + row];
-        usedHeight += Math.max(left.height, right?.height ?? 0) + 8;
-      }
-      if (usedHeight <= availableHeight) bestPage = candidate;
-    }
-    page = bestPage.length > 0 ? bestPage : [performers[offset]];
-    pages.push(page);
-    offset += page.length;
+  for (let offset = 0; offset < performers.length; offset += 20) {
+    pages.push(performers.slice(offset, offset + 20));
   }
   return pages;
 }
@@ -271,7 +254,7 @@ function drawPerformerCard(context: CanvasRenderingContext2D, performer: CanvasL
   context.lineWidth = 2;
   context.stroke();
 
-  const avatarSize = Math.min(96, Math.max(62, height - 36));
+  const avatarSize = Math.min(width > 700 ? 240 : 104, Math.max(62, Math.min(height - 36, height * 0.42)));
   const avatarX = x + 24;
   const avatarY = y + (height - avatarSize) / 2;
   context.fillStyle = '#eff6ff';
@@ -282,7 +265,20 @@ function drawPerformerCard(context: CanvasRenderingContext2D, performer: CanvasL
 
   const textX = x + avatarSize + 40;
   const textWidth = width - avatarSize - 136;
-  const textHeight = performer.nameLines.length * 30 + 56;
+  let nameFontSize = Math.min(64, Math.max(24, Math.round(height * 0.1)));
+  const detailFontSize = Math.min(25, Math.max(16, Math.round(height * 0.085)));
+  const detailLineHeight = detailFontSize + 5;
+  let nameLines: string[] = [];
+  let nameLineHeight = nameFontSize + 4;
+  let textHeight = 0;
+  let fits = false;
+  while (!fits && nameFontSize >= 16) {
+    nameLineHeight = nameFontSize + 4;
+    nameLines = wrapText(context, performer.stageName, textWidth, `700 ${nameFontSize}px Arial, sans-serif`);
+    textHeight = nameLines.length * nameLineHeight + detailLineHeight * 2 + 12;
+    fits = textHeight <= height - 16;
+    if (!fits) nameFontSize -= 1;
+  }
   const textTop = y + (height - textHeight) / 2;
   context.fillStyle = '#1d4ed8';
   roundedRect(context, x + width - 60, y + 12, 48, 36, 18);
@@ -293,20 +289,20 @@ function drawPerformerCard(context: CanvasRenderingContext2D, performer: CanvasL
   context.fillText(String(number).padStart(2, '0'), x + width - 36, y + 37);
   context.textAlign = 'left';
   context.fillStyle = '#08245c';
-  context.font = NAME_FONT;
-  performer.nameLines.forEach((line, lineIndex) => {
-    context.fillText(line, textX, textTop + 24 + lineIndex * 30, textWidth);
+  context.font = `700 ${nameFontSize}px Arial, sans-serif`;
+  nameLines.forEach((line, lineIndex) => {
+    context.fillText(line, textX, textTop + nameFontSize + lineIndex * nameLineHeight, textWidth);
   });
-  let detailY = textTop + performer.nameLines.length * 30 + 30;
+  let detailY = textTop + nameLines.length * nameLineHeight + 12 + detailFontSize;
   context.fillStyle = '#2563eb';
-  context.font = DETAIL_FONT;
+  context.font = `500 ${detailFontSize}px Arial, sans-serif`;
   if (performer.instagram) {
     context.fillText(`@${performer.instagram}`, textX, detailY, textWidth);
-    detailY += 24;
+    detailY += detailLineHeight;
   } else {
     context.fillStyle = '#64748b';
     context.fillText('Instagram tidak tersedia', textX, detailY, textWidth);
-    detailY += 24;
+    detailY += detailLineHeight;
   }
   context.fillStyle = performer.community ? '#475569' : '#64748b';
   context.fillText(performer.community || 'Komunitas tidak dicantumkan', textX, detailY, textWidth);
@@ -359,7 +355,7 @@ async function createLineupImages(
   const listTop = 570;
   const listBottom = 1815;
   const listHeight = listBottom - listTop;
-  const pages = paginatePerformers(prepared, listHeight);
+  const pages = paginatePerformers(prepared);
   const blobs: Blob[] = [];
 
   let pageOffset = 0;
@@ -395,33 +391,51 @@ async function createLineupImages(
     roundedRect(context, 132, 552, 142, 5, 2);
     context.fill();
 
-    const leftCount = Math.ceil(page.length / 2);
+    const hasPagination = prepared.length > 20;
+    const columns = hasPagination || prepared.length > 5 ? 2 : 1;
+    const pagePerformers = columns === 1
+      ? page.map((performer) => {
+        const nameLines = wrapText(context, performer.stageName, 740, NAME_FONT);
+        return { ...performer, nameLines, height: Math.max(108, 30 + nameLines.length * 30 + 48) };
+      })
+      : page;
+    const leftCount = columns === 1 ? pagePerformers.length : Math.ceil(pagePerformers.length / 2);
     const rowHeights: number[] = [];
     for (let row = 0; row < leftCount; row += 1) {
-      const left = page[row];
-      const right = page[leftCount + row];
+      const left = pagePerformers[row];
+      const right = columns === 2 ? pagePerformers[leftCount + row] : undefined;
       rowHeights.push(Math.max(left.height, right?.height ?? 0));
     }
     const rowCount = rowHeights.length;
-    const maxExtraPerRow = rowCount === 1 ? 300 : rowCount <= 2 ? 160 : rowCount <= 4 ? 100 : rowCount <= 6 ? 70 : 30;
-    const extraPerRow = Math.min(
-      maxExtraPerRow,
-      Math.max(0, (listHeight - rowHeights.reduce((sum, height) => sum + height, 0)) / rowCount),
-    );
-    const cardHeights = rowHeights.map((height) => height + extraPerRow);
-    const spaceBetweenRows = Math.max(0, (listHeight - cardHeights.reduce((sum, height) => sum + height, 0)) / (rowCount + 1));
+    const standardPagedCardHeight = Math.max(108, (listHeight - 9 * 8) / 10);
+    const cardHeights = hasPagination
+      ? rowHeights.map(() => standardPagedCardHeight)
+      : columns === 1
+      ? rowHeights.map((height) => Math.max(
+        height,
+        page.length === 1
+          ? Math.min(900, listHeight * 0.78)
+          : (listHeight - (rowCount - 1) * 16) / rowCount,
+      ))
+      : rowHeights.map((height) => height + Math.max(
+        0,
+        (listHeight - rowHeights.reduce((sum, rowHeight) => sum + rowHeight, 0)) / rowCount,
+      ));
+    const spaceBetweenRows = hasPagination
+      ? Math.max(0, (listHeight - standardPagedCardHeight * 10) / 11)
+      : Math.max(0, (listHeight - cardHeights.reduce((sum, height) => sum + height, 0)) / (rowCount + 1));
     let currentY = listTop + spaceBetweenRows;
     for (let row = 0; row < rowCount; row += 1) {
-      const left = page[row];
-      const right = page[leftCount + row];
+      const left = pagePerformers[row];
+      const right = columns === 2 ? pagePerformers[leftCount + row] : undefined;
       const rowHeight = cardHeights[row];
-      if (page.length === 1) {
+      if (columns === 1) {
         drawPerformerCard(context, left, pageOffset + row + 1, 54, currentY, 972, rowHeight);
-      } else if (!right) {
+      } else if (!right && !hasPagination) {
         drawPerformerCard(context, left, pageOffset + row + 1, 303, currentY, 474, rowHeight);
       } else {
         drawPerformerCard(context, left, pageOffset + row + 1, 54, currentY, 474, rowHeight);
-        drawPerformerCard(context, right, pageOffset + leftCount + row + 1, 552, currentY, 474, rowHeight);
+        if (right) drawPerformerCard(context, right, pageOffset + leftCount + row + 1, 552, currentY, 474, rowHeight);
       }
       currentY += rowHeight + spaceBetweenRows;
     }

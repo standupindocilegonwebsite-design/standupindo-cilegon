@@ -24,7 +24,7 @@ type RequestBody = {
   qr_token?: string;
   access_code_id?: string;
   payment_method_id?: string;
-  payment_method?: { id?: string; event_id?: string; event_ids?: string[]; recipient_name?: string; bank_name?: string; account_number?: string; qris_storage_path?: string; note?: string };
+  payment_method?: { id?: string; event_id?: string; event_ids?: string[]; recipient_name?: string; bank_name?: string; account_number?: string; qris_storage_path?: string; note?: string; is_default?: boolean };
   file_name?: string;
   file_type?: string;
   event_filter?: string;
@@ -558,10 +558,11 @@ serve(async (request) => {
             ...eventById.get(assignment.event_id),
             is_active: assignment.is_active,
           })),
-          can_delete: isAdmin || visibleMethodAssignments.length === methodAssignments.length,
+          can_edit: isAdmin || (!method.is_default && visibleMethodAssignments.length === methodAssignments.length),
+          can_delete: isAdmin || (!method.is_default && visibleMethodAssignments.length === methodAssignments.length),
         };
       });
-      return json({ methods: visibleMethods, events: visibleEvents ?? [], supports_multi_event: true });
+      return json({ methods: visibleMethods, events: visibleEvents ?? [], supports_multi_event: true, can_manage_default: isAdmin || isTicketAdmin });
     }
 
     if (body.action === 'save-payment-method') {
@@ -580,12 +581,14 @@ serve(async (request) => {
       if (!accountNumber && !qrisPath) return json({ error: 'Isi nomor rekening atau upload QRIS.' }, 400);
       let eventIdsToSave = [...eventIds];
       let previousQrisPath: string | null = null;
+      let previousIsDefault = false;
       if (method.id) {
         const { data: existing, error: existingError } = await serviceClient.from('event_payment_methods')
-          .select('id, qris_storage_path').eq('id', method.id).maybeSingle();
+          .select('id, qris_storage_path, is_default').eq('id', method.id).maybeSingle();
         if (existingError) return json({ error: 'Informasi pembayaran gagal dimuat.' }, 500);
         if (!existing) return json({ error: 'Informasi pembayaran tidak ditemukan.' }, 404);
         previousQrisPath = existing.qris_storage_path;
+        previousIsDefault = existing.is_default;
         const { data: existingAssignments, error: existingAssignmentError } = await serviceClient
           .from('event_payment_method_assignments').select('event_id').eq('payment_method_id', method.id);
         if (existingAssignmentError) return json({ error: 'Event penggunaan informasi pembayaran gagal dimuat.' }, 500);
@@ -594,8 +597,13 @@ serve(async (request) => {
           isAdmin || await hasEventScope(assignment.event_id, 'admin_ticket') ? assignment.event_id : null
         )));
         if (!visibleExisting.some(Boolean)) return json({ error: 'Informasi pembayaran tidak ditemukan atau di luar scope.' }, 404);
+        if (!isAdmin && previousIsDefault) return json({ error: 'Informasi rekening default hanya dapat diedit Admin utama.' }, 403);
+        if (!isAdmin && visibleExisting.some((eventId) => !eventId)) {
+          return json({ error: 'Informasi ini juga digunakan Event di luar scope akun Anda dan tidak dapat diedit.' }, 403);
+        }
         eventIdsToSave = [...new Set([...eventIdsToSave, ...visibleExisting.filter((eventId): eventId is string => Boolean(eventId) && !eventIds.includes(eventId))])];
       }
+      const requestedDefault = typeof method.is_default === 'boolean' ? method.is_default : previousIsDefault;
       const qrisBelongsToSelection = qrisPath && eventIdsToSave.some((eventId) => qrisPath.startsWith(`payment-methods/${eventId}/`));
       if (qrisPath && qrisPath !== previousQrisPath && !qrisBelongsToSelection) return json({ error: 'Lokasi QRIS tidak valid untuk Event yang dipilih.' }, 400);
       const { data: savedMethodId, error: saveError } = await serviceClient.rpc('save_ticket_payment_method', {
@@ -608,6 +616,12 @@ serve(async (request) => {
         p_note: method.note?.trim() || null,
       });
       if (saveError || !savedMethodId) return json({ error: saveError?.message ?? 'Informasi pembayaran gagal disimpan.' }, 400);
+      if ((isAdmin || isTicketAdmin) && (requestedDefault || previousIsDefault)) {
+        const { error: defaultError } = await serviceClient.rpc('set_default_ticket_payment_method', {
+          p_method_id: requestedDefault ? savedMethodId : null,
+        });
+        if (defaultError) return json({ error: `Informasi tersimpan, tetapi status default gagal diperbarui: ${defaultError.message}` }, 400);
+      }
       return json({ method_id: savedMethodId });
     }
 
@@ -636,6 +650,11 @@ serve(async (request) => {
     if (body.action === 'delete-payment-method') {
       if (!isAdmin && !isTicketAdmin) return json({ error: 'Akses pengelolaan pembayaran ditolak.' }, 403);
       if (!body.payment_method_id) return json({ error: 'Pilih informasi pembayaran.' }, 400);
+      const { data: paymentMethod, error: methodError } = await serviceClient.from('event_payment_methods')
+        .select('is_default').eq('id', body.payment_method_id).maybeSingle();
+      if (methodError) return json({ error: 'Informasi pembayaran gagal dimuat.' }, 500);
+      if (!paymentMethod) return json({ error: 'Informasi pembayaran tidak ditemukan.' }, 404);
+      if (!isAdmin && paymentMethod.is_default) return json({ error: 'Informasi pembayaran default hanya dapat dihapus Admin utama.' }, 403);
       const { data: assignedEvents, error: assignmentError } = await serviceClient.from('event_payment_method_assignments')
         .select('event_id').eq('payment_method_id', body.payment_method_id);
       if (assignmentError) return json({ error: 'Event penggunaan informasi pembayaran gagal dimuat.' }, 500);

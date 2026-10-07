@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, CreditCard, Eye, Landmark, QrCode, Ticket, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, CreditCard, Eye, Landmark, QrCode, Ticket, Upload, UserRound } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { LOGO_URL, type EventItem, type EventTicket } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { getImageFileExtension, processImageForUpload, validateImageFile } from '@/lib/image-processing';
 import { PageHeader } from '@/components/PageHeader';
 import { Modal } from '@/components/ui/Modal';
+import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { createOrderNumber, formatDate, formatPrice, getEventStatus, normalizeWhatsappNumber } from '@/lib/format';
 
@@ -24,6 +25,8 @@ function PaymentInstructions({ method, totalPrice }: { method: PaymentSnapshot; 
   const [selectedMethod, setSelectedMethod] = useState<'bank' | 'qris'>(hasBankTransfer ? 'bank' : 'qris');
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
+  const [qrisPreviewOpen, setQrisPreviewOpen] = useState(false);
+  const qrisUrl = qrisPath ? supabase.storage.from('standupindo-media').getPublicUrl(qrisPath).data.publicUrl : '';
 
   async function copyAccountNumber() {
     if (!method.account_number) return;
@@ -70,28 +73,31 @@ function PaymentInstructions({ method, totalPrice }: { method: PaymentSnapshot; 
           </div>
         )}
         {hasBankTransfer && (!hasQris || selectedMethod === 'bank') && (
-          <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3 sm:p-4">
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700"><Landmark className="h-4 w-4" /></span>
+          <div className="overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-slate-50 p-3.5 shadow-sm sm:p-5">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><Landmark className="h-5 w-5" /></span>
               <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Transfer Bank</p>
-                <p className="text-sm font-extrabold text-slate-900">{method.bank_name || 'Rekening Bank'}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-blue-700">Transfer ke rekening</p>
+                <p className="mt-0.5 truncate text-lg font-black leading-tight text-slate-950">{method.bank_name || 'Rekening Bank'}</p>
               </div>
             </div>
             {method.account_number && (
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm sm:px-4">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Nomor rekening</p>
-                  <span className="block break-all font-mono text-base font-extrabold tracking-wide text-slate-900">{method.account_number}</span>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">Nomor rekening</p>
+                  <span className="mt-0.5 block break-all font-mono text-xl font-extrabold tracking-wider text-slate-950 sm:text-2xl">{method.account_number}</span>
                 </div>
-                <button type="button" onClick={() => void copyAccountNumber()} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 transition hover:bg-blue-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label={copied ? 'Nomor rekening tersalin' : 'Salin nomor rekening'} title={copied ? 'Nomor rekening tersalin' : 'Salin nomor rekening'}>
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                </button>
+                <button type="button" onClick={() => void copyAccountNumber()} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label={copied ? 'Nomor rekening tersalin' : 'Salin nomor rekening'} title={copied ? 'Nomor rekening tersalin' : 'Salin nomor rekening'}>
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </button>
               </div>
             )}
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-xs text-slate-500">Nama penerima</span>
-              <span className="text-sm font-semibold text-slate-800">{method.recipient_name}</span>
+            <div className="mt-3 flex items-start gap-3 rounded-xl border border-blue-100/80 bg-white/80 px-3 py-3">
+              <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">Nama penerima</p>
+                <p className="mt-0.5 break-words text-sm font-bold text-slate-900">{method.recipient_name}</p>
+              </div>
             </div>
             {copyError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">{copyError}</p>}
           </div>
@@ -103,7 +109,27 @@ function PaymentInstructions({ method, totalPrice }: { method: PaymentSnapshot; 
               <p className="text-sm font-bold text-slate-800">Bayar dengan QRIS</p>
             </div>
             <p className="mb-3 text-xs text-slate-500">Pindai kode QR menggunakan aplikasi pembayaran. Penerima: <span className="font-semibold text-slate-700">{method.recipient_name}</span></p>
-            {qrisPath && <img src={supabase.storage.from('standupindo-media').getPublicUrl(qrisPath).data.publicUrl} alt="QRIS pembayaran Event" className="mx-auto max-h-64 rounded-lg border border-slate-200 object-contain" />}
+            {qrisPath && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setQrisPreviewOpen(true)}
+                  className="group mx-auto block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                  aria-label="Perbesar QRIS pembayaran"
+                  title="Ketuk untuk memperbesar QRIS"
+                >
+                  <img src={qrisUrl} alt="QRIS pembayaran Event, ketuk untuk memperbesar" className="mx-auto max-h-64 rounded-lg border border-slate-200 object-contain transition group-hover:border-blue-400" />
+                  <span className="mt-2 block text-center text-xs font-semibold text-blue-700">Ketuk QRIS untuk melihat lebih besar</span>
+                </button>
+                <ImageLightbox
+                  src={qrisUrl}
+                  alt="QRIS pembayaran Event"
+                  open={qrisPreviewOpen}
+                  onClose={() => setQrisPreviewOpen(false)}
+                  closeAriaLabel="Tutup QRIS"
+                />
+              </>
+            )}
           </div>
         )}
         {method.note && <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">{method.note}</p>}

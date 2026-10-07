@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Archive, Building2, Check, ChevronDown, CreditCard, ImagePlus, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Archive, Building2, Check, ChevronDown, CreditCard, ImagePlus, Pencil, Plus, Save, Search, Star, Trash2, X } from 'lucide-react';
 import type { TicketPaymentMethod } from '@/lib/types';
 import { formatDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -9,14 +9,18 @@ import { getImageFileExtension, processImageForUpload, validateImageFile } from 
 
 interface EventOption { id: string; title: string; date: string; status: string; }
 interface PaymentMethodView extends TicketPaymentMethod {
+  is_default: boolean;
   events: Array<EventOption & { is_active: boolean }>;
+  can_edit: boolean;
   can_delete: boolean;
 }
 type PaymentMethodResponse = TicketPaymentMethod & {
+  is_default?: boolean;
   events?: Array<EventOption & { is_active: boolean }>;
+  can_edit?: boolean;
   can_delete?: boolean;
 };
-type PaymentDraft = { id?: string; event_ids: string[]; recipient_name: string; bank_name: string; account_number: string; qris_storage_path: string; note: string };
+type PaymentDraft = { id?: string; event_ids: string[]; recipient_name: string; bank_name: string; account_number: string; qris_storage_path: string; note: string; make_default: boolean };
 
 async function paymentAction<T>(body: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke('ticketing-admin', { body });
@@ -33,7 +37,7 @@ async function paymentAction<T>(body: Record<string, unknown>) {
   return { data: null as T, error: error.message };
 }
 
-const EMPTY_DRAFT: PaymentDraft = { event_ids: [], recipient_name: '', bank_name: '', account_number: '', qris_storage_path: '', note: '' };
+const EMPTY_DRAFT: PaymentDraft = { event_ids: [], recipient_name: '', bank_name: '', account_number: '', qris_storage_path: '', note: '', make_default: false };
 
 function isArchivedEvent(event: EventOption) {
   if (event.status === 'completed' || event.status === 'cancelled') return true;
@@ -47,6 +51,7 @@ function isArchivedEvent(event: EventOption) {
 export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOption[]; onBack: () => void }) {
   const [methods, setMethods] = useState<PaymentMethodView[]>([]);
   const [supportsMultiEvent, setSupportsMultiEvent] = useState(false);
+  const [canManageDefault, setCanManageDefault] = useState(false);
   const [draft, setDraft] = useState<PaymentDraft | null>(null);
   const [methodToDelete, setMethodToDelete] = useState<PaymentMethodView | null>(null);
   const [qrisFile, setQrisFile] = useState<File | null>(null);
@@ -60,13 +65,14 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error: loadError } = await paymentAction<{ methods: PaymentMethodResponse[]; events?: EventOption[]; supports_multi_event?: boolean }>({ action: 'payment-methods' });
+    const { data, error: loadError } = await paymentAction<{ methods: PaymentMethodResponse[]; events?: EventOption[]; supports_multi_event?: boolean; can_manage_default?: boolean }>({ action: 'payment-methods' });
     setLoading(false);
     if (loadError || !data) {
       setError(loadError ?? 'Informasi pembayaran gagal dimuat.');
       return;
     }
     setSupportsMultiEvent(data.supports_multi_event === true || (data.methods ?? []).some((method) => Array.isArray(method.events)));
+    setCanManageDefault(data.can_manage_default === true);
     const eventById = new Map([...(events ?? []), ...(data.events ?? [])].map((event) => [event.id, event]));
     setMethods((data.methods ?? []).map((method) => {
       const assignedEvents = Array.isArray(method.events)
@@ -76,7 +82,9 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
           : [];
       return {
         ...method,
+        is_default: method.is_default === true,
         events: assignedEvents,
+        can_edit: method.can_edit ?? true,
         can_delete: method.can_delete ?? true,
       };
     }));
@@ -92,7 +100,7 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
   }
 
   function openEdit(method: PaymentMethodView) {
-    setDraft({ id: method.id, event_ids: method.events.map((event) => event.id), recipient_name: method.recipient_name, bank_name: method.bank_name ?? '', account_number: method.account_number ?? '', qris_storage_path: method.qris_storage_path ?? '', note: method.note ?? '' });
+    setDraft({ id: method.id, event_ids: method.events.map((event) => event.id), recipient_name: method.recipient_name, bank_name: method.bank_name ?? '', account_number: method.account_number ?? '', qris_storage_path: method.qris_storage_path ?? '', note: method.note ?? '', make_default: method.is_default });
     setEventSearch('');
     setQrisFile(null);
     setError('');
@@ -109,6 +117,7 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
       setError('Backend Informasi Pembayaran belum mendukung beberapa Event. Perbarui/deploy Edge Function ticketing-admin sebelum mengubah penugasan Event.');
       return;
     }
+    const isChangingDefault = draft.make_default || methods.some((method) => method.id === draft.id && method.is_default);
     setSaving(true);
     setError('');
     let qrisPath = draft.qris_storage_path;
@@ -148,20 +157,35 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
       }
       qrisPath = upload.path;
     }
-    const { error: saveError } = await paymentAction({
+    const { data: savedPayment, error: saveError } = await paymentAction<{ method_id: string }>({
       action: 'save-payment-method',
       payment_method: {
         ...draft,
         event_id: draft.event_ids[0],
         qris_storage_path: qrisPath,
+        is_default: draft.make_default,
       },
     });
-    setSaving(false);
     if (saveError) {
+      setSaving(false);
       setError(saveError);
       return;
     }
+    if (isChangingDefault) {
+      const { data: refreshedMethods, error: refreshError } = await paymentAction<{ methods: PaymentMethodResponse[] }>({ action: 'payment-methods' });
+      const savedMethod = refreshedMethods?.methods.find((method) => method.id === savedPayment?.method_id);
+      const defaultStatusWasUpdated = draft.make_default
+        ? savedMethod?.is_default === true
+        : !refreshedMethods?.methods.some((method) => method.is_default === true);
+      if (refreshError || !refreshedMethods || !savedPayment?.method_id || !defaultStatusWasUpdated) {
+        setSaving(false);
+        await load();
+        setError('Informasi pembayaran tersimpan, tetapi status default belum berubah. Deploy Edge Function ticketing-admin versi terbaru lalu coba lagi.');
+        return;
+      }
+    }
     setDraft(null);
+    setSaving(false);
     setQrisFile(null);
     await load();
   }
@@ -268,7 +292,7 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
             {!filteredEvents.length && <p className="rounded-xl px-3 py-6 text-center text-sm text-slate-500">Event tidak ditemukan.</p>}
           </div>
         </div>
-        <p className="text-[11px] text-slate-500">Status aktif diatur terpisah untuk setiap Event. Event baru akan tersimpan nonaktif.</p>
+        <p className="text-[11px] text-slate-500">Status aktif diatur terpisah untuk setiap Event. Default otomatis dipasang saat Event baru dipublikasikan.</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-xs font-semibold text-slate-600"><span>Nama penerima</span><input required className="input-field" value={draft.recipient_name} onChange={(event) => setDraft({ ...draft, recipient_name: event.target.value })} placeholder="Nama penerima" /></label>
@@ -277,6 +301,9 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
       </div>
       <label className="block space-y-1 text-xs font-semibold text-slate-600"><span>QRIS statis (opsional)</span><input className="input-field" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setQrisFile(event.target.files?.[0] ?? null)} /><span className="block text-[11px] font-normal text-slate-500">{draft.qris_storage_path && !qrisFile ? 'QRIS tersimpan. Pilih file baru bila ingin mengganti.' : 'JPG, PNG, WEBP · Maks. 5 MB'}</span></label>
       <label className="block space-y-1 text-xs font-semibold text-slate-600"><span>Catatan (opsional)</span><textarea className="input-field min-h-20" value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} /></label>
+      {canManageDefault
+        ? <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-900"><input type="checkbox" checked={draft.make_default} onChange={(event) => setDraft({ ...draft, make_default: event.target.checked })} className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600" /><span><span className="block font-bold">Jadikan informasi pembayaran default</span><span className="mt-0.5 block leading-5">Default ini otomatis dipasang ke Event baru saat dipublikasikan. Mengubah default tidak mengubah rekening aktif pada Event yang sudah terbit.</span></span></label>
+        : <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">Rekening default untuk Event baru hanya dapat diubah oleh Admin utama. Pengaturan rekening per-Event tetap tersedia sesuai scope Admin Tiket.</p>}
       <button type="submit" disabled={saving} className="btn-primary w-full"><Save className="h-4 w-4" />{saving ? 'Menyimpan...' : 'Simpan Informasi'}</button>
     </form>
   );
@@ -350,10 +377,11 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
         return <article key={method.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">{method.qris_storage_path ? <ImagePlus className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}</span>
-            <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <h2 className="font-extrabold text-slate-900">{method.recipient_name}</h2>
-              {method.bank_name && <p className="mt-1 text-sm text-slate-700">{method.bank_name} · {method.account_number}</p>}
-              {method.note && <p className="mt-1 text-xs text-slate-500">{method.note}</p>}
+              {method.is_default && <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 px-3 py-1.5 text-[10px] font-extrabold tracking-wide text-white shadow-sm shadow-blue-200 ring-1 ring-blue-400/30"><Star className="h-3 w-3 fill-current" />Default Rekening Event</span>}
+              {method.bank_name && <p className="w-full text-sm text-slate-700">{method.bank_name} · {method.account_number}</p>}
+              {method.note && <p className="w-full text-xs text-slate-500">{method.note}</p>}
             </div>
           </div>
           <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
@@ -378,7 +406,7 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
             </div>}
           </div>
           {method.qris_storage_path && <img src={signedQrisUrl(method.qris_storage_path)} alt={`QRIS ${method.recipient_name}`} className="mt-3 max-h-44 rounded-xl border border-slate-200 object-contain" />}
-          <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => openEdit(method)} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs"><Pencil className="h-4 w-4" /> Edit</button>{method.can_delete && <button type="button" onClick={() => void deleteMethod(method)} disabled={saving} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs text-red-700"><Trash2 className="h-4 w-4" /> Hapus</button>}</div>
+          <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">{method.can_edit && <button type="button" onClick={() => openEdit(method)} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs"><Pencil className="h-4 w-4" /> Edit</button>}{!method.can_edit && <p className="self-center text-xs text-slate-500">{method.is_default ? 'Informasi rekening default hanya dapat diedit Admin utama.' : 'Informasi ini juga digunakan Event di luar scope akun Anda.'}</p>}{method.can_delete && <button type="button" onClick={() => void deleteMethod(method)} disabled={saving} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs text-red-700"><Trash2 className="h-4 w-4" /> Hapus</button>}</div>
         </article>;
       })}</div>}
       <p className="flex items-center gap-2 text-xs text-slate-500"><CreditCard className="h-4 w-4" /> Informasi pembayaran otomatis nonaktif H+2 setelah tanggal Event (WIB). Order lama tetap menyimpan snapshot tujuan pembayaran.</p>
