@@ -124,6 +124,23 @@ export function MemberProfilePage({ router }: { router: Router }) {
     }
   }
 
+  async function handleSaveProfilePhoto(photoUrl: string, cardPhotoUrl: string | null) {
+    if (!profile) throw new Error('Profil komika tidak ditemukan.');
+    const { error } = await supabase
+      .from('komika')
+      .update({
+        photo: photoUrl,
+        photo_card: cardPhotoUrl,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', profile.id);
+    if (error) throw error;
+
+    setForm((current) => ({ ...current, photo: photoUrl }));
+    setProfile((current) => current ? { ...current, photo: photoUrl, photo_card: cardPhotoUrl } : current);
+    setProfileNotice('Foto profil berhasil disimpan.');
+  }
+
   function cancelEditing() {
     if (!profile) return;
     setForm({
@@ -175,7 +192,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
               <div className={`${editingProfile ? 'overflow-visible' : 'overflow-hidden'} rounded-2xl border border-white/35 bg-white/15 ring-1 ring-white/30`}>
                 {editingProfile ? (
                   <div>
-                    <ImageUpload label="Foto Profil" folder="komika" value={form.photo} onChange={(url) => setForm({ ...form, photo: url })} aspect="portrait" processingProfile="avatar" avatar onPreview={() => setPreviewPhoto(true)} />
+                    <ImageUpload label="Foto Profil" folder="komika" value={form.photo} onChange={(url) => setForm({ ...form, photo: url })} aspect="portrait" processingProfile="avatar" avatar cropToFrame onSaveImmediately={handleSaveProfilePhoto} onPreview={() => setPreviewPhoto(true)} />
                   </div>
                 ) : (
                   <button type="button" onClick={() => form.photo && setPreviewPhoto(true)} className="block h-full w-full" aria-label={form.photo ? 'Lihat foto profil' : undefined}>

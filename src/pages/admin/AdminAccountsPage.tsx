@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { KeyRound, Power, ShieldPlus, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, Power, ShieldPlus, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Modal } from '@/components/ui/Modal';
 
@@ -27,6 +27,7 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<AdminRole>(creatorRole === 'event_admin' ? 'admin_ticket' : 'open_mic_admin');
   const [scopeMode, setScopeMode] = useState<'all' | 'selected'>('all');
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
@@ -68,6 +69,7 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
     if (data?.error) { onNotice(data.error); return; }
     setEmail('');
     setPassword('');
+    setShowPassword(false);
     setSelectedEventIds([]);
     onNotice('Akun admin operasional berhasil dibuat.');
     await loadAccounts();
@@ -101,7 +103,7 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
         <div className="mb-5 flex items-center gap-3 rounded-2xl bg-blue-50 p-4 text-blue-800 ring-1 ring-blue-100"><KeyRound className="h-5 w-5 shrink-0" /><p className="text-sm font-medium">Akun memakai login Admin yang sama di <strong>/admin/login</strong>.</p></div>
         <div className="grid gap-4 sm:grid-cols-3">
           <div><label className="label-field" htmlFor="admin-account-email">Email</label><input id="admin-account-email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="input-field" autoComplete="off" /></div>
-          <div><label className="label-field" htmlFor="admin-account-password">Password sementara</label><input id="admin-account-password" type="password" required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} className="input-field" autoComplete="new-password" /></div>
+          <div><label className="label-field" htmlFor="admin-account-password">Password sementara</label><div className="relative"><input id="admin-account-password" type={showPassword ? 'text' : 'password'} required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} className="input-field !pr-12" autoComplete="new-password" /><button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-blue-700" aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} title={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
           <div><label className="label-field" htmlFor="admin-account-role">Role</label><select id="admin-account-role" value={role} onChange={(event) => setRole(event.target.value as AdminRole)} className="input-field">{creatorRole === 'admin' ? <><option value="open_mic_admin">Admin Open Mic</option><option value="event_admin">Admin Event</option></> : null}<option value="admin_ticket">Admin Tiket</option><option value="admin_qr">Admin QR Scanner</option></select></div>
         </div>
         {(role === 'admin_ticket' || role === 'admin_qr') && <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">

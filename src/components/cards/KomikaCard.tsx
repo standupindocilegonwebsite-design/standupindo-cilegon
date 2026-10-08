@@ -5,6 +5,7 @@ import { normalizeSpecialties } from '@/lib/format';
 
 export function KomikaCard({ komika, router }: { komika: Komika; router: Router }) {
   const specialties = normalizeSpecialties(komika.specialties);
+  const cardPhoto = komika.photo_card || komika.photo;
 
   return (
     <article
@@ -23,9 +24,9 @@ export function KomikaCard({ komika, router }: { komika: Komika; router: Router 
       tabIndex={0}
       aria-label={`Lihat profil ${komika.stage_name}`}
     >
-      {komika.photo ? (
+      {cardPhoto ? (
         <img
-          src={komika.photo}
+          src={cardPhoto}
           alt={komika.stage_name}
           loading="lazy"
           className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.04]"

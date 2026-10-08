@@ -2,7 +2,7 @@
 
 > **Panduan ini sudah digantikan.** Untuk membuat komunitas yang mandiri sepenuhnya (repository, domain, hosting, Supabase, Resend, akun, dan secrets sendiri), ikuti [COMMUNITY_CLONE_RUNBOOK.md](./COMMUNITY_CLONE_RUNBOOK.md).
 >
-> Jangan menggunakan urutan migration lama di bawah ini sebagai instruksi deploy production. Repository memiliki migration legacy/duplikat, seed admin berkredensial contoh, dan migration fitur yang belum dicakup dalam daftar lama. Paket migration lengkap harus ditinjau dan diuji pada database kosong sebelum dipakai.
+> Audit dependency dan urutan kandidat migration terkini (8 Oktober 2026) sekarang dicatat pada bagian **Tahap 4 — Urutan kandidat hasil telaah dependensi** di runbook tersebut. Kandidat itu belum diuji pada database kosong, menemukan prasyarat push yang belum ada di folder migration, dan bukan urutan deploy production. Jangan menjalankan urutan historis di bawah ini atau `db push` ke project baru sebelum baseline clone diuji dari nol.
 
 ---
 

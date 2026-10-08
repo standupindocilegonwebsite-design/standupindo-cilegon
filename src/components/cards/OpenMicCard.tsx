@@ -49,7 +49,7 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
           ) : (
             <span className="flex h-full min-h-[150px] items-center justify-center text-slate-300"><Users className="h-8 w-8" /></span>
           )}
-          <div className="absolute left-2 top-2"><StatusBadge status={currentStatus} /></div>
+          <div className="absolute left-2 top-2"><StatusBadge status={currentStatus} label={isCompleted ? 'Open Mic Selesai' : undefined} /></div>
         </div>
         <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-3.5">
           {openMicNumber !== undefined && <p className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-blue-700">Open Mic #{openMicNumber}</p>}
@@ -106,12 +106,10 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
           ) : (
             <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className="flex h-full w-full items-center justify-center text-slate-300"><Users className="h-8 w-8" /></button>
           )}
-          <div className="absolute left-3 top-3">
-            {isCompleted ? <span className="inline-flex items-center rounded-full bg-slate-800 px-3 py-1 text-xs font-extrabold text-white shadow-sm">Selesai</span> : <StatusBadge status={currentStatus} />}
-          </div>
+          {!isCompleted && <div className="absolute left-3 top-3"><StatusBadge status={currentStatus} /></div>}
           {!isCompleted && (
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent px-3 pb-3 pt-20 sm:px-4 sm:pb-4 sm:pt-24">
-              {openMicNumber !== undefined && <p className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-sky-300 sm:text-xs">OPEN MIC #{openMicNumber}</p>}
+              {openMicNumber !== undefined && <p className="mb-2 w-fit rounded-sm bg-blue-600 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white sm:text-xs">Open Mic #{openMicNumber}</p>}
               <h3 className="mb-2 line-clamp-2 break-words text-left text-base font-extrabold leading-5 text-white sm:text-lg sm:leading-6">{mic.title}</h3>
               <div className="space-y-1.5 text-left text-xs font-semibold leading-4 text-white sm:text-sm">
                 <div className="flex min-w-0 items-center gap-2"><Calendar className="h-4 w-4 shrink-0 text-sky-300" /><span className="truncate">{formatDate(mic.date)}</span></div>
@@ -122,7 +120,15 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
         </div>
 
         <div className={`flex min-w-0 flex-1 flex-col ${isCompleted ? 'p-3.5 sm:p-4' : 'p-3 sm:p-4'}`}>
-          {isCompleted && <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className="text-left">{openMicNumber !== undefined && <p className="mb-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Open Mic #{openMicNumber}</p>}<h3 className="line-clamp-2 text-base font-extrabold leading-tight text-slate-900 transition group-hover:text-blue-700 sm:text-lg">{mic.title}</h3></button>}
+          {isCompleted && <>
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5">
+              {openMicNumber !== undefined && <p className="w-fit rounded-sm bg-blue-600 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white sm:text-xs">Open Mic #{openMicNumber}</p>}
+              <StatusBadge status={currentStatus} label="Open Mic Selesai" />
+            </div>
+            <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className="text-left">
+              <h3 className="line-clamp-2 text-base font-extrabold leading-tight text-slate-900 transition group-hover:text-blue-700 sm:text-lg">{mic.title}</h3>
+            </button>
+          </>}
 
           {isCompleted && <div className="mt-2 space-y-1.5 text-sm text-slate-600">
             <div className="flex items-start gap-2"><Calendar className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> <span>{formatDate(mic.date)}</span></div>

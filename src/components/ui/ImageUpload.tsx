@@ -17,9 +17,11 @@ interface ImageUploadProps {
   onPreview?: () => void;
   skipCrop?: boolean;
   processingProfile?: ImageProcessingProfile;
+  cropToFrame?: boolean;
+  onSaveImmediately?: (photoUrl: string, cardPhotoUrl: string | null) => Promise<void>;
 }
 
-export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', required = false, onUploadingChange, compact = false, avatar = false, onPreview, skipCrop = false, processingProfile }: ImageUploadProps) {
+export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', required = false, onUploadingChange, compact = false, avatar = false, onPreview, skipCrop = false, processingProfile, cropToFrame = false, onSaveImmediately }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -163,20 +165,22 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', r
       {pendingCropSrc && pendingCropFile && (
         <PhotoCropper
           src={pendingCropSrc}
-            originalFile={pendingCropFile}
-            folder={folder}
-            processingProfile={effectiveProcessingProfile}
-          onSave={(url) => {
-            onChange(url);
+          originalFile={pendingCropFile}
+          folder={folder}
+          processingProfile={effectiveProcessingProfile}
+          cropToFrame={cropToFrame}
+          onSave={async (url, cardUrl) => {
+            if (onSaveImmediately) await onSaveImmediately(url, cardUrl ?? null);
+            else onChange(url);
             setPendingCropSrc(null);
-              setPendingCropFile(null);
-              if (pendingCropSrc.startsWith('blob:')) URL.revokeObjectURL(pendingCropSrc);
-            }}
-            onCancel={() => {
-              setPendingCropSrc(null);
-              setPendingCropFile(null);
-              if (pendingCropSrc.startsWith('blob:')) URL.revokeObjectURL(pendingCropSrc);
-            }}
+            setPendingCropFile(null);
+            if (pendingCropSrc.startsWith('blob:')) URL.revokeObjectURL(pendingCropSrc);
+          }}
+          onCancel={() => {
+            setPendingCropSrc(null);
+            setPendingCropFile(null);
+            if (pendingCropSrc.startsWith('blob:')) URL.revokeObjectURL(pendingCropSrc);
+          }}
         />
       )}
 

@@ -51,9 +51,7 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
               Poster belum tersedia
             </button>
           )}
-          <div className="absolute left-3 top-3">
-            <StatusBadge status={currentStatus} />
-          </div>
+          {!isCompleted && <div className="absolute left-3 top-3"><StatusBadge status={currentStatus} /></div>}
           {!isCompleted && (
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent px-3 pb-3 pt-20 sm:px-4 sm:pb-4 sm:pt-24">
               <p className="mb-2 w-fit rounded-sm bg-blue-600 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white sm:text-xs">Event</p>
@@ -74,7 +72,10 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
 
         <div className={isCompleted ? 'flex min-w-0 flex-1 flex-col overflow-hidden p-3 sm:p-4' : 'p-3 sm:p-4'}>
           {isCompleted && <>
-            <p className="mb-2 w-fit rounded-sm bg-blue-600 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white sm:text-xs">Event</p>
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5">
+              <p className="w-fit rounded-sm bg-blue-600 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white sm:text-xs">Event</p>
+              <StatusBadge status={currentStatus} label="Event Selesai" />
+            </div>
             <h3 className="line-clamp-2 break-words text-base font-extrabold tracking-[-0.02em] text-slate-900 sm:text-lg">{event.title}</h3>
           </>}
 

@@ -202,6 +202,7 @@ export interface Komika {
   stage_name: string;
   slug: string;
   photo: string | null;
+  photo_card?: string | null;
   bio: string | null;
   karya_url: string | null;
   instagram_url: string | null;

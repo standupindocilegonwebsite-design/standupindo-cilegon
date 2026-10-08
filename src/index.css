@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+.member-photo-crop-area {
+  border: 1px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.48);
+}
+
 .open-mic-roster-pendaftar section > div:first-child .bg-emerald-50 {
   display: none;
 }

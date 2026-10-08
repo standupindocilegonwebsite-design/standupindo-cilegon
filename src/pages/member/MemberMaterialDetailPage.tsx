@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, BookOpen, CalendarDays, ChevronLeft, ChevronRight, Clock3, Expand, Moon, Minus, Pencil, Plus, RotateCcw, Save, Shrink, Star, Sun, Trash2, X, ZoomIn } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BookOpen, CalendarDays, ChevronDown, ChevronUp, Clock3, Expand, Moon, Minus, Pencil, Plus, RotateCcw, Save, Shrink, Star, Sun, Trash2, X, ZoomIn } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { Material, MaterialNode } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
@@ -7,63 +7,15 @@ import { supabase } from '@/lib/supabase';
 import { formatDate } from '@/lib/format';
 import { MaterialContentEditor } from '@/components/MaterialContentEditor';
 import { parseMaterialContent, type MaterialContentBlock } from '@/lib/material-content';
+import { Modal } from '@/components/ui/Modal';
 
 type DetailTab = 'current' | 'previous';
-type ReadingTheme = 'paper' | 'night';
+type ReadingTheme = 'light' | 'dark';
 
-const RATING_LABELS = ['Cuma Niat', 'Maksa Lucu', 'Ada Bibit', 'Mulai Kena', 'Lumayan Pecah', 'Solid Ini'];
-const READING_PAGE_CHAR_LIMIT = 1100;
-
-function buildReadingPages(content: string): MaterialContentBlock[][] {
-  const pages: MaterialContentBlock[][] = [];
-  let current: MaterialContentBlock[] = [];
-  let currentLength = 0;
-
-  const appendText = (text: string) => {
-    const nextLength = currentLength ? currentLength + text.length + 2 : text.length;
-    if (currentLength && nextLength > READING_PAGE_CHAR_LIMIT) {
-      pages.push(current);
-      current = [];
-      currentLength = 0;
-    }
-    current.push({ type: 'text', text });
-    currentLength += text.length + (currentLength ? 2 : 0);
-  };
-
-  const addText = (text: string) => {
-    if (text.length <= READING_PAGE_CHAR_LIMIT) {
-      appendText(text);
-      return;
-    }
-    let chunk = '';
-    text.split(/\s+/).forEach((word) => {
-      if (chunk && `${chunk} ${word}`.length > READING_PAGE_CHAR_LIMIT) {
-        appendText(chunk);
-        chunk = word;
-      } else {
-        chunk = chunk ? `${chunk} ${word}` : word;
-      }
-    });
-    if (chunk) appendText(chunk);
-  };
-
-  parseMaterialContent(content).forEach((block) => {
-    if (block.type === 'table') {
-      if (current.length) pages.push(current);
-      pages.push([block]);
-      current = [];
-      currentLength = 0;
-      return;
-    }
-    block.text.split(/\n\s*\n|\n/).map((part) => part.trim()).filter(Boolean).forEach(addText);
-  });
-
-  if (current.length) pages.push(current);
-  return pages.length > 0 ? pages : [[{ type: 'text', text: 'Belum ada isi materi.' }]];
-}
+const RATING_LABELS = ['Cuma Niat', 'Maksa Lucu', 'Berpotensi', 'Mulai Kena', 'Lumayan Pecah', 'Solid Ini'];
 
 function renderMaterialBlocks(blocks: MaterialContentBlock[], readingTheme?: ReadingTheme) {
-  const isNight = readingTheme === 'night';
+  const isNight = readingTheme === 'dark';
   return blocks.map((block, blockIndex) => block.type === 'text' ? (
     <p key={`text-${blockIndex}`} className="whitespace-pre-line break-words">{block.text}</p>
   ) : (
@@ -82,8 +34,10 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
   const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState<DetailTab>('current');
   const [readingMode, setReadingMode] = useState(false);
-  const [readingPage, setReadingPage] = useState(0);
-  const [readingTheme, setReadingTheme] = useState<ReadingTheme>('paper');
+  const [readingTheme, setReadingTheme] = useState<ReadingTheme>('light');
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
+  const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
+  const [materialContentCollapsed, setMaterialContentCollapsed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ title: '', theme: '', premis: '', estimated_duration: '', content: '', rating: '', personal_note: '' });
@@ -97,26 +51,11 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
   const [draggingCanvas, setDraggingCanvas] = useState(false);
   const [canvasStart, setCanvasStart] = useState({ x: 0, y: 0 });
   const [mappingFullscreen, setMappingFullscreen] = useState(false);
-  const readingTouchStart = useRef<number | null>(null);
-  const readingContentRef = useRef<HTMLDivElement>(null);
+  const editFormRef = useRef<HTMLFormElement>(null);
   const mappingSectionRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const canvasTouchDistance = useRef<number | null>(null);
   const canvasTouchScale = useRef(1);
-  const readingPages = useMemo(() => buildReadingPages(tab === 'current' ? material?.content ?? '' : material?.previous_content ?? ''), [material?.content, material?.previous_content, tab]);
-
-  useEffect(() => {
-    setReadingPage(0);
-  }, [tab, readingMode]);
-
-  useEffect(() => {
-    setReadingPage((page) => Math.min(page, Math.max(0, readingPages.length - 1)));
-  }, [readingPages.length]);
-
-  useEffect(() => {
-    if (!readingMode) return;
-    readingContentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [readingMode, readingPage]);
 
   useEffect(() => {
     if (!mappingFullscreen) return;
@@ -124,6 +63,12 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = previousOverflow; };
   }, [mappingFullscreen]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const frame = window.requestAnimationFrame(() => editFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [editing]);
 
   async function loadMaterial() {
     if (!user?.id) return;
@@ -140,8 +85,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
 
   useEffect(() => { void loadMaterial(); }, [id, user?.id]);
 
-  async function saveChanges(event: React.FormEvent) {
-    event.preventDefault();
+  async function saveChanges() {
     if (!user?.id || !material) return;
     if (!form.title.trim() || !form.theme.trim() || !form.estimated_duration || !form.content.trim()) {
       setError('Judul, tema, durasi, dan materi wajib diisi.');
@@ -172,8 +116,13 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
     await loadMaterial();
   }
 
+  function confirmRewriteSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setSaveConfirmationOpen(true);
+  }
+
   async function deleteMaterial() {
-    if (!user?.id || !material || !window.confirm('Hapus materi ini? Data materi akan dihapus permanen.')) return;
+    if (!user?.id || !material) return;
     const { error: deleteError } = await supabase.from('materials').delete().eq('id', material.id).eq('user_id', user.id);
     if (deleteError) {
       setError(`Materi gagal dihapus: ${deleteError.message}`);
@@ -389,6 +338,10 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
   if (loading) return <div className="container-app py-8"><div className="h-64 animate-pulse rounded-[28px] bg-slate-100" /></div>;
   if (!material) return <div className="container-app py-8"><div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">{error || 'Materi tidak ditemukan.'}</div></div>;
 
+  const readingContent = tab === 'current' ? material.content : material.previous_content || 'Belum ada versi sebelumnya.';
+  const readingBlocks = parseMaterialContent(readingContent);
+  const darkReadingTheme = readingTheme === 'dark';
+
   return (
     <div className="animate-fade-in">
       <div className="container-app py-6 sm:py-8">
@@ -411,7 +364,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
           </section>
           {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
           {editing ? (
-            <form onSubmit={saveChanges} className="space-y-4 rounded-[26px] border border-blue-100 bg-blue-50/60 p-4 sm:p-5">
+            <form ref={editFormRef} onSubmit={confirmRewriteSubmit} className="scroll-mt-24 space-y-4 rounded-[26px] border border-blue-100 bg-blue-50/60 p-4 sm:p-5">
               <input className="input-field" placeholder="Judul materi" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
               <input className="input-field" placeholder="Tema materi" value={form.theme} onChange={(event) => setForm({ ...form, theme: event.target.value })} />
               <div><label htmlFor="edit-material-premis" className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Premis</label><textarea id="edit-material-premis" className="input-field !min-h-[88px]" placeholder="Inti atau gagasan utama materi..." value={form.premis} onChange={(event) => setForm({ ...form, premis: event.target.value })} /></div>
@@ -421,22 +374,24 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
             </form>
           ) : (
             <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
-              <div className="mb-4 flex gap-2 rounded-xl bg-slate-100 p-1"><button type="button" onClick={() => { setTab('current'); setReadingPage(0); }} className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold ${tab === 'current' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Versi Sekarang</button><button type="button" disabled={!material.previous_content} onClick={() => { setTab('previous'); setReadingPage(0); }} className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40 ${tab === 'previous' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Versi Sebelumnya</button></div>
-              <div className="mb-2 flex items-center justify-between gap-3"><p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{tab === 'current' ? 'Versi Sekarang' : 'Versi Sebelumnya'}</p><button type="button" onClick={() => setReadingMode((current) => !current)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100">{readingMode ? <X className="h-3.5 w-3.5" /> : <BookOpen className="h-3.5 w-3.5" />}{readingMode ? 'Tutup Mode Baca' : 'Mode Baca'}</button></div>
-              {readingMode ? (
-                <div className={`overflow-hidden rounded-2xl border shadow-[0_8px_24px_rgba(120,88,30,0.08)] ${readingTheme === 'paper' ? 'border-amber-100 bg-[#fffdf7]' : 'border-slate-700 bg-slate-900'}`}>
-                  <div className={`flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 text-xs font-bold sm:px-6 ${readingTheme === 'paper' ? 'border-amber-100 text-amber-800' : 'border-slate-700 text-slate-300'}`}><span className="inline-flex items-center gap-2"><BookOpen className="h-4 w-4" /> Mode Baca</span><div className="flex items-center gap-3"><span>Halaman {readingPage + 1} / {readingPages.length}</span><button type="button" onClick={() => setReadingTheme((theme) => theme === 'paper' ? 'night' : 'paper')} className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition ${readingTheme === 'paper' ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`} aria-label={readingTheme === 'paper' ? 'Gunakan tampilan malam' : 'Gunakan tampilan kertas'}>{readingTheme === 'paper' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />} {readingTheme === 'paper' ? 'Malam' : 'Kertas'}</button></div></div>
-                  <div className={`border-b px-5 py-4 sm:px-10 ${readingTheme === 'paper' ? 'border-amber-100 text-slate-700' : 'border-slate-700 text-slate-200'}`}><h2 className="text-lg font-bold leading-snug">{material.title}</h2><p className="mt-1 text-xs">{material.theme} · ±{material.estimated_duration} menit</p><p className="mt-3 text-sm leading-6"><span className="font-bold">Premis:</span> {material.premis?.trim() || '-'}</p></div>
-                  <div ref={readingContentRef} onTouchStart={startReadingSwipe} onTouchEnd={endReadingSwipe} className={`scroll-mt-24 mx-auto min-h-[min(55vh,28rem)] max-w-2xl touch-pan-y px-5 py-8 font-serif text-[16px] leading-8 tracking-normal sm:min-h-[28rem] sm:px-10 sm:py-10 sm:text-[17px] sm:leading-9 ${readingTheme === 'paper' ? 'text-slate-700' : 'text-slate-200'}`}>{renderMaterialBlocks(readingPages[readingPage], readingTheme)}</div>
-                  <div className={`flex items-center justify-between gap-3 border-t px-4 py-3 sm:px-6 ${readingTheme === 'paper' ? 'border-amber-100 bg-amber-50/50' : 'border-slate-700 bg-slate-950'}`}><button type="button" onClick={() => setReadingPage((page) => Math.max(0, page - 1))} disabled={readingPage === 0} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs disabled:opacity-40"><ChevronLeft className="h-4 w-4" /> Sebelumnya</button><span className={`text-xs font-semibold ${readingTheme === 'paper' ? 'text-slate-400' : 'text-slate-500'}`}>Baca santai</span><button type="button" onClick={() => setReadingPage((page) => Math.min(readingPages.length - 1, page + 1))} disabled={readingPage === readingPages.length - 1} className="btn-primary !min-h-10 !px-3 !py-2 text-xs disabled:opacity-40">Berikutnya <ChevronRight className="h-4 w-4" /></button></div>
+              <div className="mb-4 flex gap-2 rounded-xl bg-slate-100 p-1"><button type="button" onClick={() => setTab('current')} className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold ${tab === 'current' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Versi Sekarang</button><button type="button" disabled={!material.previous_content} onClick={() => setTab('previous')} className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40 ${tab === 'previous' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Versi Sebelumnya</button></div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{tab === 'current' ? 'Versi Sekarang' : 'Versi Sebelumnya'}</p>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button type="button" onClick={() => setMaterialContentCollapsed((collapsed) => !collapsed)} aria-expanded={!materialContentCollapsed} aria-label={materialContentCollapsed ? 'Buka isi materi' : 'Ciutkan isi materi'} title={materialContentCollapsed ? 'Buka isi materi' : 'Ciutkan isi materi'} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700">
+                    {materialContentCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  </button>
+                  {tab === 'current' && <button type="button" onClick={() => setEditing(true)} aria-label="Rewrite materi" title="Rewrite materi" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 transition hover:bg-blue-100"><Pencil className="h-4 w-4" /></button>}
+                  <button type="button" onClick={() => setReadingMode(true)} aria-label="Mode Baca" title="Mode Baca" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 transition hover:bg-blue-100"><BookOpen className="h-4 w-4" /></button>
                 </div>
-              ) : <div className="space-y-4 rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-700">{renderMaterialBlocks(parseMaterialContent(tab === 'current' ? material.content : material.previous_content || 'Belum ada versi sebelumnya.'))}</div>}
+              </div>
+              {!materialContentCollapsed && <div className="space-y-4 rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-700">{renderMaterialBlocks(parseMaterialContent(tab === 'current' ? material.content : material.previous_content || 'Belum ada versi sebelumnya.'))}</div>}
               {tab === 'previous' && material.previous_content && <><p className="mt-2 text-xs text-slate-400">Versi sebelumnya disimpan saat rewrite terakhir.</p><button type="button" onClick={() => void restorePrevious()} disabled={saving} className="btn-secondary mt-3 w-full !py-2.5 text-sm">Pulihkan versi ini</button></>}
               {tab === 'current' && <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
                 <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-400">Kelola</p>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setEditing(true)} title="Edit / Rewrite Materi" aria-label="Edit atau rewrite materi" className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition hover:bg-blue-700"><Pencil className="h-4 w-4" /></button>
-                  <button type="button" onClick={deleteMaterial} title="Hapus Materi" aria-label="Hapus materi" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100"><Trash2 className="h-4 w-4" /></button>
+                  {!materialContentCollapsed && <button type="button" onClick={() => setMaterialContentCollapsed(true)} title="Ciutkan isi materi" aria-label="Ciutkan isi materi" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><ChevronUp className="h-4 w-4" /></button>}
+                  <button type="button" onClick={() => setDeleteConfirmationOpen(true)} title="Hapus Materi" aria-label="Hapus materi" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100"><Trash2 className="h-4 w-4" /></button>
                 </div>
               </div>}
             </section>
@@ -447,9 +402,11 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
               <span className="text-[11px] font-semibold text-slate-500">{getRatingLabel(form.rating)}</span>
             </div>
             <div className="mt-1.5 flex gap-0.5">{[1, 2, 3, 4, 5].map((value) => <button type="button" key={value} onClick={() => setForm({ ...form, rating: Number(form.rating) === value ? '' : String(value) })} className="rounded-lg p-0.5" aria-label={Number(form.rating) === value ? `Hapus rating ${value}` : `Beri rating ${value}`}><Star className={`h-6 w-6 ${Number(form.rating) >= value ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} /></button>)}</div>
-            <label className="mt-3 block text-xs font-bold text-slate-700">Catatan setelah dibawakan</label>
-            <textarea className="input-field mt-1.5 !min-h-[76px] !py-2.5 text-sm" placeholder="Catatan pribadi kamu..." value={form.personal_note} onChange={(event) => setForm({ ...form, personal_note: event.target.value })} />
-            <button type="button" onClick={() => void saveChanges({ preventDefault: () => undefined } as React.FormEvent)} className="btn-primary mt-2 w-full !py-2 text-sm">Simpan</button>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <label htmlFor="material-personal-note" className="text-xs font-bold text-slate-700">Catatan setelah dibawakan</label>
+              <button type="button" onClick={() => void saveChanges()} aria-label="Simpan rating dan catatan materi" title="Simpan rating dan catatan" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-white shadow-sm transition hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"><Save className="h-4 w-4" /></button>
+            </div>
+            <textarea id="material-personal-note" className="input-field mt-1.5 !min-h-[76px] !py-2.5 text-sm" placeholder="Catatan pribadi kamu..." value={form.personal_note} onChange={(event) => setForm({ ...form, personal_note: event.target.value })} />
           </section>
           <section ref={mappingSectionRef} className={`${mappingFullscreen ? 'fixed inset-x-0 bottom-[4.5rem] top-14 z-30 flex flex-col overflow-hidden rounded-none p-3 sm:bottom-0 sm:top-16 sm:p-5' : 'scroll-mt-20 rounded-[26px] p-4 pt-7 sm:scroll-mt-24 sm:p-5 sm:pt-8'} border border-slate-200 bg-white shadow-[0_10px_28px_rgba(15,23,42,0.04)]`}>
             <div className="flex shrink-0 items-center justify-between gap-3"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Struktur Materi</p><h2 className="mt-1 text-base font-extrabold text-slate-900">Mapping Materi</h2></div><div className="flex items-center gap-2"><button type="button" onClick={toggleMappingFullscreen} className="btn-secondary !px-3 !py-2 text-xs" aria-label={mappingFullscreen ? 'Tutup layar penuh' : 'Buka layar penuh'}>{mappingFullscreen ? <Shrink className="h-4 w-4" /> : <Expand className="h-4 w-4" />}{mappingFullscreen ? 'Tutup' : 'Layar Penuh'}</button><button type="button" onClick={() => resetNodeForm()} className="btn-secondary !px-3 !py-2 text-xs"><Plus className="h-4 w-4" /> Node</button></div></div>
@@ -520,6 +477,82 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
           <div className="flex items-center gap-2 text-xs text-slate-400"><Clock3 className="h-3.5 w-3.5" /> Perubahan tersimpan hanya untuk akun kamu.</div>
         </div>
       </div>
+      {editing && <button type="button" onClick={() => editFormRef.current?.requestSubmit()} disabled={saving} className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue-700 text-white shadow-[0_4px_14px_rgba(29,78,216,0.3)] transition hover:bg-blue-800 disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:bottom-6 sm:right-6" aria-label={saving ? 'Menyimpan rewrite' : 'Simpan rewrite'} title={saving ? 'Menyimpan...' : 'Simpan rewrite'}><Save className="h-4 w-4" /></button>}
+      <Modal
+        open={readingMode}
+        onClose={() => setReadingMode(false)}
+        title={material.title}
+        titleEyebrow="Mode Baca Materi"
+        size="lg"
+        headerContent={
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className={`rounded-full px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] ${darkReadingTheme ? 'bg-blue-950 text-blue-200' : 'bg-blue-100 text-blue-800'}`}>{tab === 'current' ? 'Versi Sekarang' : 'Versi Sebelumnya'}</span>
+                <p className={`min-w-0 text-xs font-bold ${darkReadingTheme ? 'text-slate-600' : 'text-slate-500'}`}>1 materi · ±{material.estimated_duration} menit</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {tab === 'current' && <button type="button" onClick={() => { setReadingMode(false); setEditing(true); }} aria-label="Rewrite materi" title="Rewrite materi" className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${darkReadingTheme ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}><Pencil className="h-4 w-4" /></button>}
+                <button type="button" onClick={() => setReadingTheme(darkReadingTheme ? 'light' : 'dark')} aria-pressed={darkReadingTheme} className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${darkReadingTheme ? 'bg-slate-800 text-amber-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`} aria-label={darkReadingTheme ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'} title={darkReadingTheme ? 'Mode terang' : 'Mode gelap'}>
+                  {darkReadingTheme ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <div className={`rounded-xl border px-3 py-2 text-xs leading-5 ${darkReadingTheme ? 'border-slate-700 bg-slate-900 text-slate-300' : 'border-amber-200 bg-amber-50 text-slate-700'}`}>
+              <span className="font-extrabold">Premis:</span> {material.premis?.trim() || '-'}
+            </div>
+          </div>
+        }
+      >
+        <div className={`space-y-4 rounded-2xl p-3 transition-colors sm:p-4 ${darkReadingTheme ? 'bg-slate-950' : 'bg-white'}`}>
+          <article className={`overflow-hidden rounded-2xl border ${darkReadingTheme ? 'border-slate-700 bg-slate-900' : 'border-amber-100 bg-[#fffdf7]'}`}>
+            <header className={`border-b px-4 py-3 ${darkReadingTheme ? 'border-slate-700' : 'border-amber-100'}`}>
+              <p className={`text-[10px] font-extrabold uppercase tracking-[0.14em] ${darkReadingTheme ? 'text-sky-400' : 'text-blue-700'}`}>Materi 1</p>
+              <h3 className={`mt-1 text-base font-bold leading-snug ${darkReadingTheme ? 'text-slate-100' : 'text-slate-900'}`}>{material.title}</h3>
+              <p className={`mt-1 text-xs ${darkReadingTheme ? 'text-slate-400' : 'text-slate-500'}`}>{material.theme} · ±{material.estimated_duration} menit</p>
+            </header>
+            <div className={`space-y-4 px-4 py-5 font-serif text-[16px] leading-8 ${darkReadingTheme ? 'text-slate-200' : 'text-slate-700'}`}>
+              {readingBlocks.length === 0 ? <p>Belum ada isi materi.</p> : readingBlocks.map((block, blockIndex) => block.type === 'text' ? (
+                <p key={`text-${blockIndex}`} className="whitespace-pre-line break-words">{block.text || 'Belum ada isi materi.'}</p>
+              ) : (
+                <div key={`table-${blockIndex}`} className={`overflow-x-auto rounded-lg border ${darkReadingTheme ? 'border-slate-700' : 'border-slate-200'}`}>
+                  <table className="w-full border-collapse text-left text-sm">
+                    <tbody>{block.rows.map((row, rowIndex) => <tr key={`row-${rowIndex}`} className={`border-b last:border-b-0 ${darkReadingTheme ? 'border-slate-700' : 'border-slate-200'}`}>{row.map((cell, cellIndex) => <td key={`cell-${cellIndex}`} className={`border-r p-2 align-top last:border-r-0 ${darkReadingTheme ? 'border-slate-700' : 'border-slate-200'}`}>{cell || '\u00a0'}</td>)}</tr>)}</tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          </article>
+        </div>
+      </Modal>
+      <Modal open={saveConfirmationOpen} onClose={() => setSaveConfirmationOpen(false)} title="SIMPAN PERUBAHAN" titleEyebrow="KONFIRMASI" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-slate-600">Simpan perubahan untuk materi <strong className="text-slate-900">{material.title}</strong>?</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setSaveConfirmationOpen(false)} className="btn-secondary flex-1">Batal</button>
+            <button type="button" onClick={() => { setSaveConfirmationOpen(false); void saveChanges(); }} disabled={saving} className="btn-primary flex-1"><Save className="h-4 w-4" />Simpan</button>
+          </div>
+        </div>
+      </Modal>
+      <Modal open={deleteConfirmationOpen} onClose={() => setDeleteConfirmationOpen(false)} title="YAKIN HAPUS MATERI?" titleEyebrow="KONFIRMASI HAPUS" size="sm">
+        <div className="space-y-4">
+          <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
+            <div className="flex items-center gap-2 bg-red-700 px-4 py-3 text-white">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <p className="text-xs font-extrabold uppercase tracking-[0.1em]">Tindakan ini permanen</p>
+            </div>
+            <div className="space-y-2 px-4 py-4 text-sm leading-6 text-slate-700">
+              <p>Materi <strong className="break-words text-slate-950">{material.title}</strong> akan dihapus permanen.</p>
+              <p>Yakin? Susah lho nulis materi sampai sejauh ini.</p>
+              <p>Jangan sampai besok kepikiran punchline-nya, tapi materinya udah nggak ada.</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setDeleteConfirmationOpen(false)} className="btn-secondary flex-1 !border-slate-300 !text-slate-800">Batal</button>
+            <button type="button" onClick={() => { setDeleteConfirmationOpen(false); void deleteMaterial(); }} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"><Trash2 className="h-4 w-4" /> Hapus Materi</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

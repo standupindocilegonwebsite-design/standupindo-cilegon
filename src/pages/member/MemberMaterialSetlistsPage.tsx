@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, BookOpen, Check, ChevronDown, Clock3, Download, ListPlus, Moon, Pencil, Plus, Search, Star, Sun, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookOpen, Check, ChevronDown, Clock3, Download, FileText, FileType2, ListPlus, Moon, Pencil, Plus, Search, Star, Sun, Trash2, X, AlertTriangle } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { Material, MaterialSetlist, MaterialSetlistItem } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { Modal } from '@/components/ui/Modal';
 import { parseMaterialContent } from '@/lib/material-content';
 import { PageHeader } from '@/components/PageHeader';
+import { downloadSetlistDocx, downloadSetlistPdf } from '@/lib/material-setlist-export';
 
 export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
   const { user } = useAuth();
@@ -26,6 +27,8 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
   const [editingSetlistId, setEditingSetlistId] = useState<string | null>(null);
   const [readingSetlist, setReadingSetlist] = useState<MaterialSetlist | null>(null);
   const [readingTheme, setReadingTheme] = useState<'light' | 'dark'>('light');
+  const [exportSetlist, setExportSetlist] = useState<MaterialSetlist | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MaterialSetlist | null>(null);
   const [draggedItem, setDraggedItem] = useState<{ setlistId: string; itemId: string } | null>(null);
 
   async function loadData() {
@@ -100,7 +103,7 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
   }
 
   async function deleteSetlist(setlist: MaterialSetlist) {
-    if (!user?.id || !window.confirm(`Hapus setlist "${setlist.name}"?`)) return;
+    if (!user?.id) return;
     const { error: deleteError } = await supabase.from('material_setlists').delete().eq('id', setlist.id).eq('user_id', user.id);
     if (deleteError) setError(`Setlist gagal dihapus: ${deleteError.message}`);
     else {
@@ -161,24 +164,16 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
     return setlistItems[setlist.id] ?? [];
   }
 
-  function escapeHtml(value: string) {
-    return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
-  }
-
-  function exportMarkup(setlist: MaterialSetlist) {
-    const items = getItems(setlist);
-    const total = items.reduce((sum, item) => sum + (item.material?.estimated_duration ?? 0), 0);
-    return `<html><head><meta charset="utf-8"><title>${escapeHtml(setlist.name)}</title><style>body{font-family:Arial,sans-serif;color:#172033;padding:32px}h1{color:#1746d1}p{white-space:pre-wrap;line-height:1.6}.meta{color:#64748b;font-size:13px}.item{border-bottom:1px solid #dbe3f0;padding:16px 0}.number{color:#1746d1;font-weight:bold}</style></head><body><h1>${escapeHtml(setlist.name)}</h1><p class="meta">Setlist Materi · ${items.length} materi · Total ±${total} menit</p>${items.map((item, index) => `<div class="item"><div class="number">${index + 1}. ${escapeHtml(item.material?.title ?? 'Materi')}</div><p class="meta">${escapeHtml(item.material?.theme ?? '')} · ±${item.material?.estimated_duration ?? 0} menit</p><p>${escapeHtml(item.material?.content ?? '')}</p></div>`).join('')}</body></html>`;
-  }
-
-  function exportPdf(setlist: MaterialSetlist) {
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
-    if (!printWindow) {
-      setError('Export PDF diblokir browser. Izinkan popup untuk halaman ini lalu coba lagi.');
-      return;
+  function exportSetlistFile(format: 'pdf' | 'docx') {
+    if (!exportSetlist) return;
+    try {
+      const items = getItems(exportSetlist);
+      if (format === 'pdf') downloadSetlistPdf(exportSetlist.name, items);
+      else downloadSetlistDocx(exportSetlist.name, items);
+      setExportSetlist(null);
+    } catch (exportError) {
+      setError(`File gagal dibuat: ${exportError instanceof Error ? exportError.message : 'Terjadi kesalahan tidak diketahui.'}`);
     }
-    printWindow.document.write(`${exportMarkup(setlist)}<script>window.onload=function(){window.print();};</script>`);
-    printWindow.document.close();
   }
 
   function moveSelected(materialId: string, direction: -1 | 1) {
@@ -226,8 +221,8 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
                 <div className="flex shrink-0 gap-1">
                   <button type="button" onClick={() => startEditingSetlist(setlist)} className="rounded-lg bg-slate-100 p-1.5 text-slate-600 hover:bg-blue-50 hover:text-blue-700" aria-label={`Edit ${setlist.name}`} title="Edit setlist"><Pencil className="h-3.5 w-3.5" /></button>
                   <button type="button" onClick={() => setReadingSetlist(setlist)} className="rounded-lg bg-blue-50 p-1.5 text-blue-700 hover:bg-blue-100" aria-label={`Mode Baca Setlist ${setlist.name}`} title="Mode Baca Setlist"><BookOpen className="h-3.5 w-3.5" /></button>
-                  <button type="button" onClick={() => exportPdf(setlist)} className="rounded-lg bg-indigo-50 p-1.5 text-indigo-700 hover:bg-indigo-100" aria-label={`Export PDF ${setlist.name}`} title="Export PDF"><Download className="h-3.5 w-3.5" /></button>
-                  <button type="button" onClick={() => void deleteSetlist(setlist)} className="rounded-lg bg-red-50 p-1.5 text-red-700 hover:bg-red-100" aria-label={`Hapus ${setlist.name}`} title="Hapus"><Trash2 className="h-3.5 w-3.5" /></button>
+                  <button type="button" onClick={() => setExportSetlist(setlist)} className="rounded-lg bg-indigo-50 p-1.5 text-indigo-700 hover:bg-indigo-100" aria-label={`Unduh ${setlist.name}`} title="Unduh PDF atau Word"><Download className="h-3.5 w-3.5" /></button>
+                  <button type="button" onClick={() => setDeleteTarget(setlist)} className="rounded-lg bg-red-50 p-1.5 text-red-700 hover:bg-red-100" aria-label={`Hapus ${setlist.name}`} title="Hapus"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>
               </div>
               {isExpanded && <div className="mt-3 border-t border-slate-100 pt-2">{items.length === 0 ? <p className="text-xs text-slate-500">Isi setlist belum tersedia.</p> : <div className="space-y-1.5">{items.map((item, index) => <div key={item.id} draggable onDragStart={() => setDraggedItem({ setlistId: setlist.id, itemId: item.id })} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (draggedItem?.setlistId === setlist.id) void reorderSetlistItems(setlist.id, draggedItem.itemId, item.id); setDraggedItem(null); }} className="rounded-xl border border-slate-100 p-2.5 transition hover:border-blue-200"><div className="flex items-start gap-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-extrabold text-blue-700">{index + 1}</span><div className="min-w-0 flex-1"><p className="text-xs font-bold text-slate-800">{item.material?.title ?? 'Materi'}</p><div className="flex flex-wrap items-center gap-x-2 gap-y-0.5"><p className="text-[11px] text-slate-500">{item.material?.theme} · ±{item.material?.estimated_duration} menit</p><span className="inline-flex items-center gap-0.5" aria-label={item.material?.rating ? `Rating ${item.material.rating} dari 5` : 'Belum dirating'}>{[1, 2, 3, 4, 5].map((value) => <Star key={value} className={`h-3 w-3 ${item.material?.rating && value <= item.material.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} aria-hidden="true" />)}</span></div></div><div className="flex shrink-0 gap-0.5"><button type="button" onClick={() => { const previous = items[index - 1]; if (previous) void reorderSetlistItems(setlist.id, item.id, previous.id); }} disabled={index === 0} className="rounded-md p-1.5 text-slate-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-30" aria-label={`Naikkan ${item.material?.title ?? 'materi'}`} title="Naikkan"><ArrowUp className="h-3.5 w-3.5" /></button><button type="button" onClick={() => { const next = items[index + 1]; if (next) void reorderSetlistItems(setlist.id, item.id, next.id); }} disabled={index === items.length - 1} className="rounded-md p-1.5 text-slate-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-30" aria-label={`Turunkan ${item.material?.title ?? 'materi'}`} title="Turunkan"><ArrowDown className="h-3.5 w-3.5" /></button></div></div></div>)}</div>}</div>}
@@ -343,24 +338,32 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
           </div>
         </form>
       </Modal>
-      <Modal open={Boolean(readingSetlist)} onClose={() => setReadingSetlist(null)} title={readingSetlist?.name ?? 'Mode Baca Setlist'} size="lg">
+      <Modal
+        open={Boolean(readingSetlist)}
+        onClose={() => setReadingSetlist(null)}
+        title={readingSetlist?.name ?? 'Mode Baca Setlist'}
+        titleEyebrow="Mode Baca Setlist"
+        size="lg"
+        headerContent={readingSetlist && (() => {
+          const items = getItems(readingSetlist);
+          const total = items.reduce((sum, item) => sum + (item.material?.estimated_duration ?? 0), 0);
+          const dark = readingTheme === 'dark';
+          return (
+            <div className="flex items-center justify-between gap-3">
+              <p className={`min-w-0 text-xs font-bold ${dark ? 'text-slate-600' : 'text-slate-500'}`}>Setlist Materi · {items.length} materi · ±{total} menit</p>
+              <button type="button" onClick={() => setReadingTheme(dark ? 'light' : 'dark')} aria-pressed={dark} className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${dark ? 'bg-slate-800 text-amber-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`} aria-label={dark ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'} title={dark ? 'Mode terang' : 'Mode gelap'}>
+                {dark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+              </button>
+            </div>
+          );
+        })()}
+      >
         {readingSetlist && (() => {
           const items = getItems(readingSetlist);
           const total = items.reduce((sum, item) => sum + (item.material?.estimated_duration ?? 0), 0);
           const dark = readingTheme === 'dark';
           return (
             <div className={`space-y-4 rounded-2xl p-3 transition-colors sm:p-4 ${dark ? 'bg-slate-950' : 'bg-white'}`}>
-              <div className="flex items-center justify-between gap-3">
-                <p className={`text-xs font-bold ${dark ? 'text-slate-300' : 'text-slate-500'}`}>Setlist Materi · {items.length} materi · ±{total} menit</p>
-                <div className={`inline-flex shrink-0 items-center gap-1 rounded-full p-1 ${dark ? 'bg-slate-800' : 'bg-slate-100'}`} aria-label="Tema mode baca">
-                  <button type="button" onClick={() => setReadingTheme('light')} aria-pressed={!dark} className={`inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-bold transition ${!dark ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'}`} aria-label="Mode terang">
-                    <Sun className="h-3.5 w-3.5" /> Terang
-                  </button>
-                  <button type="button" onClick={() => setReadingTheme('dark')} aria-pressed={dark} className={`inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-bold transition ${dark ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`} aria-label="Mode gelap">
-                    <Moon className="h-3.5 w-3.5" /> Gelap
-                  </button>
-                </div>
-              </div>
               <div className={`rounded-2xl border p-3 text-center sm:p-4 ${dark ? 'border-slate-700 bg-slate-900' : 'border-amber-100 bg-[#fffdf7]'}`}>
                 <p className={`text-xs font-bold ${dark ? 'text-slate-300' : 'text-slate-500'}`}>Setlist Materi · {items.length} materi · ±{total} menit</p>
               </div>
@@ -390,6 +393,35 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
             </div>
           );
         })()}
+      </Modal>
+      <Modal open={Boolean(exportSetlist)} onClose={() => setExportSetlist(null)} title="Unduh Setlist" titleEyebrow={exportSetlist?.name} size="sm">
+        <div className="space-y-3">
+          <p className="text-sm leading-6 text-slate-600">Pilih format file. PDF siap dibaca atau dicetak, sedangkan Word bisa diedit kembali.</p>
+          <button type="button" onClick={() => exportSetlistFile('pdf')} className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-300 hover:bg-blue-50/50">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600"><FileText className="h-5 w-5" /></span>
+            <span><strong className="block text-sm text-slate-900">PDF</strong><small className="mt-0.5 block text-xs text-slate-500">Tampilan tetap rapi saat dibuka atau dicetak</small></span>
+          </button>
+          <button type="button" onClick={() => exportSetlistFile('docx')} className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-300 hover:bg-blue-50/50">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><FileType2 className="h-5 w-5" /></span>
+            <span><strong className="block text-sm text-slate-900">Word (.docx)</strong><small className="mt-0.5 block text-xs text-slate-500">Bisa dibuka dan diedit di Microsoft Word</small></span>
+          </button>
+          <button type="button" onClick={() => setExportSetlist(null)} className="btn-secondary w-full">Batal</button>
+        </div>
+      </Modal>
+      <Modal open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} title="YAKIN HAPUS SETLIST?" titleEyebrow="KONFIRMASI HAPUS" size="sm">
+        {deleteTarget && <div className="space-y-4">
+          <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
+            <div className="flex items-center gap-2 bg-red-700 px-4 py-3 text-white">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <p className="text-xs font-extrabold uppercase tracking-[0.1em]">Tindakan ini permanen</p>
+            </div>
+            <p className="px-4 py-4 text-sm leading-6 text-slate-700">Setlist <strong className="break-words text-slate-950">{deleteTarget.name}</strong> akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.</p>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setDeleteTarget(null)} className="btn-secondary flex-1 !border-slate-300 !text-slate-800">Batal</button>
+            <button type="button" onClick={() => { const target = deleteTarget; setDeleteTarget(null); if (target) void deleteSetlist(target); }} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"><Trash2 className="h-4 w-4" /> Hapus Setlist</button>
+          </div>
+        </div>}
       </Modal>
       <Modal open={Boolean(error)} onClose={() => setError('')} title="Setlist">
         <div className="space-y-4"><div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-700">{error}</div><button type="button" onClick={() => setError('')} className="btn-primary w-full">Mengerti</button></div>

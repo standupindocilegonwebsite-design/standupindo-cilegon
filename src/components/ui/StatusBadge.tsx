@@ -1,6 +1,7 @@
 interface StatusBadgeProps {
   status: string;
   variant?: 'open' | 'closed' | 'upcoming' | 'completed' | 'cancelled' | 'pending' | 'confirmed' | 'rejected' | 'published' | 'draft';
+  label?: string;
 }
 
 const STYLES: Record<string, string> = {
@@ -31,10 +32,10 @@ const LABELS: Record<string, string> = {
   draft: 'Draft',
 };
 
-export function StatusBadge({ status, variant }: StatusBadgeProps) {
+export function StatusBadge({ status, variant, label: customLabel }: StatusBadgeProps) {
   const key = variant ?? status;
   const style = STYLES[key] ?? 'bg-slate-100 text-slate-600 ring-slate-200';
-  const label = LABELS[key] ?? status;
+  const label = customLabel ?? LABELS[key] ?? status;
   return (
     <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${style}`}>
       {label}

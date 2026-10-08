@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, KeyRound, Power, RefreshCw, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { Check, ChevronDown, Eye, EyeOff, KeyRound, Power, RefreshCw, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
 import type { Komika } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { Modal } from '@/components/ui/Modal';
@@ -17,6 +17,7 @@ interface MemberAccount {
 export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onNotice: (message: string) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [komikaId, setKomikaId] = useState('');
   const [komikaSearch, setKomikaSearch] = useState('');
   const [komikaPickerOpen, setKomikaPickerOpen] = useState(false);
@@ -106,6 +107,7 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
 
     setEmail('');
     setPassword('');
+    setShowPassword(false);
     setKomikaId('');
     setKomikaSearch('');
     onNotice('Akun member berhasil dibuat dan siap digunakan.');
@@ -131,7 +133,12 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
           </div>
           <div>
             <label className="label-field" htmlFor="member-account-password">Password sementara</label>
-            <input id="member-account-password" type="password" required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} className="input-field" placeholder="Minimal 6 karakter" autoComplete="new-password" />
+            <div className="relative">
+              <input id="member-account-password" type={showPassword ? 'text' : 'password'} required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} className="input-field !pr-12" placeholder="Minimal 6 karakter" autoComplete="new-password" />
+              <button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-blue-700" aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} title={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}>
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
         </div>
 

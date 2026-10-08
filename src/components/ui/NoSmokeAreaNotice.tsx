@@ -1,4 +1,5 @@
-import { AlertTriangle, CigaretteOff } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, CigaretteOff, ChevronDown } from 'lucide-react';
 
 interface Props {
   detail?: boolean;
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export function NoSmokeAreaNotice({ detail = false, context = 'event', compact = false }: Props) {
+  const [expanded, setExpanded] = useState(false);
   const areaLabel = context === 'open-mic' ? 'Open Mic' : 'acara';
   const coordinatorLabel = context === 'open-mic' ? 'Open Mic' : 'Acara';
 
@@ -15,11 +17,24 @@ export function NoSmokeAreaNotice({ detail = false, context = 'event', compact =
       <span className="pointer-events-none absolute -right-5 -top-6 h-20 w-20 rounded-full border-[10px] border-amber-400/20" />
       <div className="relative flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-slate-950 shadow-sm"><AlertTriangle className="h-5 w-5" /></span>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2"><p className="inline-flex items-center gap-1.5 text-sm font-extrabold uppercase tracking-[0.08em] text-white"><CigaretteOff className="h-4 w-4 text-amber-300" /> Jaga Area Tetap Bebas Asap</p><span className="inline-flex items-center gap-1 rounded-full bg-amber-400 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-slate-950"><CigaretteOff className="h-3 w-3" /> Wajib Dipatuhi</span></div>
-          <p className="mt-1.5 text-sm leading-6 text-slate-200">Berlaku untuk seluruh pihak yang hadir, baik <strong className="font-extrabold text-amber-300">komika</strong> maupun <strong className="font-extrabold text-amber-300">penonton</strong>.</p>
-          <p className="mt-1 text-sm leading-6 text-slate-200">Merokok, vaping &amp; pods hanya diperbolehkan di luar area {areaLabel} dan area penonton.</p>
-          <p className="mt-1 text-sm font-semibold leading-6 text-amber-300">Laporkan pelanggaran kepada Koordinator {coordinatorLabel}.</p>
+        <div className="min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            aria-expanded={expanded}
+            className="flex w-full flex-wrap items-center gap-2 text-left"
+          >
+            <span className="inline-flex items-center gap-1.5 text-sm font-extrabold uppercase tracking-[0.08em] text-white"><CigaretteOff className="h-4 w-4 text-amber-300" /> Jaga Area Tetap Bebas Asap</span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-400 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-slate-950"><CigaretteOff className="h-3 w-3" /> Wajib Dipatuhi</span>
+            <ChevronDown className={`ml-auto h-4 w-4 shrink-0 text-amber-200 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          </button>
+          {expanded && (
+            <div className="mt-1.5">
+              <p className="text-sm leading-6 text-slate-200">Berlaku untuk seluruh pihak yang hadir, baik <strong className="font-extrabold text-amber-300">komika</strong> maupun <strong className="font-extrabold text-amber-300">penonton</strong>.</p>
+              <p className="mt-1 text-sm leading-6 text-slate-200">Merokok, vaping &amp; pods hanya diperbolehkan di luar area {areaLabel} dan area penonton.</p>
+              <p className="mt-1 text-sm font-semibold leading-6 text-amber-300">Laporkan pelanggaran kepada Koordinator {coordinatorLabel}.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -119,12 +119,13 @@ export function HomePage({ router }: Props) {
   const [loading, setLoading] = useState(true);
   const [activeLightLeakSlot, setActiveLightLeakSlot] = useState<'open-mic' | 'event' | 'komika' | 'event-cta' | null>(null);
   const [mics, setMics] = useState<OpenMic[]>([]);
+  const [numberedOpenMics, setNumberedOpenMics] = useState<OpenMic[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [komika, setKomika] = useState<Komika[]>([]);
   const [partnersByCategory, setPartnersByCategory] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
   const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
   const [confirmedCounts, setConfirmedCounts] = useState<Record<string, number>>({});
-  const openMicNumbers = useMemo(() => getOpenMicNumbers(mics), [mics]);
+  const openMicNumbers = useMemo(() => getOpenMicNumbers(numberedOpenMics), [numberedOpenMics]);
 
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -169,10 +170,11 @@ export function HomePage({ router }: Props) {
   useEffect(() => {
     (async () => {
       const today = new Date().toISOString().slice(0, 10);
-      const [{ data: micData }, { data: eventData }, { data: komikaData }, { data: ticketData }, { data: partnerData }] = await Promise.all([
+      const [{ data: micData }, { data: allMicData }, { data: eventData }, { data: komikaData }, { data: ticketData }, { data: partnerData }] = await Promise.all([
         supabase.from('open_mics').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }),
+        supabase.from('open_mics').select('*').eq('published', true),
         supabase.from('events').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(5),
-        supabase.from('komika').select('id, full_name, stage_name, slug, photo, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active'),
+        supabase.from('komika').select('id, full_name, stage_name, slug, photo, photo_card, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active'),
         supabase.from('event_tickets').select('event_id, price').eq('status', 'active').eq('available_public', true).order('price', { ascending: true }),
         supabase.from('partners').select('*').eq('is_published', true).order('sort_order', { ascending: true }).order('name', { ascending: true }),
       ]);
@@ -197,6 +199,7 @@ export function HomePage({ router }: Props) {
       });
 
       setMics(micsList);
+      setNumberedOpenMics((allMicData as OpenMic[]) ?? []);
       setEvents(eventsList);
       setKomika(randomKomika);
       setPartnersByCategory(groupedPartners);

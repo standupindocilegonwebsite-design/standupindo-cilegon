@@ -124,7 +124,7 @@ function ProtectedMember({ router }: { router: Router }) {
   const memberOpenMicRegister = matchRoute(memberOpenMicPath, '/open-mic/[slug]/daftar');
   if (memberOpenMicRegister) return <OpenMicRegisterPage router={memberPublicRouter} slug={memberOpenMicRegister.slug} />;
   const memberOpenMicDetail = matchRoute(memberOpenMicPath, '/open-mic/[slug]');
-  if (memberOpenMicDetail) return <OpenMicDetailPage router={memberPublicRouter} slug={memberOpenMicDetail.slug} />;
+  if (memberOpenMicDetail) return <OpenMicDetailPage router={memberPublicRouter} slug={memberOpenMicDetail.slug} showFloatingRegister />;
   if (router.path === '/member/profile') return <MemberProfilePage router={router} />;
   if (router.path === '/member/evaluations') return <MemberEvaluationPage router={router} />;
   if (router.path === '/member/evaluations/history') return <MemberPerformanceHistoryPage router={router} />;
@@ -231,7 +231,7 @@ function RoutedApp() {
   else if (router.path === '/tiket') content = <TicketAccessPage router={router} />;
   else if (router.path === '/open-mic') content = <OpenMicPage router={router} />;
   else if (openMicRegister) content = <OpenMicRegisterPage router={router} slug={openMicRegister.slug} />;
-  else if (openMicDetail) content = <OpenMicDetailPage router={router} slug={openMicDetail.slug} />;
+  else if (openMicDetail) content = <OpenMicDetailPage router={router} slug={openMicDetail.slug} showFloatingRegister />;
   else if (router.path === '/event') content = <EventPage router={router} />;
   else if (ticketOrder) content = <TicketOrderPage router={router} slug={ticketOrder.slug} ticketId={ticketOrder.ticketId} />;
   else if (ticketSelection) content = <TicketSelectionPage router={router} slug={ticketSelection.slug} />;

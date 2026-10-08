@@ -14,8 +14,12 @@ const ITEMS = [
 
 export function MemberBottomNav({ router }: { router: Router }) {
   const { openMic: openMicNotifications, evaluations: evaluationNotifications } = useMemberNotificationCounts();
+  const morePaths = ['/member/more', '/member/help', '/member/roles', '/member/settings'];
   const isActive = (to: string) => {
     if (to === '/member') return router.path === '/member';
+    if (to === '/member/more') {
+      return morePaths.some((path) => router.path === path || router.path.startsWith(`${path}/`));
+    }
     return router.path === to || router.path.startsWith(`${to}/`);
   };
 

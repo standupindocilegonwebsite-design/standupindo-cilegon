@@ -1,6 +1,7 @@
 import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { useEffect, useState } from 'react';
-import { Calendar, Check, CheckCircle2, ChevronDown, Clock, Info, Instagram, Mic, Search, Send, Ticket, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Calendar, Check, CheckCircle2, ChevronDown, Clock, Info, Instagram, Mic, Search, Send, Ticket, ArrowRight } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { OpenMic, OpenMicRegistration } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -8,7 +9,6 @@ import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { OpenMicCard } from '@/components/cards/OpenMicCard';
 import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
@@ -19,6 +19,7 @@ import { useSiteSettings } from '@/lib/useSiteSettings';
 interface Props {
   router: Router;
   slug: string;
+  showFloatingRegister?: boolean;
 }
 
 function setOgTags(title: string, description: string, image: string, url: string) {
@@ -33,22 +34,18 @@ function setOgTags(title: string, description: string, image: string, url: strin
   set('og:url', url);
 }
 
-export function OpenMicDetailPage({ router, slug }: Props) {
+export function OpenMicDetailPage({ router, slug, showFloatingRegister = false }: Props) {
   const { settings } = useSiteSettings();
   const [loading, setLoading] = useState(true);
   const [mic, setMic] = useState<OpenMic | null>(null);
   const [confirmed, setConfirmed] = useState<OpenMicRegistration[]>([]);
-  const [otherMics, setOtherMics] = useState<OpenMic[]>([]);
   const [numberedMics, setNumberedMics] = useState<OpenMic[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [otherLineups, setOtherLineups] = useState<Record<string, string[]>>({});
   const [lightbox, setLightbox] = useState(false);
   const [copied, setCopied] = useState(false);
   const [posterShareFile, setPosterShareFile] = useState<File | null>(null);
   const [shareLineupOpen, setShareLineupOpen] = useState(false);
   const [stageInfoExpanded, setStageInfoExpanded] = useState(false);
   const [lineupSearch, setLineupSearch] = useState('');
-  const [otherMicSearch, setOtherMicSearch] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -58,40 +55,15 @@ export function OpenMicDetailPage({ router, slug }: Props) {
 
       if (m) {
         const isArchive = getOpenMicStatus(m.status, m.date) === 'completed';
-        const [regRes, otherRes, allMicsRes] = await Promise.all([
+        const [regRes, allMicsRes] = await Promise.all([
           publicLineupQuery(m.id, isArchive),
-          supabase
-            .from('open_mics')
-            .select('*')
-            .eq('published', true)
-            .eq('status', 'upcoming')
-            .neq('id', m.id)
-            .order('date', { ascending: false })
-            .order('created_at', { ascending: false })
-            .limit(2),
           supabase.from('open_mics').select('*').eq('published', true),
         ]);
 
         const regs = (regRes.data as OpenMicRegistration[]) ?? [];
         setConfirmed(regs);
 
-        const others = (otherRes.data as OpenMic[]) ?? [];
-        setOtherMics(others);
         setNumberedMics((allMicsRes.data as OpenMic[]) ?? [m]);
-        if (others.length > 0) {
-          const ids = others.map((o) => o.id);
-          const c: Record<string, number> = {};
-          const names: Record<string, string[]> = {};
-          const otherResults = await Promise.all(others.map((other) => publicLineupQuery(other.id, getOpenMicStatus(other.status, other.date) === 'completed')));
-          otherResults.forEach((result, index) => {
-            const rows = (result.data as OpenMicRegistration[]) ?? [];
-            const openMicId = others[index].id;
-            c[openMicId] = rows.length;
-            names[openMicId] = rows.map((row) => row.stage_name).filter(Boolean);
-          });
-          setCounts(c);
-          setOtherLineups(names);
-        }
 
         const pageUrl = `${window.location.origin}/open-mic/${m.slug}`;
         setOgTags(
@@ -193,14 +165,6 @@ export function OpenMicDetailPage({ router, slug }: Props) {
       registration.community,
     ].some((value) => value?.toLocaleLowerCase().includes(normalizedLineupSearch)))
     : confirmed;
-  const normalizedOtherMicSearch = otherMicSearch.trim().toLocaleLowerCase();
-  const filteredOtherMics = normalizedOtherMicSearch
-    ? otherMics.filter((otherMic) => [
-      otherMic.title,
-      otherMic.venue,
-      otherMic.location,
-    ].some((value) => value?.toLocaleLowerCase().includes(normalizedOtherMicSearch)))
-    : otherMics.slice(0, 3);
   const shareText = currentStatus === 'completed'
     ? [
       'Pecah banget! Terima kasih buat semua yang sudah hadir meramaikan dan para komika yang sudah sukses mengocok perut di acara kemarin! 🔥🎤',
@@ -303,7 +267,7 @@ export function OpenMicDetailPage({ router, slug }: Props) {
               {currentStatus !== 'completed' && <NoSmokeAreaNotice detail context="open-mic" />}
 
               {currentStatus === 'upcoming' && !closed && !isFull && (
-                <button onClick={() => router.navigate(`/open-mic/${mic.slug}/daftar`)} className="btn-primary w-full !py-2.75 text-sm sm:!py-3 sm:text-base">
+                <button onClick={() => router.navigate(`/open-mic/${mic.slug}/daftar`)} className={`btn-primary w-full !py-2.75 text-sm sm:!py-3 sm:text-base ${showFloatingRegister ? 'hidden md:flex' : ''}`}>
                   <Mic className="h-4 w-4 sm:h-5 sm:w-5" /> Daftar Open Mic
                 </button>
               )}
@@ -320,6 +284,25 @@ export function OpenMicDetailPage({ router, slug }: Props) {
             </div>
           </div>
         </div>
+
+        {showFloatingRegister && currentStatus === 'upcoming' && !closed && !isFull && createPortal(
+          <div className="fixed inset-x-0 z-30 px-4 md:hidden" style={{ bottom: 'calc(5.5rem + var(--safe-bottom))' }}>
+            <div className="mx-auto max-w-3xl">
+              <button
+                type="button"
+                onClick={() => router.navigate(`/open-mic/${mic.slug}/daftar`)}
+                className="group flex w-full items-center justify-between rounded-2xl border border-blue-500 bg-gradient-to-r from-blue-800 via-blue-700 to-indigo-700 px-3 py-2.5 text-left shadow-[0_12px_30px_rgba(29,78,216,0.46)] ring-1 ring-white/30 transition-all duration-200 hover:-translate-y-0.5 hover:from-blue-900 hover:via-blue-800 hover:to-indigo-800 hover:shadow-[0_16px_36px_rgba(29,78,216,0.54)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 focus-visible:ring-offset-2 active:translate-y-0 active:scale-[0.99] sm:px-4"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-[9px] font-extrabold uppercase tracking-[0.12em] text-blue-100">Open Mic #{openMicNumbers.get(mic.id) ?? ''} · {mic.title}</span>
+                  <span className="mt-0.5 inline-flex items-center gap-2 text-base font-black leading-tight text-white sm:text-lg"><Mic className="h-5 w-5 shrink-0" /> Daftar Open Mic</span>
+                </span>
+                <span style={{ color: '#0f172a', opacity: 1 }} className="ml-2 inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border-2 border-white bg-white px-3 text-xs font-extrabold shadow-[0_2px_8px_rgba(15,23,42,0.2)] transition group-hover:bg-blue-50 group-active:bg-blue-100 sm:ml-3 sm:px-4">Daftar <ArrowRight className="h-4 w-4" aria-hidden="true" /></span>
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
 
         {/* About */}
         {mic.description && (
@@ -419,45 +402,6 @@ export function OpenMicDetailPage({ router, slug }: Props) {
           )}
         </section>
 
-        {/* Other open mics */}
-        {otherMics.length > 0 && (
-          <section data-scroll-reveal className="scroll-reveal is-visible border-t border-slate-200 pt-6 sm:pt-8">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Open Mic lainnya</h2>
-              <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-blue-700 sm:text-[11px]">
-                Lainnya
-              </span>
-            </div>
-            <label className="relative mb-3 block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="search"
-                value={otherMicSearch}
-                onChange={(event) => setOtherMicSearch(event.target.value)}
-                placeholder="Cari Open Mic lain"
-                aria-label="Cari Open Mic lainnya"
-                className="input-field !pl-10 !pr-10"
-              />
-              {otherMicSearch && (
-                <button
-                  type="button"
-                  onClick={() => setOtherMicSearch('')}
-                  aria-label="Hapus pencarian Open Mic"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </label>
-            {filteredOtherMics.length === 0 ? (
-              <p className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">Tidak ada Open Mic yang cocok dengan pencarian.</p>
-            ) : (
-            <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-              {filteredOtherMics.map((m) => <OpenMicCard key={m.id} mic={m} openMicNumber={openMicNumbers.get(m.id)} confirmedCount={counts[m.id] ?? 0} lineup={otherLineups[m.id]} router={router} compact />)}
-            </div>
-            )}
-          </section>
-        )}
       </div>
 
       {mic.poster && (
