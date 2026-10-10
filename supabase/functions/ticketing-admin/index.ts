@@ -102,17 +102,9 @@ function freePassConfirmationEmailHtml(order: {
   venue: string | null;
   location: string | null;
 }, accessCode: string, ticketPageUrl: string) {
-  const email = paymentConfirmationEmailHtml({ ...order, total_price: 0 }, event, accessCode, ticketPageUrl);
+  const email = paymentConfirmationEmailHtml({ ...order, total_price: 0 }, event, accessCode, ticketPageUrl, true);
   const safeEventTitle = event.title.replace(/[\r\n]+/g, ' ').trim();
   email.subject = `FREE PASS ${safeEventTitle} - TIKET KAMU SUDAH SIAP`;
-  email.html = email.html
-    .replace('PAYMENT SUCCESS', 'FREE PASS')
-    .replace('Pembayaran Berhasil!', 'Free Pass Berhasil!')
-    .replace(
-      `Halo <strong style="color:#17213c">${escapeHtml(order.full_name)}</strong>, pembayaran tiket kamu sudah dikonfirmasi dan berstatus <strong style="color:#07884f">LUNAS</strong>.`,
-      `Halo <strong style="color:#17213c">${escapeHtml(order.full_name)}</strong>, kamu mendapatkan tiket Free Pass untuk <strong style="color:#17213c">${escapeHtml(event.title)}</strong>.`,
-    )
-    .replace(/<tr>\s*<td colspan="2" style="padding:10px 16px;color:#73809a;font-size:12px;line-height:17px;vertical-align:top">\s*<div>Total pembayaran<\/div>[\s\S]*?<\/tr>/, '');
   email.text = `Halo ${order.full_name},\n\nKamu mendapatkan tiket Free Pass untuk ${event.title}.\n\nDetail Tiket:\nEvent: ${event.title}\nKategori: ${order.ticket_category}\nJumlah tiket: ${order.quantity}\n\nAkses Tiket:\nNomor WhatsApp: ${order.whatsapp}\nKode Akses: ${accessCode}\n\nGunakan Nomor WhatsApp dan Kode Akses tersebut untuk melihat tiket melalui website.\nBuka Tiket Saya: ${ticketPageUrl}\n\nSTANDUPINDO CILEGON`;
   return email;
 }
@@ -139,17 +131,16 @@ function paymentConfirmationEmailHtml(order: {
   time: string | null;
   venue: string | null;
   location: string | null;
-}, accessCode: string, ticketPageUrl: string) {
+}, accessCode: string, ticketPageUrl: string, isFreePass = false) {
   const name = escapeHtml(order.full_name);
-  const eventTitle = event.title;
+  const eventTitle = event.title.replace(/[\r\n]+/g, ' ').trim();
   const escapedEventTitle = escapeHtml(eventTitle);
   const category = escapeHtml(order.ticket_category);
   const whatsapp = escapeHtml(order.whatsapp);
   const code = escapeHtml(accessCode);
   const ticketUrl = escapeHtml(ticketPageUrl);
-  const logoUrl = escapeHtml(new URL('/assets/images/Standupindo_CIlegon_Logo.jpeg', ticketPageUrl).toString());
+  const logoUrl = escapeHtml(new URL('/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png', ticketPageUrl).toString());
   const total = `Rp ${order.total_price.toLocaleString('id-ID')}`;
-  const safeEventTitle = eventTitle.replace(/[\r\n]+/g, ' ').trim();
   const parsedDate = event.date ? Date.parse(`${event.date}T00:00:00Z`) : Number.NaN;
   const eventDate = Number.isNaN(parsedDate)
     ? ''
@@ -158,66 +149,95 @@ function paymentConfirmationEmailHtml(order: {
   const eventLocation = [event.venue?.trim(), event.location?.trim()]
     .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
     .join(' · ');
-  const detailRow = (label: string, value: string, emphasize = false) => `
+  const detailRow = (label: string, value: string, last = false, emphasize = false) => `
     <tr>
-      <td colspan="2" style="padding:10px 16px;color:#73809a;font-size:12px;line-height:17px;vertical-align:top">
-        <div>${label}</div>
-        <div style="margin-top:3px;color:${emphasize ? '#0f1e49' : '#17213c'};font-size:${emphasize ? '16px' : '14px'};line-height:20px;font-weight:${emphasize ? '800' : '700'};word-break:break-word;overflow-wrap:anywhere">${value}</div>
-      </td>
+      <td style="padding:${last ? '13px 0 5px' : '9px 0'};color:#64748b;${last ? '' : 'border-bottom:1px solid #edf1f6;'}width:42%">${label}</td>
+      <td style="padding:${last ? '13px 0 5px' : '9px 0'};color:${emphasize ? '#102a56' : '#172033'};font-weight:700;${last ? 'font-size:18px;line-height:24px;' : 'border-bottom:1px solid #edf1f6;'}">${value}</td>
     </tr>`;
-  const eventInfo = [
+  const eventRows = [
     eventDate ? detailRow('Tanggal', escapeHtml(eventDate)) : '',
     eventTime ? detailRow('Waktu', escapeHtml(eventTime)) : '',
     eventLocation ? detailRow('Lokasi', escapeHtml(eventLocation)) : '',
   ].join('');
+  const paymentRow = isFreePass ? '' : detailRow('Total pembayaran', total, true, true);
+  const intro = isFreePass
+    ? `Halo <strong style="color:#172033">${name}</strong>, kamu mendapatkan tiket Free Pass untuk <strong style="color:#172033">${escapedEventTitle}</strong>.`
+    : `Halo <strong style="color:#172033">${name}</strong>, pembayaran tiket kamu sudah dikonfirmasi dan berstatus <strong style="color:#16834a">LUNAS</strong>.`;
+  const statusLabel = isFreePass ? 'FREE PASS' : 'PAYMENT SUCCESS';
+  const heading = isFreePass ? 'Free Pass Berhasil!' : 'Pembayaran Berhasil!';
+  const detailStatus = isFreePass ? '● FREE PASS' : '● TERKONFIRMASI';
+  const preheader = isFreePass
+    ? `Kamu mendapatkan tiket Free Pass untuk ${eventTitle}.`
+    : 'Pembayaran tiket kamu sudah dikonfirmasi dan berstatus lunas.';
 
-  const email = {
-    subject: `Pembayaran Tiket ${safeEventTitle} Berhasil — Lunas`,
-    html: `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pembayaran Berhasil</title></head><body style="margin:0;padding:0;background:#f3f6fa;font-family:Arial,Helvetica,sans-serif;color:#17213c"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f6fa;border-collapse:collapse"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#fff;border:1px solid #e2e7ef;border-radius:18px;border-collapse:separate;overflow:hidden"><tr><td style="padding:22px 28px;background:#0f1e49"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td valign="middle"><img src="${logoUrl}" width="112" alt="Standupindo" style="display:block;width:112px;max-width:100%;height:auto;border:0;background:#fff;border-radius:8px"><div style="margin-top:8px;color:#b9c3db;font-size:10px;letter-spacing:1.5px">CILEGON · OFFICIAL TICKETING</div></td><td align="right" valign="middle"><span style="display:inline-block;padding:8px 11px;border-radius:24px;background:#b7f34a;color:#0f1e49;font-size:10px;font-weight:700;letter-spacing:.5px">PAYMENT SUCCESS</span></td></tr></table></td></tr><tr><td style="padding:30px 30px 18px"><div style="width:46px;height:46px;line-height:46px;text-align:center;border-radius:50%;background:#e8f8ef;color:#07884f;font-size:23px;font-weight:700">✓</div><h1 style="margin:18px 0 8px;color:#0f1e49;font-size:26px;line-height:1.25">Pembayaran Berhasil!</h1><p style="margin:0;color:#68748c;font-size:14px;line-height:1.7">Halo <strong style="color:#17213c">${name}</strong>, pembayaran tiket kamu sudah dikonfirmasi dan berstatus <strong style="color:#07884f">LUNAS</strong>.</p></td></tr><tr><td style="padding:12px 30px 10px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td><h2 style="margin:0;color:#0f1e49;font-size:17px">Detail Tiket</h2></td><td align="right" style="color:#07884f;font-size:10px;font-weight:700;letter-spacing:.4px">● TERKONFIRMASI</td></tr></table></td></tr><tr><td style="padding:0 30px 22px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e7ef;border-radius:14px;border-collapse:separate"><tr><td colspan="2" style="padding:18px 18px 14px;background:#f7f9fc;border-bottom:1px solid #e2e7ef"><div style="color:#6c7890;font-size:10px;font-weight:700;letter-spacing:1px">EVENT</div><div style="margin-top:7px;color:#0f1e49;font-size:19px;line-height:1.4;font-weight:800">${escapedEventTitle}</div></td></tr><tr><td style="width:40%;padding:14px 18px 8px;color:#7b879c;font-size:13px">Nama</td><td align="right" style="padding:14px 18px 8px;color:#17213c;font-size:13px;font-weight:700">${name}</td></tr>${eventInfo}<tr><td style="padding:8px 18px;color:#7b879c;font-size:13px">Kategori</td><td align="right" style="padding:8px 18px;color:#17213c;font-size:13px;font-weight:700">${category}</td></tr><tr><td style="padding:8px 18px;color:#7b879c;font-size:13px">Jumlah tiket</td><td align="right" style="padding:8px 18px;color:#17213c;font-size:13px;font-weight:700">${order.quantity}</td></tr><tr><td style="padding:8px 18px 18px;color:#7b879c;font-size:13px">Total pembayaran</td><td align="right" style="padding:8px 18px 18px;color:#0f1e49;font-size:16px;font-weight:800">${total}</td></tr></table></td></tr><tr><td style="padding:0 30px 24px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f8ea;border:1px solid #dcebcf;border-radius:15px"><tr><td style="padding:20px 20px 8px"><div style="color:#0f1e49;font-size:17px;font-weight:800">Akses Tiket</div><div style="margin-top:5px;color:#68748c;font-size:12px;line-height:1.6">Gunakan informasi ini untuk melihat tiket kamu di website.</div></td></tr><tr><td style="padding:10px 20px 4px;color:#7b879c;font-size:10px;letter-spacing:.8px;text-transform:uppercase">Nomor WhatsApp</td></tr><tr><td style="padding:0 20px 12px;color:#0f1e49;font-size:16px;font-weight:800">${whatsapp}</td></tr><tr><td style="padding:0 20px 4px;color:#7b879c;font-size:10px;letter-spacing:.8px;text-transform:uppercase">Kode Akses</td></tr><tr><td style="padding:0 20px 20px;color:#07884f;font-family:monospace;font-size:20px;font-weight:800;letter-spacing:2px">${code}</td></tr></table></td></tr><tr><td align="center" style="padding:0 30px 12px;color:#68748c;font-size:13px;line-height:1.7">Tiket kamu sudah siap. Buka halaman Tiket Saya untuk melihat tiket digital.</td></tr><tr><td align="center" style="padding:8px 30px 14px"><table role="presentation" cellspacing="0" cellpadding="0"><tr><td align="center" bgcolor="#b7f34a" style="border-radius:10px"><a href="${ticketUrl}" target="_blank" style="display:inline-block;padding:14px 28px;color:#0f1e49;font-size:14px;font-weight:800;text-decoration:none">Buka Tiket Saya</a></td></tr></table></td></tr><tr><td align="center" style="padding:8px 30px 26px;color:#8a95a8;font-size:11px;line-height:1.7">Jika tombol tidak dapat dibuka, gunakan tautan berikut:<br><a href="${ticketUrl}" target="_blank" style="color:#315bdc;text-decoration:underline;word-break:break-all">${ticketUrl}</a></td></tr><tr><td style="padding:0 30px"><div style="height:1px;background:#e7ebf1"></div></td></tr><tr><td align="center" style="padding:22px 24px 26px"><img src="${logoUrl}" width="88" alt="Standupindo" style="display:block;width:88px;max-width:100%;height:auto;margin:0 auto;border:0;background:#fff;border-radius:6px"><div style="margin-top:9px;color:#8a95a8;font-size:11px;line-height:1.7">Official Ticketing<br><strong style="color:#17213c">Standupindo Cilegon</strong></div><div style="margin-top:12px;color:#a0a9b8;font-size:10px">© 2026 Standupindo Cilegon</div></td></tr></table></td></tr></table></body></html>`,
-    text: `Halo ${order.full_name},\n\nPembayaran tiket kamu telah berhasil dikonfirmasi dan status pembayaran sudah Lunas.\n\nDetail Tiket:\nEvent: ${eventTitle}\nKategori: ${order.ticket_category}\nJumlah tiket: ${order.quantity}\nTotal pembayaran: ${total}\n\nAkses Tiket:\nNomor WhatsApp: ${order.whatsapp}\nKode Akses: ${accessCode}\n\nGunakan Nomor WhatsApp dan Kode Akses tersebut untuk melihat tiket melalui website.\nBuka Tiket Saya: ${ticketPageUrl}\n\nSTANDUPINDO CILEGON`,
+  return {
+    subject: `Pembayaran Tiket ${eventTitle} Berhasil — Lunas`,
+    html: `<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>${isFreePass ? 'Free Pass' : 'Pembayaran Berhasil'} - Standupindo Cilegon</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#172033">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(preheader)}</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;margin:0;padding:24px 0">
+    <tr><td align="center" style="padding:0 12px">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;background-color:#fff;border-radius:18px;overflow:hidden">
+        <tr><td style="padding:24px 28px;background-color:#fff;border-bottom:1px solid #e7edf5">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
+            <td valign="middle" style="width:58px"><img src="${logoUrl}" width="52" height="52" alt="Standupindo Cilegon" style="display:block;width:52px;height:52px;object-fit:contain;border:0"></td>
+            <td valign="middle" style="padding-left:12px"><div style="font-size:17px;line-height:22px;font-weight:800;color:#102a56">STANDUPINDO</div><div style="font-size:11px;line-height:17px;letter-spacing:1.4px;color:#64748b">CILEGON · OFFICIAL TICKETING</div></td>
+            <td align="right" valign="middle"><span style="display:inline-block;padding:8px 10px;border-radius:20px;background-color:${isFreePass ? '#fff7df' : '#e8f8ef'};color:${isFreePass ? '#9a6700' : '#16834a'};font-size:10px;line-height:12px;font-weight:800;letter-spacing:.5px">${statusLabel}</span></td>
+          </tr></table>
+        </td></tr>
+        <tr><td align="center" style="padding:34px 28px 28px">
+          <div style="width:54px;height:54px;line-height:54px;border-radius:50%;background-color:#e7f8ee;color:#169653;font-size:30px;font-weight:700;text-align:center;margin:0 auto 18px">✓</div>
+          <h1 style="margin:0 0 12px;font-size:27px;line-height:34px;color:#102a56">${heading}</h1>
+          <p style="margin:0;max-width:440px;font-size:15px;line-height:24px;color:#526176">${intro}</p>
+        </td></tr>
+        <tr><td style="padding:0 28px 24px">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border:1px solid #e2eaf4;border-radius:14px;overflow:hidden">
+            <tr><td style="padding:18px 20px;background-color:#f8fbff;border-bottom:1px solid #e2eaf4">
+              <div style="font-size:11px;line-height:16px;font-weight:800;letter-spacing:1.2px;color:#64748b;margin-bottom:5px">DETAIL TIKET</div>
+              <div style="font-size:19px;line-height:26px;font-weight:800;color:#102a56">${escapedEventTitle}</div>
+              <div style="margin-top:10px"><span style="display:inline-block;padding:6px 10px;border-radius:20px;background-color:${isFreePass ? '#fff7df' : '#e8f8ef'};color:${isFreePass ? '#9a6700' : '#16834a'};font-size:10px;line-height:12px;font-weight:800;letter-spacing:.5px">${detailStatus}</span></div>
+            </td></tr>
+            <tr><td style="padding:8px 20px 14px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="font-size:13px;line-height:19px">
+              ${detailRow('Nama pemesan', name)}${eventRows}${detailRow('Kategori', category)}${detailRow('Jumlah tiket', String(order.quantity))}${paymentRow}
+            </table></td></tr>
+          </table>
+        </td></tr>
+        <tr><td style="padding:0 28px 24px">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#102a56;border-radius:14px"><tr><td style="padding:20px">
+            <div style="font-size:16px;line-height:22px;color:#fff;font-weight:800;margin-bottom:6px">Akses Tiket</div>
+            <div style="font-size:13px;line-height:20px;color:#dbe7f8;margin-bottom:16px">Gunakan informasi berikut untuk membuka tiket digital kamu di website.</div>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
+              <td style="padding:12px;background-color:#1b3a6b;border-radius:9px 0 0 9px;width:50%"><div style="font-size:11px;line-height:16px;color:#b8c9e3;margin-bottom:4px">Nomor WhatsApp</div><div style="font-size:15px;line-height:21px;color:#fff;font-weight:800;word-break:break-word">${whatsapp}</div></td>
+              <td style="padding:12px;background-color:#1b3a6b;border-radius:0 9px 9px 0;width:50%;border-left:1px solid #102a56"><div style="font-size:11px;line-height:16px;color:#b8c9e3;margin-bottom:4px">Kode Akses</div><div style="font-size:15px;line-height:21px;color:#fff;font-weight:800;letter-spacing:1px;word-break:break-word">${code}</div></td>
+            </tr></table>
+          </td></tr></table>
+        </td></tr>
+        <tr><td align="center" style="padding:0 28px 32px">
+          <p style="margin:0 0 18px;font-size:14px;line-height:22px;color:#526176">Tiket kamu sudah siap. Buka halaman <strong>Tiket Saya</strong> untuk melihat tiket digital.</p>
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td align="center" bgcolor="#1264e8" style="border-radius:9px"><a href="${ticketUrl}" style="display:inline-block;padding:14px 28px;border-radius:9px;background-color:#1264e8;color:#fff;text-decoration:none;font-size:14px;line-height:18px;font-weight:800">Buka Tiket Saya&nbsp; →</a></td></tr></table>
+          <p style="margin:18px 0 0;font-size:11px;line-height:18px;color:#7b8798">Jika tombol tidak dapat dibuka, gunakan tautan berikut:<br><a href="${ticketUrl}" style="color:#1264e8;text-decoration:underline;word-break:break-word">${ticketUrl}</a></p>
+        </td></tr>
+        <tr><td style="padding:20px 28px;background-color:#f8fbff;border-top:1px solid #e7edf5"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
+          <td valign="middle" style="width:44px"><img src="${logoUrl}" width="38" height="38" alt="Standupindo" style="display:block;width:38px;height:38px;object-fit:contain;border:0"></td>
+          <td valign="middle" style="padding-left:10px"><div style="font-size:12px;line-height:18px;color:#64748b">Official Ticketing</div><div style="font-size:13px;line-height:19px;color:#102a56;font-weight:800">Standupindo Cilegon</div></td>
+          <td align="right" valign="middle" style="font-size:10px;line-height:16px;color:#94a3b8">Email otomatis<br>Mohon tidak membalas email ini.</td>
+        </tr></table></td></tr>
+      </table>
+      <div style="max-width:560px;padding:16px 8px 0;font-size:10px;line-height:16px;color:#94a3b8;text-align:center">© Standupindo Cilegon · Official Ticketing</div>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+    text: `Halo ${order.full_name}, pembayaran tiket ${eventTitle} sudah dikonfirmasi dan berstatus lunas.\n\nDetail Tiket:\nEvent: ${eventTitle}\nNama pemesan: ${order.full_name}\n${eventDate ? `Tanggal: ${eventDate}\n` : ''}${eventTime ? `Waktu: ${eventTime}\n` : ''}${eventLocation ? `Lokasi: ${eventLocation}\n` : ''}Kategori: ${order.ticket_category}\nJumlah tiket: ${order.quantity}\nTotal pembayaran: ${total}\n\nAkses Tiket:\nNomor WhatsApp: ${order.whatsapp}\nKode Akses: ${accessCode}\n\nBuka Tiket Saya: ${ticketPageUrl}\n\nSTANDUPINDO CILEGON`,
   };
-  email.html = email.html
-    .replace(
-      '<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;',
-      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;',
-    )
-    .replace('padding:28px 12px', 'padding:16px 8px')
-    .replace('padding:22px 28px;background:#0f1e49', 'padding:18px 16px;background:#0f1e49')
-    .replace('padding:30px 30px 18px', 'padding:22px 16px 16px')
-    .replace('padding:12px 30px 10px', 'padding:8px 16px 10px')
-    .replace('padding:0 30px 22px', 'padding:0 16px 16px')
-    .replace('padding:0 30px 24px', 'padding:0 16px 18px')
-    .replace('padding:0 30px 12px', 'padding:0 16px 12px')
-    .replace('padding:8px 30px 14px', 'padding:6px 16px 12px')
-    .replace('padding:8px 30px 26px', 'padding:6px 16px 18px')
-    .replace('padding:0 30px"', 'padding:0 16px"')
-    .replace(
-      `<tr><td style="width:40%;padding:14px 18px 8px;color:#7b879c;font-size:13px">Nama</td><td align="right" style="padding:14px 18px 8px;color:#17213c;font-size:13px;font-weight:700">${name}</td></tr>`,
-      '',
-    )
-    .replace(
-      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e2e7ef;border-radius:14px;border-collapse:separate">',
-      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;table-layout:fixed;border:1px solid #e2e7ef;border-radius:14px;border-collapse:separate">',
-    )
-    .replace(
-      '<td style="width:40%;padding:14px 18px 8px;color:#7b879c;font-size:13px">Nama</td><td align="right" style="padding:14px 18px 8px;color:#17213c;font-size:13px;font-weight:700">',
-      detailRow('Nama', name).trim(),
-    )
-    .replace(
-      `<tr><td style="padding:8px 18px;color:#7b879c;font-size:13px">Kategori</td><td align="right" style="padding:8px 18px;color:#17213c;font-size:13px;font-weight:700">${category}</td></tr>`,
-      detailRow('Kategori', category).trim(),
-    )
-    .replace(
-      `<tr><td style="padding:8px 18px;color:#7b879c;font-size:13px">Jumlah tiket</td><td align="right" style="padding:8px 18px;color:#17213c;font-size:13px;font-weight:700">${order.quantity}</td></tr>`,
-      detailRow('Jumlah tiket', String(order.quantity)).trim(),
-    )
-    .replace(
-      `<tr><td style="padding:8px 18px 18px;color:#7b879c;font-size:13px">Total pembayaran</td><td align="right" style="padding:8px 18px 18px;color:#0f1e49;font-size:16px;font-weight:800">${total}</td></tr>`,
-      detailRow('Total pembayaran', total, true).trim(),
-    );
-  return email;
 }
-
 async function resendErrorMessage(response: Response, secrets: string[]) {
   let detail = '';
 
@@ -789,7 +809,7 @@ serve(async (request) => {
                   'User-Agent': 'standupindo-cilegon-ticketing/1.0',
                 },
                 body: JSON.stringify({
-                  from: 'noreply@standupindocilegon.id',
+                  from: 'Standupindo Cilegon <noreply@standupindocilegon.id>',
                   to: [recipientEmail],
                   subject: emailContent.subject,
                   html: emailContent.html,
@@ -1069,7 +1089,7 @@ serve(async (request) => {
                 'User-Agent': 'standupindo-cilegon-ticketing/1.0',
               },
               body: JSON.stringify({
-                from: 'noreply@standupindocilegon.id',
+                from: 'Standupindo Cilegon <noreply@standupindocilegon.id>',
                 to: [recipientEmail],
                 subject: emailContent.subject,
                 html: emailContent.html,

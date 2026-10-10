@@ -84,9 +84,13 @@ export function AppShell({ router, settings, children }: AppShellProps) {
           <div className="grid gap-8 md:grid-cols-4">
             <div className="md:col-span-2">
               <div className="flex items-center gap-2.5">
-                <img src={settings.logo_url ?? '/assets/images/Standupindo_CIlegon_Logo.jpeg'} alt={settings.site_name} className="h-10 w-10 rounded-lg object-contain ring-1 ring-slate-200" />
-                <span className="text-sm font-extrabold tracking-tight text-slate-900">
-                  <span>{settings.site_short_name.replace(/\s+CILEGON$/i, '')}</span>{' '}
+                <span className="relative flex shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-0.5 shadow-[0_5px_14px_rgba(29,94,219,0.1)]">
+                  <span className="site-brand-logo-light-leak relative isolate block h-12 w-auto overflow-hidden rounded-md sm:h-14">
+                    <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt={settings.site_name} className="block h-full w-auto rounded-md object-contain" />
+                  </span>
+                </span>
+                <span className="flex flex-col text-sm font-extrabold leading-tight tracking-tight text-slate-900">
+                  <span>{settings.site_short_name.replace(/\s+CILEGON$/i, '')}</span>
                   <span className="text-blue-600">CILEGON</span>
                 </span>
               </div>

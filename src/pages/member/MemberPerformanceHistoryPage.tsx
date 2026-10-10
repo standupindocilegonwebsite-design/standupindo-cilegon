@@ -83,7 +83,7 @@ async function createSummaryImage(
   domain: string,
 ): Promise<Blob> {
   const [communityLogo, standupindoLogo, profilePhoto] = await Promise.all([
-    loadCanvasImage(branding.siteLogo || '/assets/images/Standupindo_CIlegon_Logo.jpeg'),
+    loadCanvasImage(branding.siteLogo || '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'),
     loadCanvasImage(branding.affiliationLogo || '/assets/images/image.png'),
     identity.photo ? loadCanvasImage(identity.photo) : Promise.resolve(null),
   ]);
@@ -762,7 +762,7 @@ export function MemberPerformanceHistoryPage({ router, embedded = false }: { rou
           <div className={`overflow-hidden rounded-2xl border shadow-sm ${isMcShare ? 'border-violet-200 bg-[#faf7ff]' : 'border-blue-200 bg-[#f8fbff]'}`}>
             <div className={`flex items-center justify-between gap-2 border-b px-3 py-2.5 sm:px-4 ${isMcShare ? 'border-violet-200' : 'border-blue-200'}`}>
               <div className="flex min-w-0 items-center gap-2">
-                <img src={settings.logo_url ?? '/assets/images/Standupindo_CIlegon_Logo.jpeg'} alt="" className="h-8 w-8 shrink-0 object-contain" />
+                <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt="" className="h-8 w-8 shrink-0 object-contain" />
                   <p className="text-[10px] font-black leading-[1.15] tracking-[0.08em] text-[#041d56] sm:text-xs">STANDUPINDO<br />CILEGON</p>
               </div>
               <img src={settings.affiliation_logo_url ?? '/assets/images/image.png'} alt={settings.affiliation_name ?? 'Standupindo'} className="h-8 w-16 shrink-0 object-contain sm:h-9 sm:w-20" />

@@ -69,7 +69,7 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false }
         setOgTags(
           `${m.title} — Standupindo Cilegon`,
           `Yuk ikut ${m.title} bersama Standupindo Cilegon. Lihat detail dan daftar sekarang.`,
-          m.poster ?? `${window.location.origin}/assets/images/Standupindo_CIlegon_Logo.jpeg`,
+          m.poster ?? `${window.location.origin}/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png`,
           pageUrl,
         );
       }
@@ -154,7 +154,10 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false }
   const closed = mic.registration_status === 'closed' || currentStatus !== 'upcoming';
   const registrationStatus = currentStatus === 'upcoming' && mic.registration_status === 'open' ? 'open' : 'closed';
   const pageUrl = `${window.location.origin}/open-mic/${mic.slug}`;
-  const lineupText = confirmed.map((r) => `• ${r.stage_name}`).join('\n');
+  const lineupText = confirmed.map((r) => {
+    const community = r.community?.trim();
+    return `• ${r.stage_name}${community ? ` (${community})` : ''}`;
+  }).join('\n');
   const shareTitle = `${mic.title} — Standupindo Cilegon`;
   const openMicNumbers = getOpenMicNumbers(numberedMics.length > 0 ? numberedMics : [mic]);
   const normalizedLineupSearch = lineupSearch.trim().toLocaleLowerCase();

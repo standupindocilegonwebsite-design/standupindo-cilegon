@@ -363,7 +363,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
         setOgTags(
           `${ev.title} — Standupindo Cilegon`,
           `Yuk hadir di ${ev.title} bersama Standupindo Cilegon.`,
-          ev.poster ?? `${window.location.origin}/assets/images/Standupindo_CIlegon_Logo.jpeg`,
+          ev.poster ?? `${window.location.origin}/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png`,
           pageUrl,
         );
       }

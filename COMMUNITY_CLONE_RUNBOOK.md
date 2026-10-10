@@ -2,6 +2,42 @@
 
 Panduan ini untuk membuat website komunitas baru yang mandiri sepenuhnya dari Standupindo Cilegon. Contoh: Standupindo Serang, Standupindo Rangkasbitung, dan Standupindo Pandeglang.
 
+## Tutorial untuk Pemula
+
+Tujuan clone adalah memakai **aplikasi dan fitur yang sama**, tetapi setiap komunitas mempunyai repository, Supabase/database, akun layanan, domain, dan data sendiri. Logo, nama, warna, kontak, serta teks komunitas diganti. Data Cilegon seperti akun, pendaftar, event, order tiket, file Storage, dan subscription push **tidak** ikut disalin.
+
+Cara paling mudah untuk pengelola yang bukan web developer adalah mengurus identitas dan akun layanan sendiri, lalu meminta satu penanggung jawab teknis mengerjakan database, secrets, dan bagian kode yang masih khusus Cilegon. Jangan menebak atau menjalankan SQL sendiri.
+
+### Urutan yang harus diikuti
+
+1. **Siapkan identitas komunitas.** Kumpulkan nama resmi dan nama singkat, kota/alamat, logo, warna utama, WhatsApp, sosial media, domain, email pengirim, dan daftar fitur yang ingin diaktifkan. Checklist lengkap ada di bagian Sebelum mulai.
+2. **Pilih versi aplikasi yang disetujui.** Minta pengelola source menentukan commit/release yang sudah berjalan dan layak dijadikan titik awal. Jangan clone working copy yang belum disetujui, karena bisa berisi fitur setengah jadi atau perubahan yang belum dirilis.
+3. **Buat repository baru milik komunitas.** Gunakan GitHub Import Repository atau minta pengelola source menyalin seluruh source dari commit yang disetujui. Pastikan repository tujuan berbeda dari repository Cilegon. Jangan hanya menyalin beberapa halaman.
+4. **Buat akun layanan baru.** Buat Supabase project, akun hosting, dan akun email/Resend atas nama komunitas. Pakai domain sendiri bila siap. Jangan memakai project, akun, database, Storage, atau secret Cilegon.
+5. **Catat konfigurasi publik dengan aman.** Simpan URL Supabase dan publishable/anon key project baru untuk langkah frontend nanti. Key ini memang dipakai browser, tetapi tetap catat project ref agar tidak tertukar. Service-role key, password, Resend API key, VAPID private key, dan webhook secret adalah rahasia: jangan kirim lewat chat atau commit ke Git.
+6. **BERHENTI sebelum membuat database.** Saat runbook ini diperbarui, belum ada paket migration clone yang sudah lulus uji dari database kosong. Jangan menekan `db push`, jangan menjalankan SQL satu per satu, dan jangan deploy aplikasi seolah-olah database sudah siap. Minta penanggung jawab teknis menyiapkan paket bersih, netral, dan tervalidasi. Jika belum ada teknisi atau paketnya belum dinyatakan siap, proses peluncuran memang harus menunggu.
+7. **Setelah paket database dinyatakan siap,** minta teknisi menerapkan migration ke Supabase baru, menguji RLS/Storage, menyiapkan Edge Functions/secrets yang dipakai, serta membuat akun Admin Penuh dengan prosedur aman. Jangan membuat role admin dengan menyalin akun atau password dari Cilegon.
+8. **Hubungkan frontend ke project baru.** Cara yang disarankan untuk pemula adalah mengimpor repository komunitas ke Vercel dan memasukkan URL/key publik Supabase komunitas tersebut sebagai Environment Variables. Jangan menyalin nilai `.env.example` apa adanya; file itu saat ini masih berisi konfigurasi publik Cilegon. Petunjuk rinci ada di Tahap 7 dan Tahap 8.
+9. **Ganti branding dan isi data awal.** Setelah teknisi mengonfirmasi database serta akun Admin siap, isi Settings dengan identitas komunitas, ganti aset/teks statis yang masih menyebut Cilegon, lalu buat data Open Mic, Event, dan Komika baru. Database clone dimulai dengan data sendiri, bukan salinan database Cilegon.
+10. **Uji dulu, baru umumkan.** Ikuti checklist pada Tahap 9. Pastikan semua URL memakai domain/project baru, role non-admin tidak bisa melakukan tindakan admin, dan alur yang akan dipakai komunitas berhasil di desktop serta mobile.
+
+### Siapa mengerjakan apa?
+
+| Pengelola komunitas | Penanggung jawab teknis |
+| --- | --- |
+| Menentukan nama, warna, logo, kontak, domain, fitur, serta pemilik akun layanan | Memilih commit source yang benar dan menyiapkan repository clone |
+| Membuat/menjadi pemilik akun GitHub, Supabase, hosting, dan email | Menyiapkan dan menguji baseline migration di staging kosong |
+| Menyediakan konten awal dan memeriksa tampilan branding | Mengatur RLS, Storage, Auth role, Edge Functions, dan secrets |
+| Mengikuti smoke test dan melaporkan masalah | Menghubungkan environment frontend, memperbaiki teks/kode statis, build, dan deploy |
+
+### Pilihan hosting termudah
+
+Repository ini memiliki `vercel.json` untuk mengarahkan route aplikasi ke `index.html`, sehingga Vercel adalah opsi sederhana untuk website statis: pilih repository clone, gunakan build `npm run build` dan output `dist`, lalu isi Environment Variables milik komunitas. Jangan lakukan deploy database dari Vercel; migration dan secrets backend ditangani terpisah oleh teknisi.
+
+Jika memakai Hostinger/Apache, ikuti langkah upload `dist` pada Tahap 8. Jangan mengunggah `.env`, `node_modules`, service-role key, atau file rahasia.
+
+**Status saat ini:** bagian repository, akun layanan, domain, aset, dan konten dapat dipersiapkan. Database dan peluncuran belum siap sampai blocker migration pada Tahap 4 dibereskan. Daftar file di Tahap 4 adalah bahan kerja teknisi, bukan urutan paste/run untuk pemula.
+
 ## Ringkasan untuk pengelola komunitas
 
 Tujuannya adalah memakai **fitur, alur, struktur database, aturan akses, dan fungsi backend yang sama** dengan Standupindo Cilegon, tetapi dengan identitas dan data komunitas sendiri: nama lengkap/nama singkat, logo, warna, kontak, domain, dan data komunitas. Migration clone harus mempertahankan kebutuhan fitur tersebut, tetapi tidak boleh membawa data, akun, credential, atau konfigurasi project Cilegon. Gunakan satu versi source code yang utuh; jangan mengambil beberapa halaman atau migration secara acak.
@@ -12,7 +48,7 @@ Yang bisa disiapkan tanpa kemampuan pemrograman:
 2. Buat akun layanan komunitas sendiri atau minta penanggung jawab komunitas membuatnya.
 3. Ikuti bagian pengisian Settings, pengaturan hosting, dan pengujian setelah penanggung jawab teknis menyiapkan aplikasi dan database.
 
-**Penting:** untuk kondisi repository yang diaudit pada 8 Oktober 2026, setup database dari nol belum memiliki paket migration lengkap yang sudah diuji. Karena itu, komunitas baru belum boleh menekan `db push` atau menjalankan SQL satu per satu sendiri. Minta pengelola teknis menyiapkan dan menguji paket database untuk clone terlebih dahulu. Instruksi ini mencegah database rusak atau fitur tertentu hilang; jangan melewati blocker ini demi membuat website cepat online.
+**Penting:** pada pemeriksaan 9 Oktober 2026, setup database dari nol belum memiliki paket migration lengkap yang sudah diuji. Karena itu, komunitas baru belum boleh menekan `db push` atau menjalankan SQL satu per satu sendiri. Minta pengelola teknis menyiapkan dan menguji paket database untuk clone terlebih dahulu. Instruksi ini mencegah database rusak atau fitur tertentu hilang; jangan melewati blocker ini demi membuat website cepat online.
 
 ### Yang disalin dan yang tidak
 
@@ -110,7 +146,7 @@ Perubahan hanya untuk identitas dan konfigurasi layanan. Jangan menghapus atau m
 
 Jangan menjalankan seluruh file dalam `supabase/migrations` secara membabi buta dan jangan langsung menjalankan `supabase db push` terhadap project baru berdasarkan urutan yang ada sekarang.
 
-Audit daftar berkas menemukan rangkaian schema awal yang berulang/duplikat, migration seed akun admin, dan banyak migration fitur sesudah baseline lama. Berkas terbaru yang terdaftar saat audit adalah `20261008120000_add_komika_card_photo.sql`. Daftar ini menunjukkan source memuat fitur baru, tetapi **bukan** urutan yang aman untuk database kosong. Nama dan timestamp berkas saja tidak membuktikan urutan, dependensi, keamanan, atau bahwa migration bisa dijalankan pada project baru.
+Audit daftar berkas menemukan rangkaian schema awal yang berulang/duplikat, migration seed akun admin, dan banyak migration fitur sesudah baseline lama. Migration fitur terbaru sebelum proposal Annual Recap adalah `20261008120000_add_komika_card_photo.sql`. File `20261009100000_create_annual_recaps.sql` adalah proposal Annual Recap yang masih menunggu persetujuan; **jangan masukkan atau jalankan** sebagai bagian clone sebelum disetujui secara eksplisit. Jika migration proposal itu masih berada di folder dan belum tercatat di database baru, `supabase db push` dapat mencoba menerapkannya sebagai migration pending. Daftar kandidat di bawah menunjukkan source memuat fitur baru, tetapi **bukan** urutan yang aman untuk database kosong. Nama dan timestamp file saja tidak membuktikan urutan, dependensi, keamanan, atau keberhasilan pada project baru.
 
 Migration seed admin berikut tidak boleh dijalankan untuk produksi:
 
@@ -122,7 +158,7 @@ Panduan arsip `DUPLICATE_DEPLOY_GUIDE.md` pernah mencantumkan urutan yang hanya 
 
 ### Yang wajib disiapkan penanggung jawab teknis
 
-1. Siapkan satu baseline migration bersih dan berurutan dari **seluruh fitur yang akan dipakai**, bukan hanya schema awal.
+1. Siapkan satu baseline migration bersih dan berurutan dari **seluruh fitur yang akan dipakai**, bukan hanya schema awal. Urutan kandidat bagian A, lalu B, lalu C di bawah hanya panduan penelaahan teknis; jangan jalankan daftar tersebut sebelum staging kosong membuktikannya.
 2. Periksa dependensi, tabel/kolom yang diasumsikan ada, policy RLS/Storage, seed/demo, trigger/RPC, dan fungsi yang memanggil layanan eksternal.
 3. Hapus dari paket produksi credential seed dan semua URL/key milik Cilegon; jangan melonggarkan policy untuk mempermudah setup.
 4. Jalankan urutan tersebut pada database Supabase staging baru yang kosong. Uji dari nol; jangan memakai database Cilegon sebagai percobaan.
@@ -130,7 +166,9 @@ Panduan arsip `DUPLICATE_DEPLOY_GUIDE.md` pernah mencantumkan urutan yang hanya 
 6. Simpan urutan migration yang lolos, hasil pengujian, dan commit paketnya. Setelah itu barulah pengelola dapat mengikuti instruksi migration yang spesifik pada paket tersebut untuk project production.
 7. Deploy Edge Functions yang cocok dengan commit aplikasi dan set secret milik komunitas. Jangan mengaktifkan job push sebelum secrets dan endpoint project baru benar.
 
-**Status praktis pada audit 8 Oktober 2026:** dependency migration sudah ditelusuri dan urutan kandidat di bawah disusun untuk membantu penanggung jawab teknis. Namun urutan itu **belum diuji/diaplikasikan pada database kosong** dan bukan perintah deploy siap pakai. Saya juga menemukan migration prasyarat yang tidak tersedia dan policy yang perlu ditinjau. Tahan deployment publik sampai blocker tersebut dibereskan dan seluruh paket lolos uji.
+**Status praktis pada pemeriksaan 9 Oktober 2026:** dependency migration sudah ditelusuri dan urutan kandidat di bawah disusun untuk membantu penanggung jawab teknis. Namun urutan itu **belum diuji/diaplikasikan pada database kosong** dan bukan perintah deploy siap pakai. Migration prasyarat `public.push_subscriptions` belum ditemukan, beberapa policy/seed Cilegon perlu dibersihkan, dan ada migration dokumentasi Event yang tumpang tindih. Tahan deployment publik sampai blocker tersebut dibereskan dan seluruh paket lolos uji.
+
+Jangan pernah menganggap daftar A/B/C sebagai urutan resmi hanya karena sudah dikelompokkan. Penanggung jawab teknis harus menghasilkan satu paket/commit final dengan urutan yang benar-benar diuji, serta menyatakan migration mana yang termasuk dan tidak termasuk. Proposal Annual Recap tetap dikecualikan sampai pemilik proyek menyetujuinya.
 
 ### Urutan kandidat hasil telaah dependensi
 
@@ -277,7 +315,7 @@ Sebelum label status di bagian ini diubah menjadi “tervalidasi”, penanggung 
 - Jangan campur SQL Editor dengan `db push` tanpa menyelaraskan riwayat migration. Hal ini dapat membuat migration terulang atau status riwayat tidak sesuai.
 - CLI bukan pengganti pengujian. Bila paket belum diuji dari database kosong, kedua cara tetap berisiko.
 
-Jangan memasukkan data komunitas Cilegon ke database baru. Buat admin baru melalui Supabase Auth dan tetapkan `raw_app_meta_data` role admin menggunakan prosedur yang telah diuji. Jangan gunakan seed admin/password yang ada di migration.
+Jangan memasukkan data komunitas Cilegon ke database baru. Buat admin baru melalui prosedur Auth yang disiapkan dan diuji penanggung jawab teknis; role Admin Penuh harus diberikan dengan mekanisme server-side yang aman. Pengelola non-teknis jangan mengedit tabel `auth.users`, menjalankan SQL untuk role, atau menebak lokasi metadata Auth. Jangan gunakan seed admin/password yang ada di migration.
 
 ## Tahap 5 — Konfigurasi Supabase dan Edge Functions
 
@@ -328,7 +366,9 @@ Jangan menyalin order, bukti pembayaran, nomor WhatsApp pendaftar, akun Auth, su
 
 ## Tahap 7 — Environment dan build frontend
 
-Buat `.env` lokal baru dari placeholder, jangan menyalin `.env` komunitas lain:
+**Peringatan penting:** `.env.example` yang ada di repository saat panduan ini diperbarui masih berisi URL Supabase, publishable/anon key, dan VAPID public key milik Cilegon. Nilai tersebut bukan konfigurasi untuk clone baru. Jangan copy file itu menjadi `.env` lalu langsung build. Pengelola source perlu mengganti nilai-nilai itu dengan placeholder sebelum menjadikan repository sebagai template umum; sampai itu dilakukan, buat `.env` baru secara manual atau isi Environment Variables hosting dengan nilai project komunitas baru.
+
+Gunakan hanya nilai publik dari Supabase project komunitas baru:
 
 ```env
 VITE_SUPABASE_URL=https://PROJECT_REF.supabase.co
@@ -337,6 +377,8 @@ VITE_VAPID_PUBLIC_KEY=YOUR_COMMUNITY_PUBLIC_VAPID_KEY
 ```
 
 `VITE_*` dimasukkan ke bundle dan dapat dilihat di browser. Isinya hanya boleh berupa konfigurasi publik; jangan masukkan `service_role`, Resend API key, VAPID private key, atau secret webhook.
+
+Untuk Vercel, buka pengaturan project clone lalu tambahkan `VITE_SUPABASE_URL` dan `VITE_SUPABASE_ANON_KEY`. Tambahkan `VITE_VAPID_PUBLIC_KEY` hanya jika push diaktifkan dan teknisi sudah membuat pasangan VAPID khusus komunitas. Setelah mengganti Environment Variables, jalankan deployment ulang agar build membaca nilai baru. Jangan lanjut bila URL masih berakhir dengan project ref Cilegon.
 
 Jalankan quality gate dari repository komunitas baru:
 
@@ -350,6 +392,19 @@ npm run build
 Jangan publish bila perintah wajib gagal atau konfigurasi masih menunjuk ke project/domain komunitas lain.
 
 ## Tahap 8 — Deploy hosting dan domain
+
+### Vercel (opsi paling sederhana)
+
+1. Masuk ke akun Vercel milik komunitas dan pilih **Add New Project**.
+2. Import repository GitHub clone, bukan repository Cilegon.
+3. Gunakan root directory repository. Periksa build command `npm run build` dan output directory `dist`.
+4. Isi Environment Variables sesuai Tahap 7. Jangan masukkan service-role key atau secret server di sini.
+5. Deploy ke URL preview lebih dulu. Pastikan konfigurasi Supabase Auth dan Edge Functions telah memakai project/domain clone.
+6. Hubungkan domain komunitas setelah smoke test lolos, aktifkan HTTPS, lalu perbarui Site URL dan redirect URL Supabase Auth.
+
+Vercel hanya membangun dan menyajikan frontend. Vercel tidak membuat schema database, akun admin, Storage bucket, atau secrets Edge Function.
+
+### Hostinger/Apache
 
 1. Arahkan DNS domain ke hosting komunitas baru dan aktifkan HTTPS.
 2. Upload isi folder `dist` ke web root hosting (misalnya `public_html`), bukan folder `dist` sebagai subfolder.

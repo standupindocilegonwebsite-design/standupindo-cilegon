@@ -96,7 +96,7 @@ export function PartnershipPage({ router, settings }: { router: Router; settings
   const [logoLightbox, setLogoLightbox] = useState(false);
   const [partnersByCategory, setPartnersByCategory] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
   const message = 'Halo Admin Standupindo Cilegon, saya ingin mengajukan kerja sama.';
-  const logoSrc = settings.logo_url ?? '/assets/images/Standupindo_CIlegon_Logo.jpeg';
+  const logoSrc = settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png';
 
   useEffect(() => {
     (async () => {

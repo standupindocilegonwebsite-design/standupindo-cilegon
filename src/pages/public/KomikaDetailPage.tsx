@@ -65,7 +65,7 @@ export function KomikaDetailPage({ router, slug }: Props) {
         setOgTags(
           `${k.stage_name} — Standupindo Cilegon`,
           `Kenali ${k.stage_name}, komika dari Standupindo Cilegon.`,
-          k.photo ?? `${window.location.origin}/assets/images/Standupindo_CIlegon_Logo.jpeg`,
+          k.photo ?? `${window.location.origin}/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png`,
           pageUrl,
         );
       } catch (error) {

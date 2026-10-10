@@ -76,6 +76,30 @@ function drawContainedImage(context: CanvasRenderingContext2D, image: HTMLImageE
   context.drawImage(image, x + (width - imageWidth) / 2, y + (height - imageHeight) / 2, imageWidth, imageHeight);
 }
 
+function drawKomikaPhoto(context: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number) {
+  const inset = 4;
+  const frameX = x + inset;
+  const frameY = y + inset;
+  const frameWidth = width - inset * 2;
+  const frameHeight = height - inset * 2;
+  const scale = Math.max(frameWidth / image.width, frameHeight / image.height);
+  const imageWidth = image.width * scale;
+  const imageHeight = image.height * scale;
+
+  context.save();
+  roundedRect(context, frameX, frameY, frameWidth, frameHeight, 14);
+  context.clip();
+  context.fillStyle = '#0f172a';
+  context.fillRect(frameX, frameY, frameWidth, frameHeight);
+  context.drawImage(image, frameX + (frameWidth - imageWidth) / 2, frameY, imageWidth, imageHeight);
+  context.restore();
+
+  context.strokeStyle = 'rgba(147, 197, 253, 0.85)';
+  context.lineWidth = 1.5;
+  roundedRect(context, frameX + 0.75, frameY + 0.75, frameWidth - 1.5, frameHeight - 1.5, 13);
+  context.stroke();
+}
+
 function drawMicrophone(context: CanvasRenderingContext2D, x: number, y: number, size: number) {
   context.fillStyle = '#dbeafe';
   context.beginPath();
@@ -147,6 +171,23 @@ function drawHeader(context: CanvasRenderingContext2D, communityLogo: HTMLImageE
   context.lineTo(WIDTH, HEIGHT);
   context.closePath();
   context.fill();
+
+  if (communityLogo) {
+    const watermark = document.createElement('canvas');
+    watermark.width = 940;
+    watermark.height = 1360;
+    const watermarkContext = watermark.getContext('2d');
+    if (!watermarkContext) throw new Error('Watermark logo tidak dapat dibuat di perangkat ini.');
+    drawContainedImage(watermarkContext, communityLogo, 0, 0, watermark.width, watermark.height);
+    watermarkContext.globalCompositeOperation = 'source-in';
+    watermarkContext.fillStyle = '#2563eb';
+    watermarkContext.fillRect(0, 0, watermark.width, watermark.height);
+
+    context.save();
+    context.globalAlpha = 0.035;
+    context.drawImage(watermark, 70, 210);
+    context.restore();
+  }
 
   context.fillStyle = '#0b2b6b';
   context.fillRect(0, 145, WIDTH, 5);
@@ -230,14 +271,15 @@ function drawEvent(context: CanvasRenderingContext2D, mic: OpenMic, poster: HTML
   context.fillStyle = '#08245c';
   context.font = '800 44px Arial, sans-serif';
   titleLines.forEach((line, index) => context.fillText(line, infoX, y + 96 + index * 45, 540));
-  const detailsY = y + 176;
+  const detailsY = y + 178;
   context.fillStyle = '#334155';
-  context.font = '600 25px Arial, sans-serif';
+  context.font = '700 27px Arial, sans-serif';
   context.fillText(formatDate(mic.date), infoX, detailsY);
+  context.font = '600 27px Arial, sans-serif';
   context.fillText(`${mic.time} WIB`, infoX, detailsY + 42);
   const locationLines = wrapText(context, `${mic.venue}${mic.location ? `, ${mic.location}` : ''}`, 540, '500 23px Arial, sans-serif').slice(0, 2);
-  context.font = '500 23px Arial, sans-serif';
-  locationLines.forEach((line, index) => context.fillText(line, infoX, detailsY + 82 + index * 30, 540));
+  context.font = '500 26px Arial, sans-serif';
+  locationLines.forEach((line, index) => context.fillText(line, infoX, detailsY + 84 + index * 34, 540));
 }
 
 function drawPerformerCard(context: CanvasRenderingContext2D, performer: CanvasLineup, number: number, x: number, y: number, width: number, height: number) {
@@ -256,15 +298,22 @@ function drawPerformerCard(context: CanvasRenderingContext2D, performer: CanvasL
 
   const avatarSize = Math.min(width > 700 ? 240 : 104, Math.max(62, Math.min(height - 36, height * 0.42)));
   const avatarX = x + 24;
-  const avatarY = y + (height - avatarSize) / 2;
-  context.fillStyle = '#eff6ff';
-  roundedRect(context, avatarX, avatarY, avatarSize, avatarSize, 18);
-  context.fill();
-  if (performer.photo) drawContainedImage(context, performer.photo, avatarX, avatarY, avatarSize, avatarSize);
-  else drawMicrophone(context, avatarX, avatarY, avatarSize);
+  const photoHeight = Math.min(140, height - 16);
+  const photoWidth = photoHeight * 3 / 5;
+  const avatarWidth = performer.photo ? photoWidth : avatarSize;
+  const avatarHeight = performer.photo ? photoHeight : avatarSize;
+  const avatarY = y + (height - avatarHeight) / 2;
+  if (performer.photo) {
+    drawKomikaPhoto(context, performer.photo, avatarX, avatarY, avatarWidth, avatarHeight);
+  } else {
+    context.fillStyle = '#eff6ff';
+    roundedRect(context, avatarX, avatarY, avatarWidth, avatarHeight, 18);
+    context.fill();
+    drawMicrophone(context, avatarX, avatarY, avatarWidth);
+  }
 
-  const textX = x + avatarSize + 40;
-  const textWidth = width - avatarSize - 136;
+  const textX = x + avatarWidth + (performer.photo ? 64 : 40);
+  const textWidth = width - avatarWidth - (performer.photo ? 160 : 136);
   let nameFontSize = Math.min(64, Math.max(24, Math.round(height * 0.1)));
   const detailFontSize = Math.min(25, Math.max(16, Math.round(height * 0.085)));
   const detailLineHeight = detailFontSize + 5;
@@ -399,14 +448,14 @@ async function createLineupImages(
         return { ...performer, nameLines, height: Math.max(108, 30 + nameLines.length * 30 + 48) };
       })
       : page;
-    const leftCount = columns === 1 ? pagePerformers.length : Math.ceil(pagePerformers.length / 2);
+    const rowCount = columns === 1 ? pagePerformers.length : Math.ceil(pagePerformers.length / 2);
     const rowHeights: number[] = [];
-    for (let row = 0; row < leftCount; row += 1) {
-      const left = pagePerformers[row];
-      const right = columns === 2 ? pagePerformers[leftCount + row] : undefined;
+    for (let row = 0; row < rowCount; row += 1) {
+      const leftIndex = columns === 1 ? row : row * 2;
+      const left = pagePerformers[leftIndex];
+      const right = columns === 2 ? pagePerformers[leftIndex + 1] : undefined;
       rowHeights.push(Math.max(left.height, right?.height ?? 0));
     }
-    const rowCount = rowHeights.length;
     const standardPagedCardHeight = Math.max(108, (listHeight - 9 * 8) / 10);
     const cardHeights = hasPagination
       ? rowHeights.map(() => standardPagedCardHeight)
@@ -426,16 +475,17 @@ async function createLineupImages(
       : Math.max(0, (listHeight - cardHeights.reduce((sum, height) => sum + height, 0)) / (rowCount + 1));
     let currentY = listTop + spaceBetweenRows;
     for (let row = 0; row < rowCount; row += 1) {
-      const left = pagePerformers[row];
-      const right = columns === 2 ? pagePerformers[leftCount + row] : undefined;
+      const leftIndex = columns === 1 ? row : row * 2;
+      const left = pagePerformers[leftIndex];
+      const right = columns === 2 ? pagePerformers[leftIndex + 1] : undefined;
       const rowHeight = cardHeights[row];
       if (columns === 1) {
         drawPerformerCard(context, left, pageOffset + row + 1, 54, currentY, 972, rowHeight);
       } else if (!right && !hasPagination) {
-        drawPerformerCard(context, left, pageOffset + row + 1, 303, currentY, 474, rowHeight);
+        drawPerformerCard(context, left, pageOffset + leftIndex + 1, 303, currentY, 474, rowHeight);
       } else {
-        drawPerformerCard(context, left, pageOffset + row + 1, 54, currentY, 474, rowHeight);
-        if (right) drawPerformerCard(context, right, pageOffset + leftCount + row + 1, 552, currentY, 474, rowHeight);
+        drawPerformerCard(context, left, pageOffset + leftIndex + 1, 54, currentY, 474, rowHeight);
+        if (right) drawPerformerCard(context, right, pageOffset + leftIndex + 2, 552, currentY, 474, rowHeight);
       }
       currentY += rowHeight + spaceBetweenRows;
     }
@@ -445,7 +495,7 @@ async function createLineupImages(
     context.font = '700 20px Arial, sans-serif';
     const domain = window.location.hostname;
     const domainWidth = context.measureText(domain).width;
-    const footerWidth = 24 + 12 + domainWidth;
+    const footerWidth = domainWidth;
     const footerStart = (WIDTH - footerWidth) / 2;
     context.strokeStyle = '#bfdbfe';
     context.lineWidth = 2;
@@ -455,19 +505,9 @@ async function createLineupImages(
     context.moveTo(footerStart + footerWidth + 20, 1890);
     context.lineTo(1024, 1890);
     context.stroke();
-    context.beginPath();
-    context.arc(footerStart + 10, 1890, 10, 0, Math.PI * 2);
-    context.strokeStyle = '#1d4ed8';
-    context.lineWidth = 2;
-    context.stroke();
-    context.beginPath();
-    context.ellipse(footerStart + 10, 1890, 4, 10, 0, 0, Math.PI * 2);
-    context.moveTo(footerStart, 1890);
-    context.lineTo(footerStart + 20, 1890);
-    context.stroke();
     context.fillStyle = '#334155';
     context.textAlign = 'left';
-    context.fillText(domain, footerStart + 36, 1897);
+    context.fillText(domain, footerStart, 1897);
     context.textAlign = 'left';
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((result) => result ? resolve(result) : reject(new Error('Gambar lineup gagal dibuat.')), 'image/png');
@@ -589,7 +629,6 @@ export function ShareLineupModal({ open, onClose, mic, performers, shareText, si
             {sharing ? 'Membagikan...' : 'Bagikan'}
           </button>
         </div>
-        <button type="button" onClick={onClose} disabled={sharing} className="w-full rounded-xl px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-100 disabled:opacity-60">Batal</button>
       </div>
     </Modal>
   );

@@ -23,7 +23,7 @@ export function AboutPage({ router, settings }: { router: Router; settings: Site
             <div className="rounded-[24px] border border-blue-100 bg-white/90 p-5 shadow-[0_10px_25px_rgba(37,99,235,0.06)]">
               <button onClick={() => setLogoLightbox(true)} aria-label="Lihat logo Standupindo Cilegon" className="group mx-auto block">
                 <div className="relative mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-[26px] border border-blue-100 bg-white shadow-[0_12px_28px_rgba(29,94,219,0.12)] transition-transform duration-200 group-hover:scale-[1.02]">
-                  <img src={settings.logo_url ?? '/assets/images/Standupindo_CIlegon_Logo.jpeg'} alt={`Logo ${settings.site_name}`} className="h-16 w-16 object-contain" />
+                  <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt={`Logo ${settings.site_name}`} className="h-16 w-16 object-contain" />
                 </div>
               </button>
               <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">Community</p>
@@ -48,7 +48,7 @@ export function AboutPage({ router, settings }: { router: Router; settings: Site
           </div>
         </div>
       </div>
-      <ImageLightbox src={settings.logo_url ?? '/assets/images/Standupindo_CIlegon_Logo.jpeg'} alt={`Logo ${settings.site_name}`} open={logoLightbox} onClose={() => setLogoLightbox(false)} closeAriaLabel="Tutup logo" />
+      <ImageLightbox src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt={`Logo ${settings.site_name}`} open={logoLightbox} onClose={() => setLogoLightbox(false)} closeAriaLabel="Tutup logo" />
     </div>
   );
 }

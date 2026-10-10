@@ -15,7 +15,7 @@ const ITEMS = [
 
 export function MorePage({ router, settings }: { router: Router; settings: SiteSettings }) {
   const [logoLightbox, setLogoLightbox] = useState(false);
-  const logoSrc = settings.logo_url ?? '/assets/images/Standupindo_CIlegon_Logo.jpeg';
+  const logoSrc = settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png';
 
   return (
     <div className="animate-fade-in">
@@ -30,9 +30,11 @@ export function MorePage({ router, settings }: { router: Router; settings: SiteS
             <div className="mb-5 rounded-[24px] border border-blue-100 bg-white/80 p-4 shadow-[0_10px_25px_rgba(37,99,235,0.06)] backdrop-blur-sm sm:p-5">
               <div className="flex items-center gap-4">
                 <button onClick={() => setLogoLightbox(true)} aria-label="Lihat logo Standupindo Cilegon" className="group relative block shrink-0">
-                  <div className="absolute -inset-1 rounded-[22px] bg-gradient-to-br from-blue-200/80 to-sky-100/80 blur-sm opacity-80" />
-                  <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-[22px] border border-blue-100 bg-white shadow-[0_12px_28px_rgba(29,94,219,0.12)] transition-transform duration-200 group-hover:scale-[1.02]">
-                    <img src={logoSrc} alt={`Logo ${settings.site_name}`} className="h-12 w-12 object-contain sm:h-14 sm:w-14" />
+                  <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-blue-200/80 to-sky-100/80 blur-sm opacity-80" />
+                  <div className="relative rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-0.5 shadow-[0_5px_14px_rgba(29,94,219,0.1)] transition-transform duration-200 group-hover:scale-[1.03]">
+                    <span className="site-brand-logo-light-leak relative isolate block h-16 w-auto overflow-hidden rounded-md sm:h-[4.5rem]">
+                      <img src={logoSrc} alt={`Logo ${settings.site_name}`} className="block h-full w-auto rounded-md object-contain" />
+                    </span>
                   </div>
                 </button>
 

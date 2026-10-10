@@ -6,7 +6,7 @@ const FALLBACK_SETTINGS: SiteSettings = {
   id: 1,
   site_name: 'Standupindo Cilegon',
   site_short_name: 'STANDUPINDO CILEGON',
-  logo_url: '/assets/images/Standupindo_CIlegon_Logo.jpeg',
+  logo_url: '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png',
   brand_primary: '#2563eb',
   brand_hover: '#1d4ed8',
   brand_accent: '#f59e0b',

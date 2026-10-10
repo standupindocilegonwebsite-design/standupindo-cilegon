@@ -29,9 +29,10 @@ import { TicketGateSettingsPage } from '@/pages/admin/TicketGateSettingsPage';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
 import { AppCredit } from '@/components/AppCredit';
 import { MobileBottomNavPortal } from '@/components/nav/MobileBottomNavPortal';
+import { AnnualRecapAdminPage } from '@/pages/admin/AnnualRecapAdminPage';
 
 interface Props { router: Router; settings: SiteSettings; }
-type Section = 'dashboard' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'ticket-gates' | 'check-in-report' | 'maintenance' | 'more';
+type Section = 'dashboard' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'annual-recap' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'ticket-gates' | 'check-in-report' | 'maintenance' | 'more';
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -52,6 +53,7 @@ const NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
   { key: 'admin-accounts', label: 'Akun Admin', icon: ShieldPlus },
   { key: 'partners', label: 'Partners', icon: Users },
   { key: 'evaluator', label: 'Evaluator', icon: Users },
+  { key: 'annual-recap', label: 'Annual Recap', icon: BarChart3 },
   { key: 'ticket-orders', label: 'Data Penonton', icon: TicketIcon },
   { key: 'ticket-gates', label: 'Pengaturan Gate', icon: DoorOpen },
   { key: 'settings', label: 'Settings', icon: Settings },
@@ -81,6 +83,7 @@ function getSection(path: string): Section {
   if (parts[1] === 'ticket-gates') return 'ticket-gates';
   if (parts[1] === 'check-in-report') return 'check-in-report';
   if (parts[1] === 'maintenance') return 'maintenance';
+  if (parts[1] === 'annual-recap') return 'annual-recap';
   if (parts[1] === 'profile-settings') return 'profile-settings';
   const part = parts[1] as Section | undefined;
   if (part === 'more') return 'more';
@@ -90,6 +93,7 @@ function getSection(path: string): Section {
 
 function canAccessSection(section: Section, isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean, isTicketAdmin: boolean, isQrScanner: boolean): boolean {
   if (isAdmin) return true;
+  if (section === 'annual-recap') return isAdmin;
   if (isTicketAdmin) return section === 'dashboard' || section === 'ticket-orders' || section === 'tickets' || section === 'events' || section === 'payment-info' || section === 'ticket-report' || section === 'ticket-gates' || (isQrScanner && section === 'check-in-report') || section === 'profile-settings' || section === 'more';
   if (isQrScanner) return section === 'dashboard' || section === 'scan' || section === 'events' || section === 'check-in-report' || section === 'profile-settings' || section === 'more';
   if (section === 'maintenance') return isAdmin || isEventAdmin;
@@ -1067,6 +1071,7 @@ export function AdminPage({ router, settings }: Props) {
           {section === 'ticket-report' && isTicketAdmin && <TicketSalesReportPage events={events} orders={ticketOrders} onBack={() => navigateSection('more')} />}
           {section === 'check-in-report' && isQrScanner && <TicketCheckInReportPage onBack={() => navigateSection('more')} />}
           {section === 'maintenance' && (isAdmin || isEventAdmin) && <TicketMaintenancePage events={events} />}
+          {section === 'annual-recap' && isAdmin && <AnnualRecapAdminPage onNotice={setNotice} onBack={() => navigateSection('dashboard')} />}
           {section === 'settings' && <SettingsPanel settings={settings} onSaved={load} onNotice={setNotice} />}
           {section === 'more' && <MorePage onNavigate={navigateSection} onSignOut={async () => { await signOut(); router.navigate('/admin/login'); }} ticketOrderUnreadCount={notificationCounts['ticket-orders']} applicationUnreadCount={notificationCounts.applications} isAdmin={isAdmin} isOpenMicAdmin={isOpenMicAdmin} isEventAdmin={isEventAdmin} isTicketAdmin={isTicketAdmin} isQrScanner={isQrScanner} />}
         </main>

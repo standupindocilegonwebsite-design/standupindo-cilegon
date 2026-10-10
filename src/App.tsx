@@ -24,6 +24,7 @@ import { PartnershipPage } from '@/pages/public/PartnershipPage';
 import { ContactPage } from '@/pages/public/ContactPage';
 import { CommunityJoinPage } from '@/pages/public/CommunityJoinPage';
 import { EventRegisterPage } from '@/pages/public/EventRegisterPage';
+import { AnnualRecapPage } from '@/pages/public/AnnualRecapPage';
 import { AdminLoginPage } from '@/pages/admin/AdminLoginPage';
 import { AdminPage } from '@/pages/admin/AdminPage';
 import { MemberLoginPage } from '@/pages/member/MemberLoginPage';
@@ -225,6 +226,7 @@ function RoutedApp() {
   const ticketSelection = matchRoute(router.path, '/event/[slug]/tiket');
   const eventRegister = matchRoute(router.path, '/event/[slug]/daftar');
   const komikaDetail = matchRoute(router.path, '/komika/[slug]');
+  const annualRecap = matchRoute(router.path, '/recap/[year]');
 
   let content: React.ReactNode;
   if (router.path === '/') content = <HomePage router={router} />;
@@ -241,6 +243,7 @@ function RoutedApp() {
   else if (router.path === '/kebijakan-privasi') content = <TicketLegalPage router={router} settings={settings} document="privacy" />;
   else if (router.path === '/komika') content = <KomikaPage router={router} />;
   else if (komikaDetail) content = <KomikaDetailPage router={router} slug={komikaDetail.slug} />;
+  else if (annualRecap) content = <AnnualRecapPage router={router} year={annualRecap.year} />;
   else if (router.path === '/more') content = <MorePage router={router} settings={settings} />;
   else if (router.path === '/more/tentang') content = <AboutPage router={router} settings={settings} />;
   else if (router.path === '/more/kerja-sama') content = <PartnershipPage router={router} settings={settings} />;

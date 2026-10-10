@@ -26,7 +26,7 @@ export function MemberDesktopNav({ router, sticky = true, compact = false }: { r
       <div className={`container-app flex items-center justify-between ${compact ? 'h-14 md:h-16' : 'h-16 md:h-[4.5rem]'}`}>
         <button onClick={() => router.navigate('/member')} className="group flex min-w-0 items-center gap-2.5 sm:gap-3" aria-label="Member Area">
           <span className={`flex shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white shadow-[0_5px_14px_rgba(15,23,42,0.14)] transition-transform duration-200 group-hover:scale-[1.03] ${compact ? 'h-8 w-8 sm:h-9 sm:w-9' : 'h-9 w-9 sm:h-10 sm:w-10'}`}>
-            <img src="/assets/images/Standupindo_CIlegon_Logo.jpeg" alt="Standupindo Cilegon" className={`${compact ? 'h-6 w-6 sm:h-7 sm:w-7' : 'h-7 w-7 sm:h-8 sm:w-8'} rounded-lg object-contain`} />
+            <img src="/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png" alt="Standupindo Cilegon" className={`${compact ? 'h-6 w-6 sm:h-7 sm:w-7' : 'h-7 w-7 sm:h-8 sm:w-8'} rounded-lg object-contain`} />
           </span>
           <span className="flex min-w-0 flex-col text-left leading-tight">
             <span className={`${compact ? 'text-[12px] sm:text-[14px]' : 'text-[13px] sm:text-[15px]'} font-black tracking-[0.02em] text-white`}>MEMBER <span className="text-blue-100">AREA</span></span>

@@ -344,4 +344,4 @@ export interface SiteSettings {
   affiliation_logo_url?: string | null;
 }
 
-export const LOGO_URL = '/assets/images/Standupindo_CIlegon_Logo.jpeg';
+export const LOGO_URL = '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png';
