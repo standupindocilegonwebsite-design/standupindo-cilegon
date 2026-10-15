@@ -3,6 +3,7 @@ import { Archive, BarChart3, Bell, CalendarDays, Camera, Check, CheckCircle2, Ch
 import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, MemberOpenMicHistoryStatus, MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { getFunctionErrorMessage } from '@/lib/function-errors';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatPrice, getEventStatus, getOpenMicNumbers, getOpenMicStatus, normalizeWhatsappNumber, slugify, waLink } from '@/lib/format';
 import { generateTicketOrderWhatsAppUrl } from '@/lib/whatsapp';
@@ -785,7 +786,8 @@ export function AdminPage({ router, settings }: Props) {
     : isOpenMicAdmin ? 'open-mic' : isEventAdmin ? 'events' : isQrScanner ? 'scan' : isTicketAdmin ? 'ticket-orders' : 'dashboard';
   const visibleNav = getWorkspaceNav(isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner);
   const visibleBottomNav = getWorkspaceBottomNav(isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner);
-  const workspaceTitle = isOpenMicAdmin ? 'OPEN MIC WORKSPACE' : isEventAdmin ? 'EVENT WORKSPACE' : isTicketAdmin ? 'TICKET WORKSPACE' : isQrScanner ? 'SCANNER WORKSPACE' : 'ADMIN PANEL';
+  const isOpenMicWorkspaceSection = ['open-mic', 'open-mic-list', 'open-mic-performers', 'open-mic-history', 'registrants'].includes(section);
+  const workspaceTitle = isOpenMicWorkspaceSection && (isAdmin || isOpenMicAdmin) ? 'OPEN MIC WORKSPACE' : isOpenMicAdmin ? 'OPEN MIC WORKSPACE' : isEventAdmin ? 'EVENT WORKSPACE' : isTicketAdmin ? 'TICKET WORKSPACE' : isQrScanner ? 'SCANNER WORKSPACE' : 'ADMIN PANEL';
   const [openMics, setOpenMics] = useState<OpenMic[]>([]);
   const [registrations, setRegistrations] = useState<OpenMicRegistration[]>([]);
     const [events, setEvents] = useState<EventItem[]>([]); // This line is unchanged
@@ -956,7 +958,7 @@ export function AdminPage({ router, settings }: Props) {
         <div className="flex h-16 items-center justify-between px-6">
           <div className="flex items-center gap-3">
             <img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-9 w-9 rounded-lg bg-white p-1 object-contain" />
-            <span className="text-sm font-extrabold text-white">{isAdmin ? <>ADMIN <span className="text-amber-300">PANEL</span></> : workspaceTitle}</span>
+            <span className="text-sm font-extrabold text-white">{isAdmin && !isOpenMicWorkspaceSection ? <>ADMIN <span className="text-amber-300">PANEL</span></> : workspaceTitle}</span>
           </div>
           <div className="flex items-center gap-3">
             <NotificationBell inverse notifications={notifications} unreadCount={unreadCount} onNavigate={navigateSection} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllNotificationsAsRead} />
@@ -974,7 +976,7 @@ export function AdminPage({ router, settings }: Props) {
         <div className="flex h-14 items-center justify-between px-4">
           <div className="flex min-w-0 items-center gap-2.5">
             <img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-7 w-7 shrink-0 rounded-lg bg-white p-1 object-contain" />
-            <span className="truncate text-sm font-extrabold tracking-tight text-white">{isAdmin ? 'ADMIN PANEL' : workspaceTitle}</span>
+            <span className="truncate text-sm font-extrabold tracking-tight text-white">{isAdmin && !isOpenMicWorkspaceSection ? 'ADMIN PANEL' : workspaceTitle}</span>
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell inverse notifications={notifications} unreadCount={unreadCount} onNavigate={navigateSection} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllNotificationsAsRead} />
@@ -1870,6 +1872,12 @@ function RegistrantsView({ openMicId, komika, onBack }: { openMicId: string; kom
       <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-blue-700">
         <ArrowLeft className="h-5 w-5" /> <span className="text-slate-900">Pendaftar</span>
       </button>
+
+      <div>
+        <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-blue-700">Open Mic Workspace</p>
+        <h2 className="mt-1 text-2xl font-extrabold text-slate-950">Pendaftar Open Mic</h2>
+        <p className="mt-1 text-sm text-slate-500">Kelola pendaftar, status konfirmasi, dan kehadiran untuk Open Mic terpilih.</p>
+      </div>
 
       {openMic && (
         <div className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-200/70">
@@ -2875,6 +2883,7 @@ function KomikaManagement({ rows, registrations, openMics, attendanceCounts, loa
   const [accountAction, setAccountAction] = useState<{ mode: 'create' | 'manage'; komika: Komika } | null>(null);
   const [accountEmail, setAccountEmail] = useState('');
   const [accountPassword, setAccountPassword] = useState('');
+  const [showAccountPassword, setShowAccountPassword] = useState(false);
   const [accountActionSaving, setAccountActionSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [folder, setFolder] = useState<'active' | 'archived'>('active');
@@ -2891,6 +2900,7 @@ function KomikaManagement({ rows, registrations, openMics, attendanceCounts, loa
   function openAccountAction(mode: 'create' | 'manage', komika: Komika) {
     setAccountEmail('');
     setAccountPassword('');
+    setShowAccountPassword(false);
     setAccountAction({ mode, komika });
   }
 
@@ -2909,7 +2919,7 @@ function KomikaManagement({ rows, registrations, openMics, attendanceCounts, loa
         ? await supabase.functions.invoke('admin-create-member', { body: { email: accountEmail.trim(), password: accountPassword, komika_id: komika.id } })
         : await supabase.functions.invoke('admin-manage-members', { body: { action: 'reset-password', user_id: komika.user_id, password: accountPassword } });
       if (result.error || result.data?.error) {
-        onNotice(result.error?.message ?? result.data?.error ?? 'Aksi akun login gagal.');
+        onNotice(result.data?.error ?? (result.error ? await getFunctionErrorMessage(result.error, 'Aksi akun login gagal.') : 'Aksi akun login gagal.'));
         return;
       }
       setAccountAction(null);
@@ -3058,14 +3068,14 @@ function KomikaManagement({ rows, registrations, openMics, attendanceCounts, loa
         {accountAction?.mode === 'create' && <form onSubmit={submitAccountAction} className="space-y-4">
           <div className="rounded-xl bg-blue-50 p-3 text-sm text-blue-900"><p className="font-bold">{accountAction.komika.stage_name}</p><p className="mt-0.5 text-xs text-blue-700">Akun akan langsung ditautkan ke profil Komika ini.</p></div>
           <div><label className="label-field" htmlFor="komika-login-email">Email login</label><input id="komika-login-email" type="email" required autoComplete="off" value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} className="input-field" placeholder="komika@email.com" /></div>
-          <div><label className="label-field" htmlFor="komika-login-password">Password awal</label><input id="komika-login-password" type="password" required minLength={6} autoComplete="new-password" value={accountPassword} onChange={(event) => setAccountPassword(event.target.value)} className="input-field" placeholder="Minimal 6 karakter" /></div>
+          <div><label className="label-field" htmlFor="komika-login-password">Password awal</label><div className="relative"><input id="komika-login-password" type={showAccountPassword ? 'text' : 'password'} required minLength={6} autoComplete="new-password" value={accountPassword} onChange={(event) => setAccountPassword(event.target.value)} className="input-field !pr-12" placeholder="Minimal 6 karakter" /><button type="button" onClick={() => setShowAccountPassword((visible) => !visible)} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-blue-700" aria-label={showAccountPassword ? 'Sembunyikan password' : 'Tampilkan password'} title={showAccountPassword ? 'Sembunyikan password' : 'Tampilkan password'}>{showAccountPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
           <div className="flex gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setAccountAction(null)} disabled={accountActionSaving} className="btn-secondary flex-1">Batal</button><button type="submit" disabled={accountActionSaving} className="btn-primary flex-1"><UserPlus className="h-4 w-4" />{accountActionSaving ? 'Membuat...' : 'Buat Akun'}</button></div>
         </form>}
       </Modal>
       <Modal open={accountAction?.mode === 'manage'} onClose={() => { if (!accountActionSaving) setAccountAction(null); }} title="Kelola Akun Login" size="sm">
         {accountAction?.mode === 'manage' && <div className="space-y-4">
           <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900"><p className="font-bold">{accountAction.komika.stage_name}</p><p className="mt-0.5 flex items-center gap-1.5 text-xs text-emerald-700"><Link2 className="h-3.5 w-3.5" />Akun login terhubung</p></div>
-          <form onSubmit={submitAccountAction} className="space-y-3"><div><label className="label-field" htmlFor="komika-reset-password">Password baru</label><input id="komika-reset-password" type="password" required minLength={6} autoComplete="new-password" value={accountPassword} onChange={(event) => setAccountPassword(event.target.value)} className="input-field" placeholder="Minimal 6 karakter" /></div><button type="submit" disabled={accountActionSaving || accountPassword.length < 6} className="btn-primary w-full justify-center"><KeyRound className="h-4 w-4" />{accountActionSaving ? 'Menyimpan...' : 'Reset Password'}</button></form>
+          <form onSubmit={submitAccountAction} className="space-y-3"><div><label className="label-field" htmlFor="komika-reset-password">Password baru</label><div className="relative"><input id="komika-reset-password" type={showAccountPassword ? 'text' : 'password'} required minLength={6} autoComplete="new-password" value={accountPassword} onChange={(event) => setAccountPassword(event.target.value)} className="input-field !pr-12" placeholder="Minimal 6 karakter" /><button type="button" onClick={() => setShowAccountPassword((visible) => !visible)} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-blue-700" aria-label={showAccountPassword ? 'Sembunyikan password' : 'Tampilkan password'} title={showAccountPassword ? 'Sembunyikan password' : 'Tampilkan password'}>{showAccountPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div><button type="submit" disabled={accountActionSaving || accountPassword.length < 6} className="btn-primary w-full justify-center"><KeyRound className="h-4 w-4" />{accountActionSaving ? 'Menyimpan...' : 'Reset Password'}</button></form>
           <div className="flex gap-2 border-t border-slate-100 pt-3"><button type="button" onClick={() => setAccountAction(null)} disabled={accountActionSaving} className="btn-secondary flex-1">Tutup</button><button type="button" onClick={() => void deleteLinkedLogin()} disabled={accountActionSaving} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-rose-50 px-4 py-2.5 text-sm font-bold text-rose-700 transition hover:bg-rose-100 disabled:opacity-60"><Trash2 className="h-4 w-4" />Hapus Akun</button></div>
         </div>}
       </Modal>
@@ -3609,6 +3619,7 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
 function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUnreadCount, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner }: { onNavigate: (s: Section) => void; onSignOut: () => void; ticketOrderUnreadCount: number; applicationUnreadCount: number; isAdmin: boolean; isOpenMicAdmin: boolean; isEventAdmin: boolean; isTicketAdmin: boolean; isQrScanner: boolean }) {
   const items: { label: string; icon: typeof BarChart3; onClick: () => void; section?: Section; badge?: number; mobileOnly?: boolean }[] = [
     ...((isAdmin || isOpenMicAdmin) ? [{ label: 'Jadwal Cilegon Comedy Sharing (CCS)', icon: CalendarDays, onClick: () => onNavigate('ccs-schedule'), section: 'ccs-schedule' as Section }] : []),
+    ...(isAdmin ? [{ label: 'Riwayat Member', icon: History, onClick: () => onNavigate('open-mic-history'), section: 'open-mic-history' as Section }] : []),
     ...(isAdmin ? [{ label: 'Annual Recap', icon: BarChart3, onClick: () => onNavigate('annual-recap'), section: 'annual-recap' as Section, mobileOnly: true }] : []),
     ...(isEventAdmin ? [{ label: 'Akun Admin Tiket / QR', icon: ShieldPlus, onClick: () => onNavigate('admin-accounts'), section: 'admin-accounts' as Section }] : []),
     ...(isTicketAdmin ? [{ label: 'Informasi Pembayaran', icon: TicketIcon, onClick: () => onNavigate('payment-info'), section: 'payment-info' as Section }] : []),
@@ -3621,6 +3632,7 @@ function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUn
     ...(isAdmin ? [{ label: 'Akun Admin', icon: ShieldPlus, onClick: () => onNavigate('admin-accounts'), section: 'admin-accounts' as Section }] : []),
     ...(!isAdmin ? [{ label: 'Pengaturan Profil', icon: Settings, onClick: () => onNavigate('profile-settings'), section: 'profile-settings' as Section }] : []),
     { label: 'Evaluator', icon: Users, onClick: () => onNavigate('evaluator'), section: 'evaluator' },
+    ...(isAdmin ? [{ label: 'Pengaturan Gate', icon: DoorOpen, onClick: () => onNavigate('ticket-gates'), section: 'ticket-gates' as Section }] : []),
     { label: 'Settings', icon: Settings, onClick: () => onNavigate('settings'), section: 'settings' },
   ];
   return (

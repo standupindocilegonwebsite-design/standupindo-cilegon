@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, Eye, EyeOff, KeyRound, Power, RefreshCw, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
 import type { Komika } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { getFunctionErrorMessage } from '@/lib/function-errors';
 import { Modal } from '@/components/ui/Modal';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
 
@@ -102,7 +103,7 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
 
     setSaving(false);
     if (error || data?.error) {
-      onNotice(error?.message ?? data?.error ?? 'Akun member gagal dibuat.');
+      onNotice(data?.error ?? (error ? await getFunctionErrorMessage(error, 'Akun member gagal dibuat.') : 'Akun member gagal dibuat.'));
       return;
     }
 

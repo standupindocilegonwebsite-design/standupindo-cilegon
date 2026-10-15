@@ -1,5 +1,16 @@
 {
   "rewrites": [
+    {
+      "source": "/komika/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(facebookexternalhit|Facebot|Twitterbot|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Slackbot|SkypeUriPreview|Pinterest|Viber)"
+        }
+      ],
+      "destination": "/api/komika/:slug"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

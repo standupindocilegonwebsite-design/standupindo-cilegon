@@ -25,7 +25,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NOT public.jwt_has_role('admin') THEN
+  IF auth.role() IS DISTINCT FROM 'service_role' AND NOT public.jwt_has_role('admin') THEN
     IF NEW.id IS DISTINCT FROM OLD.id
       OR NEW.user_id IS DISTINCT FROM OLD.user_id
       OR NEW.full_name IS DISTINCT FROM OLD.full_name

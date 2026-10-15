@@ -1,4 +1,4 @@
-import { Instagram, MessageCircle, Youtube } from 'lucide-react';
+import { Instagram, MapPin, MessageCircle, Youtube } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Router } from '@/lib/router';
 import type { SiteSettings } from '@/lib/types';
@@ -91,7 +91,7 @@ export function ContactPage({ router, settings }: { router: Router; settings: Si
             <div className="rounded-[24px] border border-blue-100 bg-white/90 p-5 text-center shadow-[0_10px_25px_rgba(37,99,235,0.06)]">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">Stay connected</p>
               <h1 className="mt-1 text-2xl font-black tracking-[-0.04em] text-slate-900 sm:text-3xl">Kontak & Sosial Media</h1>
-              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">Temukan kabar terbaru dan hubungi Standupindo Cilegon melalui kanal resmi kami.</p>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">{settings.short_description?.trim() || 'Temukan kabar terbaru dan hubungi Standupindo Cilegon melalui kanal resmi kami.'}</p>
             </div>
 
             {items.length > 0 && (
@@ -112,6 +112,18 @@ export function ContactPage({ router, settings }: { router: Router; settings: Si
                   <span className="mt-4 text-sm font-bold text-slate-900">{item.label}</span>
                 </a>
               ))}
+              </div>
+            )}
+
+            {settings.address?.trim() && (
+              <div className="mx-auto mt-4 flex max-w-xl items-center gap-3 rounded-[20px] border border-slate-200 bg-white/90 px-4 py-3 text-left shadow-[0_8px_22px_rgba(15,23,42,0.03)]">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+                  <MapPin className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-bold uppercase text-slate-500">Alamat Komunitas</span>
+                  <span className="mt-0.5 block text-sm font-semibold text-slate-900">{settings.address}</span>
+                </span>
               </div>
             )}
 
