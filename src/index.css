@@ -105,6 +105,12 @@
 }
 
 @layer components {
+  .komika-recap-receipt,
+  .komika-recap-receipt.font-mono,
+  .komika-recap-receipt .font-mono {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
   .pb-safe-nav {
     padding-bottom: calc(7.5rem + var(--safe-bottom));
   }

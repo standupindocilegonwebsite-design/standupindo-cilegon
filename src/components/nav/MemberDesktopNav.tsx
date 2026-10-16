@@ -3,6 +3,7 @@ import type { Router } from '@/lib/router';
 import { MemberNotificationBell } from '@/components/nav/MemberNotificationBell';
 import { useMemberNotificationCounts } from '@/components/nav/member-notification-counts';
 import { useAuth } from '@/lib/auth-context';
+import type { SiteSettings } from '@/lib/types';
 
 const LINKS = [
   { to: '/member', label: 'Home', icon: House },
@@ -12,7 +13,7 @@ const LINKS = [
   { to: '/member/more', label: 'More', icon: Menu },
 ];
 
-export function MemberDesktopNav({ router, sticky = true, compact = false }: { router: Router; sticky?: boolean; compact?: boolean }) {
+export function MemberDesktopNav({ router, settings, sticky = true, compact = false }: { router: Router; settings: SiteSettings; sticky?: boolean; compact?: boolean }) {
   const { isEvaluator } = useAuth();
   const { openMic: openMicNotifications, evaluations: evaluationNotifications } = useMemberNotificationCounts();
   const links = isEvaluator ? [...LINKS.slice(0, 2), { to: '/evaluator', label: 'Evaluator', icon: ClipboardCheck }, ...LINKS.slice(2)] : LINKS;
@@ -25,8 +26,10 @@ export function MemberDesktopNav({ router, sticky = true, compact = false }: { r
     <header className={`${sticky ? 'sticky top-0' : 'relative'} z-40 overflow-visible border-b border-blue-800/60 bg-blue-700 shadow-[0_6px_24px_rgba(29,78,216,0.22)] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-blue-300`}>
       <div className={`container-app flex items-center justify-between ${compact ? 'h-14 md:h-16' : 'h-16 md:h-[4.5rem]'}`}>
         <button onClick={() => router.navigate('/member')} className="group flex min-w-0 items-center gap-2.5 sm:gap-3" aria-label="Member Area">
-          <span className={`flex shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white shadow-[0_5px_14px_rgba(15,23,42,0.14)] transition-transform duration-200 group-hover:scale-[1.03] ${compact ? 'h-8 w-8 sm:h-9 sm:w-9' : 'h-9 w-9 sm:h-10 sm:w-10'}`}>
-            <img src="/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png" alt="Standupindo Cilegon" className={`${compact ? 'h-6 w-6 sm:h-7 sm:w-7' : 'h-7 w-7 sm:h-8 sm:w-8'} rounded-lg object-contain`} />
+          <span className="relative flex shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-0.5 shadow-[0_5px_14px_rgba(29,94,219,0.1)] transition-transform duration-200 group-hover:scale-[1.03]">
+            <span className="site-brand-logo-light-leak relative isolate block h-12 w-auto overflow-hidden rounded-md sm:h-14">
+              <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt={settings.site_name} className="block h-full w-auto rounded-md object-contain" />
+            </span>
           </span>
           <span className="flex min-w-0 flex-col text-left leading-tight">
             <span className={`${compact ? 'text-[12px] sm:text-[14px]' : 'text-[13px] sm:text-[15px]'} font-black tracking-[0.02em] text-white`}>MEMBER <span className="text-blue-100">AREA</span></span>

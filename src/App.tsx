@@ -30,6 +30,7 @@ import { AdminLoginPage } from '@/pages/admin/AdminLoginPage';
 import { AdminPage } from '@/pages/admin/AdminPage';
 import { MemberLoginPage } from '@/pages/member/MemberLoginPage';
 import { MemberDashboardPage } from '@/pages/member/MemberDashboardPage';
+import { MemberKomikaRecapPage } from '@/pages/member/MemberKomikaRecapPage';
 import { MemberProfilePage } from '@/pages/member/MemberProfilePage';
 import { MemberEvaluationPage } from '@/pages/member/MemberEvaluationPage';
 import { MemberPerformanceHistoryPage } from '@/pages/member/MemberPerformanceHistoryPage';
@@ -117,6 +118,7 @@ function ProtectedMember({ router }: { router: Router }) {
   }
 
   if (router.path === '/member') return <MemberDashboardPage router={router} />;
+  if (router.path === '/member/komika-recap') return <MemberKomikaRecapPage router={router} />;
   const memberOpenMicPath = router.path.replace(/^\/member/, '') || '/';
   const memberPublicRouter: Router = {
     ...router,
@@ -126,7 +128,7 @@ function ProtectedMember({ router }: { router: Router }) {
   const memberOpenMicRegister = matchRoute(memberOpenMicPath, '/open-mic/[slug]/daftar');
   if (memberOpenMicRegister) return <OpenMicRegisterPage router={memberPublicRouter} slug={memberOpenMicRegister.slug} />;
   const memberOpenMicDetail = matchRoute(memberOpenMicPath, '/open-mic/[slug]');
-  if (memberOpenMicDetail) return <OpenMicDetailPage router={memberPublicRouter} slug={memberOpenMicDetail.slug} showFloatingRegister />;
+  if (memberOpenMicDetail) return <OpenMicDetailPage router={memberPublicRouter} slug={memberOpenMicDetail.slug} showFloatingRegister isMemberArea />;
   if (router.path === '/member/profile') return <MemberProfilePage router={router} />;
   if (router.path === '/member/evaluations') return <MemberEvaluationPage router={router} />;
   if (router.path === '/member/evaluations/history') return <MemberPerformanceHistoryPage router={router} />;
@@ -193,7 +195,7 @@ function RoutedApp() {
     return (
       <MemberNotificationCountsProvider>
         <div className="flex min-h-screen flex-col bg-slate-50">
-          {router.path !== '/member/login' && <MemberDesktopNav router={router} compact={router.path.startsWith('/member/materials/')} />}
+          {router.path !== '/member/login' && <MemberDesktopNav router={router} settings={settings} compact={router.path.startsWith('/member/materials/')} />}
           <main className="flex-1 pb-safe-nav md:pb-0">{memberContent}</main>
           {router.path !== '/member/login' && (
             <footer className="border-t border-slate-200 bg-white px-4 py-2 pb-[calc(4.5rem+var(--safe-bottom))] md:py-4 md:pb-4">
@@ -209,7 +211,7 @@ function RoutedApp() {
     return (
       <MemberNotificationCountsProvider>
         <div className="flex min-h-screen flex-col bg-slate-50">
-          <MemberDesktopNav router={router} />
+          <MemberDesktopNav router={router} settings={settings} />
           <main className="flex-1 pb-safe-nav md:pb-0"><ProtectedEvaluator router={router} /></main>
           <footer className="border-t border-slate-200 bg-white px-4 py-2 pb-[calc(4.5rem+var(--safe-bottom))] md:py-4 md:pb-4">
             <AppCredit />

@@ -20,6 +20,7 @@ interface Props {
   router: Router;
   slug: string;
   showFloatingRegister?: boolean;
+  isMemberArea?: boolean;
 }
 
 function setOgTags(title: string, description: string, image: string, url: string) {
@@ -34,7 +35,7 @@ function setOgTags(title: string, description: string, image: string, url: strin
   set('og:url', url);
 }
 
-export function OpenMicDetailPage({ router, slug, showFloatingRegister = false }: Props) {
+export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, isMemberArea = false }: Props) {
   const { settings } = useSiteSettings();
   const [loading, setLoading] = useState(true);
   const [mic, setMic] = useState<OpenMic | null>(null);
@@ -338,11 +339,11 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false }
         <section id="lineup" data-scroll-reveal className="scroll-reveal is-visible scroll-mt-24">
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-white sm:text-xl">{currentStatus === 'completed' ? 'DAFTAR LINEUP' : 'LINEUP SEMENTARA'}</h2>
-              <p className="mt-1 text-sm font-semibold text-slate-300">{currentStatus === 'completed' ? `${confirmed.length} KOMIKA PERFORM` : `${confirmed.length} KOMIKA TERDAFTAR`}</p>
+              <h2 className={`text-lg font-bold sm:text-xl ${isMemberArea ? 'text-slate-900' : 'text-white'}`}>{currentStatus === 'completed' ? 'DAFTAR LINEUP' : 'LINEUP SEMENTARA'}</h2>
+              <p className={`mt-1 text-sm font-semibold ${isMemberArea ? 'text-slate-600' : 'text-slate-300'}`}>{currentStatus === 'completed' ? `${confirmed.length} KOMIKA PERFORM` : `${confirmed.length} KOMIKA TERDAFTAR`}</p>
             </div>
-            <button onClick={() => currentStatus === 'completed' ? setShareLineupOpen(true) : void shareLineup()} aria-label={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} title={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} className="inline-flex h-11 w-11 shrink-0 items-center justify-center text-white transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
-              {copied ? <Check className="h-5 w-5 text-white" /> : <Send className="h-5 w-5 text-white" />}
+            <button onClick={() => currentStatus === 'completed' ? setShareLineupOpen(true) : void shareLineup()} aria-label={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} title={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} className={`inline-flex h-11 w-11 shrink-0 items-center justify-center transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 ${isMemberArea ? 'text-blue-700 focus-visible:ring-blue-500/70' : 'text-white focus-visible:ring-white/70'}`}>
+              {copied ? <Check className="h-5 w-5" /> : <Send className="h-5 w-5" />}
             </button>
           </div>
           {confirmed.length === 0 ? (

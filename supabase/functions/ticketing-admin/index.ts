@@ -210,12 +210,16 @@ function paymentConfirmationEmailHtml(order: {
           </table>
         </td></tr>
         <tr><td style="padding:0 28px 24px">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#102a56;border-radius:14px"><tr><td style="padding:20px">
-            <div style="font-size:16px;line-height:22px;color:#fff;font-weight:800;margin-bottom:6px">Akses Tiket</div>
-            <div style="font-size:13px;line-height:20px;color:#dbe7f8;margin-bottom:16px">Gunakan informasi berikut untuk membuka tiket digital kamu di website.</div>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#0c205f;border-radius:14px"><tr><td style="padding:20px">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:6px"><tr>
+              <td valign="middle" style="width:36px;height:36px;border-radius:9px;background-color:#24477f;text-align:center;font-size:17px;line-height:36px">🔑</td>
+              <td valign="middle" style="padding-left:10px;font-size:16px;line-height:22px;color:#fff;font-weight:800">Akses Tiket Digital</td>
+            </tr></table>
+            <div style="font-size:13px;line-height:20px;color:#80c5ff;margin-bottom:16px">Gunakan nomor WhatsApp &amp; kode akses berikut untuk membuka tiket digital kamu di website.</div>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
-              <td style="padding:12px;background-color:#1b3a6b;border-radius:9px 0 0 9px;width:50%"><div style="font-size:11px;line-height:16px;color:#b8c9e3;margin-bottom:4px">Nomor WhatsApp</div><div style="font-size:15px;line-height:21px;color:#fff;font-weight:800;word-break:break-word">${whatsapp}</div></td>
-              <td style="padding:12px;background-color:#1b3a6b;border-radius:0 9px 9px 0;width:50%;border-left:1px solid #102a56"><div style="font-size:11px;line-height:16px;color:#b8c9e3;margin-bottom:4px">Kode Akses</div><div style="font-size:15px;line-height:21px;color:#fff;font-weight:800;letter-spacing:1px;word-break:break-word">${code}</div></td>
+              <td valign="top" width="49%" style="padding:12px;background-color:#020d38;border:1px solid #18336f;border-radius:13px"><div style="font-size:10px;line-height:15px;color:#72bdf6;font-weight:800;letter-spacing:.6px;margin-bottom:4px">NOMOR WHATSAPP</div><div style="font-size:15px;line-height:21px;color:#fff;font-weight:800;letter-spacing:.4px;word-break:break-word">${whatsapp}</div></td>
+              <td width="2%" style="width:2%;font-size:0;line-height:0">&nbsp;</td>
+              <td valign="top" width="49%" style="padding:12px;background-color:#1b4d84;border:1px solid #4d91c3;border-radius:13px"><div style="font-size:10px;line-height:15px;color:#72c5ff;font-weight:800;letter-spacing:.6px;margin-bottom:4px">KODE AKSES TIKET</div><div style="font-size:15px;line-height:21px;color:#ffc229;font-weight:900;letter-spacing:1px;word-break:break-word">${code}</div></td>
             </tr></table>
           </td></tr></table>
         </td></tr>
