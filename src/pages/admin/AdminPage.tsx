@@ -957,7 +957,11 @@ export function AdminPage({ router, settings }: Props) {
       <header className="sticky top-0 z-40 hidden border-b border-blue-800 bg-blue-700 text-white lg:block">
         <div className="flex h-16 items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-9 w-9 rounded-lg bg-white p-1 object-contain" />
+            <span className="relative flex shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-0.5 shadow-[0_5px_14px_rgba(29,94,219,0.1)]">
+              <span className="site-brand-logo-light-leak relative isolate block h-10 w-auto overflow-hidden rounded-md lg:h-12">
+                <img src={settings.logo_url ?? LOGO_URL} alt={settings.site_name} className="block h-full w-auto rounded-md object-contain" />
+              </span>
+            </span>
             <span className="text-sm font-extrabold text-white">{isAdmin && !isOpenMicWorkspaceSection ? <>ADMIN <span className="text-amber-300">PANEL</span></> : workspaceTitle}</span>
           </div>
           <div className="flex items-center gap-3">
@@ -975,7 +979,11 @@ export function AdminPage({ router, settings }: Props) {
       <header className="sticky top-0 z-40 border-b border-blue-800 bg-blue-700 text-white lg:hidden">
         <div className="flex h-14 items-center justify-between px-4">
           <div className="flex min-w-0 items-center gap-2.5">
-            <img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-7 w-7 shrink-0 rounded-lg bg-white p-1 object-contain" />
+            <span className="relative flex shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-0.5 shadow-[0_5px_14px_rgba(29,94,219,0.1)]">
+              <span className="site-brand-logo-light-leak relative isolate block h-10 w-auto overflow-hidden rounded-md">
+                <img src={settings.logo_url ?? LOGO_URL} alt={settings.site_name} className="block h-full w-auto rounded-md object-contain" />
+              </span>
+            </span>
             <span className="truncate text-sm font-extrabold tracking-tight text-white">{isAdmin && !isOpenMicWorkspaceSection ? 'ADMIN PANEL' : workspaceTitle}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -3720,6 +3728,7 @@ function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving
   const [previewKomikaPhoto, setPreviewKomikaPhoto] = useState(false);
   const [venueSuggestionsOpen, setVenueSuggestionsOpen] = useState(false);
   const [partnerCategoryOpen, setPartnerCategoryOpen] = useState(false);
+  const nextOpenMicTitle = `Open Mic Standupindo Cilegon #${venueHistory.length + 1}`;
   useEffect(() => {
     if (!kind) return;
     setErrorMessage('');
@@ -3734,13 +3743,16 @@ function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving
     } else if (kind === 'komika') {
       setForm({ full_name: '', whatsapp: '', stage_name: '', photo: '', photo_card: '', bio: '', instagram_url: '', tiktok_url: '', youtube_url: '', specialties: '', joined_at: '', status: 'active', published: 'true' });
     } else if (kind === 'open-mic') {
-      setForm({ title: '', poster: '', date: '', time: '19.30', venue: '', location: 'Cilegon', maps_url: '', description: 'Open Mic Standupindo Cilegon adalah ruang terbuka bagi siapa saja yang ingin mencoba, belajar, dan mengembangkan kemampuan di dunia stand up comedy.\n\nDi sini, para komika dapat menguji materi baru, mengasah kemampuan menulis dan membawakan jokes, sekaligus mendapatkan pengalaman tampil langsung di depan penonton.\n\nBukan cuma untuk komika, Open Mic juga menjadi ruang bagi masyarakat Cilegon untuk menikmati hiburan, mengenal dunia stand up comedy, dan menjadi bagian dari perkembangan komunitas komedi di Kota Cilegon.', capacity: '20', status: 'upcoming', registration_status: 'open', published: 'true' });
+      const nextFriday = new Date();
+      nextFriday.setDate(nextFriday.getDate() + ((5 - nextFriday.getDay() + 7) % 7 || 7));
+      const defaultDate = `${nextFriday.getFullYear()}-${String(nextFriday.getMonth() + 1).padStart(2, '0')}-${String(nextFriday.getDate()).padStart(2, '0')}`;
+      setForm({ title: nextOpenMicTitle, poster: '', date: defaultDate, time: '19.30', venue: '', location: 'Kota Cilegon', maps_url: '', description: 'Open Mic Standupindo Cilegon adalah ruang terbuka bagi siapa saja yang ingin mencoba, belajar, dan mengembangkan kemampuan di dunia stand up comedy.\n\nDi sini, para komika dapat menguji materi baru, mengasah kemampuan menulis dan membawakan jokes, sekaligus mendapatkan pengalaman tampil langsung di depan penonton.\n\nBukan cuma untuk komika, Open Mic juga menjadi ruang bagi masyarakat Cilegon untuk menikmati hiburan, mengenal dunia stand up comedy, dan menjadi bagian dari perkembangan komunitas komedi di Kota Cilegon.', capacity: '20', status: 'upcoming', registration_status: 'open', published: 'true' });
     } else if (kind === 'partner') {
       setForm({ name: '', logo_url: '', website_url: '', contact_name: '', contact_phone: '', notes: '', category: 'sponsor', is_published: 'true', sort_order: '0' });
     } else {
       setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', documentation_photos: '', status: 'upcoming', registration_status: 'closed', published: 'true', whatsapp_number: '', whatsapp_message: '', event_rules: '' });
     }
-  }, [kind, editing]);
+  }, [kind, editing, nextOpenMicTitle]);
 
   if (!kind) return null;
   const isEdit = Boolean(editing);
@@ -3966,7 +3978,7 @@ function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving
                     inputMode={key === 'contact_phone' ? 'numeric' : undefined}
                     value={form[key] ?? ''}
                     onChange={(e) => set(key, key === 'instagram_url' ? formatInstagramHandle(e.target.value) : key === 'tiktok_url' ? formatTikTokHandle(e.target.value) : key === 'contact_phone' ? e.target.value.replace(/\D/g, '') : e.target.value)}
-                    placeholder={getAdminFieldPlaceholder(key)}
+                    placeholder={kind === 'open-mic' && key === 'title' ? 'Contoh: Open Mic Special' : getAdminFieldPlaceholder(key)}
                     className="input-field"
                     required={requiredFields.includes(key)}
                   />

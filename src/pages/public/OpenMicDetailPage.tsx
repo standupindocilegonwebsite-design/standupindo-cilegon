@@ -238,10 +238,10 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
           {/* Poster + metadata */}
           <div className="grid gap-4 lg:grid-cols-5 lg:gap-6">
             <div className="lg:col-span-2">
-              <div className="max-h-[18rem] overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200 sm:max-h-none">
+              <div>
                 {mic.poster ? (
                   <button onClick={() => setLightbox(true)} aria-label={`Lihat poster ${mic.title}`} className="block w-full">
-                    <img src={mic.poster} alt={`${mic.title} poster`} className={`aspect-[4/3] max-h-[18rem] w-full object-contain transition-transform duration-500 hover:scale-105 sm:max-h-none ${currentStatus === 'completed' ? 'grayscale' : ''}`} />
+                    <img src={mic.poster} alt={`${mic.title} poster`} className={`block h-auto w-full ${currentStatus === 'completed' ? 'grayscale' : ''}`} />
                   </button>
                 ) : (
                   <div className="aspect-[4/3] w-full" />

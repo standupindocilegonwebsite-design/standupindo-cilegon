@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Calendar, Clock, Users } from 'lucide-react';
+import { ArrowRight, Calendar, Clock, MapPin, Users } from 'lucide-react';
 import type { OpenMic } from '@/lib/types';
 import type { Router } from '@/lib/router';
 import { formatDate, getOpenMicStatus } from '@/lib/format';
@@ -122,8 +122,7 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
         <div className={`flex min-w-0 flex-1 flex-col ${isCompleted ? 'p-3.5 sm:p-4' : 'p-3 sm:p-4'}`}>
           {isCompleted && <>
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5">
-              {openMicNumber !== undefined && <p className="w-fit rounded-sm bg-blue-600 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white sm:text-xs">Open Mic #{openMicNumber}</p>}
-              <StatusBadge status={currentStatus} label="Open Mic Selesai" />
+              {openMicNumber !== undefined && <p className="w-fit rounded-sm bg-blue-600 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white sm:text-xs">Open Mic #{openMicNumber} Selesai</p>}
             </div>
             <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className="text-left">
               <h3 className="line-clamp-2 text-base font-extrabold leading-tight text-slate-900 transition group-hover:text-blue-700 sm:text-lg">{mic.title}</h3>
@@ -133,7 +132,10 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
           {isCompleted && <div className="mt-2 space-y-1.5 text-sm text-slate-600">
             <div className="flex items-start gap-2"><Calendar className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> <span>{formatDate(mic.date)}</span></div>
             <div className="flex items-start gap-2"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" /> <span>{mic.time} WIB</span></div>
-            <LocationLink venue={mic.venue} location={mic.location} mapsUrl={mic.maps_url} className="mt-0.5 min-w-0" />
+            <div className="mt-0.5 flex min-w-0 items-start gap-2 text-sm font-semibold text-slate-700">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+              <span className="min-w-0 break-words">{mic.venue || mic.location || 'Lokasi belum ditentukan'}</span>
+            </div>
           </div>}
 
           {isCompleted ? (
@@ -144,9 +146,9 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
                 router.navigate(`/open-mic/${mic.slug}#lineup`);
               }}
               aria-label={`Buka Arsip Lineup ${mic.title}`}
-              className="mt-3 w-full border-t border-slate-300 pt-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              className="group mt-3 w-full border-t border-slate-300 pt-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Lineup</p>
+              <p className="w-fit text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 group-hover:underline group-hover:decoration-blue-500 group-hover:underline-offset-2">Lineup</p>
               <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-700">{lineup.length > 0 ? lineup.join(' · ') : 'Belum ada data lineup'}</p>
             </button>
           ) : <div className="mt-2 flex flex-col gap-2">

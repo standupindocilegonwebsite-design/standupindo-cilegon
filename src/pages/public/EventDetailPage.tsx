@@ -345,30 +345,33 @@ export function EventDetailPage({ router, slug, settings }: Props) {
 
       <div className="container-app space-y-6 py-6 sm:space-y-8 sm:py-8">
         {/* Poster + meta */}
-        <div className="grid gap-6 lg:grid-cols-5">
+        <div className="grid gap-3 lg:grid-cols-5 lg:gap-4">
           <div className="lg:col-span-2">
-            <div className="max-h-[18rem] overflow-hidden rounded-2xl bg-slate-100 shadow-soft sm:max-h-none">
+            <div>
               {event.poster ? (
                 <button
                   onClick={() => currentStatus === 'completed' ? router.navigate(`/event/${encodeURIComponent(event.slug)}/dokumentasi`) : setPosterLightboxOpen(true)}
                   aria-label={currentStatus === 'completed' ? `Lihat dokumentasi ${event.title}` : `Lihat poster ${event.title}`}
                   className="block w-full"
                 >
-                  <img src={event.poster} alt={`${event.title} poster`} className="aspect-[4/3] max-h-[18rem] w-full object-contain transition-transform duration-500 hover:scale-105 sm:max-h-none" />
+                  <img src={event.poster} alt={`${event.title} poster`} className="block h-auto w-full" />
                 </button>
               ) : (
                 <div className="aspect-[4/3] w-full" />
               )}
             </div>
           </div>
-          <div className="lg:col-span-3 space-y-5">
+          <div className="space-y-4 lg:col-span-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <StatusBadge status={currentStatus} />
+              <span className={currentStatus === 'upcoming' ? '[&>span]:!bg-white/10 [&>span]:!text-sky-200 [&>span]:!ring-white/20' : ''}>
+                <StatusBadge status={currentStatus} />
+              </span>
               <ShareButton
                 title={`${event.title} — Standupindo Cilegon`}
                 text={shareMessage}
                 url={pageUrl}
                 image={event.poster}
+                className="!rounded-lg !border-amber-300 !bg-amber-400 !p-2 !shadow-sm hover:!border-amber-200 hover:!bg-amber-300 [&>svg]:!text-slate-950"
               />
             </div>
             <div className="space-y-0 overflow-hidden rounded-2xl border border-slate-200 bg-white text-sm text-slate-600 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
@@ -415,7 +418,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
           document.body,
         )}
 
-        <section data-scroll-reveal className="scroll-reveal !mt-2">
+        <section data-scroll-reveal className="scroll-reveal !mt-3">
           <div className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
             <div className="flex gap-1 bg-slate-100 p-1" role="tablist" aria-label="Informasi event">
             <button
@@ -499,7 +502,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
                               {name.charAt(0).toUpperCase()}
                             </div>
                           )}
-                          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(30,64,175,0.02)_18%,rgba(29,78,216,0.2)_48%,rgba(30,58,138,0.82)_72%,rgba(15,23,80,0.98)_100%)]" />
+                          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,transparent_40%,rgba(11,31,68,0.32)_58%,rgba(11,31,68,0.88)_82%,rgba(11,31,68,0.99)_100%)]" />
                           <div className="absolute inset-x-0 bottom-0 min-w-0 p-2.5 text-center text-white sm:p-3">
                             <p className="line-clamp-2 break-words text-base font-black leading-tight tracking-[-0.025em] text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] sm:text-lg">{name}</p>
                             {key === 'other' && entry.role_title && <p className="mt-1 line-clamp-2 text-xs font-semibold text-white [text-shadow:0_1px_5px_rgba(0,0,0,0.9)]">{entry.role_title}</p>}

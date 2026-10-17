@@ -148,6 +148,10 @@ export function EventPage({ router }: { router: Router }) {
 function CompletedEventCard({ event, router }: { event: EventItem; router: Router }) {
   const [posterFailed, setPosterFailed] = useState(false);
   const location = [event.venue, event.location].filter(Boolean).join(' · ');
+  const eventDate = new Date(`${event.date}T00:00:00`);
+  const shortDate = Number.isNaN(eventDate.getTime())
+    ? event.date || 'Tanggal belum tersedia'
+    : new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(eventDate).toUpperCase();
 
   return (
     <button
@@ -174,14 +178,14 @@ function CompletedEventCard({ event, router }: { event: EventItem; router: Route
         )}
         <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-slate-950/40 to-transparent opacity-70" />
       </span>
-      <span className="mt-2.5 block h-4 truncate text-[9px] font-extrabold uppercase tracking-normal text-blue-200 sm:mt-3 sm:text-[10px]">
-        {event.date ? formatDate(event.date) : 'Tanggal belum tersedia'}
-      </span>
-      <span className="mt-1 block overflow-hidden text-base font-black uppercase leading-5 tracking-normal text-white transition-colors group-hover:text-blue-200 sm:text-lg sm:leading-6">
+      <span className="mt-1.5 block overflow-hidden text-base font-black uppercase leading-5 tracking-normal text-white transition-colors group-hover:text-blue-200 sm:text-lg sm:leading-6">
         <span className="line-clamp-2">{event.title}</span>
       </span>
-      <span className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-5 text-slate-300 sm:text-xs">
-        <MapPin className="h-3 w-3 shrink-0 text-blue-300" />
+      <span className="mt-0.5 block h-4 truncate text-[9px] font-extrabold tracking-normal text-amber-300 sm:text-[10px]">
+        {shortDate}
+      </span>
+      <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] font-medium leading-5 text-slate-200 sm:text-xs">
+        <MapPin className="h-3 w-3 shrink-0 text-amber-300" />
         <span className="truncate">{location || 'Lokasi belum tersedia'}</span>
       </span>
     </button>
