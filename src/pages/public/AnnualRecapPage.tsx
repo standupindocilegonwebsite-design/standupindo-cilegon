@@ -4,6 +4,7 @@ import { loadAnnualRecapStats, type AnnualRecapRecord, type AnnualRecapStats } f
 import { supabase } from '@/lib/supabase';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { AnnualRecapStory } from '@/pages/public/AnnualRecapStoryView';
+import { seoDescription, setPageMetadata } from '@/lib/seo';
 
 const LOADING_RECAP_PHOTO = '/assets/images/Loading%20Annual%20Recap2.jfif';
 
@@ -58,6 +59,11 @@ export function AnnualRecapPage({ router, year }: { router: Router; year: string
         setLoading(false);
         return;
       }
+      setPageMetadata({
+        path: `/recap/${recap.year}`,
+        title: `Annual Recap ${recap.year} | Standupindo Cilegon`,
+        description: seoDescription(recap.closing_narrative, `Lihat kilas balik kegiatan, panggung, dan cerita Standupindo Cilegon pada ${recap.year}.`),
+      });
 
       try {
         const nextStats = await loadAnnualRecapStats(yearNumber);

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'standupindo-shell-v7';
+const CACHE_NAME = 'standupindo-shell-v8';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -6,7 +6,7 @@ const APP_SHELL = [
   '/manifest.public.webmanifest',
   '/manifest.admin.webmanifest',
   '/manifest.member.webmanifest',
-  '/assets/images/favicon.png?v=3',
+  '/assets/images/favicon.png?v=4',
   '/assets/images/pwa-public.png',
   '/assets/images/pwa-admin.png',
   '/assets/images/pwa-member.png',
@@ -45,8 +45,8 @@ self.addEventListener('push', (event) => {
   }
   const options = {
     body: typeof payload.body === 'string' ? payload.body : 'Ada informasi baru untuk kamu.',
-    icon: '/assets/images/favicon.png?v=3',
-    badge: '/assets/images/favicon.png?v=3',
+    icon: '/assets/images/favicon.png?v=4',
+    badge: '/assets/images/favicon.png?v=4',
     tag: typeof payload.tag === 'string' ? payload.tag : undefined,
     data: { url: typeof payload.url === 'string' ? payload.url : '/' },
     ...(image ? { image } : {}),

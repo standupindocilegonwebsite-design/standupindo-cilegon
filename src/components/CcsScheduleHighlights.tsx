@@ -56,7 +56,7 @@ export function CcsScheduleHighlights({ compact = false }: { compact?: boolean }
               <button key={schedule.id} type="button" onClick={() => setMapsSchedule(schedule)} aria-label={`Lihat lokasi ${schedule.title} di Maps`} className="grid min-h-[84px] w-full grid-cols-[88px_minmax(0,1fr)_16px] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1.5 text-left transition hover:border-blue-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                 {schedule.poster_url ? (
                   <span className="h-[78px] w-[88px] overflow-hidden rounded-md bg-white">
-                    <img src={schedule.poster_url} alt={`Poster ${schedule.title}`} loading="lazy" className="h-full w-full object-cover" />
+                    <img src={schedule.poster_url} alt={`Poster ${schedule.title}`} width={800} height={1000} loading="lazy" className="h-full w-full object-cover" />
                   </span>
                 ) : (
                   <div className="flex h-[78px] w-[88px] shrink-0 items-center justify-center rounded-md bg-[#092455] text-[10px] font-extrabold text-white">CCS</div>
@@ -86,7 +86,7 @@ export function CcsScheduleHighlights({ compact = false }: { compact?: boolean }
               </div>
               {schedule.poster_url && (
                 <div className="overflow-hidden bg-slate-50">
-                  <img src={schedule.poster_url} alt={`Poster ${schedule.title}`} loading="lazy" className="block h-auto w-full" />
+                  <img src={schedule.poster_url} alt={`Poster ${schedule.title}`} width={800} height={1000} loading="lazy" className="block h-auto w-full" />
                 </div>
               )}
               <div className="space-y-2.5 bg-white p-3.5 sm:p-4">

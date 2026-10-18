@@ -98,7 +98,7 @@ function MaterialContentEditorView({ value, onChange }: MaterialContentEditorPro
   const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
 
   function readEditor(editor: HTMLDivElement) {
-    const blocks: MaterialContentBlock[] = Array.from(editor.childNodes).flatMap((node) => {
+    const blocks = Array.from(editor.childNodes).flatMap<MaterialContentBlock>((node) => {
       if (!(node instanceof HTMLElement)) {
         const text = node.textContent ?? '';
         return text ? [{ type: 'text' as const, text }] : [];

@@ -24,7 +24,7 @@ type RequestBody = {
   qr_token?: string;
   access_code_id?: string;
   payment_method_id?: string;
-  payment_method?: { id?: string; event_id?: string; event_ids?: string[]; recipient_name?: string; bank_name?: string; account_number?: string; qris_storage_path?: string; note?: string; is_default?: boolean };
+  payment_method?: { id?: string; event_id?: string; event_ids?: string[]; recipient_name?: string; qris_recipient_name?: string; bank_name?: string; account_number?: string; qris_storage_path?: string; note?: string; is_default?: boolean };
   file_name?: string;
   file_type?: string;
   event_filter?: string;
@@ -630,13 +630,14 @@ serve(async (request) => {
       const requestedDefault = typeof method.is_default === 'boolean' ? method.is_default : previousIsDefault;
       const qrisBelongsToSelection = qrisPath && eventIdsToSave.some((eventId) => qrisPath.startsWith(`payment-methods/${eventId}/`));
       if (qrisPath && qrisPath !== previousQrisPath && !qrisBelongsToSelection) return json({ error: 'Lokasi QRIS tidak valid untuk Event yang dipilih.' }, 400);
-      const { data: savedMethodId, error: saveError } = await serviceClient.rpc('save_ticket_payment_method', {
+      const { data: savedMethodId, error: saveError } = await serviceClient.rpc('save_ticket_payment_method_with_qris_recipient', {
         p_method_id: method.id ?? null,
         p_event_ids: eventIdsToSave,
         p_recipient_name: method.recipient_name.trim(),
         p_bank_name: method.bank_name?.trim() || null,
         p_account_number: accountNumber,
         p_qris_storage_path: qrisPath,
+        p_qris_recipient_name: method.qris_recipient_name?.trim() || null,
         p_note: method.note?.trim() || null,
       });
       if (saveError || !savedMethodId) return json({ error: saveError?.message ?? 'Informasi pembayaran gagal disimpan.' }, 400);

@@ -90,7 +90,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
               <div className="flex items-center gap-2.5">
                 <span className="relative flex shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-0.5 shadow-[0_5px_14px_rgba(29,94,219,0.1)]">
                   <span className="site-brand-logo-light-leak relative isolate block h-12 w-auto overflow-hidden rounded-md sm:h-14">
-                    <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt={settings.site_name} className="block h-full w-auto rounded-md object-contain" />
+                    <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt={settings.site_name} width={640} height={859} className="block h-full w-auto rounded-md object-contain" />
                   </span>
                 </span>
                 <span className="flex flex-col text-sm font-extrabold leading-tight tracking-tight text-slate-900">
@@ -122,7 +122,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
                   <div className="ml-2 flex items-center gap-2.5">
                     <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Bagian Dari</span>
                     <a href={settings.affiliation_website} target="_blank" rel="noopener noreferrer" aria-label={`Kunjungi ${settings.affiliation_name}`} className="flex h-14 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 transition hover:border-blue-100 hover:bg-white hover:shadow-sm">
-                      <img src={settings.affiliation_logo_url} alt={settings.affiliation_name} className="h-11 w-auto max-w-[220px] object-contain" />
+                      <img src={settings.affiliation_logo_url} alt={settings.affiliation_name} width={settings.affiliation_logo_url === '/assets/images/image.png' ? 440 : undefined} height={settings.affiliation_logo_url === '/assets/images/image.png' ? 293 : undefined} loading="lazy" className="h-11 w-auto max-w-[220px] object-contain" />
                     </a>
                   </div>
                 )}

@@ -20,7 +20,7 @@ type PaymentMethodResponse = TicketPaymentMethod & {
   can_edit?: boolean;
   can_delete?: boolean;
 };
-type PaymentDraft = { id?: string; event_ids: string[]; recipient_name: string; bank_name: string; account_number: string; qris_storage_path: string; note: string; make_default: boolean };
+type PaymentDraft = { id?: string; event_ids: string[]; recipient_name: string; qris_recipient_name: string; bank_name: string; account_number: string; qris_storage_path: string; note: string; make_default: boolean };
 
 async function paymentAction<T>(body: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke('ticketing-admin', { body });
@@ -37,7 +37,7 @@ async function paymentAction<T>(body: Record<string, unknown>) {
   return { data: null as T, error: error.message };
 }
 
-const EMPTY_DRAFT: PaymentDraft = { event_ids: [], recipient_name: '', bank_name: '', account_number: '', qris_storage_path: '', note: '', make_default: false };
+const EMPTY_DRAFT: PaymentDraft = { event_ids: [], recipient_name: '', qris_recipient_name: '', bank_name: '', account_number: '', qris_storage_path: '', note: '', make_default: false };
 
 function isArchivedEvent(event: EventOption) {
   if (event.status === 'completed' || event.status === 'cancelled') return true;
@@ -100,7 +100,7 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
   }
 
   function openEdit(method: PaymentMethodView) {
-    setDraft({ id: method.id, event_ids: method.events.map((event) => event.id), recipient_name: method.recipient_name, bank_name: method.bank_name ?? '', account_number: method.account_number ?? '', qris_storage_path: method.qris_storage_path ?? '', note: method.note ?? '', make_default: method.is_default });
+    setDraft({ id: method.id, event_ids: method.events.map((event) => event.id), recipient_name: method.recipient_name, qris_recipient_name: method.qris_recipient_name ?? '', bank_name: method.bank_name ?? '', account_number: method.account_number ?? '', qris_storage_path: method.qris_storage_path ?? '', note: method.note ?? '', make_default: method.is_default });
     setEventSearch('');
     setQrisFile(null);
     setError('');
@@ -264,7 +264,7 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
   const signedQrisUrl = (path: string) => supabase.storage.from('standupindo-media').getPublicUrl(path).data.publicUrl;
   const filteredEvents = events.filter((event) => event.title.toLowerCase().includes(eventSearch.trim().toLowerCase()));
   const filteredMethods = methods.filter((method) => (
-    `${method.recipient_name} ${method.bank_name ?? ''} ${method.account_number ?? ''} ${method.events.map((event) => event.title).join(' ')}`
+    `${method.recipient_name} ${method.qris_recipient_name ?? ''} ${method.bank_name ?? ''} ${method.account_number ?? ''} ${method.events.map((event) => event.title).join(' ')}`
       .toLowerCase().includes(methodSearch.trim().toLowerCase())
   ));
   const selectedEventNames = draft?.event_ids.map((id) => events.find((event) => event.id === id)?.title).filter((title): title is string => Boolean(title)) ?? [];
@@ -295,7 +295,8 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
         <p className="text-[11px] text-slate-500">Status aktif diatur terpisah untuk setiap Event. Default otomatis dipasang saat Event baru dipublikasikan.</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="space-y-1 text-xs font-semibold text-slate-600"><span>Nama penerima</span><input required className="input-field" value={draft.recipient_name} onChange={(event) => setDraft({ ...draft, recipient_name: event.target.value })} placeholder="Nama penerima" /></label>
+        <label className="space-y-1 text-xs font-semibold text-slate-600"><span>Nama penerima transfer / utama</span><input required className="input-field" value={draft.recipient_name} onChange={(event) => setDraft({ ...draft, recipient_name: event.target.value })} placeholder="Nama pemilik rekening" /></label>
+        <label className="space-y-1 text-xs font-semibold text-slate-600"><span>Nama penerima QRIS (opsional)</span><input className="input-field" value={draft.qris_recipient_name} onChange={(event) => setDraft({ ...draft, qris_recipient_name: event.target.value })} placeholder="Kosongkan jika sama dengan nama transfer" /></label>
         <label className="space-y-1 text-xs font-semibold text-slate-600"><span>Bank</span><input className="input-field" value={draft.bank_name} onChange={(event) => setDraft({ ...draft, bank_name: event.target.value })} placeholder="Contoh: BCA" /></label>
         <label className="space-y-1 text-xs font-semibold text-slate-600"><span>Nomor rekening</span><input className="input-field" inputMode="numeric" value={draft.account_number} onChange={(event) => setDraft({ ...draft, account_number: event.target.value })} placeholder="Nomor rekening" /></label>
       </div>
@@ -381,6 +382,7 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
               <h2 className="font-extrabold text-slate-900">{method.recipient_name}</h2>
               {method.is_default && <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 px-3 py-1.5 text-[10px] font-extrabold tracking-wide text-white shadow-sm shadow-blue-200 ring-1 ring-blue-400/30"><Star className="h-3 w-3 fill-current" />Default Rekening Event</span>}
               {method.bank_name && <p className="w-full text-sm text-slate-700">{method.bank_name} · {method.account_number}</p>}
+              {method.qris_storage_path && <p className="w-full text-sm text-slate-700">QRIS atas nama {method.qris_recipient_name?.trim() || method.recipient_name}</p>}
               {method.note && <p className="w-full text-xs text-slate-500">{method.note}</p>}
             </div>
           </div>
@@ -405,7 +407,7 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
               {archiveExpanded && <div className="mt-2 space-y-2 border-t border-slate-200 pt-2">{archivedEvents.map((event) => renderEvent(event, true))}</div>}
             </div>}
           </div>
-          {method.qris_storage_path && <img src={signedQrisUrl(method.qris_storage_path)} alt={`QRIS ${method.recipient_name}`} className="mt-3 max-h-44 rounded-xl border border-slate-200 object-contain" />}
+          {method.qris_storage_path && <img src={signedQrisUrl(method.qris_storage_path)} alt={`QRIS ${method.qris_recipient_name?.trim() || method.recipient_name}`} className="mt-3 max-h-44 rounded-xl border border-slate-200 object-contain" />}
           <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">{method.can_edit && <button type="button" onClick={() => openEdit(method)} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs"><Pencil className="h-4 w-4" /> Edit</button>}{!method.can_edit && <p className="self-center text-xs text-slate-500">{method.is_default ? 'Informasi rekening default hanya dapat diedit Admin utama.' : 'Informasi ini juga digunakan Event di luar scope akun Anda.'}</p>}{method.can_delete && <button type="button" onClick={() => void deleteMethod(method)} disabled={saving} className="btn-secondary !min-h-10 !px-3 !py-2 text-xs text-red-700"><Trash2 className="h-4 w-4" /> Hapus</button>}</div>
         </article>;
       })}</div>}

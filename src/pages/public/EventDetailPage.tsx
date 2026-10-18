@@ -13,23 +13,12 @@ import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
 import { formatDate, formatPrice, getEventStatus, safeExternalUrl, waLink } from '@/lib/format';
+import { seoDescription, setPageMetadata } from '@/lib/seo';
 
 interface Props {
   router: Router;
   slug: string;
   settings: SiteSettings;
-}
-
-function setOgTags(title: string, description: string, image: string, url: string) {
-  const set = (prop: string, val: string) => {
-    let el = document.querySelector(`meta[property="${prop}"]`) as HTMLMetaElement | null;
-    if (!el) { el = document.createElement('meta'); el.setAttribute('property', prop); document.head.appendChild(el); }
-    el.setAttribute('content', val);
-  };
-  set('og:title', title);
-  set('og:description', description);
-  set('og:image', image);
-  set('og:url', url);
 }
 
 function EventPartnerMarquee({ partners, logoSize, role }: { partners: Partner[]; logoSize: string; role: 'sponsor' | 'support' | 'media_partner' }) {
@@ -236,6 +225,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
         const { data: ticketData, error: ticketError } = await supabase.from('event_tickets').select('*').eq('event_id', ev.id).eq('status', 'active').eq('available_public', true).order('sort_order', { ascending: true }).order('price', { ascending: true });
         if (ticketError) setTicketLoadError('Informasi tiket belum dapat dimuat. Coba segarkan halaman.');
         setTickets((ticketData as EventTicket[]) ?? []);
+        const hasPublicTickets = (ticketData as EventTicket[] | null)?.length ? true : false;
 
         const { data: lineupData, error: lineupError } = await supabase
           .from('event_lineups')
@@ -283,13 +273,14 @@ export function EventDetailPage({ router, slug, settings }: Props) {
           setPartnersByRole({ sponsor: [], support: [], media_partner: [] });
         }
 
-        const pageUrl = `${window.location.origin}/event/${ev.slug}`;
-        setOgTags(
-          `${ev.title} — Standupindo Cilegon`,
-          `Yuk hadir di ${ev.title} bersama Standupindo Cilegon.`,
-          ev.poster ?? `${window.location.origin}/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png`,
-          pageUrl,
-        );
+        setPageMetadata({
+          path: `/event/${encodeURIComponent(ev.slug)}`,
+          title: `${ev.title} | Event Stand Up Comedy Cilegon | Standupindo Cilegon`,
+          description: seoDescription(ev.description, hasPublicTickets
+            ? `${ev.title} di ${ev.venue}, ${ev.location}. Lihat jadwal, informasi acara, dan tiket yang tersedia bersama Standupindo Cilegon.`
+            : `${ev.title} di ${ev.venue}, ${ev.location}. Lihat jadwal dan informasi acara bersama Standupindo Cilegon.`),
+          image: ev.poster,
+        });
       }
       setLoading(false);
     })();

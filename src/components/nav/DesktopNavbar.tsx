@@ -20,7 +20,7 @@ export function DesktopNavbar({ router, settings }: { router: Router; settings: 
         <button onClick={() => router.navigate('/')} className="group flex min-w-0 items-center gap-2.5 sm:gap-3" aria-label={settings.site_name}>
           <span className="relative flex shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-0.5 shadow-[0_5px_14px_rgba(29,94,219,0.1)] transition-transform duration-200 group-hover:scale-[1.03]">
             <span className="site-brand-logo-light-leak relative isolate block h-12 w-auto overflow-hidden rounded-md sm:h-14">
-              <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt={settings.site_name} className="block h-full w-auto rounded-md object-contain" />
+              <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt={settings.site_name} width={640} height={859} className="block h-full w-auto rounded-md object-contain" />
             </span>
           </span>
           <span className="hidden text-[15px] font-black tracking-[-0.02em] text-white sm:inline sm:text-[15px]">

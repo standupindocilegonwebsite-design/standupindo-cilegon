@@ -10,6 +10,7 @@ import { SocialIconButton } from '@/components/ui/SocialIconButton';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
 import { formatDate, getEventStatus, normalizeSpecialties, safeExternalUrl } from '@/lib/format';
+import { seoDescription, setPageMetadata } from '@/lib/seo';
 
 interface OfficialStageHistoryEntry {
   id: string;
@@ -33,18 +34,6 @@ interface ExternalStageHistoryEntry {
 interface Props {
   router: Router;
   slug: string;
-}
-
-function setOgTags(title: string, description: string, image: string, url: string) {
-  const set = (prop: string, val: string) => {
-    let el = document.querySelector(`meta[property="${prop}"]`) as HTMLMetaElement | null;
-    if (!el) { el = document.createElement('meta'); el.setAttribute('property', prop); document.head.appendChild(el); }
-    el.setAttribute('content', val);
-  };
-  set('og:title', title);
-  set('og:description', description);
-  set('og:image', image);
-  set('og:url', url);
 }
 
 function formatJourneyDate(value: string): string {
@@ -112,13 +101,12 @@ export function KomikaDetailPage({ router, slug }: Props) {
           setJourneyError('');
         }
 
-        const pageUrl = `${window.location.origin}/komika/${k.slug}`;
-        setOgTags(
-          `${k.stage_name} — Standupindo Cilegon`,
-          `Kenali ${k.stage_name}, komika dari Standupindo Cilegon.`,
-          k.photo ?? `${window.location.origin}/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png`,
-          pageUrl,
-        );
+        setPageMetadata({
+          path: `/komika/${encodeURIComponent(k.slug)}`,
+          title: `${k.stage_name} | Komika Cilegon | Standupindo Cilegon`,
+          description: seoDescription(k.bio, `Kenali ${k.stage_name}, komika dari Standupindo Cilegon di Cilegon, Banten.`),
+          image: k.photo_card || k.photo,
+        });
       } catch (error) {
         console.error('KomikaDetailPage query crashed', error);
         setKomika(null);

@@ -236,7 +236,7 @@ export function HomePage({ router }: Props) {
         <div className="hero-flag-glow hero-flag-glow-two" aria-hidden="true" />
         <div className="hero-flag-wave hero-flag-wave-one" aria-hidden="true" />
         <div className="hero-flag-wave hero-flag-wave-two" aria-hidden="true" />
-        <img src={LOGO_URL} alt="" aria-hidden="true" className="hero-watermark" />
+        <img src={LOGO_URL} alt="" aria-hidden="true" width={640} height={859} fetchPriority="high" className="hero-watermark" />
 
         <div className="container-app relative z-10 py-7 sm:py-10 lg:py-16">
           <div className="max-w-2xl animate-fade-up">
@@ -244,13 +244,13 @@ export function HomePage({ router }: Props) {
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#FBBF24] text-[#0B1F44]">
                 <Sparkles className="h-3 w-3" />
               </span>
-              Komunitas Stand Up Comedy Cilegon
+              Standupindo Cilegon · Cilegon, Banten
             </div>
             <h1 className="mt-4 max-w-3xl text-[2.2rem] font-extrabold leading-[1.05] tracking-[-0.04em] text-white sm:mt-5 sm:text-4xl lg:text-[4rem]">
-              Dari Tawa, Jadi Karya.
+              Komunitas Stand Up Comedy Cilegon
             </h1>
             <p className="mt-4 max-w-2xl text-[13px] font-semibold leading-6 text-[#BFDBFE] sm:mt-5 sm:text-base sm:leading-7 lg:text-lg lg:leading-8">
-              Menjadi ruang bertemunya komika, penikmat komedi, dan insan kreatif untuk berbagi tawa, mengembangkan potensi, serta membangun ekosistem stand up comedy di Cilegon.
+              Dari Tawa, Jadi Karya. Menjadi ruang bertemunya komika, penikmat komedi, dan insan kreatif untuk berbagi tawa, mengembangkan potensi, serta membangun ekosistem stand up comedy di Cilegon.
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:mt-7 sm:flex-row">
               <button onClick={() => router.navigate('/open-mic')} className="home-open-mic-cta inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-[#0B1F44] shadow-[0_12px_24px_rgba(11,31,68,0.22)] transition-all hover:scale-[1.02] hover:shadow-[0_16px_28px_rgba(11,31,68,0.28)] active:scale-95">

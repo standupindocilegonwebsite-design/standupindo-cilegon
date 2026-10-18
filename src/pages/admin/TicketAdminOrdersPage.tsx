@@ -53,10 +53,14 @@ function paymentSnapshotDetails(snapshot: Record<string, unknown> | null | undef
   const account = typeof snapshot.account_number === 'string' ? snapshot.account_number.trim() : '';
   const note = typeof snapshot.note === 'string' ? snapshot.note.trim() : '';
   const qrisPath = typeof snapshot.qris_storage_path === 'string' ? snapshot.qris_storage_path.trim() : '';
+  const qrisRecipient = typeof snapshot.qris_recipient_name === 'string' && snapshot.qris_recipient_name.trim()
+    ? snapshot.qris_recipient_name.trim()
+    : recipient;
   const method = bank || account ? 'Transfer' : qrisPath ? 'QRIS' : 'Informasi pembayaran';
   const details = [
     `Metode: ${method}`,
-    recipient ? `Penerima: ${recipient}` : '',
+    recipient && (bank || account) ? `Penerima transfer: ${recipient}` : recipient && !qrisPath ? `Penerima: ${recipient}` : '',
+    qrisPath && qrisRecipient ? `Penerima QRIS: ${qrisRecipient}` : '',
     bank ? `Bank: ${bank}` : '',
     account ? `Nomor rekening: ${account}` : '',
     qrisPath ? 'QRIS tersedia pada snapshot order' : '',

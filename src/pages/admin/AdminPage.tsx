@@ -3624,7 +3624,20 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
   );
 }
 
-function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUnreadCount, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner }: { onNavigate: (s: Section) => void; onSignOut: () => void; ticketOrderUnreadCount: number; applicationUnreadCount: number; isAdmin: boolean; isOpenMicAdmin: boolean; isEventAdmin: boolean; isTicketAdmin: boolean; isQrScanner: boolean }) {
+function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUnreadCount, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner }: { onNavigate: (s: Section) => void; onSignOut: () => Promise<void>; ticketOrderUnreadCount: number; applicationUnreadCount: number; isAdmin: boolean; isOpenMicAdmin: boolean; isEventAdmin: boolean; isTicketAdmin: boolean; isQrScanner: boolean }) {
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await onSignOut();
+      setConfirmLogout(false);
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
   const items: { label: string; icon: typeof BarChart3; onClick: () => void; section?: Section; badge?: number; mobileOnly?: boolean }[] = [
     ...((isAdmin || isOpenMicAdmin) ? [{ label: 'Jadwal Cilegon Comedy Sharing (CCS)', icon: CalendarDays, onClick: () => onNavigate('ccs-schedule'), section: 'ccs-schedule' as Section }] : []),
     ...(isAdmin ? [{ label: 'Riwayat Member', icon: History, onClick: () => onNavigate('open-mic-history'), section: 'open-mic-history' as Section }] : []),
@@ -3661,13 +3674,44 @@ function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUn
           })}
         </div>
         <div className="border-t border-slate-100">
-          <button onClick={onSignOut} className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-red-50">
+          <button onClick={() => setConfirmLogout(true)} className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-red-50">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-600"><LogOut className="h-5 w-5" /></span>
             <span className="flex-1 text-sm font-semibold text-red-600">Keluar</span>
             <ChevronRight className="h-4 w-4 text-red-300" />
           </button>
         </div>
       </div>
+      <Modal
+        open={confirmLogout}
+        onClose={() => setConfirmLogout(false)}
+        title="KONFIRMASI KELUAR"
+        titleEyebrow="Akun admin"
+        ariaLabel="Konfirmasi keluar akun admin"
+        size="sm"
+        panelClassName="!max-w-[26rem] !rounded-[1.75rem] !border-blue-700 !shadow-[0_28px_80px_rgba(15,23,42,0.28)]"
+        headerClassName="!bg-blue-700 !px-5 !pb-4 !pt-4 sm:!px-6 sm:!pb-4"
+        titleClassName="!text-white"
+        titleEyebrowClassName="!text-blue-100"
+        closeButtonClassName="!bg-white/15 !text-white hover:!bg-white/25 hover:!text-white"
+      >
+        <div className="space-y-5 pb-1 pt-1">
+          <div className="flex items-center gap-3.5 rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 sm:p-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 ring-1 ring-red-100">
+              <LogOut className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base font-extrabold text-slate-900">Yakin ingin keluar?</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm">Sesi admin di perangkat ini akan diakhiri. Kamu bisa masuk kembali kapan saja.</p>
+            </div>
+          </div>
+          <div className="flex gap-2.5">
+            <button type="button" onClick={() => setConfirmLogout(false)} disabled={loggingOut} className="btn-secondary min-h-11 flex-1 !rounded-xl !font-bold !text-sm">Batal</button>
+            <button type="button" onClick={() => void handleLogout()} disabled={loggingOut} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2.5 text-sm font-extrabold text-white shadow-[0_6px_16px_rgba(220,38,38,0.22)] transition hover:bg-red-700 disabled:cursor-wait disabled:opacity-70">
+              <LogOut className="h-4 w-4" /> {loggingOut ? 'Sedang keluar...' : 'Keluar akun'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -3737,8 +3781,9 @@ function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving
     const row = editing as Record<string, unknown> | null;
     if (row) {
       setForm({ ...Object.fromEntries(Object.entries(row).map(([k, v]) => [k === 'instagram_url' ? k : k === 'tiktok_url' ? k : k, k === 'instagram_url' ? formatInstagramHandle(String(v ?? '')) : k === 'tiktok_url' ? formatTikTokHandle(String(v ?? '')) : Array.isArray(v) ? v.join(', ') : String(v ?? '')])) });
-      if (Array.isArray(row.documentation_photos)) {
-        setForm((current) => ({ ...current, documentation_photos: row.documentation_photos.join('\n') }));
+      const documentationPhotos = row.documentation_photos;
+      if (Array.isArray(documentationPhotos)) {
+        setForm((current) => ({ ...current, documentation_photos: documentationPhotos.join('\n') }));
       }
     } else if (kind === 'komika') {
       setForm({ full_name: '', whatsapp: '', stage_name: '', photo: '', photo_card: '', bio: '', instagram_url: '', tiktok_url: '', youtube_url: '', specialties: '', joined_at: '', status: 'active', published: 'true' });

@@ -7,7 +7,9 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     const path = window.location.pathname;
     const scope = path.startsWith('/admin') ? '/admin/' : path.startsWith('/member') || path.startsWith('/evaluator') ? '/member/' : '/';
-    void navigator.serviceWorker.register('/sw.js', { scope });
+    void navigator.serviceWorker.register('/sw.js', { scope }).catch((error: unknown) => {
+      console.warn('Service Worker registration failed.', error);
+    });
   });
 }
 

@@ -42,6 +42,9 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
               <img
                 src={event.poster}
                 alt={`${event.title} poster`}
+                width={800}
+                height={1000}
+                loading="lazy"
                 onError={() => setPosterFailed(true)}
                 className={`h-full w-full transition-transform duration-500 ${isCompleted ? 'object-cover grayscale group-hover:scale-105' : 'aspect-[4/5] object-contain group-hover:scale-[1.03]'}`}
               />

@@ -309,21 +309,6 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
     if (event.touches.length < 2) canvasTouchDistance.current = null;
   }
 
-  function startReadingSwipe(event: React.TouchEvent<HTMLDivElement>) {
-    readingTouchStart.current = event.changedTouches[0]?.clientX ?? null;
-  }
-
-  function endReadingSwipe(event: React.TouchEvent<HTMLDivElement>) {
-    const startX = readingTouchStart.current;
-    const endX = event.changedTouches[0]?.clientX;
-    readingTouchStart.current = null;
-    if (startX === null || endX === undefined) return;
-    const distance = endX - startX;
-    if (Math.abs(distance) < 55) return;
-    if (distance < 0) setReadingPage((page) => Math.min(readingPages.length - 1, page + 1));
-    else setReadingPage((page) => Math.max(0, page - 1));
-  }
-
   function toggleMappingFullscreen() {
     if (mappingFullscreen) {
       setMappingFullscreen(false);

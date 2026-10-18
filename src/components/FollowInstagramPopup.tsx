@@ -31,7 +31,7 @@ function readRecord(): FollowPopupRecord | null {
     if (raw === null) return { ...EMPTY_RECORD };
     const parsed = JSON.parse(raw) as Partial<FollowPopupRecord> | null;
     if (!parsed || !Array.isArray(parsed.shownAt)
-      || (parsed.lastShownAt !== null && (!Number.isSafeInteger(parsed.lastShownAt) || parsed.lastShownAt < 0))
+      || (parsed.lastShownAt !== null && parsed.lastShownAt !== undefined && (!Number.isSafeInteger(parsed.lastShownAt) || parsed.lastShownAt < 0))
       || !['shown', 'dismissed', 'followed', null].includes(parsed.lastAction ?? null)
       || !Number.isSafeInteger(parsed.cooldownUntil) || (parsed.cooldownUntil ?? -1) < 0
       || !parsed.shownAt.every((timestamp) => Number.isSafeInteger(timestamp) && timestamp > 0)) return null;

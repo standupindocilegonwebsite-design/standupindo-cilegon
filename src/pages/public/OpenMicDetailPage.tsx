@@ -15,24 +15,13 @@ import { ShareButton } from '@/components/ui/ShareButton';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
 import { ShareLineupModal } from '@/components/open-mic/ShareLineupModal';
 import { useSiteSettings } from '@/lib/useSiteSettings';
+import { seoDescription, setPageMetadata } from '@/lib/seo';
 
 interface Props {
   router: Router;
   slug: string;
   showFloatingRegister?: boolean;
   isMemberArea?: boolean;
-}
-
-function setOgTags(title: string, description: string, image: string, url: string) {
-  const set = (prop: string, val: string) => {
-    let el = document.querySelector(`meta[property="${prop}"]`) as HTMLMetaElement | null;
-    if (!el) { el = document.createElement('meta'); el.setAttribute('property', prop); document.head.appendChild(el); }
-    el.setAttribute('content', val);
-  };
-  set('og:title', title);
-  set('og:description', description);
-  set('og:image', image);
-  set('og:url', url);
 }
 
 export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, isMemberArea = false }: Props) {
@@ -66,13 +55,12 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
 
         setNumberedMics((allMicsRes.data as OpenMic[]) ?? [m]);
 
-        const pageUrl = `${window.location.origin}/open-mic/${m.slug}`;
-        setOgTags(
-          `${m.title} — Standupindo Cilegon`,
-          `Yuk ikut ${m.title} bersama Standupindo Cilegon. Lihat detail dan daftar sekarang.`,
-          m.poster ?? `${window.location.origin}/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png`,
-          pageUrl,
-        );
+        setPageMetadata({
+          path: `/open-mic/${encodeURIComponent(m.slug)}`,
+          title: `${m.title} | Open Mic Cilegon | Standupindo Cilegon`,
+          description: seoDescription(m.description, `${m.title}, panggung open mic di ${m.venue}, Cilegon. Lihat jadwal, informasi, dan pendaftaran bersama Standupindo Cilegon.`),
+          image: m.poster,
+        });
       }
       setLoading(false);
     })();

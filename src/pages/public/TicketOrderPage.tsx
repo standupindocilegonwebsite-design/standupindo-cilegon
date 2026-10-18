@@ -12,6 +12,7 @@ import { createOrderNumber, formatDate, formatPrice, getEventStatus, normalizeWh
 
 interface PaymentSnapshot {
   recipient_name: string;
+  qris_recipient_name?: string | null;
   bank_name: string | null;
   account_number: string | null;
   qris_storage_path: string | null;
@@ -108,7 +109,7 @@ function PaymentInstructions({ method, totalPrice }: { method: PaymentSnapshot; 
               <QrCode className="h-4 w-4 text-blue-700" />
               <p className="text-sm font-bold text-slate-800">Bayar dengan QRIS</p>
             </div>
-            <p className="mb-3 text-xs text-slate-500">Pindai kode QR menggunakan aplikasi pembayaran. Penerima: <span className="font-semibold text-slate-700">{method.recipient_name}</span></p>
+            <p className="mb-3 text-xs text-slate-500">Pindai kode QR menggunakan aplikasi pembayaran. Penerima: <span className="font-semibold text-slate-700">{method.qris_recipient_name?.trim() || method.recipient_name}</span></p>
             {qrisPath && (
               <>
                 <button
@@ -206,7 +207,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
           .eq('event_id', eventRow.id).eq('is_active', true).maybeSingle();
         const { data: paymentData, error: paymentError } = paymentAssignment
           ? await supabase.from('event_payment_methods')
-            .select('recipient_name, bank_name, account_number, qris_storage_path, note')
+            .select('recipient_name, qris_recipient_name, bank_name, account_number, qris_storage_path, note')
             .eq('id', paymentAssignment.payment_method_id).maybeSingle()
           : { data: null, error: assignmentError };
         if (active) {

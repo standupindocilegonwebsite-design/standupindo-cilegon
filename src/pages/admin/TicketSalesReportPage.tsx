@@ -12,6 +12,7 @@ interface PaymentGroup {
   bank: string;
   account: string;
   recipient: string;
+  qrisRecipient: string;
   method: string;
   quantity: number;
   revenue: number;
@@ -66,10 +67,15 @@ function paymentDetails(order: TicketOrder) {
   const snapshot = order.payment_method_snapshot;
   const bank = typeof snapshot?.bank_name === 'string' && snapshot.bank_name.trim() ? snapshot.bank_name.trim() : '';
   const account = typeof snapshot?.account_number === 'string' && snapshot.account_number.trim() ? snapshot.account_number.trim() : '';
-  const recipient = typeof snapshot?.recipient_name === 'string' && snapshot.recipient_name.trim() ? snapshot.recipient_name.trim() : '';
-  const method = bank || account ? 'Transfer bank' : typeof snapshot?.qris_storage_path === 'string' && snapshot.qris_storage_path ? 'QRIS' : 'Tidak tercatat';
-  const key = [method, bank, account, recipient].join('|').toLocaleLowerCase('id-ID');
-  return { key, bank: bank || (method === 'QRIS' ? 'QRIS' : '—'), account: account || '—', recipient: recipient || '—', method };
+  const transferRecipient = typeof snapshot?.recipient_name === 'string' && snapshot.recipient_name.trim() ? snapshot.recipient_name.trim() : '';
+  const qrisPath = typeof snapshot?.qris_storage_path === 'string' ? snapshot.qris_storage_path.trim() : '';
+  const qrisRecipient = qrisPath
+    ? (typeof snapshot?.qris_recipient_name === 'string' ? snapshot.qris_recipient_name.trim() : '') || transferRecipient
+    : '';
+  const method = bank || account ? 'Transfer bank' : qrisPath ? 'QRIS' : 'Tidak tercatat';
+  const recipient = method === 'QRIS' ? '' : transferRecipient;
+  const key = [method, bank, account, recipient, qrisRecipient].join('|').toLocaleLowerCase('id-ID');
+  return { key, bank: bank || (method === 'QRIS' ? 'QRIS' : '—'), account: account || '—', recipient: recipient || '—', qrisRecipient, method };
 }
 
 export function TicketSalesReportPage({ events, orders, onBack }: { events: EventItem[]; orders: TicketOrder[]; onBack: () => void }) {
@@ -232,7 +238,7 @@ export function TicketSalesReportPage({ events, orders, onBack }: { events: Even
                 {report.categories.length ? <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[610px] text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2">Kategori</th><th className="px-3 py-2">Kuota</th><th className="px-3 py-2">Online</th><th className="px-3 py-2">OTS</th><th className="px-3 py-2">Free Pass</th><th className="px-3 py-2">Sisa</th><th className="px-3 py-2 text-right">Pendapatan</th></tr></thead><tbody className="divide-y divide-slate-100">{report.categories.map((row) => <tr key={row.category.id}><td className="px-3 py-2 font-bold text-slate-900">{row.category.name}</td><td className="px-3 py-2">{row.category.quota == null ? 'Tanpa batas' : row.category.quota}</td><td className="px-3 py-2 font-bold text-indigo-800">{row.onlineSold}</td><td className="px-3 py-2 font-bold text-violet-800">{row.otsSold}</td><td className="px-3 py-2 font-bold text-amber-800">{row.freePass}</td><td className="px-3 py-2">{row.unsold == null ? '—' : row.unsold}</td><td className="px-3 py-2 text-right font-semibold">{formatPrice(row.revenue)}</td></tr>)}</tbody></table></div> : <p className="rounded-xl border border-dashed border-slate-200 p-3 text-xs text-slate-500">Belum ada kategori tiket.</p>}
               </section>
               <section><h3 className="mb-2 text-[10px] font-extrabold uppercase tracking-wide text-slate-500">Pendapatan per Rekening / Metode</h3>
-                {report.payments.length ? <div className="space-y-2">{report.payments.map((payment) => <div key={payment.key} className="rounded-xl border border-slate-200 p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-extrabold text-slate-900">{payment.bank} {payment.account !== '—' ? `· ${payment.account}` : ''}</p><p className="mt-0.5 text-[10px] text-slate-500">{payment.recipient} · {payment.method}</p><p className="mt-1 text-[10px] font-semibold text-slate-600">{payment.orders} order · {payment.quantity} tiket</p></div><p className="shrink-0 text-xs font-extrabold text-emerald-800">{formatPrice(payment.revenue)}</p></div></div>)}</div> : <p className="rounded-xl border border-dashed border-slate-200 p-3 text-xs text-slate-500">Belum ada pembayaran lunas.</p>}
+                {report.payments.length ? <div className="space-y-2">{report.payments.map((payment) => <div key={payment.key} className="rounded-xl border border-slate-200 p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-extrabold text-slate-900">{payment.bank} {payment.account !== '—' ? `· ${payment.account}` : ''}</p><p className="mt-0.5 text-[10px] text-slate-500">{payment.recipient} · {payment.method}</p>{payment.qrisRecipient && <p className="mt-0.5 text-[10px] text-slate-500">Penerima QRIS: {payment.qrisRecipient}</p>}<p className="mt-1 text-[10px] font-semibold text-slate-600">{payment.orders} order · {payment.quantity} tiket</p></div><p className="shrink-0 text-xs font-extrabold text-emerald-800">{formatPrice(payment.revenue)}</p></div></div>)}</div> : <p className="rounded-xl border border-dashed border-slate-200 p-3 text-xs text-slate-500">Belum ada pembayaran lunas.</p>}
               </section>
             </div>
           </article>)}
@@ -246,7 +252,7 @@ export function TicketSalesReportPage({ events, orders, onBack }: { events: Even
           <h3>Penjualan dan Free Pass per Kategori</h3>
           <table><thead><tr><th>Kategori</th><th>Harga Publik</th><th>Kuota</th><th>Online</th><th>OTS</th><th>Free Pass</th><th>Sisa</th><th>Pendapatan</th></tr></thead><tbody>{report.categories.map((row) => <tr key={row.category.id}><td>{row.category.name}</td><td>{row.category.price === null ? '—' : formatPrice(row.category.price)}</td><td>{row.category.quota == null ? 'Tanpa batas' : row.category.quota}</td><td>{row.onlineSold}</td><td>{row.otsSold}</td><td>{row.freePass}</td><td>{row.unsold == null ? '—' : row.unsold}</td><td>{formatPrice(row.revenue)}</td></tr>)}</tbody></table>
           <h3>Pendapatan per Rekening / Metode</h3>
-          {report.payments.length ? <table><thead><tr><th>Bank / Metode</th><th>Nomor Rekening</th><th>Penerima</th><th>Order</th><th>Tiket</th><th>Pendapatan</th></tr></thead><tbody>{report.payments.map((payment) => <tr key={payment.key}><td>{payment.bank} · {payment.method}</td><td>{payment.account}</td><td>{payment.recipient}</td><td>{payment.orders}</td><td>{payment.quantity}</td><td>{formatPrice(payment.revenue)}</td></tr>)}</tbody></table> : <p>Belum ada pembayaran lunas.</p>}
+          {report.payments.length ? <table><thead><tr><th>Bank / Metode</th><th>Nomor Rekening</th><th>Penerima</th><th>Penerima QRIS</th><th>Order</th><th>Tiket</th><th>Pendapatan</th></tr></thead><tbody>{report.payments.map((payment) => <tr key={payment.key}><td>{payment.bank} · {payment.method}</td><td>{payment.account}</td><td>{payment.recipient}</td><td>{payment.qrisRecipient || '—'}</td><td>{payment.orders}</td><td>{payment.quantity}</td><td>{formatPrice(payment.revenue)}</td></tr>)}</tbody></table> : <p>Belum ada pembayaran lunas.</p>}
           <p className="ticket-report-print-total">Total Event: {report.sold} tiket terjual · {report.freePass} Free Pass · Pendapatan {formatPrice(report.revenue)}</p>
         </section>)}
       </div>

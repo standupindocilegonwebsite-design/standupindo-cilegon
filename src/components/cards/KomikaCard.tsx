@@ -28,6 +28,8 @@ export function KomikaCard({ komika, router }: { komika: Komika; router: Router 
         <img
           src={cardPhoto}
           alt={komika.stage_name}
+          width={600}
+          height={1000}
           loading="lazy"
           className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.04]"
         />

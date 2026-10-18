@@ -45,7 +45,7 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
       >
         <div className="relative h-auto min-h-[150px] w-24 shrink-0 self-stretch bg-slate-100 sm:w-28">
           {mic.poster ? (
-            <img src={mic.poster} alt={`${mic.title} poster`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+            <img src={mic.poster} alt={`${mic.title} poster`} width={800} height={1000} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
           ) : (
             <span className="flex h-full min-h-[150px] items-center justify-center text-slate-300"><Users className="h-8 w-8" /></span>
           )}
@@ -101,7 +101,7 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
         <div className={`relative overflow-hidden bg-slate-100 ${isCompleted ? 'aspect-[16/10] w-[112px] shrink-0 border-r-2 border-slate-300 sm:w-[150px]' : 'aspect-[4/5] bg-slate-900'}`}>
           {mic.poster ? (
             <button onClick={() => isCompleted ? router.navigate(`/open-mic/${mic.slug}`) : setLightbox(true)} aria-label={isCompleted ? `Buka detail ${mic.title}` : `Lihat poster ${mic.title}`} className={`block h-full w-full ${isCompleted ? '' : 'absolute inset-0 z-0'}`}>
-              <img src={mic.poster} alt={`${mic.title} poster`} loading="lazy" className={`h-full w-full transition-transform duration-500 ${isCompleted ? 'object-cover grayscale group-hover:scale-105' : 'object-cover hover:scale-105'}`} />
+              <img src={mic.poster} alt={`${mic.title} poster`} width={800} height={1000} loading="lazy" className={`h-full w-full transition-transform duration-500 ${isCompleted ? 'object-cover grayscale group-hover:scale-105' : 'object-cover hover:scale-105'}`} />
             </button>
           ) : (
             <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className="flex h-full w-full items-center justify-center text-slate-300"><Users className="h-8 w-8" /></button>

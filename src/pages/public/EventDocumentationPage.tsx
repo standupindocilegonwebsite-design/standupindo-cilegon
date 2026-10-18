@@ -5,6 +5,7 @@ import { formatDate } from '@/lib/format';
 import type { Router } from '@/lib/router';
 import type { EventItem, SiteSettings } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { seoDescription, setPageMetadata } from '@/lib/seo';
 
 interface EventDocumentationPageProps {
   router: Router;
@@ -55,7 +56,16 @@ export function EventDocumentationPage({ router, slug, settings }: EventDocument
           console.error('Gagal memuat dokumentasi event.', error);
           setLoadError(true);
         } else {
-          setEvent((data as EventItem | null) ?? null);
+          const publishedEvent = (data as EventItem | null) ?? null;
+          setEvent(publishedEvent);
+          if (publishedEvent) {
+            setPageMetadata({
+              path: `/event/${encodeURIComponent(publishedEvent.slug)}/dokumentasi`,
+              title: `Dokumentasi ${publishedEvent.title} | Standupindo Cilegon`,
+              description: seoDescription(publishedEvent.description, `Foto dan dokumentasi panggung ${publishedEvent.title} bersama Standupindo Cilegon.`),
+              image: publishedEvent.poster,
+            });
+          }
           setFailedImages(new Set());
         }
       } catch (error) {

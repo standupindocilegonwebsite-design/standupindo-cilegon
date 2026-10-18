@@ -161,6 +161,7 @@ export interface TicketPaymentMethod {
   id: string;
   event_id: string;
   recipient_name: string;
+  qris_recipient_name?: string | null;
   bank_name: string | null;
   account_number: string | null;
   qris_storage_path: string | null;
