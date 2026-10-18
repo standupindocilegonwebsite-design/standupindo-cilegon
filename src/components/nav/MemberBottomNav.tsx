@@ -1,6 +1,6 @@
 import { BookOpen, ClipboardList, House, Menu, Mic, UserRound } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import { MobileBottomNavPortal } from '@/components/nav/MobileBottomNavPortal';
+import { AnimatedBottomNav } from '@/components/nav/AnimatedBottomNav';
 import { useMemberNotificationCounts } from '@/components/nav/member-notification-counts';
 
 const ITEMS = [
@@ -24,40 +24,19 @@ export function MemberBottomNav({ router }: { router: Router }) {
   };
 
   return (
-    <MobileBottomNavPortal
-      className="fixed inset-x-0 z-40 border-t border-blue-100 bg-white/90 shadow-[0_-8px_24px_rgba(11,60,93,0.08)] backdrop-blur-xl md:hidden"
+    <AnimatedBottomNav
+      className="fixed inset-x-0 z-40 bg-transparent md:hidden"
       ariaLabel="Navigasi member"
-    >
-      <div className="mx-auto grid max-w-md grid-cols-6">
-        {ITEMS.map((item) => {
-          const active = isActive(item.to);
-          const Icon = item.icon;
-          const notificationCount = item.to === '/member/open-mic'
-            ? openMicNotifications
-            : item.to === '/member/evaluations' ? evaluationNotifications : 0;
-          return (
-            <button
-              key={item.to}
-              type="button"
-              onClick={() => router.navigate(item.to)}
-              className={`mobile-nav-item flex flex-col items-center gap-0.5 py-2.5 transition-all duration-300 ${active ? 'mobile-nav-item-active' : ''}`}
-              aria-current={active ? 'page' : undefined}
-            >
-              <span
-                className={`mobile-nav-icon relative flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 ${
-                  active ? 'mobile-nav-icon-active bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)]' : 'text-slate-400'
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                {notificationCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold text-white">{notificationCount > 99 ? '99+' : notificationCount}</span>}
-              </span>
-              <span className={`mobile-nav-label text-[10px] font-semibold ${active ? 'mobile-nav-label-active text-blue-700' : 'text-slate-400'}`}>
-                {item.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </MobileBottomNavPortal>
+      items={ITEMS.map((item) => ({
+        id: item.to,
+        label: item.label,
+        icon: item.icon,
+        active: isActive(item.to),
+        onSelect: () => router.navigate(item.to),
+        badge: item.to === '/member/open-mic'
+          ? openMicNotifications
+          : item.to === '/member/evaluations' ? evaluationNotifications : undefined,
+      }))}
+    />
   );
 }

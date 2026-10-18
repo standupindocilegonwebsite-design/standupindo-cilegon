@@ -13,6 +13,15 @@ export function MobileBottomNavPortal({ children, className, ariaLabel }: Mobile
   useLayoutEffect(() => {
     const visualViewport = window.visualViewport;
     let animationFrame = 0;
+    const updateNavClearance = () => {
+      const navContent = navRef.current?.querySelector('.animated-bottom-nav__indicator')
+        ?? navRef.current?.firstElementChild;
+      if (!navContent) return;
+
+      const clearance = Math.max(0, window.innerHeight - navContent.getBoundingClientRect().top) + 12;
+      document.documentElement.style.setProperty('--mobile-nav-clearance', `${Math.ceil(clearance)}px`);
+    };
+
     const updateViewportInset = () => {
       cancelAnimationFrame(animationFrame);
       animationFrame = requestAnimationFrame(() => {
@@ -21,10 +30,18 @@ export function MobileBottomNavPortal({ children, className, ariaLabel }: Mobile
           : window.innerHeight;
         const bottomInset = Math.max(0, window.innerHeight - visualBottom);
         navRef.current?.style.setProperty('--mobile-nav-viewport-inset', `${bottomInset}px`);
+        updateNavClearance();
       });
     };
 
+    const resizeObserver = new ResizeObserver(updateNavClearance);
+    if (navRef.current) {
+      resizeObserver.observe(navRef.current);
+      if (navRef.current.firstElementChild) resizeObserver.observe(navRef.current.firstElementChild);
+    }
+
     updateViewportInset();
+    updateNavClearance();
     window.addEventListener('resize', updateViewportInset);
     window.addEventListener('orientationchange', updateViewportInset);
     window.addEventListener('pageshow', updateViewportInset);
@@ -34,6 +51,8 @@ export function MobileBottomNavPortal({ children, className, ariaLabel }: Mobile
 
     return () => {
       cancelAnimationFrame(animationFrame);
+      resizeObserver.disconnect();
+      document.documentElement.style.removeProperty('--mobile-nav-clearance');
       window.removeEventListener('resize', updateViewportInset);
       window.removeEventListener('orientationchange', updateViewportInset);
       window.removeEventListener('pageshow', updateViewportInset);

@@ -16,12 +16,12 @@ interface EventDocumentationPageProps {
 const MAX_DOCUMENTATION_PHOTOS = 15;
 const FALLBACK_LOGO = '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png';
 const HERO_MOTION_TARGETS = [
-  'scale(1.065) translate3d(-0.35%, 0.2%, 0)',
-  'scale(1.025) translate3d(0.35%, 0, 0)',
-  'scale(1.065) translate3d(0, -0.35%, 0)',
-  'scale(1.025) translate3d(-0.3%, 0, 0)',
-  'scale(1.06) translate3d(0.3%, -0.25%, 0)',
-  'scale(1.03) translate3d(0, 0.3%, 0)',
+  'scale(1.1) translate3d(-1%, 0.8%, 0)',
+  'scale(1.045) translate3d(1%, 0, 0)',
+  'scale(1.1) translate3d(0, -0.8%, 0)',
+  'scale(1.045) translate3d(-1%, 0, 0)',
+  'scale(1.09) translate3d(0.9%, -0.6%, 0)',
+  'scale(1.05) translate3d(0, 0.8%, 0)',
 ] as const;
 const HERO_MOTION_COUNT = HERO_MOTION_TARGETS.length;
 
@@ -249,7 +249,7 @@ export function EventDocumentationPage({ router, slug, settings }: EventDocument
                   src={heroTransition.from}
                   alt=""
                   aria-hidden="true"
-                  className="absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-[1800ms] ease-in-out"
+                  className="absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-[1400ms] ease-in-out"
                   style={{ opacity: heroTransition.visible ? 0 : 0.8 }}
                 />
               )}
@@ -260,7 +260,7 @@ export function EventDocumentationPage({ router, slug, settings }: EventDocument
                 aria-hidden="true"
                 fetchPriority="high"
                 onError={() => markImageFailed(heroTransition?.to ?? heroImage)}
-                className="absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-[1800ms] ease-in-out"
+                className="absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-[1400ms] ease-in-out"
                 style={{ opacity: heroTransition && !heroTransition.visible ? 0 : 0.8 }}
               />
             </div>

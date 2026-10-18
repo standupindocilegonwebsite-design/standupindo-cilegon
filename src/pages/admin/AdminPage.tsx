@@ -31,7 +31,7 @@ import { TicketGateSettingsPage } from '@/pages/admin/TicketGateSettingsPage';
 import { EventLineupManagementModal } from '@/pages/admin/EventLineupManagementModal';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
 import { AppCredit } from '@/components/AppCredit';
-import { MobileBottomNavPortal } from '@/components/nav/MobileBottomNavPortal';
+import { AnimatedBottomNav } from '@/components/nav/AnimatedBottomNav';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
 import { AnnualRecapAdminPage } from '@/pages/admin/AnnualRecapAdminPage';
 import { CcsScheduleAdminPage } from '@/pages/admin/CcsScheduleAdminPage';
@@ -1056,7 +1056,7 @@ export function AdminPage({ router, settings }: Props) {
         </aside>
 
         {/* Main Content */}
-        <main className="min-w-0 flex-1 p-4 pb-safe-nav md:pb-0 lg:p-8 lg:pb-8" style={{ paddingBottom: 'calc(7.5rem + var(--safe-bottom))' }}>
+        <main className="min-w-0 flex-1 p-4 lg:p-8">
           {section !== 'dashboard' && !sectionHasOwnBackButton && <button type="button" onClick={returnToPreviousAdminMenu} className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 text-sm font-bold text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50">
             <ArrowLeft className="h-4 w-4" /> Kembali
           </button>}
@@ -1102,29 +1102,26 @@ export function AdminPage({ router, settings }: Props) {
         </main>
       </div>
 
-      <footer className="mt-auto border-t border-slate-200 bg-white px-4 py-2 pb-[calc(5rem+var(--safe-bottom))] lg:py-3 lg:pb-3">
+      <footer className="mt-auto border-t border-slate-200 bg-white px-4 pt-2 pb-safe-nav lg:py-3 lg:pb-3">
         <AppCredit />
       </footer>
 
-      {/* Mobile Bottom Navigation */}
-      <MobileBottomNavPortal
-        className="fixed inset-x-0 z-40 border-t border-blue-100 bg-white/90 shadow-[0_-8px_24px_rgba(11,60,93,0.08)] backdrop-blur-xl lg:hidden"
+      <AnimatedBottomNav
+        className="fixed inset-x-0 z-40 bg-transparent lg:hidden"
         ariaLabel="Navigasi admin mobile"
-      >
-        <div className="mx-auto grid max-w-xl" style={{ gridTemplateColumns: `repeat(${visibleBottomNav.length}, minmax(0, 1fr))` }}>
-          {visibleBottomNav.map((item) => {
-            const Icon = item.icon;
-            const pendingEventCount = notificationCounts['event-participants'];
-            const communityPendingCount = notificationCounts.applications;
-            const moreUnreadCount = isAdmin
-              ? notificationCounts['ticket-orders'] + communityPendingCount
-              : 0;
-            const menuBadgeCount = item.key === 'ticket-orders'
-              ? notificationCounts['ticket-orders']
-              : item.key === 'open-mic-list'
+        maxWidthClassName="max-w-xl"
+        items={visibleBottomNav.map((item) => {
+          const pendingEventCount = notificationCounts['event-participants'];
+          const communityPendingCount = notificationCounts.applications;
+          const moreUnreadCount = isAdmin
+            ? notificationCounts['ticket-orders'] + communityPendingCount
+            : 0;
+          const menuBadgeCount = item.key === 'ticket-orders'
+            ? notificationCounts['ticket-orders']
+            : item.key === 'open-mic-list'
+              ? pendingRegistrationCount
+              : item.key === 'open-mic'
                 ? pendingRegistrationCount
-                : item.key === 'open-mic'
-                  ? pendingRegistrationCount
                 : item.key === 'open-mic-history'
                   ? pendingHistoryCount
                   : item.key === 'events'
@@ -1132,39 +1129,29 @@ export function AdminPage({ router, settings }: Props) {
                     : item.key === 'applications'
                       ? communityPendingCount
                       : item.key === 'more' ? moreUnreadCount : 0;
-            const showPendingBadge = menuBadgeCount > 0;
-            const isActive = item.key === 'dashboard'
-              ? section === 'dashboard'
-              : item.key === 'open-mic'
-                ? section === 'open-mic' || section === 'registrants'
-                : item.key === 'events'
-                  ? section === 'events' || section === 'event-participants'
-                  : item.key === 'komika'
-                    ? section === 'komika'
-                    : item.key === 'partners'
-                      ? section === 'partners'
-                      : item.key === 'more'
-                        ? isMoreNavigationActive(section, isTicketAdmin, isQrScanner)
-                        : section === item.key;
-            return (
-              <button
-                key={item.key}
-                onClick={() => navigateSection(item.key)}
-                className={`mobile-nav-item flex flex-col items-center gap-0.5 py-2.5 transition-all duration-300 ${isActive ? 'mobile-nav-item-active' : ''}`}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <span className={`mobile-nav-icon relative flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 ${isActive ? 'mobile-nav-icon-active bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)]' : 'text-slate-400'}`}>
-                  <Icon className="h-5 w-5" />
-                  {showPendingBadge && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-extrabold leading-none text-white" aria-label="Data menunggu review">{menuBadgeCount > 99 ? '99+' : menuBadgeCount}</span>}
-                </span>
-                <span className={`mobile-nav-label text-[10px] font-semibold ${isActive ? 'mobile-nav-label-active text-blue-700' : 'text-slate-400'}`}>
-                  {item.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </MobileBottomNavPortal>
+          const isActive = item.key === 'dashboard'
+            ? section === 'dashboard'
+            : item.key === 'open-mic'
+              ? section === 'open-mic' || section === 'registrants'
+              : item.key === 'events'
+                ? section === 'events' || section === 'event-participants'
+                : item.key === 'komika'
+                  ? section === 'komika'
+                  : item.key === 'partners'
+                    ? section === 'partners'
+                    : item.key === 'more'
+                      ? isMoreNavigationActive(section, isTicketAdmin, isQrScanner)
+                      : section === item.key;
+          return {
+            id: item.key,
+            label: item.label,
+            icon: item.icon,
+            active: isActive,
+            onSelect: () => navigateSection(item.key),
+            badge: menuBadgeCount > 0 ? menuBadgeCount : undefined,
+          };
+        })}
+      />
 
       {/* Ticket Management Modal */}
       <TicketManagementModal event={ticketEvent} onClose={() => setTicketEvent(null)} onNotice={setNotice} />

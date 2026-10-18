@@ -60,6 +60,13 @@ export default async function handler(request, response) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !anonKey) {
+    const missingVariables = [
+      ...(!supabaseUrl ? ['VITE_SUPABASE_URL'] : []),
+      ...(!anonKey ? ['VITE_SUPABASE_ANON_KEY'] : []),
+    ];
+    console.error('Cannot generate public sitemap; required environment variables are missing.', {
+      missingVariables,
+    });
     response.setHeader('Content-Type', 'text/plain; charset=utf-8');
     response.status(503).send('Sitemap data source is not configured.');
     return;

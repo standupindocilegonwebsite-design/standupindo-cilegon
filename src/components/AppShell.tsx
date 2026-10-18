@@ -80,11 +80,11 @@ export function AppShell({ router, settings, children }: AppShellProps) {
     <div ref={shellRef} className={`flex min-h-screen flex-col ${isTicketAccessPage ? 'bg-slate-200' : isEventDocumentationPage ? 'bg-[#030712]' : isPublicNavyPage ? 'bg-[#0B1F44]' : 'bg-slate-50'}`}>
       {!isTicketAccessPage && !isEventDocumentationPage && <DesktopNavbar router={router} settings={settings} />}
 
-      <main className={`flex-1 ${isTicketAccessPage ? '' : 'pb-safe-nav md:pb-0'} ${isPublicNavyPage ? 'text-slate-100' : ''}`}>{children}</main>
+      <main className={`flex-1 ${isEventDocumentationPage ? 'pb-safe-nav md:pb-0' : ''} ${isPublicNavyPage ? 'text-slate-100' : ''}`}>{children}</main>
 
       {/* Footer (desktop + mobile compact) */}
-      {!isTicketAccessPage && !isEventDocumentationPage && <footer className="border-t border-slate-200 bg-white pb-14 md:pb-0">
-        <div className="container-app py-10">
+      {!isTicketAccessPage && !isEventDocumentationPage && <footer className="border-t border-slate-200 bg-white pb-safe-nav md:pb-0">
+        <div className="container-app pb-0 pt-10 md:py-10">
           <div className="grid gap-8 md:grid-cols-4">
             <div className="md:col-span-2">
               <div className="flex items-center gap-2.5">

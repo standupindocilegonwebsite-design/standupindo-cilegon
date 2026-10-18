@@ -395,7 +395,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
         </div>
 
         {currentStatus === 'upcoming' && !ticketLoadError && tickets.length > 0 && createPortal(
-          <div className="fixed inset-x-0 z-30 px-4 md:hidden" style={{ bottom: 'calc(5.5rem + var(--safe-bottom))' }}>
+          <div className="fixed inset-x-0 z-30 px-4 md:hidden" style={{ bottom: 'var(--mobile-nav-clearance, calc(7.5rem + var(--safe-bottom)))' }}>
             <div className="mx-auto max-w-3xl">
               <button type="button" onClick={() => router.navigate(`/event/${event.slug}/tiket`)} className="btn-primary event-ticket-light-leak group flex w-full !min-h-[4rem] items-center justify-between !rounded-2xl !bg-gradient-to-r !from-blue-700 !via-blue-600 !to-indigo-600 !px-4 !py-2.5 text-left shadow-[0_12px_30px_rgba(29,78,216,0.46)] ring-1 ring-white/30 transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(29,78,216,0.54)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 focus-visible:ring-offset-2 active:translate-y-0 active:scale-[0.99]">
                 <span className="min-w-0">

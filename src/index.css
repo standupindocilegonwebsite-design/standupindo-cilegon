@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@property --active-position {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
 .member-photo-crop-area {
   border: 1px solid rgba(255, 255, 255, 0.95) !important;
   box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.48);
@@ -67,7 +73,7 @@
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
     scroll-behavior: smooth;
-    scroll-padding-bottom: calc(7.5rem + var(--safe-bottom));
+    scroll-padding-bottom: var(--mobile-nav-clearance, calc(5rem + var(--safe-bottom)));
     height: 100%;
   }
 
@@ -112,7 +118,7 @@
   }
 
   .pb-safe-nav {
-    padding-bottom: calc(7.5rem + var(--safe-bottom));
+    padding-bottom: var(--mobile-nav-clearance, calc(5rem + var(--safe-bottom)));
   }
 
   .pt-safe-top {
@@ -232,16 +238,121 @@
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 transition-all duration-200 hover:bg-blue-50 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-300 active:scale-[0.98];
   }
 
-  .mobile-nav-item-active {
-    transform: translateY(-1px);
+  .animated-bottom-nav__items {
+    padding: 0.25rem 0 0.05rem;
   }
 
-  .mobile-nav-icon-active {
-    animation: mobileNavPop 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  .animated-bottom-nav {
+    overflow: visible;
+    isolation: isolate;
+    margin-bottom: 0.375rem;
   }
 
-  .mobile-nav-label-active {
-    animation: mobileNavLabel 300ms ease-out;
+  .animated-bottom-nav__shape {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    filter:
+      drop-shadow(0 1px 1px rgb(15 23 42 / 10%))
+      drop-shadow(0 7px 9px rgb(15 23 42 / 17%))
+      drop-shadow(0 16px 20px rgb(15 23 42 / 14%));
+    pointer-events: none;
+  }
+
+  .animated-bottom-nav__shape-fill {
+    fill: #fff;
+    stroke: none;
+  }
+
+  .animated-bottom-nav__shape-contour {
+    fill: none;
+    stroke: #3b82f6;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .animated-bottom-nav__item {
+    min-height: 3.75rem;
+    padding-top: 0.25rem;
+    padding-bottom: 0.125rem;
+    touch-action: manipulation;
+    transition: color 300ms ease;
+  }
+
+  .animated-bottom-nav__item:focus-visible {
+    outline: 2px solid var(--brand-primary);
+    outline-offset: -3px;
+    border-radius: 0.75rem;
+  }
+
+  .animated-bottom-nav__item.is-active {
+    color: #1d4ed8;
+  }
+
+  .animated-bottom-nav__icon-slot {
+    color: #64748b;
+  }
+
+  .animated-bottom-nav__icon-slot > svg {
+    width: 1.125rem;
+    height: 1.125rem;
+  }
+
+  .animated-bottom-nav__item.is-active .animated-bottom-nav__icon-slot {
+    color: #1d4ed8;
+  }
+
+  .animated-bottom-nav__label {
+    min-height: 1rem;
+    color: #64748b;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .animated-bottom-nav__item.is-active .animated-bottom-nav__label {
+    color: #1d4ed8;
+  }
+
+  .animated-bottom-nav__indicator {
+    position: absolute;
+    top: -1.35rem;
+    z-index: 20;
+    display: flex;
+    width: 3.25rem;
+    height: 3.25rem;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid rgb(255 255 255 / 98%);
+    border-radius: 9999px;
+    background: #2563eb;
+    color: white;
+    box-shadow: 0 7px 18px rgb(37 99 235 / 36%), 0 0 0 1px rgb(59 130 246 / 12%);
+    transform: translateX(-50%);
+    margin-top: 0.5rem;
+    pointer-events: none;
+  }
+
+  @media (max-width: 359px) {
+    .animated-bottom-nav__indicator {
+      width: 3rem;
+      height: 3rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animated-bottom-nav__item,
+    .animated-bottom-nav__indicator {
+      transition-duration: 0.01ms;
+      animation-duration: 0.01ms;
+    }
   }
 
   .card {
@@ -1281,21 +1392,12 @@
   68%, 100% { background-position: -60% 0; opacity: 0; }
 }
 
-@keyframes mobileNavPop {
-  0% { transform: translateY(3px) scale(0.84); opacity: 0.55; }
-  55% { transform: translateY(-2px) scale(1.08); opacity: 1; }
-  100% { transform: translateY(0) scale(1); }
-}
-
-@keyframes mobileNavLabel {
-  0% { transform: translateY(4px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .mobile-nav-item-active,
-  .mobile-nav-icon-active,
-  .mobile-nav-label-active,
+  .animated-bottom-nav__item,
+  .animated-bottom-nav__indicator {
+    animation: none;
+  }
+
   .ticket-access-logo::after,
   .site-brand-logo-light-leak::after,
   .komika-work-cta-light-leak::after,
@@ -1656,7 +1758,7 @@
 }
 
 .event-documentation-hero-motion {
-  transition: transform 6.2s cubic-bezier(0.42, 0, 0.28, 1);
+  transition: transform 4.6s cubic-bezier(0.42, 0, 0.28, 1);
   will-change: transform, opacity;
 }
 

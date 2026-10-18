@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, Download, History, KeyRound, LogOut, Maximize2, MessageCircle, Ticket, X, XCircle } from 'lucide-react';
 import { QRCodeCanvas, QRCodeSVG } from 'qrcode.react';
 import type { Router } from '@/lib/router';
+import { AnimatedBottomNav } from '@/components/nav/AnimatedBottomNav';
 import { supabase } from '@/lib/supabase';
 import { TicketPagination } from '@/components/TicketPagination';
 import { LOGO_URL } from '@/lib/types';
@@ -309,7 +310,7 @@ export function TicketAccessPage({ router }: { router: Router }) {
           </button>
         </div>
       </header>}
-      <div className={`container-app ${session ? 'bg-slate-200 py-5 pb-[calc(6rem+var(--safe-bottom))] sm:py-7 sm:pb-[calc(6rem+var(--safe-bottom))]' : 'min-h-screen w-full max-w-none px-0 py-0'}`}>
+      <div className={`container-app ${session ? 'bg-slate-200 py-5 pb-safe-nav sm:pt-7 md:pb-7' : 'min-h-screen w-full max-w-none px-0 py-0'}`}>
         {!session ? <div className="relative isolate flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-[#06264b] px-4 py-8 sm:px-6 sm:py-12">
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_45%,#0c3a6b_0%,#082c53_48%,#041a35_100%)]" />
           <div aria-hidden="true" className="pointer-events-none absolute -left-[12%] -top-[8%] h-[44%] w-[56%] -skew-x-[38deg] bg-gradient-to-br from-blue-400/20 via-blue-500/10 to-transparent" />
@@ -494,22 +495,17 @@ export function TicketAccessPage({ router }: { router: Router }) {
                 : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">{history ? 'Belum ada Event dengan order tiket lunas untuk nomor WhatsApp ini.' : 'Belum ada data Event pembelian.'}</div>}
         </div> : null}
       </div>
-      {session && <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-blue-100 bg-white/95 shadow-[0_-8px_24px_rgba(11,60,93,0.12)] backdrop-blur-xl" style={{ paddingBottom: 'var(--safe-bottom)' }} aria-label="Navigasi tiket">
-        <div className="mx-auto grid max-w-xl grid-cols-3 px-2 sm:px-4">
-          <button type="button" onClick={() => setTicketTab('tickets')} className={`mobile-nav-item flex flex-col items-center gap-0.5 py-2.5 transition-all duration-300 ${ticketTab === 'tickets' ? 'mobile-nav-item-active' : ''}`} aria-current={ticketTab === 'tickets' ? 'page' : undefined}>
-            <span className={`mobile-nav-icon flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 ${ticketTab === 'tickets' ? 'mobile-nav-icon-active bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)]' : 'text-slate-400'}`}><Ticket className="h-5 w-5" /></span>
-            <span className={`mobile-nav-label text-[10px] font-semibold ${ticketTab === 'tickets' ? 'mobile-nav-label-active text-blue-700' : 'text-slate-400'}`}>TIKET SAYA</span>
-          </button>
-          <button type="button" onClick={() => { setTicketTab('events'); void loadHistory(); }} className={`mobile-nav-item flex flex-col items-center gap-0.5 py-2.5 transition-all duration-300 ${ticketTab === 'events' ? 'mobile-nav-item-active' : ''}`} aria-current={ticketTab === 'events' ? 'page' : undefined}>
-            <span className={`mobile-nav-icon flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 ${ticketTab === 'events' ? 'mobile-nav-icon-active bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)]' : 'text-slate-400'}`}><CalendarDays className="h-5 w-5" /></span>
-            <span className={`mobile-nav-label text-[10px] font-semibold ${ticketTab === 'events' ? 'mobile-nav-label-active text-blue-700' : 'text-slate-400'}`}>EVENT</span>
-          </button>
-          <button type="button" onClick={() => { setTicketTab('history'); void loadHistory(); }} className={`mobile-nav-item flex flex-col items-center gap-0.5 py-2.5 transition-all duration-300 ${ticketTab === 'history' ? 'mobile-nav-item-active' : ''}`} aria-current={ticketTab === 'history' ? 'page' : undefined}>
-            <span className={`mobile-nav-icon flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-300 ${ticketTab === 'history' ? 'mobile-nav-icon-active bg-blue-600 text-white shadow-[0_8px_18px_rgba(29,94,219,0.3)]' : 'text-slate-400'}`}><History className="h-5 w-5" /></span>
-            <span className={`mobile-nav-label text-[10px] font-semibold ${ticketTab === 'history' ? 'mobile-nav-label-active text-blue-700' : 'text-slate-400'}`}>RIWAYAT/HISTORI</span>
-          </button>
-        </div>
-      </nav>}
+      {session && <AnimatedBottomNav
+        className="fixed inset-x-0 z-50 bg-transparent"
+        ariaLabel="Navigasi tiket"
+        maxWidthClassName="max-w-xl"
+        contentClassName="px-2 sm:px-4"
+        items={[
+          { id: 'tickets', label: 'TIKET SAYA', icon: Ticket, active: ticketTab === 'tickets', onSelect: () => setTicketTab('tickets') },
+          { id: 'events', label: 'EVENT', icon: CalendarDays, active: ticketTab === 'events', onSelect: () => { setTicketTab('events'); void loadHistory(); } },
+          { id: 'history', label: 'RIWAYAT/HISTORI', icon: History, active: ticketTab === 'history', onSelect: () => { setTicketTab('history'); void loadHistory(); } },
+        ]}
+      />}
     </div>
   );
 }

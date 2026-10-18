@@ -241,9 +241,9 @@ function RoutedApp() {
       <MemberNotificationCountsProvider>
         <div className="flex min-h-screen flex-col bg-slate-50">
           {router.path !== '/member/login' && <MemberDesktopNav router={router} settings={settings} compact={router.path.startsWith('/member/materials/')} />}
-          <main className="flex-1 pb-safe-nav md:pb-0"><Suspense fallback={<RouteLoading />}>{memberContent}</Suspense></main>
+          <main className="flex-1"><Suspense fallback={<RouteLoading />}>{memberContent}</Suspense></main>
           {router.path !== '/member/login' && (
-            <footer className="border-t border-slate-200 bg-white px-4 py-2 pb-[calc(4.5rem+var(--safe-bottom))] md:py-4 md:pb-4">
+            <footer className="border-t border-slate-200 bg-white px-4 pt-2 pb-safe-nav md:py-4 md:pb-4">
               <AppCredit />
             </footer>
           )}
@@ -257,8 +257,8 @@ function RoutedApp() {
       <MemberNotificationCountsProvider>
         <div className="flex min-h-screen flex-col bg-slate-50">
           <MemberDesktopNav router={router} settings={settings} />
-          <main className="flex-1 pb-safe-nav md:pb-0"><Suspense fallback={<RouteLoading />}><ProtectedEvaluator router={router} /></Suspense></main>
-          <footer className="border-t border-slate-200 bg-white px-4 py-2 pb-[calc(4.5rem+var(--safe-bottom))] md:py-4 md:pb-4">
+          <main className="flex-1"><Suspense fallback={<RouteLoading />}><ProtectedEvaluator router={router} /></Suspense></main>
+          <footer className="border-t border-slate-200 bg-white px-4 pt-2 pb-safe-nav md:py-4 md:pb-4">
             <AppCredit />
           </footer>
           <MemberBottomNav router={router} />
