@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /member/
+Disallow: /evaluator/
+Sitemap: https://www.standupindocilegon.id/sitemap.xml
