@@ -296,7 +296,7 @@ export interface Material {
   title: string;
   theme: string;
   premis: string | null;
-  estimated_duration: number;
+  estimated_duration: number | null;
   content: string;
   previous_content: string | null;
   previous_updated_at: string | null;

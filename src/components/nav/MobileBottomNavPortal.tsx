@@ -14,11 +14,18 @@ export function MobileBottomNavPortal({ children, className, ariaLabel }: Mobile
     const visualViewport = window.visualViewport;
     let animationFrame = 0;
     const updateNavClearance = () => {
-      const navContent = navRef.current?.querySelector('.animated-bottom-nav__indicator')
-        ?? navRef.current?.firstElementChild;
-      if (!navContent) return;
+      const nav = navRef.current;
+      if (!nav) return;
 
-      const clearance = Math.max(0, window.innerHeight - navContent.getBoundingClientRect().top) + 12;
+      const navBounds = nav.getBoundingClientRect();
+      if (navBounds.height === 0) {
+        document.documentElement.style.removeProperty('--mobile-nav-clearance');
+        return;
+      }
+
+      const indicatorTop = nav.querySelector('.animated-bottom-nav__indicator')?.getBoundingClientRect().top;
+      const occupiedTop = indicatorTop === undefined ? navBounds.top : Math.min(navBounds.top, indicatorTop);
+      const clearance = Math.max(0, window.innerHeight - occupiedTop) + 12;
       document.documentElement.style.setProperty('--mobile-nav-clearance', `${Math.ceil(clearance)}px`);
     };
 
@@ -65,13 +72,14 @@ export function MobileBottomNavPortal({ children, className, ariaLabel }: Mobile
   return createPortal(
     <nav
       ref={navRef}
-      className={className}
+      className={`mobile-bottom-nav fixed left-0 right-auto z-40 w-screen ${className}`}
       style={{
         bottom: 'var(--mobile-nav-viewport-inset, 0px)',
         paddingBottom: 'var(--safe-bottom)',
       }}
       aria-label={ariaLabel}
     >
+      <span className="mobile-bottom-nav__safe-area" aria-hidden="true" />
       {children}
     </nav>,
     document.body,

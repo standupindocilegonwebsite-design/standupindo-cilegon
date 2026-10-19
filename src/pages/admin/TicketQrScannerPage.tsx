@@ -127,8 +127,8 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
     .sort((first, second) => Date.parse(second.checked_in_at) - Date.parse(first.checked_in_at))
     .slice(0, 3), [summary?.attendees]);
   const selectableEvents = useMemo(() => events
-    .filter((event) => getEventStatus(event.status, event.date) !== 'completed')
-    .map((event) => ({ id: event.id, title: event.title, subtitle: `${event.date} · ${event.venue}` })), [events]);
+    .filter((event) => getEventStatus(event.status, event.date) === 'upcoming')
+    .map((event) => ({ id: event.id, title: event.title, subtitle: `${event.date} · ${event.venue}`, poster: event.poster })), [events]);
   const scanHistoryStorageKey = user?.id && eventId ? `admin-qr-scan-history:${user.id}:${eventId}` : '';
 
   const saveScannerSelection = useCallback((selection: ScannerSelection) => {
@@ -220,7 +220,7 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
     };
   }, []);
   useEffect(() => {
-    if (eventId && selectableEvents.length && !selectableEvents.some((event) => event.id === eventId)) {
+    if (eventId && events.length && !selectableEvents.some((event) => event.id === eventId)) {
       setEventId('');
       setGateId('');
       setAppliedGateId('');
@@ -231,7 +231,7 @@ export function TicketQrScannerPage({ events }: { events: EventItem[] }) {
       controlsRef.current = null;
       setCameraActive(false);
     }
-  }, [eventId, saveScannerSelection, selectableEvents]);
+  }, [eventId, events.length, saveScannerSelection, selectableEvents]);
   useEffect(() => {
     if (!eventId) return;
     const channel = supabase.channel(`ticket-checkins-${eventId}`)

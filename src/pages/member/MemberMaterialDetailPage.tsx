@@ -8,6 +8,8 @@ import { formatDate } from '@/lib/format';
 import { MaterialContentEditor } from '@/components/MaterialContentEditor';
 import { parseMaterialContent, type MaterialContentBlock } from '@/lib/material-content';
 import { Modal } from '@/components/ui/Modal';
+import { MaterialDurationInput } from '@/components/MaterialDurationInput';
+import { formatEstimatedDuration, isEstimatedDurationInputValid, parseEstimatedDuration } from '@/lib/material-duration';
 
 type DetailTab = 'current' | 'previous';
 type ReadingTheme = 'light' | 'dark';
@@ -77,7 +79,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
     if (loadError || !data) setError('Materi tidak ditemukan atau tidak dapat diakses.');
     const row = data as Material | null;
     setMaterial(row);
-    if (row) setForm({ title: row.title, theme: row.theme, premis: row.premis ?? '', estimated_duration: String(row.estimated_duration), content: row.content, rating: row.rating ? String(row.rating) : '', personal_note: row.personal_note ?? '' });
+    if (row) setForm({ title: row.title, theme: row.theme, premis: row.premis ?? '', estimated_duration: row.estimated_duration == null ? '' : String(row.estimated_duration), content: row.content, rating: row.rating ? String(row.rating) : '', personal_note: row.personal_note ?? '' });
     const { data: nodeData } = await supabase.from('material_nodes').select('*').eq('material_id', id).order('sort_order', { ascending: true }).order('created_at', { ascending: true });
     setNodes((nodeData as MaterialNode[]) ?? []);
     setLoading(false);
@@ -87,8 +89,12 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
 
   async function saveChanges() {
     if (!user?.id || !material) return;
-    if (!form.title.trim() || !form.theme.trim() || !form.estimated_duration || !form.content.trim()) {
-      setError('Judul, tema, durasi, dan materi wajib diisi.');
+    if (!form.title.trim() || !form.theme.trim() || !form.content.trim()) {
+      setError('Judul, tema, dan materi wajib diisi.');
+      return;
+    }
+    if (!isEstimatedDurationInputValid(form.estimated_duration)) {
+      setError('Estimasi durasi harus berupa angka menit lebih besar dari 0.');
       return;
     }
     setSaving(true);
@@ -98,7 +104,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
       title: form.title.trim(),
       theme: form.theme.trim(),
       premis: form.premis.trim() || null,
-      estimated_duration: Number(form.estimated_duration),
+      estimated_duration: parseEstimatedDuration(form.estimated_duration),
       content: form.content.trim(),
       previous_content: contentChanged ? material.content : material.previous_content,
       previous_updated_at: contentChanged ? material.updated_at : material.previous_updated_at,
@@ -342,7 +348,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 pl-12 text-[11px] font-semibold text-slate-500">
                 <span className="inline-flex items-center gap-1 uppercase"><BookOpen className="h-3 w-3 text-blue-600" /> {material.theme}</span>
-              <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3 text-blue-600" /> ±{material.estimated_duration} menit</span>
+              <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3 text-blue-600" /> {formatEstimatedDuration(material.estimated_duration)}</span>
               <span className="inline-flex items-center gap-1"><CalendarDays className="h-3 w-3 text-blue-600" /> {formatDate(material.updated_at.slice(0, 10))}</span>
             </div>
             <p className="mt-3 border-t border-slate-100 pt-3 text-sm leading-6 text-slate-600"><span className="font-bold text-slate-800">Premis:</span> {material.premis?.trim() || '-'}</p>
@@ -353,7 +359,10 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
               <input className="input-field" placeholder="Judul materi" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
               <input className="input-field" placeholder="Tema materi" value={form.theme} onChange={(event) => setForm({ ...form, theme: event.target.value })} />
               <div><label htmlFor="edit-material-premis" className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Premis</label><textarea id="edit-material-premis" className="input-field !min-h-[88px]" placeholder="Inti atau gagasan utama materi..." value={form.premis} onChange={(event) => setForm({ ...form, premis: event.target.value })} /></div>
-              <input className="input-field" type="number" min="1" placeholder="Estimasi durasi (menit)" value={form.estimated_duration} onChange={(event) => setForm({ ...form, estimated_duration: event.target.value })} />
+              <div>
+                <label htmlFor="edit-material-duration" className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Estimasi durasi <span className="font-semibold normal-case tracking-normal text-slate-400">(opsional)</span></label>
+                <MaterialDurationInput id="edit-material-duration" value={form.estimated_duration} onChange={(estimated_duration) => setForm((current) => ({ ...current, estimated_duration }))} extraOption={material.estimated_duration} />
+              </div>
               <MaterialContentEditor value={form.content} onChange={(content) => setForm((current) => ({ ...current, content }))} />
               <button type="submit" disabled={saving} className="btn-primary w-full"><Save className="h-4 w-4" />{saving ? 'Menyimpan...' : 'Simpan Rewrite'}</button>
             </form>
@@ -468,19 +477,28 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
         onClose={() => setReadingMode(false)}
         title={material.title}
         titleEyebrow="Mode Baca Materi"
+        titleLayout="stacked"
+        titleClassName="!text-[15px] !leading-snug sm:!text-xl [overflow-wrap:anywhere]"
         size="lg"
         headerContent={
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className={`rounded-full px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] ${darkReadingTheme ? 'bg-blue-950 text-blue-200' : 'bg-blue-100 text-blue-800'}`}>{tab === 'current' ? 'Versi Sekarang' : 'Versi Sebelumnya'}</span>
-                <p className={`min-w-0 text-xs font-bold ${darkReadingTheme ? 'text-slate-600' : 'text-slate-500'}`}>1 materi · ±{material.estimated_duration} menit</p>
+            <div className="flex flex-wrap items-center justify-between gap-1.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-1">
+                <span className={`rounded-full px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.04em] ${darkReadingTheme ? 'bg-blue-950 text-blue-200' : 'bg-blue-100 text-blue-800'}`}>{tab === 'current' ? 'Versi Sekarang' : 'Versi Sebelumnya'}</span>
+                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${darkReadingTheme ? 'text-slate-300' : 'text-slate-600'}`}><BookOpen className="h-3 w-3 shrink-0" />1 materi · {formatEstimatedDuration(material.estimated_duration)}</span>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {tab === 'current' && <button type="button" onClick={() => { setReadingMode(false); setEditing(true); }} aria-label="Rewrite materi" title="Rewrite materi" className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${darkReadingTheme ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}><Pencil className="h-4 w-4" /></button>}
-                <button type="button" onClick={() => setReadingTheme(darkReadingTheme ? 'light' : 'dark')} aria-pressed={darkReadingTheme} className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${darkReadingTheme ? 'bg-slate-800 text-amber-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`} aria-label={darkReadingTheme ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'} title={darkReadingTheme ? 'Mode terang' : 'Mode gelap'}>
-                  {darkReadingTheme ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-                </button>
+              <button
+                type="button"
+                onClick={() => setReadingTheme(darkReadingTheme ? 'light' : 'dark')}
+                aria-pressed={darkReadingTheme}
+                aria-label={darkReadingTheme ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'}
+                title={darkReadingTheme ? 'Mode terang' : 'Mode gelap'}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${darkReadingTheme ? 'bg-slate-800 text-amber-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+              >
+                {darkReadingTheme ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+              </button>
               </div>
             </div>
             <div className={`rounded-xl border px-3 py-2 text-xs leading-5 ${darkReadingTheme ? 'border-slate-700 bg-slate-900 text-slate-300' : 'border-amber-200 bg-amber-50 text-slate-700'}`}>
@@ -494,7 +512,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
             <header className={`border-b px-4 py-3 ${darkReadingTheme ? 'border-slate-700' : 'border-amber-100'}`}>
               <p className={`text-[10px] font-extrabold uppercase tracking-[0.14em] ${darkReadingTheme ? 'text-sky-400' : 'text-blue-700'}`}>Materi 1</p>
               <h3 className={`mt-1 text-base font-bold leading-snug ${darkReadingTheme ? 'text-slate-100' : 'text-slate-900'}`}>{material.title}</h3>
-              <p className={`mt-1 text-xs ${darkReadingTheme ? 'text-slate-400' : 'text-slate-500'}`}>{material.theme} · ±{material.estimated_duration} menit</p>
+              <p className={`mt-1 text-xs ${darkReadingTheme ? 'text-slate-400' : 'text-slate-500'}`}>{material.theme} · {formatEstimatedDuration(material.estimated_duration)}</p>
             </header>
             <div className={`space-y-4 px-4 py-5 font-serif text-[16px] leading-8 ${darkReadingTheme ? 'text-slate-200' : 'text-slate-700'}`}>
               {readingBlocks.length === 0 ? <p>Belum ada isi materi.</p> : readingBlocks.map((block, blockIndex) => block.type === 'text' ? (

@@ -16,16 +16,22 @@ export function MemberBottomNav({ router }: { router: Router }) {
   const { openMic: openMicNotifications, evaluations: evaluationNotifications } = useMemberNotificationCounts();
   const morePaths = ['/member/more', '/member/help', '/member/roles', '/member/settings'];
   const isActive = (to: string) => {
-    if (to === '/member') return router.path === '/member';
+    if (to === '/member') return router.path === '/member' || router.path === '/member/komika-recap';
+    if (to === '/member/open-mic') {
+      return router.path === to
+        || router.path.startsWith(`${to}/`)
+        || router.path === '/member/open-mic-history';
+    }
     if (to === '/member/more') {
-      return morePaths.some((path) => router.path === path || router.path.startsWith(`${path}/`));
+      return morePaths.some((path) => router.path === path || router.path.startsWith(`${path}/`))
+        || router.path === '/evaluator'
+        || router.path.startsWith('/evaluator/');
     }
     return router.path === to || router.path.startsWith(`${to}/`);
   };
 
   return (
     <AnimatedBottomNav
-      className="fixed inset-x-0 z-40 bg-transparent md:hidden"
       ariaLabel="Navigasi member"
       items={ITEMS.map((item) => ({
         id: item.to,

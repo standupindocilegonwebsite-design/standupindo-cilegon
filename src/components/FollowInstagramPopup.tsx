@@ -5,6 +5,7 @@ import type { SiteSettings } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { LOGO_URL } from '@/lib/types';
 import { Modal } from '@/components/ui/Modal';
+import { claimPublicPromoPopup, hasPublicPromoPopupShown } from '@/lib/public-promo-popup';
 
 const STORAGE_KEY = 'standupindo_follow_instagram_popup_v1';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -93,7 +94,7 @@ export function FollowInstagramPopup({ router, settings }: { router: Router; set
   }, []);
 
   useEffect(() => {
-    if (!ready || open || attempted.current || loading || session || !instagramUrl
+    if (!ready || open || attempted.current || loading || session || !instagramUrl || hasPublicPromoPopupShown()
       || !canShowOnRoute || router.path !== initialPath.current
       || document.visibilityState !== 'visible') return;
 
@@ -109,9 +110,9 @@ export function FollowInstagramPopup({ router, settings }: { router: Router; set
       }
     };
     const attemptToShow = () => {
-      if (attempted.current || document.visibilityState !== 'visible'
+      if (attempted.current || document.visibilityState !== 'visible' || hasPublicPromoPopupShown()
         || router.path !== initialPath.current || loading || session || !canShowOnRoute) {
-        if (attempted.current || router.path !== initialPath.current || !canShowOnRoute) stopObserving();
+        if (attempted.current || router.path !== initialPath.current || !canShowOnRoute || hasPublicPromoPopupShown()) stopObserving();
         return;
       }
 
@@ -138,7 +139,7 @@ export function FollowInstagramPopup({ router, settings }: { router: Router; set
         lastAction: 'shown',
         cooldownUntil: now + DAY_MS,
       };
-      if (writeRecord(next)) setOpen(true);
+      if (writeRecord(next) && claimPublicPromoPopup()) setOpen(true);
     };
 
     document.addEventListener('visibilitychange', onVisibilityChange);

@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import type { MaterialSetlistItem } from '@/lib/types';
 import { parseMaterialContent } from '@/lib/material-content';
+import { formatEstimatedDuration, formatSetlistDuration } from '@/lib/material-duration';
 
 function safeFilename(value: string) {
   return value.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').replace(/\s+/g, '-').slice(0, 80) || 'setlist';
@@ -24,7 +25,7 @@ export function downloadSetlistPdf(name: string, items: MaterialSetlistItem[]) {
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 18;
   const contentWidth = pageWidth - margin * 2;
-  const totalDuration = items.reduce((sum, item) => sum + (item.material?.estimated_duration ?? 0), 0);
+  const totalDuration = formatSetlistDuration(items.map((item) => item.material ?? {}));
   let y = margin;
 
   const ensureSpace = (height: number) => {
@@ -75,7 +76,7 @@ export function downloadSetlistPdf(name: string, items: MaterialSetlistItem[]) {
   const titleLines = doc.splitTextToSize(name, contentWidth) as string[];
   doc.text(titleLines, margin, y);
   y += titleLines.length * 9 + 2;
-  addParagraph(`Setlist Materi · ${items.length} materi · Total ±${totalDuration} menit`, { fontSize: 10, color: [100, 116, 139], gap: 8 });
+  addParagraph(`Setlist Materi · ${items.length} materi · Total ${totalDuration}`, { fontSize: 10, color: [100, 116, 139], gap: 8 });
 
   items.forEach((item, index) => {
     ensureSpace(22);
@@ -85,7 +86,7 @@ export function downloadSetlistPdf(name: string, items: MaterialSetlistItem[]) {
     y += 7;
     addParagraph(`MATERI ${index + 1}`, { fontSize: 9, color: [29, 78, 216], bold: true, gap: 2 });
     addParagraph(material?.title ?? 'Materi', { fontSize: 15, color: [15, 23, 42], bold: true, gap: 2 });
-    addParagraph(`${material?.theme ?? ''} · ±${material?.estimated_duration ?? 0} menit`, { fontSize: 10, color: [100, 116, 139], gap: 4 });
+    addParagraph(`${material?.theme ?? ''} · ${formatEstimatedDuration(material?.estimated_duration)}`, { fontSize: 10, color: [100, 116, 139], gap: 4 });
     if (material?.premis?.trim()) addParagraph(`Premis: ${material.premis.trim()}`, { fontSize: 11, gap: 5 });
     parseMaterialContent(material?.content ?? '').forEach((block) => {
       if (block.type === 'table') addTable(block.rows);
@@ -184,16 +185,16 @@ function zipFiles(files: Array<{ name: string; content: string }>) {
 }
 
 export function downloadSetlistDocx(name: string, items: MaterialSetlistItem[]) {
-  const totalDuration = items.reduce((sum, item) => sum + (item.material?.estimated_duration ?? 0), 0);
+  const totalDuration = formatSetlistDuration(items.map((item) => item.material ?? {}));
   const body = [
     wordParagraph(name, { bold: true, color: '1746D1', size: 36, after: 240 }),
-    wordParagraph(`Setlist Materi · ${items.length} materi · Total ±${totalDuration} menit`, { color: '64748B', size: 20, after: 360 }),
+    wordParagraph(`Setlist Materi · ${items.length} materi · Total ${totalDuration}`, { color: '64748B', size: 20, after: 360 }),
     ...items.flatMap((item, index) => {
       const material = item.material;
       const sections = [
         wordParagraph(`MATERI ${index + 1}`, { bold: true, color: '1D4ED8', size: 18, after: 80 }),
         wordParagraph(material?.title ?? 'Materi', { bold: true, size: 30, after: 80 }),
-        wordParagraph(`${material?.theme ?? ''} · ±${material?.estimated_duration ?? 0} menit`, { color: '64748B', size: 20, after: 160 }),
+        wordParagraph(`${material?.theme ?? ''} · ${formatEstimatedDuration(material?.estimated_duration)}`, { color: '64748B', size: 20, after: 160 }),
       ];
       if (material?.premis?.trim()) sections.push(wordParagraph(`Premis: ${material.premis.trim()}`, { size: 22, after: 200 }));
       parseMaterialContent(material?.content ?? '').forEach((block) => {

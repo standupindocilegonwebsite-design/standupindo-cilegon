@@ -73,6 +73,12 @@ const BOTTOM_NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
   { key: 'more', label: 'More', icon: MoreHorizontal },
 ];
 
+const COMPACT_BOTTOM_NAV_LABELS: Partial<Record<Section, string>> = {
+  dashboard: 'Ringkas',
+  'open-mic-list': 'Daftar',
+  'open-mic-performers': 'Perform.',
+};
+
 function getSection(path: string): Section {
   const parts = path.split('/').filter(Boolean);
   if (parts[1] === 'pendaftar' && parts[2]) return 'registrants';
@@ -129,6 +135,7 @@ async function loadAllTicketOrders() {
 }
 
 function getWorkspaceNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean, isTicketAdmin: boolean, isQrScanner: boolean) {
+  if (isAdmin) return NAV;
   if (isTicketAdmin) return [
     { key: 'dashboard' as Section, label: 'Ringkasan', icon: BarChart3 },
     { key: 'ticket-orders' as Section, label: 'Order', icon: TicketIcon },
@@ -156,6 +163,7 @@ function getWorkspaceNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin
 }
 
 function getWorkspaceBottomNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean, isTicketAdmin: boolean, isQrScanner: boolean) {
+  if (isAdmin) return BOTTOM_NAV;
   if (isTicketAdmin) return [
     { key: 'dashboard' as Section, label: 'Ringkasan', icon: BarChart3 },
     { key: 'ticket-orders' as Section, label: 'Order', icon: TicketIcon },
@@ -185,20 +193,17 @@ function getWorkspaceBottomNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEven
     { key: 'partners' as Section, label: 'Partner', icon: Users },
     { key: 'more' as Section, label: 'Lainnya', icon: MoreHorizontal },
   ];
-  return isAdmin ? BOTTOM_NAV : [];
+  return [];
 }
 
-function isMoreNavigationActive(section: Section, isTicketAdmin: boolean, isQrScanner: boolean) {
-  return section === 'more' || section === 'settings'
-    || section === 'ccs-schedule'
-    || section === 'annual-recap'
-    || section === 'applications'
-    || section === 'ticket-orders'
-    || section === 'member-accounts'
-    || section === 'admin-accounts'
-    || section === 'evaluator'
-    || (isTicketAdmin && (section === 'payment-info' || section === 'ticket-report' || section === 'profile-settings'))
-    || (isQrScanner && (section === 'check-in-report' || section === 'profile-settings'));
+function isMoreNavigationActive(section: Section, isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean, isTicketAdmin: boolean, isQrScanner: boolean) {
+  return section === 'more'
+    || (isAdmin && ['settings', 'annual-recap', 'applications', 'ticket-orders', 'member-accounts', 'admin-accounts', 'evaluator', 'open-mic-history', 'ticket-gates', 'ccs-schedule'].includes(section))
+    || (isOpenMicAdmin && ['ccs-schedule', 'member-accounts', 'evaluator'].includes(section))
+    || (isEventAdmin && section === 'admin-accounts')
+    || (!isAdmin && section === 'profile-settings')
+    || (isTicketAdmin && (section === 'payment-info' || section === 'ticket-report'))
+    || (isQrScanner && (section === 'check-in-report' || section === 'tickets'));
 }
 
 function StatCard({ label, value, icon: Icon, tone, onClick, loading }: { label: string; value: number; icon: typeof BarChart3; tone: string; onClick?: () => void; loading?: boolean }) {
@@ -1037,7 +1042,7 @@ export function AdminPage({ router, settings }: Props) {
                       : item.key === 'applications' ? communityPendingCount : 0;
               const showPendingBadge = menuBadgeCount > 0;
               return (
-                <button key={item.key} onClick={() => navigateSection(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${sidebarCollapsed ? 'justify-center px-2' : ''} ${(item.key === 'more' ? isMoreNavigationActive(section, isTicketAdmin, isQrScanner) : section === item.key) ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`} title={sidebarCollapsed ? item.label : undefined}>
+                <button key={item.key} onClick={() => navigateSection(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${sidebarCollapsed ? 'justify-center px-2' : ''} ${(item.key === 'more' ? isMoreNavigationActive(section, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner) : section === item.key) ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`} title={sidebarCollapsed ? item.label : undefined}>
                   <Icon className="h-5 w-5" />
                   {!sidebarCollapsed && <span className="flex-1 text-left">{item.label}</span>}
                   {showPendingBadge && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-extrabold leading-none text-white" aria-label="Data menunggu review">{menuBadgeCount > 99 ? '99+' : menuBadgeCount}</span>}
@@ -1107,9 +1112,8 @@ export function AdminPage({ router, settings }: Props) {
       </footer>
 
       <AnimatedBottomNav
-        className="fixed inset-x-0 z-40 bg-transparent lg:hidden"
         ariaLabel="Navigasi admin mobile"
-        maxWidthClassName="max-w-xl"
+        hideAt="lg"
         items={visibleBottomNav.map((item) => {
           const pendingEventCount = notificationCounts['event-participants'];
           const communityPendingCount = notificationCounts.applications;
@@ -1140,11 +1144,12 @@ export function AdminPage({ router, settings }: Props) {
                   : item.key === 'partners'
                     ? section === 'partners'
                     : item.key === 'more'
-                      ? isMoreNavigationActive(section, isTicketAdmin, isQrScanner)
+                      ? isMoreNavigationActive(section, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner)
                       : section === item.key;
           return {
             id: item.key,
             label: item.label,
+            compactLabel: COMPACT_BOTTOM_NAV_LABELS[item.key],
             icon: item.icon,
             active: isActive,
             onSelect: () => navigateSection(item.key),
@@ -3752,6 +3757,23 @@ function EventDocumentationPhotosModal({ event, onClose, onNotice, onSaved }: { 
   );
 }
 
+const DEFAULT_EVENT_RULES = `1. Ketentuan Umum
+Seluruh peserta dan penonton wajib mematuhi peraturan acara serta arahan penyelenggara selama kegiatan berlangsung.
+2. Ketepatan Waktu
+Peserta wajib hadir sesuai jadwal yang ditentukan. Keterlambatan dapat memengaruhi keikutsertaan atau urutan tampil berdasarkan keputusan penyelenggara.
+3. Ketentuan Penampilan
+Komika wajib mengikuti durasi tampil, urutan penampilan, dan ketentuan teknis yang telah ditetapkan oleh penyelenggara.
+4. Etika dan Kenyamanan
+Seluruh pihak wajib saling menghormati. Kekerasan, pelecehan, intimidasi, diskriminasi, atau perilaku yang mengganggu keselamatan dan kenyamanan tidak diperbolehkan.
+5. Ketertiban Acara
+Penonton diharapkan menjaga ketertiban selama pertunjukan dan menghindari aktivitas yang mengganggu penampilan komika maupun kenyamanan penonton lainnya.
+6. Dokumentasi dan Perekaman
+Dokumentasi oleh penyelenggara dan perekaman oleh penonton mengikuti kebijakan yang berlaku pada masing-masing acara.
+7. Tiket dan Pendaftaran
+Peserta dan penonton wajib mengikuti ketentuan pendaftaran, tiket, dan akses masuk. Ketentuan pembatalan serta pengembalian dana mengikuti kebijakan yang diumumkan untuk acara tersebut.
+8. Sanksi dan Keputusan Penyelenggara
+Pelanggaran terhadap peraturan dapat dikenai teguran atau tindakan lain yang sesuai dengan tingkat pelanggaran. Penyelenggara berwenang mengambil tindakan yang diperlukan demi kelancaran dan keselamatan acara.`;
+
 function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving, onNotice, onPhotoSaved, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; venueHistory: OpenMic[]; saving: boolean; onClose: () => void; onSaving: (v: boolean) => void; onNotice: (message: string) => void; onPhotoSaved: () => Promise<void>; onSaved: () => void }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
@@ -3782,7 +3804,7 @@ function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving
     } else if (kind === 'partner') {
       setForm({ name: '', logo_url: '', website_url: '', contact_name: '', contact_phone: '', notes: '', category: 'sponsor', is_published: 'true', sort_order: '0' });
     } else {
-      setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', documentation_photos: '', status: 'upcoming', registration_status: 'closed', published: 'true', whatsapp_number: '', whatsapp_message: '', event_rules: '' });
+      setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', documentation_photos: '', status: 'upcoming', registration_status: 'closed', published: 'true', whatsapp_number: '', whatsapp_message: '', event_rules: DEFAULT_EVENT_RULES });
     }
   }, [kind, editing, nextOpenMicTitle]);
 

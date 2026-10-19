@@ -119,7 +119,7 @@ function PaymentInstructions({ method, totalPrice }: { method: PaymentSnapshot; 
                   aria-label="Perbesar QRIS pembayaran"
                   title="Ketuk untuk memperbesar QRIS"
                 >
-                  <img src={qrisUrl} alt="QRIS pembayaran Event, ketuk untuk memperbesar" className="mx-auto max-h-64 rounded-lg border border-slate-200 object-contain transition group-hover:border-blue-400" />
+                  <img src={qrisUrl} alt="QRIS pembayaran Event, ketuk untuk memperbesar" className="mx-auto max-h-[70vh] max-w-full rounded-lg border border-slate-200 object-contain transition group-hover:border-blue-400 sm:max-h-[28rem]" />
                   <span className="mt-2 block text-center text-xs font-semibold text-blue-700">Ketuk QRIS untuk melihat lebih besar</span>
                 </button>
                 <ImageLightbox
@@ -512,11 +512,13 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
               <input id="ticket-order-name" required value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} className="input-field" placeholder="Contoh: Budi Santoso" autoComplete="name" />
             </div>
             <div>
-              <label className="label-field" htmlFor="ticket-order-email">Email</label>
+              <label className="label-field mb-0" htmlFor="ticket-order-email">Email</label>
+              <p className="mb-2 text-xs text-slate-500">(Gunakan email aktif)</p>
               <input id="ticket-order-email" required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field" placeholder="Contoh: budi@email.com" autoComplete="email" />
             </div>
             <div>
-              <label className="label-field" htmlFor="ticket-order-whatsapp">Nomor WhatsApp</label>
+              <label className="label-field mb-0" htmlFor="ticket-order-whatsapp">Nomor WhatsApp</label>
+              <p className="mb-2 text-xs text-slate-500">(Gunakan nomor WhatsApp aktif)</p>
               <input id="ticket-order-whatsapp" required type="tel" inputMode="numeric" pattern="[0-9]+" value={form.whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="input-field" placeholder="Contoh: 082212345678" autoComplete="tel" />
             </div>
             <div>
@@ -554,9 +556,9 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
               />
               <label htmlFor="ticket-legal-consent" className="text-sm leading-6 text-slate-700">
                 Saya telah membaca dan menyetujui{' '}
-                <a href={`/syarat-ketentuan?backTo=${encodeURIComponent(`/event/${slug}/tiket/${ticketId}`)}`} target="_blank" rel="noopener noreferrer" onClick={(click) => click.stopPropagation()} className="font-bold text-blue-700 underline underline-offset-2">Syarat &amp; Ketentuan</a>
+                <a href={`/syarat-ketentuan?backTo=${encodeURIComponent(`/event/${slug}/tiket/${ticketId}`)}`} target="_blank" rel="noopener noreferrer" onClick={(click) => click.stopPropagation()} className="font-bold text-blue-800 underline underline-offset-2 hover:text-blue-900">Syarat &amp; Ketentuan</a>
                 {' '}serta{' '}
-                <a href={`/kebijakan-privasi?backTo=${encodeURIComponent(`/event/${slug}/tiket/${ticketId}`)}`} target="_blank" rel="noopener noreferrer" onClick={(click) => click.stopPropagation()} className="font-bold text-blue-700 underline underline-offset-2">Kebijakan Privasi</a>.
+                <a href={`/kebijakan-privasi?backTo=${encodeURIComponent(`/event/${slug}/tiket/${ticketId}`)}`} target="_blank" rel="noopener noreferrer" onClick={(click) => click.stopPropagation()} className="font-bold text-blue-800 underline underline-offset-2 hover:text-blue-900">Kebijakan Privasi</a>.
               </label>
             </div>
             {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}

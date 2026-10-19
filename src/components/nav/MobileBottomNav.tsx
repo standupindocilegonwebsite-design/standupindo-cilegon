@@ -11,12 +11,14 @@ const ITEMS = [
 ];
 
 export function MobileBottomNav({ router }: { router: Router }) {
-  const isActive = (to: string) =>
-    to === '/' ? router.path === '/' : router.path.startsWith(to);
+  const isActive = (to: string) => {
+    if (to === '/') return router.path === '/';
+    if (to === '/more' && ['/syarat-ketentuan', '/kebijakan-privasi'].includes(router.path)) return true;
+    return router.path === to || router.path.startsWith(`${to}/`);
+  };
 
   return (
     <AnimatedBottomNav
-      className="fixed inset-x-0 z-40 bg-transparent md:hidden"
       ariaLabel="Navigasi utama"
       items={ITEMS.map((item) => ({
         id: item.to,

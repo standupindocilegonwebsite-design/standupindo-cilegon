@@ -496,10 +496,8 @@ export function TicketAccessPage({ router }: { router: Router }) {
         </div> : null}
       </div>
       {session && <AnimatedBottomNav
-        className="fixed inset-x-0 z-50 bg-transparent"
         ariaLabel="Navigasi tiket"
-        maxWidthClassName="max-w-xl"
-        contentClassName="px-2 sm:px-4"
+        hideAt={null}
         items={[
           { id: 'tickets', label: 'TIKET SAYA', icon: Ticket, active: ticketTab === 'tickets', onSelect: () => setTicketTab('tickets') },
           { id: 'events', label: 'EVENT', icon: CalendarDays, active: ticketTab === 'events', onSelect: () => { setTicketTab('events'); void loadHistory(); } },

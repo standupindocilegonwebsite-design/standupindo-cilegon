@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal';
 import { parseMaterialContent } from '@/lib/material-content';
 import { PageHeader } from '@/components/PageHeader';
 import { downloadSetlistDocx, downloadSetlistPdf } from '@/lib/material-setlist-export';
+import { formatEstimatedDuration, formatSetlistDuration } from '@/lib/material-duration';
 
 export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
   const { user } = useAuth();
@@ -51,7 +52,7 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
   }
 
   useEffect(() => { void loadData(); }, [user?.id]);
-  const selectedDuration = useMemo(() => materials.filter((material) => selected.includes(material.id)).reduce((total, material) => total + material.estimated_duration, 0), [materials, selected]);
+  const selectedDurationLabel = useMemo(() => formatSetlistDuration(materials.filter((material) => selected.includes(material.id))), [materials, selected]);
   const filteredMaterials = useMemo(() => {
     const query = materialSearch.trim().toLowerCase();
     if (!query) return materials;
@@ -213,11 +214,11 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
           </div>}
           {setlists.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center"><ListPlus className="mx-auto h-7 w-7 text-blue-500" /><p className="mt-2 text-sm font-bold text-slate-800">Belum ada setlist</p><p className="mt-1 text-xs text-slate-500">Gabungkan beberapa materi jadi satu urutan tampil.</p><button type="button" onClick={startCreatingSetlist} className="btn-primary mt-4 !min-h-10 !px-3 !py-2 text-xs"><Plus className="h-4 w-4" /> Buat Setlist Pertama</button></div> : filteredSetlists.length === 0 ? <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-xs text-slate-500">Setlist tidak ditemukan.</p> : filteredSetlists.map((setlist) => {
             const items = getItems(setlist);
-            const total = items.reduce((sum, item) => sum + (item.material?.estimated_duration ?? 0), 0);
+            const durationLabel = formatSetlistDuration(items.map((item) => item.material ?? {}));
             const isExpanded = expandedSetlist === setlist.id;
             return <article key={setlist.id} className="rounded-2xl border border-slate-200 bg-white p-3">
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setExpandedSetlist(isExpanded ? null : setlist.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left" aria-expanded={isExpanded}><ChevronDown className={`h-4 w-4 shrink-0 text-blue-600 transition-transform ${isExpanded ? 'rotate-180' : ''}`} /><span className="min-w-0"><strong className="block truncate text-sm text-slate-900">{setlist.name}</strong><small className="text-[11px] text-slate-500">{items.length} materi · ±{total} menit</small></span></button>
+                <button type="button" onClick={() => setExpandedSetlist(isExpanded ? null : setlist.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left" aria-expanded={isExpanded}><ChevronDown className={`h-4 w-4 shrink-0 text-blue-600 transition-transform ${isExpanded ? 'rotate-180' : ''}`} /><span className="min-w-0"><strong className="block truncate text-sm text-slate-900">{setlist.name}</strong><small className="text-[11px] text-slate-500">{items.length} materi · {durationLabel}</small></span></button>
                 <div className="flex shrink-0 gap-1">
                   <button type="button" onClick={() => startEditingSetlist(setlist)} className="rounded-lg bg-slate-100 p-1.5 text-slate-600 hover:bg-blue-50 hover:text-blue-700" aria-label={`Edit ${setlist.name}`} title="Edit setlist"><Pencil className="h-3.5 w-3.5" /></button>
                   <button type="button" onClick={() => setReadingSetlist(setlist)} className="rounded-lg bg-blue-50 p-1.5 text-blue-700 hover:bg-blue-100" aria-label={`Mode Baca Setlist ${setlist.name}`} title="Mode Baca Setlist"><BookOpen className="h-3.5 w-3.5" /></button>
@@ -225,7 +226,7 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
                   <button type="button" onClick={() => setDeleteTarget(setlist)} className="rounded-lg bg-red-50 p-1.5 text-red-700 hover:bg-red-100" aria-label={`Hapus ${setlist.name}`} title="Hapus"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>
               </div>
-              {isExpanded && <div className="mt-3 border-t border-slate-100 pt-2">{items.length === 0 ? <p className="text-xs text-slate-500">Isi setlist belum tersedia.</p> : <div className="space-y-1.5">{items.map((item, index) => <div key={item.id} draggable onDragStart={() => setDraggedItem({ setlistId: setlist.id, itemId: item.id })} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (draggedItem?.setlistId === setlist.id) void reorderSetlistItems(setlist.id, draggedItem.itemId, item.id); setDraggedItem(null); }} className="rounded-xl border border-slate-100 p-2.5 transition hover:border-blue-200"><div className="flex items-start gap-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-extrabold text-blue-700">{index + 1}</span><div className="min-w-0 flex-1"><p className="text-xs font-bold text-slate-800">{item.material?.title ?? 'Materi'}</p><div className="flex flex-wrap items-center gap-x-2 gap-y-0.5"><p className="text-[11px] text-slate-500">{item.material?.theme} · ±{item.material?.estimated_duration} menit</p><span className="inline-flex items-center gap-0.5" aria-label={item.material?.rating ? `Rating ${item.material.rating} dari 5` : 'Belum dirating'}>{[1, 2, 3, 4, 5].map((value) => <Star key={value} className={`h-3 w-3 ${item.material?.rating && value <= item.material.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} aria-hidden="true" />)}</span></div></div><div className="flex shrink-0 gap-0.5"><button type="button" onClick={() => { const previous = items[index - 1]; if (previous) void reorderSetlistItems(setlist.id, item.id, previous.id); }} disabled={index === 0} className="rounded-md p-1.5 text-slate-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-30" aria-label={`Naikkan ${item.material?.title ?? 'materi'}`} title="Naikkan"><ArrowUp className="h-3.5 w-3.5" /></button><button type="button" onClick={() => { const next = items[index + 1]; if (next) void reorderSetlistItems(setlist.id, item.id, next.id); }} disabled={index === items.length - 1} className="rounded-md p-1.5 text-slate-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-30" aria-label={`Turunkan ${item.material?.title ?? 'materi'}`} title="Turunkan"><ArrowDown className="h-3.5 w-3.5" /></button></div></div></div>)}</div>}</div>}
+              {isExpanded && <div className="mt-3 border-t border-slate-100 pt-2">{items.length === 0 ? <p className="text-xs text-slate-500">Isi setlist belum tersedia.</p> : <div className="space-y-1.5">{items.map((item, index) => <div key={item.id} draggable onDragStart={() => setDraggedItem({ setlistId: setlist.id, itemId: item.id })} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (draggedItem?.setlistId === setlist.id) void reorderSetlistItems(setlist.id, draggedItem.itemId, item.id); setDraggedItem(null); }} className="rounded-xl border border-slate-100 p-2.5 transition hover:border-blue-200"><div className="flex items-start gap-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-extrabold text-blue-700">{index + 1}</span><div className="min-w-0 flex-1"><p className="text-xs font-bold text-slate-800">{item.material?.title ?? 'Materi'}</p><div className="flex flex-wrap items-center gap-x-2 gap-y-0.5"><p className="text-[11px] text-slate-500">{item.material?.theme} · {formatEstimatedDuration(item.material?.estimated_duration)}</p><span className="inline-flex items-center gap-0.5" aria-label={item.material?.rating ? `Rating ${item.material.rating} dari 5` : 'Belum dirating'}>{[1, 2, 3, 4, 5].map((value) => <Star key={value} className={`h-3 w-3 ${item.material?.rating && value <= item.material.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} aria-hidden="true" />)}</span></div></div><div className="flex shrink-0 gap-0.5"><button type="button" onClick={() => { const previous = items[index - 1]; if (previous) void reorderSetlistItems(setlist.id, item.id, previous.id); }} disabled={index === 0} className="rounded-md p-1.5 text-slate-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-30" aria-label={`Naikkan ${item.material?.title ?? 'materi'}`} title="Naikkan"><ArrowUp className="h-3.5 w-3.5" /></button><button type="button" onClick={() => { const next = items[index + 1]; if (next) void reorderSetlistItems(setlist.id, item.id, next.id); }} disabled={index === items.length - 1} className="rounded-md p-1.5 text-slate-500 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-30" aria-label={`Turunkan ${item.material?.title ?? 'materi'}`} title="Turunkan"><ArrowDown className="h-3.5 w-3.5" /></button></div></div></div>)}</div>}</div>}
             </article>;
           })}
         </section>
@@ -302,7 +303,7 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
                       <span className="mt-0.5 inline-flex items-center gap-0.5" aria-label={material.rating ? `Rating ${material.rating} dari 5` : 'Belum dirating'}>{[1, 2, 3, 4, 5].map((value) => <Star key={value} className={`h-3 w-3 ${material.rating && value <= material.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} aria-hidden="true" />)}</span>
                     </span>
                     <span className="shrink-0 text-right">
-                      <span className="block text-xs font-semibold text-slate-500">±{material.estimated_duration} mnt</span>
+                      <span className="block text-xs font-semibold text-slate-500">{formatEstimatedDuration(material.estimated_duration, true)}</span>
                       <span className={`mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-bold ${checked ? 'bg-blue-100 text-blue-700' : 'bg-blue-600 text-white'}`}>
                         {checked ? <><Check className="h-3.5 w-3.5" /> Ditambahkan</> : <><Plus className="h-3.5 w-3.5" /> Tambah</>}
                       </span>
@@ -330,7 +331,7 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
             </div>
           </div>}
           <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <span className="inline-flex items-center gap-2 text-[13px] font-bold text-slate-700"><Clock3 className="h-4 w-4 text-blue-600" /> ±{selectedDuration} menit <span className="text-slate-300">·</span> {selected.length} materi</span>
+            <span className="inline-flex items-center gap-2 text-[13px] font-bold text-slate-700"><Clock3 className="h-4 w-4 text-blue-600" /> {selectedDurationLabel} <span className="text-slate-300">·</span> {selected.length} materi</span>
             <div className="flex gap-2 sm:order-2">
               <button type="button" onClick={cancelSetlistBuilder} disabled={saving} className="btn-secondary flex-1 !min-h-11 !px-4 !py-2.5 text-sm sm:flex-none">Batal</button>
               <button type="submit" disabled={saving || loading} className="btn-primary flex-1 !min-h-11 !px-4 !py-2.5 text-sm sm:flex-none"><Check className="h-4 w-4" /> {saving ? 'Menyimpan...' : editingSetlistId ? 'Simpan Perubahan' : 'Simpan Setlist'}</button>
@@ -346,11 +347,11 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
         size="lg"
         headerContent={readingSetlist && (() => {
           const items = getItems(readingSetlist);
-          const total = items.reduce((sum, item) => sum + (item.material?.estimated_duration ?? 0), 0);
+          const durationLabel = formatSetlistDuration(items.map((item) => item.material ?? {}));
           const dark = readingTheme === 'dark';
           return (
             <div className="flex items-center justify-between gap-3">
-              <p className={`min-w-0 text-xs font-bold ${dark ? 'text-slate-600' : 'text-slate-500'}`}>Setlist Materi · {items.length} materi · ±{total} menit</p>
+              <p className={`min-w-0 text-xs font-bold ${dark ? 'text-slate-600' : 'text-slate-500'}`}>Setlist Materi · {items.length} materi · {durationLabel}</p>
               <button type="button" onClick={() => setReadingTheme(dark ? 'light' : 'dark')} aria-pressed={dark} className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${dark ? 'bg-slate-800 text-amber-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`} aria-label={dark ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'} title={dark ? 'Mode terang' : 'Mode gelap'}>
                 {dark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
               </button>
@@ -360,12 +361,12 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
       >
         {readingSetlist && (() => {
           const items = getItems(readingSetlist);
-          const total = items.reduce((sum, item) => sum + (item.material?.estimated_duration ?? 0), 0);
+          const durationLabel = formatSetlistDuration(items.map((item) => item.material ?? {}));
           const dark = readingTheme === 'dark';
           return (
             <div className={`space-y-4 rounded-2xl p-3 transition-colors sm:p-4 ${dark ? 'bg-slate-950' : 'bg-white'}`}>
               <div className={`rounded-2xl border p-3 text-center sm:p-4 ${dark ? 'border-slate-700 bg-slate-900' : 'border-amber-100 bg-[#fffdf7]'}`}>
-                <p className={`text-xs font-bold ${dark ? 'text-slate-300' : 'text-slate-500'}`}>Setlist Materi · {items.length} materi · ±{total} menit</p>
+                <p className={`text-xs font-bold ${dark ? 'text-slate-300' : 'text-slate-500'}`}>Setlist Materi · {items.length} materi · {durationLabel}</p>
               </div>
               {items.length === 0 ? (
                 <p className={`rounded-xl border border-dashed p-6 text-center text-sm ${dark ? 'border-slate-700 text-slate-400' : 'border-slate-300 text-slate-500'}`}>Isi setlist belum tersedia.</p>
@@ -374,7 +375,7 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
                   <header className={`border-b px-4 py-3 ${dark ? 'border-slate-700' : 'border-amber-100'}`}>
                     <p className={`text-[10px] font-extrabold uppercase tracking-[0.14em] ${dark ? 'text-sky-400' : 'text-blue-700'}`}>Materi {index + 1}</p>
                     <h3 className={`mt-1 text-base font-bold leading-snug ${dark ? 'text-slate-100' : 'text-slate-900'}`}>{item.material?.title ?? 'Materi'}</h3>
-                    <p className={`mt-1 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{item.material?.theme} · ±{item.material?.estimated_duration} menit</p>
+                    <p className={`mt-1 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{item.material?.theme} · {formatEstimatedDuration(item.material?.estimated_duration)}</p>
                     {item.material?.premis && <p className={`mt-3 text-sm leading-6 ${dark ? 'text-slate-300' : 'text-slate-700'}`}><span className="font-bold">Premis:</span> {item.material.premis}</p>}
                   </header>
                   <div className={`space-y-4 px-4 py-5 font-serif text-[16px] leading-8 ${dark ? 'text-slate-200' : 'text-slate-700'}`}>

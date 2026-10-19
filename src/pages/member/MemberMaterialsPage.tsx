@@ -7,6 +7,8 @@ import { MaterialContentEditor } from '@/components/MaterialContentEditor';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { MaterialDurationInput } from '@/components/MaterialDurationInput';
+import { formatEstimatedDuration, isEstimatedDurationInputValid, parseEstimatedDuration } from '@/lib/material-duration';
 
 const THEMES = ['Observasi', 'Percintaan', 'Keluarga', 'Pekerjaan', 'Kehidupan', 'Politik', 'Random', 'Lainnya'];
 
@@ -55,7 +57,7 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
     const ratingText = material.rating ? `${material.rating} ${material.rating}/5 rating ${material.rating}/5` : 'belum dirating belum dinilai tanpa rating';
     const matchesSearch = !query || `${material.title} ${material.theme} ${material.content} ${ratingText}`.toLowerCase().includes(query);
     const matchesTheme = theme === 'all' || themeKey(material.theme) === themeKey(theme);
-    const matchesDuration = duration === 'all' || (duration === 'short' ? material.estimated_duration <= 5 : material.estimated_duration > 5);
+    const matchesDuration = duration === 'all' || (material.estimated_duration !== null && (duration === 'short' ? material.estimated_duration <= 5 : material.estimated_duration > 5));
     const matchesRating = rating === 'all' || (rating === 'unrated' ? !material.rating : material.rating === Number(rating));
     return matchesSearch && matchesTheme && matchesDuration && matchesRating;
   }), [duration, materials, rating, search, theme]);
@@ -132,8 +134,12 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
   async function saveMaterial(event: React.FormEvent) {
     event.preventDefault();
     if (!user?.id) return;
-    if (!form.title.trim() || !normalizeTheme(form.theme) || !form.estimated_duration || !form.content.trim()) {
-      setError('Judul, tema, durasi, dan materi wajib diisi.');
+    if (!form.title.trim() || !normalizeTheme(form.theme) || !form.content.trim()) {
+      setError('Judul, tema, dan materi wajib diisi.');
+      return;
+    }
+    if (!isEstimatedDurationInputValid(form.estimated_duration)) {
+      setError('Estimasi durasi harus berupa angka menit lebih besar dari 0.');
       return;
     }
     setSaving(true);
@@ -145,7 +151,7 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
       title: form.title.trim().toUpperCase(),
       theme: normalizeTheme(existingTheme ?? normalizedTheme).toUpperCase(),
       premis: form.premis.trim() || null,
-      estimated_duration: Number(form.estimated_duration),
+      estimated_duration: parseEstimatedDuration(form.estimated_duration),
       content: form.content.trim(),
     });
     setSaving(false);
@@ -203,7 +209,10 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
               <p className="mt-1.5 text-xs text-slate-500">Tema baru yang kamu simpan akan menjadi pilihan pribadi di sini.</p>
             </div>
             <div><label htmlFor="material-premis" className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Premis</label><textarea id="material-premis" className="input-field !min-h-[88px]" placeholder="Inti atau gagasan utama materi..." value={form.premis} onChange={(event) => setForm({ ...form, premis: event.target.value })} /></div>
-            <input className="input-field" type="number" min="1" placeholder="Estimasi durasi (menit)" value={form.estimated_duration} onChange={(event) => setForm({ ...form, estimated_duration: event.target.value })} />
+            <div>
+              <label htmlFor="material-duration" className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Estimasi durasi <span className="font-semibold normal-case tracking-normal text-slate-400">(opsional)</span></label>
+              <MaterialDurationInput id="material-duration" value={form.estimated_duration} onChange={(estimated_duration) => setForm((current) => ({ ...current, estimated_duration }))} />
+            </div>
             <MaterialContentEditor value={form.content} onChange={(content) => setForm((current) => ({ ...current, content }))} />
             <button type="submit" disabled={saving} className="btn-primary w-full">{saving ? 'Menyimpan...' : 'Simpan Materi'}</button>
           </div>
@@ -222,7 +231,7 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
           <div className="rounded-[26px] border border-dashed border-slate-300 bg-white p-7 text-center sm:p-8">{(() => { const emptyState = getEmptyState(); const EmptyIcon: LucideIcon = emptyState.icon; return <><span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500" aria-hidden="true"><EmptyIcon className="h-5 w-5" strokeWidth={1.8} /></span><p className="mt-3 font-bold text-slate-800">{emptyState.title}</p><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">{emptyState.description}</p>{materials.length === 0 && <p className="mt-2 text-xs text-slate-400">Tekan tombol + untuk menyimpan materi pertamamu.</p>}</>; })()}</div>
         ) : (
           <div className="grid gap-3">
-            {filteredMaterials.map((material) => <button type="button" key={material.id} onClick={() => router.navigate(`/member/materials/${material.id}`)} className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-left shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md sm:px-4"><div className="min-w-0"><p className="truncate text-[9px] font-extrabold uppercase tracking-[0.14em] text-blue-700 uppercase">{material.theme}</p><h2 className="mt-0.5 line-clamp-2 break-words text-base font-extrabold leading-snug text-slate-950 uppercase sm:text-lg">{material.title}</h2></div><div className="mt-2 flex min-w-0 items-center justify-between gap-3 text-[11px] font-semibold text-slate-500"><div className="flex min-w-0 items-center gap-2"><span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap"><Clock3 className="h-3.5 w-3.5 text-blue-600" /> ±{material.estimated_duration} mnt</span><span className="inline-flex shrink-0 items-center gap-0.5" aria-label={material.rating ? `Rating ${material.rating} dari 5` : 'Belum dirating'}>{[1, 2, 3, 4, 5].map((value) => <Star key={value} className={`h-3.5 w-3.5 ${material.rating && value <= material.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} aria-hidden="true" />)}</span></div><span className="min-w-0 truncate text-right text-[10px] font-normal text-slate-400">Diperbarui {formatUpdated(material.updated_at)}</span></div></button>)}
+            {filteredMaterials.map((material) => <button type="button" key={material.id} onClick={() => router.navigate(`/member/materials/${material.id}`)} className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-left shadow-[0_6px_16px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md sm:px-4"><div className="min-w-0"><p className="truncate text-[9px] font-extrabold uppercase tracking-[0.14em] text-blue-700 uppercase">{material.theme}</p><h2 className="mt-0.5 line-clamp-2 break-words text-base font-extrabold leading-snug text-slate-950 uppercase sm:text-lg">{material.title}</h2></div><div className="mt-2 flex min-w-0 items-center justify-between gap-3 text-[11px] font-semibold text-slate-500"><div className="flex min-w-0 items-center gap-2"><span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap"><Clock3 className="h-3.5 w-3.5 text-blue-600" /> {formatEstimatedDuration(material.estimated_duration, true)}</span><span className="inline-flex shrink-0 items-center gap-0.5" aria-label={material.rating ? `Rating ${material.rating} dari 5` : 'Belum dirating'}>{[1, 2, 3, 4, 5].map((value) => <Star key={value} className={`h-3.5 w-3.5 ${material.rating && value <= material.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} aria-hidden="true" />)}</span></div><span className="min-w-0 truncate text-right text-[10px] font-normal text-slate-400">Diperbarui {formatUpdated(material.updated_at)}</span></div></button>)}
           </div>
         ))}
       </div>

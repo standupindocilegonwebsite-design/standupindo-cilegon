@@ -5,76 +5,102 @@ import { MobileBottomNavPortal } from '@/components/nav/MobileBottomNavPortal';
 export interface AnimatedBottomNavItem {
   id: string;
   label: string;
+  compactLabel?: string;
   icon: LucideIcon;
   active: boolean;
   onSelect: () => void;
   badge?: number;
 }
 
-function getNavShape(centerRatio: number, itemCount: number, stretch = 0) {
+function getNavShape(centerRatio: number, itemCount: number, stretch = 0, baseDepth = 100, minimumHalfWidth = 0) {
   const center = centerRatio * 1000;
   const halfWidth = Math.min(
-    (0.65 / itemCount) * (1 + stretch),
-    centerRatio - 0.015,
-    0.985 - centerRatio,
+    (minimumHalfWidth > 0 ? minimumHalfWidth * 1.8 : 0.54 / itemCount) * (1 + stretch),
+    centerRatio - 0.0025,
+    0.9975 - centerRatio,
   ) * 1000;
   const left = center - halfWidth;
   const right = center + halfWidth;
-  const depth = 80 * (1 + stretch * 0.45);
+  const depth = baseDepth * (1 + stretch * 0.45);
   const leftCurveControl = left + halfWidth * 0.42;
   const rightCurveControl = right - halfWidth * 0.42;
   const wave = `C${leftCurveControl} 0 ${center - halfWidth * 0.42} ${depth} ${center} ${depth}C${center + halfWidth * 0.42} ${depth} ${rightCurveControl} 0 ${right} 0`;
-  const leftJoin = left >= 40
-    ? `M40 0H${left}`
-    : `M0 40C0 16 ${Math.max(0, left - 18)} 0 ${left} 0`;
-  const rightJoin = right <= 960
-    ? `H960Q1000 0 1000 40`
-    : `C${Math.min(1000, right + 30)} 0 1000 16 1000 40`;
-  const topContour = `${leftJoin}${wave}${rightJoin}`;
-  const leftClose = left >= 40 ? 'V40Q0 0 40 0Z' : 'V40Z';
-  const shape = `${leftJoin}${wave}${rightJoin}V120Q1000 160 960 160H40Q0 160 0 120${leftClose}`;
+  const topContour = `M0 0H${left}${wave}H1000`;
+  const shape = `${topContour}V160H0Z`;
 
   return { topContour, shape };
 }
 
 interface AnimatedBottomNavProps {
   items: AnimatedBottomNavItem[];
-  className: string;
   ariaLabel: string;
-  maxWidthClassName?: string;
-  contentClassName?: string;
+  hideAt?: 'md' | 'lg' | null;
 }
 
 export function AnimatedBottomNav({
   items,
-  className,
   ariaLabel,
-  maxWidthClassName = 'max-w-md',
-  contentClassName = '',
+  hideAt = 'md',
 }: AnimatedBottomNavProps) {
   const activeIndex = items.findIndex((item) => item.active);
   const shapePathRef = useRef<SVGPathElement>(null);
   const contourPathRef = useRef<SVGPathElement>(null);
+  const navShapeRef = useRef<SVGSVGElement>(null);
   const indicatorRef = useRef<HTMLSpanElement>(null);
+  const waveDepthRef = useRef(100);
+  const waveHalfWidthRef = useRef(0);
   const ActiveIcon = activeIndex >= 0 ? items[activeIndex].icon : null;
   const activePositionRatio = activeIndex >= 0 ? (activeIndex + 0.5) / items.length : undefined;
   const currentPosition = useRef(activePositionRatio ?? 0);
   const activePosition = activePositionRatio !== undefined ? `${activePositionRatio * 100}%` : undefined;
   const initialShape = activePositionRatio !== undefined
-    ? getNavShape(activePositionRatio, items.length)
+    ? getNavShape(activePositionRatio, items.length, 0, waveDepthRef.current, waveHalfWidthRef.current)
     : undefined;
+
+  useLayoutEffect(() => {
+    const updateWaveDepth = () => {
+      const shape = navShapeRef.current;
+      const indicator = indicatorRef.current;
+      const shapeBounds = shape?.getBoundingClientRect();
+      const indicatorBounds = indicator?.getBoundingClientRect();
+      if (!shape || !indicator || !shapeBounds?.height || !indicatorBounds) return;
+
+      const gap = Number.parseFloat(getComputedStyle(shape).getPropertyValue('--animated-nav-cutout-gap'));
+      waveDepthRef.current = ((indicatorBounds.bottom - shapeBounds.top + gap) / shapeBounds.height) * 160;
+      waveHalfWidthRef.current = (indicatorBounds.width / 2 + gap) / shapeBounds.width;
+      const { shape: nextShape, topContour } = getNavShape(
+        currentPosition.current,
+        items.length,
+        0,
+        waveDepthRef.current,
+        waveHalfWidthRef.current,
+      );
+      shapePathRef.current?.setAttribute('d', nextShape);
+      contourPathRef.current?.setAttribute('d', topContour);
+    };
+
+    const resizeObserver = new ResizeObserver(updateWaveDepth);
+    const shape = navShapeRef.current;
+    const indicator = indicatorRef.current;
+    if (shape) resizeObserver.observe(shape);
+    if (indicator) resizeObserver.observe(indicator);
+    updateWaveDepth();
+    return () => resizeObserver.disconnect();
+  }, [items.length]);
 
   useLayoutEffect(() => {
     if (activePositionRatio === undefined || currentPosition.current === activePositionRatio) return;
 
     const from = currentPosition.current;
     const to = activePositionRatio;
+    const baseDepth = waveDepthRef.current;
+    const minimumHalfWidth = waveHalfWidthRef.current;
     let startTime = 0;
     let frame = 0;
 
     const updateShape = (center: number, stretch: number) => {
       currentPosition.current = center;
-      const { shape, topContour } = getNavShape(center, items.length, stretch);
+      const { shape, topContour } = getNavShape(center, items.length, stretch, baseDepth, minimumHalfWidth);
       shapePathRef.current?.setAttribute('d', shape);
       contourPathRef.current?.setAttribute('d', topContour);
       if (indicatorRef.current) indicatorRef.current.style.left = `${center * 100}%`;
@@ -101,13 +127,14 @@ export function AnimatedBottomNav({
 
   if (items.length === 0) return null;
 
+  const visibilityClassName = hideAt === 'lg' ? 'lg:hidden' : hideAt === 'md' ? 'md:hidden' : '';
+
   return (
-    <MobileBottomNavPortal className={className} ariaLabel={ariaLabel}>
-      <div
-        className={`animated-bottom-nav relative mx-auto w-[calc(100%-1.5rem)] ${maxWidthClassName} ${contentClassName}`}
-      >
+    <MobileBottomNavPortal className={visibilityClassName} ariaLabel={ariaLabel}>
+      <div className="animated-bottom-nav relative w-full">
         {ActiveIcon && initialShape && <>
           <svg
+            ref={navShapeRef}
             className="animated-bottom-nav__shape"
             viewBox="0 0 1000 160"
             preserveAspectRatio="none"
@@ -142,6 +169,7 @@ export function AnimatedBottomNav({
                 onClick={item.onSelect}
                 className={`animated-bottom-nav__item flex min-w-0 flex-col items-center gap-0.5 px-0.5 text-center ${item.active ? 'is-active' : ''}`}
                 aria-current={item.active ? 'page' : undefined}
+                aria-label={item.label}
               >
                 <span className="animated-bottom-nav__icon-slot relative flex h-7 w-7 shrink-0 items-center justify-center">
                   <Icon className={`h-5 w-5 ${item.active ? 'opacity-0' : ''}`} />
@@ -152,7 +180,12 @@ export function AnimatedBottomNav({
                   )}
                 </span>
                 <span className="animated-bottom-nav__label block w-full text-xs font-semibold leading-4">
-                  {item.label}
+                  {item.compactLabel ? (
+                    <>
+                      <span className="text-[10px] leading-3 sm:hidden">{item.compactLabel}</span>
+                      <span className="hidden sm:inline">{item.label}</span>
+                    </>
+                  ) : item.label}
                 </span>
               </button>
             );
