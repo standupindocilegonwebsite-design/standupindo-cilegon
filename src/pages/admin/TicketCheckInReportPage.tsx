@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Printer } from 'lucide-react';
-import { formatDate } from '@/lib/format';
+import { formatDate, getEventStatus } from '@/lib/format';
 import { LOGO_URL } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
@@ -12,6 +12,8 @@ interface CheckInEventReport {
   title: string;
   date: string;
   venue: string;
+  poster: string | null;
+  status: 'upcoming' | 'completed' | 'cancelled';
   tickets_sold: number;
   checked_in: number;
   not_checked_in: number;
@@ -28,7 +30,7 @@ interface CheckInTicketReport {
 interface CheckInReportResponse {
   error?: string;
   events: CheckInEventReport[];
-  available_events?: Pick<CheckInEventReport, 'id' | 'title' | 'date' | 'venue'>[];
+  available_events?: Pick<CheckInEventReport, 'id' | 'title' | 'date' | 'venue' | 'poster' | 'status'>[];
   tickets: CheckInTicketReport[];
 }
 
@@ -37,6 +39,7 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
   const [report, setReport] = useState<CheckInReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const initialEventSelected = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -55,6 +58,13 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
         return;
       }
       setReport(data);
+      if (!initialEventSelected.current && eventFilter === 'all') {
+        initialEventSelected.current = true;
+        const nextEvent = (data.available_events ?? data.events)
+          .filter((event) => getEventStatus(event.status, event.date) === 'upcoming')
+          .sort((first, second) => first.date.localeCompare(second.date))[0];
+        if (nextEvent) setEventFilter(nextEvent.id);
+      }
     });
     return () => { active = false; };
   }, [eventFilter]);
@@ -88,7 +98,7 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
   function exportExcel() {
     if (!report) return;
     const rows: Array<Array<string | number>> = eventFilter === 'all'
-      ? report.events.map((event) => [
+      ? eventsNewestFirst.map((event) => [
         event.title,
         formatDate(event.date),
         event.tickets_sold,
@@ -122,6 +132,10 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
 
   const canPrint = !loading && !error && Boolean(report?.events.length);
   const canExport = canPrint;
+  const eventsNewestFirst = useMemo(
+    () => [...(report?.events ?? [])].sort((first, second) => second.date.localeCompare(first.date) || second.id.localeCompare(first.id)),
+    [report?.events],
+  );
   const printTitle = selectedEvent?.title ?? 'Semua Event dalam scope Admin QR Scanner';
   const printedAt = new Date().toLocaleString('id-ID');
 
@@ -140,7 +154,13 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
       <SearchableEventSelect
         options={[...(report?.available_events ?? report?.events ?? [])]
           .sort((first, second) => second.date.localeCompare(first.date))
-          .map((event) => ({ id: event.id, title: event.title, subtitle: `${formatDate(event.date)} · ${event.venue}` }))}
+          .map((event) => ({
+            id: event.id,
+            title: event.title,
+            subtitle: `${formatDate(event.date)} · ${event.venue}`,
+            poster: event.poster,
+            statusLabel: getEventStatus(event.status, event.date) === 'completed' ? 'SELESAI' : undefined,
+          }))}
         value={eventFilter}
         onChange={setEventFilter}
         allLabel="Semua Event"
@@ -170,13 +190,13 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
           {eventFilter === 'all'
             ? <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-4 py-3"><h2 className="text-sm font-extrabold text-slate-900">Rekap per Event</h2></div>
-              {report.events.length
+              {eventsNewestFirst.length
                 ? <div className="overflow-x-auto">
                   <table className="w-full min-w-[680px] text-left text-xs">
                     <thead className="bg-slate-50 text-[10px] font-extrabold uppercase tracking-wide text-slate-500"><tr>
                       <th className="px-4 py-3">Event</th><th className="px-4 py-3">Tanggal</th><th className="px-4 py-3 text-right">Tiket Terjual</th><th className="px-4 py-3 text-right">Hadir</th><th className="px-4 py-3 text-right">Tidak Hadir</th><th className="px-4 py-3 text-right">Kehadiran</th>
                     </tr></thead>
-                    <tbody className="divide-y divide-slate-100">{report.events.map((event) => <tr key={event.id}>
+                    <tbody className="divide-y divide-slate-100">{eventsNewestFirst.map((event) => <tr key={event.id}>
                       <td className="px-4 py-3 font-bold text-slate-900">{event.title}</td><td className="px-4 py-3 text-slate-600">{formatDate(event.date)}</td><td className="px-4 py-3 text-right font-semibold tabular-nums">{event.tickets_sold}</td><td className="px-4 py-3 text-right font-semibold tabular-nums text-emerald-700">{event.checked_in}</td><td className="px-4 py-3 text-right font-semibold tabular-nums text-amber-700">{event.not_checked_in}</td><td className="px-4 py-3 text-right font-extrabold tabular-nums text-blue-800">{event.attendance_percent.toLocaleString('id-ID', { maximumFractionDigits: 2 })}%</td>
                     </tr>)}</tbody>
                   </table>
@@ -213,7 +233,7 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
         </tr></tbody></table>
         <h2>Tabel Data</h2>
         {eventFilter === 'all'
-          ? <table><thead><tr><th>Event</th><th>Tanggal</th><th>Tiket Terjual</th><th>Hadir</th><th>Tidak Hadir</th><th>Kehadiran</th></tr></thead><tbody>{report?.events.map((event) => <tr key={event.id}>
+          ? <table><thead><tr><th>Event</th><th>Tanggal</th><th>Tiket Terjual</th><th>Hadir</th><th>Tidak Hadir</th><th>Kehadiran</th></tr></thead><tbody>{eventsNewestFirst.map((event) => <tr key={event.id}>
             <td>{event.title}</td><td>{formatDate(event.date)}</td><td className="ticket-check-in-number">{event.tickets_sold}</td><td className="ticket-check-in-number">{event.checked_in}</td><td className="ticket-check-in-number">{event.not_checked_in}</td><td className="ticket-check-in-number">{event.attendance_percent.toLocaleString('id-ID', { maximumFractionDigits: 2 })}%</td>
           </tr>)}</tbody></table>
           : <table><thead><tr><th>No.</th><th>Nama Pemesan</th><th>WhatsApp</th><th>Kategori Tiket</th><th>Status</th></tr></thead><tbody>{report?.tickets.map((ticket, index) => <tr key={`${ticket.full_name}-${ticket.ticket_category}-${index}`}>

@@ -660,6 +660,11 @@
       margin: 0;
     }
 
+    @page ticket-sales-report {
+      size: A4 landscape;
+      margin: 8mm;
+    }
+
     body > * {
       visibility: hidden !important;
     }
@@ -775,6 +780,7 @@
       padding: 10mm;
       font-family: Arial, Helvetica, sans-serif;
       font-size: 9pt;
+      page: ticket-sales-report;
     }
 
     .ticket-sales-report-print .print-brand {
@@ -797,6 +803,8 @@
       color: #1D4ED8;
       font-size: 10pt;
       font-weight: 700;
+      break-after: avoid;
+      page-break-after: avoid;
     }
 
     .ticket-sales-report-print p {
@@ -804,8 +812,40 @@
     }
 
     .ticket-sales-report-print .ticket-report-print-event {
+      break-before: auto;
+      page-break-before: auto;
+    }
+
+    .ticket-sales-report-print table {
+      margin-bottom: 3mm;
+      font-size: 7.5pt;
+    }
+
+    .ticket-sales-report-print thead {
+      display: table-header-group;
+    }
+
+    .ticket-sales-report-print tr {
       break-inside: avoid;
       page-break-inside: avoid;
+    }
+
+    .ticket-sales-report-print .ticket-report-print-financials td:nth-child(2) {
+      width: 35mm;
+      text-align: right;
+      white-space: nowrap;
+      font-weight: 700;
+    }
+
+    .ticket-sales-report-print .ticket-report-print-emphasis {
+      font-weight: 700;
+      background: #EFF6FF;
+    }
+
+    .ticket-sales-report-print .ticket-report-print-note {
+      margin: 0 0 3mm;
+      color: #334155;
+      font-size: 8pt;
     }
 
     .ticket-sales-report-print .ticket-report-print-total {

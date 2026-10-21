@@ -21,6 +21,7 @@ type RequestBody = {
   whatsapp?: string;
   quantity?: number;
   notes?: string;
+  voucher_code?: string;
   payment_amount?: number;
   proof_path?: string;
   file_name?: string;
@@ -129,7 +130,7 @@ serve(async (request) => {
       if (!body.order_number || !body.event_id || !body.ticket_id || !body.full_name || !body.email || !body.whatsapp || !body.quantity) {
         return json({ error: 'Lengkapi Event, tiket, nama, email, WhatsApp, dan jumlah tiket.' }, 400);
       }
-      const { data, error } = await publicClient.rpc('create_ticket_order', {
+      const { data, error } = await publicClient.rpc('create_ticket_order_priced', {
         p_order_number: body.order_number,
         p_event_id: body.event_id,
         p_ticket_id: body.ticket_id,
@@ -138,9 +139,15 @@ serve(async (request) => {
         p_whatsapp: body.whatsapp,
         p_quantity: body.quantity,
         p_notes: body.notes ?? null,
+        p_voucher_code: body.voucher_code ?? null,
       });
       if (error || !data) return json({ error: error?.message ?? 'Order gagal dibuat.' }, 400);
-      return json({ order_id: data, order_number: body.order_number });
+      return json({
+        order_id: data.id,
+        order_number: data.order_number,
+        total_price: data.total_price,
+        price_breakdown: data.price_breakdown,
+      });
     }
 
     if (body.action === 'order-payment') {

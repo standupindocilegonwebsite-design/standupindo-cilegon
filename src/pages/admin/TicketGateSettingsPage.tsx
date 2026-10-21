@@ -44,7 +44,7 @@ async function gateAction<T>(body: Record<string, unknown>) {
   return { data: null as T, error: error.message };
 }
 
-export function TicketGateSettingsPage({ events, onBack }: { events: EventItem[]; onBack: () => void }) {
+export function TicketGateSettingsPage({ events }: { events: EventItem[] }) {
   const availableEvents = events.filter((event) => getEventStatus(event.status, event.date) !== 'completed');
   const [eventId, setEventId] = useState(availableEvents[0]?.id ?? '');
   const [opensTime, setOpensTime] = useState('00:00');
@@ -174,13 +174,12 @@ export function TicketGateSettingsPage({ events, onBack }: { events: EventItem[]
       <TicketWorkspaceHeader
         title="Pengaturan Gate"
         subtitle="Secara default, semua kategori bisa check-in kapan saja pada hari Event. Pembatasan jam dan Gate bersifat opsional."
-        onBack={onBack}
       />
       <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="space-y-2">
           <label className="label-field">Event</label>
           <SearchableEventSelect
-            options={availableEvents.map((event) => ({ id: event.id, title: event.title, subtitle: `${event.date} · ${event.venue}` }))}
+            options={availableEvents.map((event) => ({ id: event.id, title: event.title, subtitle: `${event.date} · ${event.venue}`, poster: event.poster }))}
             value={eventId || 'all'}
             onChange={(value) => setEventId(value === 'all' ? '' : value)}
             allLabel="Pilih Event"

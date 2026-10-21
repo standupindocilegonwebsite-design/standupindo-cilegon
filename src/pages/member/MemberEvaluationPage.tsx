@@ -17,6 +17,8 @@ export function MemberEvaluationPage({ router }: { router: Router }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [selectedOpenMicId, setSelectedOpenMicId] = useState('all');
+  const [targetEvaluationUnavailable, setTargetEvaluationUnavailable] = useState(false);
+  const notificationEvaluationId = router.query.get('notificationEvaluationId');
 
   useEffect(() => {
     if (!user?.id) {
@@ -92,6 +94,20 @@ export function MemberEvaluationPage({ router }: { router: Router }) {
     })();
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!notificationEvaluationId || loading) return;
+    const target = records.find((record) => record.evaluation.id === notificationEvaluationId);
+    if (!target) {
+      setTargetEvaluationUnavailable(true);
+      return;
+    }
+    setTargetEvaluationUnavailable(false);
+    setSelectedOpenMicId(target.evaluation.open_mic_id);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`member-evaluation-${notificationEvaluationId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [loading, notificationEvaluationId, records]);
+
   const totalScore = useMemo(() => records.reduce((sum, item) => sum + (item.evaluation.material_score ?? 0) + (item.evaluation.punchline_score ?? 0) + (item.evaluation.delivery_score ?? 0) + (item.evaluation.timing_score ?? 0) + (item.evaluation.stage_presence_score ?? 0) + (item.evaluation.crowd_interaction_score ?? 0), 0), [records]);
   const visibleRecords = useMemo(() => selectedOpenMicId === 'all' ? records : records.filter((item) => item.evaluation.open_mic_id === selectedOpenMicId), [records, selectedOpenMicId]);
   const openMicOptions = useMemo(() => records.filter((item, index, all) => item.openMic && all.findIndex((candidate) => candidate.evaluation.open_mic_id === item.evaluation.open_mic_id) === index), [records]);
@@ -126,6 +142,8 @@ export function MemberEvaluationPage({ router }: { router: Router }) {
           </div>
         )}
 
+        {notificationEvaluationId && targetEvaluationUnavailable && !loading && <p role="status" className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Evaluasi dari notifikasi sudah tidak tersedia atau tidak dapat diakses oleh akun ini.</p>}
+
         <div className="space-y-3">
           {loading ? (
             <div className="h-48 animate-pulse rounded-[28px] bg-slate-100" />
@@ -139,7 +157,7 @@ export function MemberEvaluationPage({ router }: { router: Router }) {
             const showOpenMic = index === 0 || visibleRecords[index - 1].evaluation.open_mic_id !== evaluation.open_mic_id;
             const evaluatorCount = visibleRecords.filter((item) => item.evaluation.open_mic_id === evaluation.open_mic_id).length;
             return (
-            <div key={evaluation.id} className="space-y-2">
+            <div key={evaluation.id} id={`member-evaluation-${evaluation.id}`} className={`space-y-2 rounded-2xl ${evaluation.id === notificationEvaluationId ? 'ring-2 ring-blue-500 ring-offset-2' : ''}`}>
               {showOpenMic && <details className="group rounded-2xl border border-blue-200 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
                 <summary className="flex cursor-pointer list-none items-center gap-3 p-3 sm:p-4">
                   <div className="flex h-16 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200">{openMic?.poster ? <img src={openMic.poster} alt={`Poster ${openMic.title}`} className="h-full w-full object-cover" /> : <Mic className="h-5 w-5 text-slate-300" />}</div>
@@ -148,7 +166,7 @@ export function MemberEvaluationPage({ router }: { router: Router }) {
                 </summary>
                 <div className="border-t border-slate-100 px-4 py-3 text-xs font-semibold text-slate-500">Buka nama evaluator di bawah untuk melihat detail penilaian.</div>
               </details>}
-              <details className="group rounded-2xl border border-slate-200 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
+              <details open={evaluation.id === notificationEvaluationId} className="group rounded-2xl border border-slate-200 bg-white shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
               <summary className="cursor-pointer list-none p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">

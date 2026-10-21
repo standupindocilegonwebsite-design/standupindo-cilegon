@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Search } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, Search } from 'lucide-react';
 
 interface EventOption {
   id: string;
   title: string;
   subtitle?: string;
   poster?: string | null;
+  statusLabel?: string;
 }
 
 interface SearchableEventSelectProps {
@@ -14,6 +15,20 @@ interface SearchableEventSelectProps {
   onChange: (value: string) => void;
   allLabel: string;
   ariaLabel: string;
+}
+
+function EventPosterThumbnail({ src, className }: { src: string; className: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <span className={`${className} flex items-center justify-center bg-slate-100 text-slate-400`}>
+        <CalendarDays className="h-5 w-5" aria-hidden="true" />
+      </span>
+    );
+  }
+
+  return <img src={src} alt="" onError={() => setFailed(true)} className={className} />;
 }
 
 export function SearchableEventSelect({ options, value, onChange, allLabel, ariaLabel }: SearchableEventSelectProps) {
@@ -26,7 +41,7 @@ export function SearchableEventSelect({ options, value, onChange, allLabel, aria
   const filteredOptions = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('id-ID');
     return options.filter((option) => !normalizedQuery
-      || `${option.title} ${option.subtitle ?? ''}`.toLocaleLowerCase('id-ID').includes(normalizedQuery));
+      || `${option.title} ${option.subtitle ?? ''} ${option.statusLabel ?? ''}`.toLocaleLowerCase('id-ID').includes(normalizedQuery));
   }, [options, query]);
 
   useEffect(() => {
@@ -68,7 +83,7 @@ export function SearchableEventSelect({ options, value, onChange, allLabel, aria
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        {selectedOption?.poster && <img src={selectedOption.poster} alt="" className="h-10 w-9 shrink-0 rounded-lg border border-slate-200 object-cover" />}
+        {selectedOption?.poster && <EventPosterThumbnail src={selectedOption.poster} className="h-10 w-9 shrink-0 rounded-lg border border-slate-200 object-cover" />}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold text-slate-800">{selectedLabel}</span>
           {selectedOption?.subtitle && <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-500">{selectedOption.subtitle}</span>}
@@ -115,12 +130,14 @@ export function SearchableEventSelect({ options, value, onChange, allLabel, aria
             className={`flex min-h-14 w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition ${value === option.id ? 'bg-blue-50 font-bold text-blue-800' : 'text-slate-700 hover:bg-slate-50'}`}
           >
             {option.poster
-              ? <img src={option.poster} alt="" loading="lazy" className="h-12 w-10 shrink-0 rounded-lg border border-slate-200 bg-slate-100 object-cover" />
+              ? <EventPosterThumbnail src={option.poster} className="h-12 w-10 shrink-0 rounded-lg border border-slate-200 bg-slate-100 object-cover" />
               : <span aria-hidden="true" className="h-12 w-10 shrink-0 rounded-lg border border-slate-200 bg-slate-100" />}
             <span className="min-w-0 flex-1">
               <span className="block truncate">{option.title}</span>
               {option.subtitle && <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-500">{option.subtitle}</span>}
-            </span>{value === option.id && <Check className="h-4 w-4 shrink-0" />}
+            </span>
+            {option.statusLabel && <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[9px] font-extrabold tracking-wide text-slate-600">{option.statusLabel}</span>}
+            {value === option.id && <Check className="h-4 w-4 shrink-0" />}
           </button>)}
           {!filteredOptions.length && <p className="px-3 py-4 text-center text-xs font-medium text-slate-500">Event tidak ditemukan.</p>}
         </div>

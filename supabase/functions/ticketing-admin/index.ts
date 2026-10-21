@@ -42,6 +42,17 @@ type RequestBody = {
   email?: string;
   quantity?: number;
   free_pass_reason?: string;
+  ots_payment_method?: 'cash' | 'qris' | 'bank_transfer';
+  ots_payment_source?: 'website' | 'other' | null;
+  ots_payment_method_id?: string | null;
+  ots_custom_destination?: {
+    recipient_name?: string;
+    bank_name?: string;
+    account_number?: string;
+    qris_recipient_name?: string;
+    qris_identifier?: string;
+    note?: string;
+  };
 };
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -861,6 +872,51 @@ serve(async (request) => {
       });
     }
 
+    if (body.action === 'ots-payment-options') {
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if ((!isAdmin && !isTicketAdmin) || !body.event_id || !uuidPattern.test(body.event_id)) {
+        return json({ error: 'Event atau akses Admin Tiket tidak valid.' }, 400);
+      }
+      if (!await hasEventScope(body.event_id, 'admin_ticket')) return json({ error: 'Event berada di luar scope Admin Tiket.' }, 403);
+
+      const { data: assignments, error: assignmentError } = await serviceClient.from('event_payment_method_assignments')
+        .select('payment_method_id, is_active').eq('event_id', body.event_id);
+      if (assignmentError) return json({ error: 'Tujuan pembayaran Event gagal dimuat.' }, 500);
+      const methodIds = [...new Set((assignments ?? []).map((assignment) => assignment.payment_method_id))];
+      const { data: methods, error: methodsError } = methodIds.length
+        ? await serviceClient.from('event_payment_methods')
+          .select('id, recipient_name, qris_recipient_name, bank_name, account_number, qris_storage_path, note')
+          .in('id', methodIds)
+        : { data: [], error: null };
+      if (methodsError) return json({ error: 'Daftar tujuan pembayaran gagal dimuat.' }, 500);
+      const activeIds = new Set((assignments ?? []).filter((assignment) => assignment.is_active).map((assignment) => assignment.payment_method_id));
+      return json({
+        destinations: (methods ?? []).map((method) => ({
+          ...method,
+          is_active: activeIds.has(method.id),
+        })),
+      });
+    }
+
+    if (body.action === 'confirm-ots-payment') {
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if ((!isAdmin && !isTicketAdmin) || !body.order_id || !uuidPattern.test(body.order_id)) {
+        return json({ error: 'Transaksi atau akses Admin Tiket tidak valid.' }, 400);
+      }
+      const { data: order, error: orderError } = await serviceClient.from('ticket_orders')
+        .select('id, event_id, sale_channel, ots_payment_status')
+        .eq('id', body.order_id).maybeSingle();
+      if (orderError) return json({ error: 'Transaksi OTS gagal dimuat.' }, 500);
+      if (!order || order.sale_channel !== 'ots') return json({ error: 'Transaksi OTS tidak ditemukan.' }, 404);
+      if (!await hasEventScope(order.event_id, 'admin_ticket')) return json({ error: 'Transaksi berada di luar scope Admin Tiket.' }, 403);
+      const { data: changed, error: confirmError } = await serviceClient.rpc('confirm_ticket_ots_payment', {
+        p_order_id: order.id,
+        p_actor_id: authData.user.id,
+      });
+      if (confirmError) return json({ error: confirmError.message }, 409);
+      return json({ payment_status: 'confirmed', changed: changed === true });
+    }
+
     if (body.action === 'issue-ots-sale') {
       if (!encryptionKey || !accessCodePepper) return json({ error: 'Secret Ticketing belum dikonfigurasi.' }, 500);
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -885,6 +941,94 @@ serve(async (request) => {
         return json({ error: 'Event atau kategori tiket tidak tersedia untuk penjualan OTS.' }, 404);
       }
 
+      const paymentMethod = body.ots_payment_method;
+      let paymentSource: 'website' | 'other' | null = null;
+      let paymentMethodId: string | null = null;
+      let paymentSnapshot: Record<string, string | null> | null = null;
+      if (!paymentMethod || !['cash', 'qris', 'bank_transfer'].includes(paymentMethod)) {
+        return json({ error: 'Pilih metode pembayaran OTS.' }, 400);
+      }
+      if (paymentMethod !== 'cash') {
+        if (!body.ots_payment_source || !['website', 'other'].includes(body.ots_payment_source)) {
+          return json({ error: 'Pilih tujuan pembayaran OTS.' }, 400);
+        }
+        paymentSource = body.ots_payment_source;
+        let destination: {
+          id: string;
+          recipient_name: string;
+          qris_recipient_name: string | null;
+          bank_name: string | null;
+          account_number: string | null;
+          qris_storage_path: string | null;
+          note: string | null;
+        } | null = null;
+
+        if (paymentSource === 'website') {
+          const { data: assignment, error: assignmentError } = await serviceClient.from('event_payment_method_assignments')
+            .select('payment_method_id').eq('event_id', body.event_id).eq('is_active', true).maybeSingle();
+          if (assignmentError) return json({ error: 'Tujuan pembayaran website gagal dimuat.' }, 500);
+          if (assignment) {
+            const { data, error: destinationError } = await serviceClient.from('event_payment_methods')
+              .select('id, recipient_name, qris_recipient_name, bank_name, account_number, qris_storage_path, note')
+              .eq('id', assignment.payment_method_id).maybeSingle();
+            if (destinationError) return json({ error: 'Tujuan pembayaran website gagal dimuat.' }, 500);
+            destination = data;
+          }
+          if (!destination) return json({ error: 'Belum ada tujuan pembayaran website aktif untuk Event ini.' }, 400);
+          paymentMethodId = destination.id;
+        } else if (body.ots_payment_method_id) {
+          const { data: assignment, error: assignmentError } = await serviceClient.from('event_payment_method_assignments')
+            .select('payment_method_id, is_active').eq('event_id', body.event_id)
+            .eq('payment_method_id', body.ots_payment_method_id).maybeSingle();
+          if (assignmentError) return json({ error: 'Tujuan pembayaran pilihan gagal dimuat.' }, 500);
+          if (!assignment) return json({ error: 'Tujuan pembayaran pilihan tidak terdaftar pada Event ini.' }, 400);
+          if (assignment.is_active) return json({ error: 'Tujuan Website aktif harus dipilih sebagai sumber Website.' }, 400);
+          const { data, error: destinationError } = await serviceClient.from('event_payment_methods')
+            .select('id, recipient_name, qris_recipient_name, bank_name, account_number, qris_storage_path, note')
+            .eq('id', assignment.payment_method_id).maybeSingle();
+          if (destinationError) return json({ error: 'Tujuan pembayaran pilihan gagal dimuat.' }, 500);
+          destination = data;
+          if (destination) paymentMethodId = destination.id;
+        }
+
+        if (destination) {
+          paymentSnapshot = {
+            recipient_name: destination.recipient_name.trim(),
+            bank_name: destination.bank_name?.trim() || null,
+            account_number: destination.account_number?.trim() || null,
+            qris_storage_path: destination.qris_storage_path?.trim() || null,
+            qris_recipient_name: destination.qris_recipient_name?.trim() || null,
+            qris_identifier: null,
+            note: destination.note?.trim() || null,
+          };
+        } else if (paymentSource === 'other' && !body.ots_payment_method_id) {
+          const custom = body.ots_custom_destination;
+          const recipientName = custom?.recipient_name?.trim() ?? '';
+          if (!recipientName) return json({ error: 'Nama penerima tujuan pembayaran wajib diisi.' }, 400);
+          if (recipientName.length > 160) return json({ error: 'Nama penerima maksimal 160 karakter.' }, 400);
+          paymentSnapshot = {
+            recipient_name: recipientName || null,
+            bank_name: custom?.bank_name?.trim().slice(0, 120) || null,
+            account_number: custom?.account_number?.trim().slice(0, 80) || null,
+            qris_storage_path: null,
+            qris_recipient_name: custom?.qris_recipient_name?.trim().slice(0, 160) || null,
+            qris_identifier: custom?.qris_identifier?.trim().slice(0, 160) || null,
+            note: custom?.note?.trim().slice(0, 300) || null,
+          };
+        } else if (!destination) {
+          return json({ error: 'Tujuan pembayaran pilihan tidak ditemukan.' }, 400);
+        }
+
+        if (!paymentSnapshot) return json({ error: 'Snapshot tujuan pembayaran gagal disiapkan.' }, 500);
+        if (paymentMethod === 'bank_transfer' && !paymentSnapshot.account_number) {
+          return json({ error: 'Nomor rekening tujuan transfer wajib diisi.' }, 400);
+        }
+        if (paymentMethod === 'qris'
+          && !paymentSnapshot.qris_storage_path && !paymentSnapshot.qris_identifier) {
+          return json({ error: 'Pilih QRIS tersimpan atau isi identitas QRIS.' }, 400);
+        }
+      }
+
       const normalizedPhone = normalizeWhatsapp(body.whatsapp);
       if (normalizedPhone.length < 10 || normalizedPhone.length > 15) return json({ error: 'Nomor WhatsApp penerima tidak valid.' }, 400);
       const { data: previousCodes, error: previousCodesError } = await serviceClient.from('ticket_access_codes')
@@ -907,7 +1051,7 @@ serve(async (request) => {
         const qrTokens = await Promise.all(qrTokenValues.map(async (token) => {
           return { hash: await sha256(token), ciphertext: await encryptSecret(token, encryptionKey) };
         }));
-        const result = await serviceClient.rpc('issue_ticket_ots', {
+        const result = await serviceClient.rpc('issue_ticket_ots_with_payment', {
           p_order_number: orderNumber,
           p_event_id: body.event_id,
           p_ticket_id: body.ticket_id,
@@ -919,6 +1063,10 @@ serve(async (request) => {
           p_whatsapp_code_hash: phoneCodeHash,
           p_access_code_ciphertext: codeCiphertext,
           p_qr_tokens: qrTokens,
+          p_ots_payment_method: paymentMethod,
+          p_ots_payment_source: paymentSource,
+          p_ots_payment_method_id: paymentMethodId,
+          p_ots_payment_snapshot: paymentSnapshot,
         });
         issuedData = result.data;
         issueError = result.error;
@@ -967,6 +1115,7 @@ serve(async (request) => {
         },
         category: category.name,
         full_name: body.full_name.trim(),
+        payment_status: 'pending',
       });
     }
 

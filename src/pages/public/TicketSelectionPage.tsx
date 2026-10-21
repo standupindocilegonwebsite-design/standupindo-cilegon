@@ -153,7 +153,7 @@ export function TicketSelectionPage({ router, slug }: Props) {
               <h2 className="mt-1 text-xl font-extrabold text-slate-900">Pilih Tiket</h2>
             </div>
             {tickets.length === 0 ? (
-              <EmptyState title={event.ticket_price <= 0 ? 'Acara ini gratis dan tidak memerlukan tiket.' : 'Tiket publik belum tersedia.'} />
+              <EmptyState title={event.ticket_sales_mode === 'free' ? 'Acara ini gratis dan tidak memerlukan tiket.' : 'Tiket publik belum tersedia.'} />
             ) : availableTickets.length === 0 ? (
               <EmptyState title="Semua tiket publik untuk acara ini sudah habis terjual." />
             ) : (

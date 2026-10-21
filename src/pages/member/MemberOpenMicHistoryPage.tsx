@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, ArrowLeft, Building2, CalendarDays, CheckCircle2, Clock3, Globe2, MapPin, Mic, Plus, Trash2, XCircle } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { MemberOpenMicHistorySubmission, OpenMic } from '@/lib/types';
@@ -67,7 +67,7 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
     setMode(nextMode);
   }
 
-  async function loadHistory() {
+  const loadHistory = useCallback(async () => {
     if (!user?.id) return;
     const { data: profile } = await supabase.from('komika').select('id').or(`user_id.eq.${user.id},id.eq.${user.id}`).maybeSingle();
     const id = profile?.id ?? null;
@@ -79,9 +79,9 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
     const { data: openMicData, error: openMicError } = await supabase.from('open_mics').select('*').neq('status', 'cancelled').order('date', { ascending: false });
     if (openMicError) setError('Daftar Open Mic internal gagal dimuat.');
     setInternalOpenMics((openMicData as OpenMic[]) ?? []);
-  }
+  }, [user?.id]);
 
-  useEffect(() => { void loadHistory(); }, [user?.id]);
+  useEffect(() => { void loadHistory(); }, [loadHistory]);
 
   const mcSubmissions = submissions.filter((item) => item.activity_type === 'mc_internal' || item.activity_type === 'mc_external');
   const performerSubmissions = submissions.filter((item) => !item.activity_type || item.activity_type === 'performance');

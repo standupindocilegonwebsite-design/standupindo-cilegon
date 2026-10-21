@@ -4,6 +4,7 @@ import { parseMaterialContent } from '@/lib/material-content';
 import { formatEstimatedDuration, formatSetlistDuration } from '@/lib/material-duration';
 
 function safeFilename(value: string) {
+  // eslint-disable-next-line no-control-regex -- remove control bytes from generated filenames.
   return value.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').replace(/\s+/g, '-').slice(0, 80) || 'setlist';
 }
 

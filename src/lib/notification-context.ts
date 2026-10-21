@@ -4,10 +4,15 @@ export type NotificationSource = 'ticket-orders' | 'open-mic' | 'event-participa
 
 export type NotificationRecord = {
   id: string;
+  notificationKey: string;
+  sourceId: string;
   status: string;
   source: NotificationSource;
-  fullName?: string;
-  eventTitle?: string;
+  title: string;
+  description: string;
+  targetPath: string;
+  createdAt: string;
+  readAt: string | null;
 };
 
 export type NotificationContextValue = {
@@ -16,9 +21,13 @@ export type NotificationContextValue = {
   notifications: NotificationRecord[];
   revision: number;
   realtimeConnected: boolean;
+  error: string | null;
   resync: () => Promise<void>;
-  markAsRead: (source: NotificationSource, id: string) => Promise<void>;
-  markAllAsRead: (source: NotificationSource) => Promise<void>;
+  markAsRead: (id: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
+  clearAll: () => Promise<void>;
+  deleteReadNotification: (id: string) => Promise<void>;
+  clearRead: () => Promise<void>;
 };
 
 export const NotificationContext = createContext<NotificationContextValue | null>(null);

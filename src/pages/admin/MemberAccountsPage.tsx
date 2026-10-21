@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, Eye, EyeOff, KeyRound, Power, RefreshCw, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
 import type { Komika } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -42,13 +42,13 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
   const filteredResetAccounts = accounts.filter((account) => `${account.profile?.stage_name ?? ''} ${account.profile?.full_name ?? ''} ${account.email ?? ''}`.toLowerCase().includes(resetSearch.trim().toLowerCase()));
   const visibleAccounts = accountSearch.trim() || showAllAccounts ? filteredAccounts : filteredAccounts.slice(0, 4);
 
-  async function loadAccounts() {
+  const loadAccounts = useCallback(async () => {
     setAccountsLoading(true);
     const { data, error } = await supabase.functions.invoke('admin-manage-members', { body: { action: 'list' } });
     setAccountsLoading(false);
     if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Daftar akun member gagal dimuat.'); return; }
     setAccounts((data?.members as MemberAccount[]) ?? []);
-  }
+  }, [onNotice]);
 
   async function toggleAccount(account: MemberAccount) {
     setTogglingId(account.id);
@@ -91,7 +91,7 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
     onNotice(`Password ${resetTarget.email ?? 'akun member'} berhasil direset.`);
   }
 
-  useEffect(() => { void loadAccounts(); }, []);
+  useEffect(() => { void loadAccounts(); }, [loadAccounts]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

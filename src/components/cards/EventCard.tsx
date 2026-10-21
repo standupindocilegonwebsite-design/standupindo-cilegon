@@ -12,7 +12,7 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
   const [lightbox, setLightbox] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   const currentStatus = getEventStatus(event.status, event.date);
-  const displayPrice = price === undefined ? event.ticket_price ?? 0 : price;
+  const displayPrice = price === undefined ? (event.ticket_sales_mode === 'free' ? 0 : null) : price;
   const isCompleted = currentStatus === 'completed';
   return (
     <>
@@ -96,6 +96,7 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
                   <span className="text-sm font-extrabold leading-none text-slate-950">{formatPrice(displayPrice)}</span>
                 </div>
               )}
+              {displayPrice === null && event.ticket_sales_mode === 'paid' && <div className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5"><Ticket className="h-4 w-4 shrink-0 text-amber-800" /><span className="text-xs font-bold leading-none text-amber-900">Tiket publik belum tersedia</span></div>}
               <NoSmokeAreaNotice />
             </div>
           ) : (

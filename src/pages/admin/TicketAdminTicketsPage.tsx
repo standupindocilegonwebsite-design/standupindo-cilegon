@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronUp, Download, Eye, Gift, Mail, MessageCircle, Plus, Search, Share2, Store, Ticket } from 'lucide-react';
-import { formatDate, getEventStatus, normalizeWhatsappNumber } from '@/lib/format';
+import { ArrowLeft, ArrowRight, Banknote, Building2, Check, CheckCircle2, ChevronDown, ChevronUp, CircleAlert, Copy, Download, Eye, Gift, Mail, MessageCircle, Plus, QrCode, Search, Share2, Store, Ticket } from 'lucide-react';
+import { formatDate, getEventStatus } from '@/lib/format';
 import type { EventStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { TicketPagination } from '@/components/TicketPagination';
@@ -12,6 +12,77 @@ import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
 import { Modal } from '@/components/ui/Modal';
 
 const PAGE_SIZE = 30;
+
+type ContactField = 'full_name' | 'whatsapp';
+
+function getContactFieldError(field: ContactField, value: string): string {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return field === 'full_name' ? 'Nama lengkap wajib diisi.' : 'Nomor WhatsApp wajib diisi.';
+  if (field === 'full_name') {
+    return /[\p{L}]/u.test(trimmedValue) && trimmedValue.length >= 2 ? '' : 'Masukkan nama lengkap yang valid.';
+  }
+  if (!/^\+?[\d\s()-]+$/.test(trimmedValue) || (trimmedValue.match(/\+/g) ?? []).length > 1 || (trimmedValue.includes('+') && !trimmedValue.startsWith('+'))) {
+    return 'Format nomor WhatsApp tidak valid. Gunakan nomor Indonesia.';
+  }
+  const digits = trimmedValue.replace(/\D/g, '');
+  let subscriberNumber = '';
+  if (digits.startsWith('08')) subscriberNumber = digits.slice(1);
+  else if (digits.startsWith('628')) subscriberNumber = digits.slice(2);
+  else if (digits.startsWith('8')) subscriberNumber = digits;
+  else return 'Gunakan nomor Indonesia yang diawali 08 atau +62.';
+  if (subscriberNumber.length < 9) return `Nomor WhatsApp kurang ${9 - subscriberNumber.length} angka.`;
+  if (subscriberNumber.length > 12) return 'Nomor WhatsApp terlalu panjang. Periksa kembali nomornya.';
+  return '';
+}
+
+function getOptionalEmailError(value: string): string {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return '';
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmedValue) ? '' : 'Format email belum benar. Contoh: nama@email.com.';
+}
+
+function ValidatedContactInput({ id, name, label, value, type = 'text', placeholder, autoComplete, inputMode, required, maxLength, validation, onChange, onBlur }: {
+  id: string;
+  name?: string;
+  label: string;
+  value: string;
+  type?: 'text' | 'tel' | 'email';
+  placeholder: string;
+  autoComplete: string;
+  inputMode?: 'tel';
+  required?: boolean;
+  maxLength?: number;
+  validation: { error: string; valid: boolean };
+  onChange: (value: string) => void;
+  onBlur: () => void;
+}) {
+  const errorId = `${id}-error`;
+  return <div>
+    <label htmlFor={id} className="block text-xs font-bold text-slate-700">{label}</label>
+    <div className="relative mt-1">
+      <input
+        id={id}
+        name={name ?? id}
+        type={type}
+        inputMode={inputMode}
+        required={required}
+        maxLength={maxLength}
+        autoComplete={autoComplete}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
+        aria-invalid={Boolean(validation.error)}
+        aria-describedby={validation.error ? errorId : undefined}
+        className={`input-field pr-11 ${validation.error ? '!border-red-500 focus:!border-red-500 focus:!ring-red-500/20' : validation.valid ? '!border-emerald-500 focus:!border-emerald-500 focus:!ring-emerald-500/20' : ''}`}
+        placeholder={placeholder}
+      />
+      {validation.error
+        ? <CircleAlert aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500" />
+        : validation.valid && <CheckCircle2 aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-600" />}
+    </div>
+    {validation.error && <p id={errorId} role="alert" className="mt-1 text-xs font-medium text-red-600">{validation.error}</p>}
+  </div>;
+}
 
 function TicketQuantityStepper({ value, max, disabled, onChange }: {
   value: string;
@@ -84,6 +155,20 @@ interface TicketOrderReservation {
   expires_at: string | null;
 }
 
+interface OtsPaymentDestination {
+  id: string;
+  recipient_name: string;
+  qris_recipient_name: string | null;
+  bank_name: string | null;
+  account_number: string | null;
+  qris_storage_path: string | null;
+  note: string | null;
+  is_active: boolean;
+}
+
+type OtsPaymentMethod = 'cash' | 'qris' | 'bank_transfer';
+type OtsPaymentSource = 'website' | 'other';
+
 interface TicketOrderGroup {
   id: string;
   orderNumber: string;
@@ -147,6 +232,8 @@ export function TicketAdminTicketsPage() {
   const [freePassOpen, setFreePassOpen] = useState(false);
   const [freePassSaving, setFreePassSaving] = useState(false);
   const [freePassError, setFreePassError] = useState('');
+  const [freePassTouched, setFreePassTouched] = useState<{ full_name: boolean; whatsapp: boolean; email: boolean }>({ full_name: false, whatsapp: false, email: false });
+  const [freePassValidationSubmitted, setFreePassValidationSubmitted] = useState(false);
   const [freePassResult, setFreePassResult] = useState<{
     order_number: string;
     access_code: string;
@@ -169,9 +256,15 @@ export function TicketAdminTicketsPage() {
   const issuanceMenuRef = useRef<HTMLDivElement>(null);
   const [otsSaving, setOtsSaving] = useState(false);
   const [otsError, setOtsError] = useState('');
+  const [otsTouched, setOtsTouched] = useState<Record<ContactField, boolean>>({ full_name: false, whatsapp: false });
+  const [otsValidationSubmitted, setOtsValidationSubmitted] = useState(false);
+  const [copiedOtsAccount, setCopiedOtsAccount] = useState('');
+  const [otsCopyError, setOtsCopyError] = useState('');
   const [otsPdfBusy, setOtsPdfBusy] = useState(false);
   const [otsPdfMessage, setOtsPdfMessage] = useState('');
   const [otsPdfFallbackReady, setOtsPdfFallbackReady] = useState(false);
+  const [otsPaymentDestinations, setOtsPaymentDestinations] = useState<OtsPaymentDestination[]>([]);
+  const [otsPaymentDestinationsLoading, setOtsPaymentDestinationsLoading] = useState(false);
   const [otsResult, setOtsResult] = useState<{
     order_number: string;
     access_code: string;
@@ -182,10 +275,26 @@ export function TicketAdminTicketsPage() {
     total_price: number;
     tickets: Array<{ id: string; sequence_no: number; qr_token: string }>;
     full_name: string;
+    payment_status: 'pending';
     category: string;
     event: { title: string; date: string; time: string; venue: string; location: string | null; poster: string | null; event_rules: string | null };
   } | null>(null);
-  const [otsForm, setOtsForm] = useState({ event_id: '', ticket_id: '', full_name: '', whatsapp: '', quantity: '1' });
+  const [otsForm, setOtsForm] = useState({
+    event_id: '',
+    ticket_id: '',
+    full_name: '',
+    whatsapp: '',
+    quantity: '1',
+    payment_method: 'cash' as OtsPaymentMethod,
+    payment_source: 'website' as OtsPaymentSource,
+    payment_destination_id: '',
+    custom_recipient_name: '',
+    custom_bank_name: '',
+    custom_account_number: '',
+    custom_qris_recipient_name: '',
+    custom_qris_identifier: '',
+    custom_note: '',
+  });
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -199,6 +308,51 @@ export function TicketAdminTicketsPage() {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (!otsOpen || !otsForm.event_id) {
+      setOtsPaymentDestinations([]);
+      setOtsPaymentDestinationsLoading(false);
+      return;
+    }
+    let active = true;
+    setOtsPaymentDestinationsLoading(true);
+    void supabase.functions.invoke('ticketing-admin', {
+      body: { action: 'ots-payment-options', event_id: otsForm.event_id },
+    }).then(async ({ data, error: invokeError }) => {
+      if (!active) return;
+      if (invokeError) {
+        const context = (invokeError as Error & { context?: Response }).context;
+        if (context && typeof context.json === 'function') {
+          try {
+            const response = await context.json() as { error?: string };
+            throw new Error(response.error ?? invokeError.message);
+          } catch (parseError) {
+            if (parseError instanceof Error && parseError.message !== invokeError.message) throw parseError;
+            throw new Error(invokeError.message);
+          }
+        }
+        throw new Error(invokeError.message);
+      }
+      const destinations = data?.destinations;
+      if (!Array.isArray(destinations) || !destinations.every((destination: unknown) => (
+        Boolean(destination) && typeof destination === 'object'
+        && typeof (destination as Record<string, unknown>).id === 'string'
+        && typeof (destination as Record<string, unknown>).recipient_name === 'string'
+        && typeof (destination as Record<string, unknown>).is_active === 'boolean'
+      ))) {
+        throw new Error('Daftar tujuan pembayaran OTS tidak valid.');
+      }
+      setOtsPaymentDestinations(destinations as OtsPaymentDestination[]);
+    }).catch((loadError: unknown) => {
+      if (active) {
+        setOtsPaymentDestinations([]);
+        setOtsError(loadError instanceof Error ? loadError.message : 'Tujuan pembayaran OTS gagal dimuat.');
+      }
+    }).finally(() => {
+      if (active) setOtsPaymentDestinationsLoading(false);
+    });
+    return () => { active = false; };
+  }, [otsForm.event_id, otsOpen]);
 
   const visibleEvents = useMemo(() => events.filter((event) => getEventStatus(event.status, event.date) !== 'completed'
     && categories.some((category) => category.event_id === event.id)), [categories, events]);
@@ -225,6 +379,28 @@ export function TicketAdminTicketsPage() {
       .reduce((total, order) => total + order.quantity, 0) > 0;
   }), [categories, otsForm.event_id, quotaOrders]);
   const selectedOtsCategory = otsCategories.find((category) => category.id === otsForm.ticket_id) ?? null;
+  const isOtsDestinationSuitable = (destination: OtsPaymentDestination) => otsForm.payment_method === 'qris'
+    ? Boolean(destination.qris_storage_path)
+    : Boolean(destination.account_number);
+  const websiteOtsDestination = otsPaymentDestinations.find((destination) => destination.is_active && isOtsDestinationSuitable(destination)) ?? null;
+  const otherOtsDestinations = otsPaymentDestinations.filter((destination) => !destination.is_active && isOtsDestinationSuitable(destination));
+  const selectedOtherOtsDestination = otherOtsDestinations.find((destination) => destination.id === otsForm.payment_destination_id) ?? null;
+  const otsQrisUrl = (path: string) => supabase.storage.from('standupindo-media').getPublicUrl(path).data.publicUrl;
+  async function copyOtsAccountNumber(accountNumber: string) {
+    try {
+      await navigator.clipboard.writeText(accountNumber);
+      setCopiedOtsAccount(accountNumber);
+      setOtsCopyError('');
+    } catch (copyError) {
+      console.error('Nomor rekening OTS gagal disalin.', copyError);
+      setCopiedOtsAccount('');
+      setOtsCopyError('Nomor rekening gagal disalin. Silakan salin secara manual.');
+    }
+  }
+  function showOtsQris(path: string | null, recipient: string) {
+    if (!path) return;
+    setPosterPreview({ src: otsQrisUrl(path), alt: `QRIS ${recipient}` });
+  }
   const otsRemaining = selectedOtsCategory?.quota == null ? null : Math.max(0, selectedOtsCategory.quota - quotaOrders
     .filter((order) => order.ticket_id === selectedOtsCategory.id)
     .reduce((total, order) => total + order.quantity, 0));
@@ -234,6 +410,30 @@ export function TicketAdminTicketsPage() {
     .reduce((total, order) => total + order.quantity, 0));
   const otsQuantityLimit = Math.min(10, otsRemaining ?? 10);
   const freePassQuantityLimit = Math.min(10, freePassRemaining ?? 10);
+  const otsFieldStates = {
+    full_name: {
+      error: otsTouched.full_name || otsValidationSubmitted ? getContactFieldError('full_name', otsForm.full_name) : '',
+      valid: (otsTouched.full_name || otsValidationSubmitted) && Boolean(otsForm.full_name.trim()) && !getContactFieldError('full_name', otsForm.full_name),
+    },
+    whatsapp: {
+      error: otsTouched.whatsapp || otsValidationSubmitted ? getContactFieldError('whatsapp', otsForm.whatsapp) : '',
+      valid: (otsTouched.whatsapp || otsValidationSubmitted) && Boolean(otsForm.whatsapp.trim()) && !getContactFieldError('whatsapp', otsForm.whatsapp),
+    },
+  };
+  const freePassFieldStates = {
+    full_name: {
+      error: freePassTouched.full_name || freePassValidationSubmitted ? getContactFieldError('full_name', freePassForm.full_name) : '',
+      valid: (freePassTouched.full_name || freePassValidationSubmitted) && Boolean(freePassForm.full_name.trim()) && !getContactFieldError('full_name', freePassForm.full_name),
+    },
+    whatsapp: {
+      error: freePassTouched.whatsapp || freePassValidationSubmitted ? getContactFieldError('whatsapp', freePassForm.whatsapp) : '',
+      valid: (freePassTouched.whatsapp || freePassValidationSubmitted) && Boolean(freePassForm.whatsapp.trim()) && !getContactFieldError('whatsapp', freePassForm.whatsapp),
+    },
+    email: {
+      error: freePassTouched.email || freePassValidationSubmitted ? getOptionalEmailError(freePassForm.email) : '',
+      valid: (freePassTouched.email || freePassValidationSubmitted) && Boolean(freePassForm.email.trim()) && !getOptionalEmailError(freePassForm.email),
+    },
+  };
   const canCreateOts = eligibleOtsEvents.some((event) => eventFilter === 'all' || event.id === eventFilter);
   const canCreateFreePass = eligibleFreePassEvents.some((event) => eventFilter === 'all' || event.id === eventFilter);
   const visibleEventIds = useMemo(() => new Set(visibleEvents.map((event) => event.id)), [visibleEvents]);
@@ -325,6 +525,8 @@ export function TicketAdminTicketsPage() {
     const defaultCategory = categories.find((category) => category.event_id === defaultEvent?.id && category.status === 'active');
     setFreePassResult(null);
     setFreePassError('');
+    setFreePassTouched({ full_name: false, whatsapp: false, email: false });
+    setFreePassValidationSubmitted(false);
     setFreePassForm({
       event_id: defaultEvent?.id ?? '',
       ticket_id: defaultCategory?.id ?? '',
@@ -351,20 +553,39 @@ export function TicketAdminTicketsPage() {
     const defaultCategory = availableOtsCategoriesFor(defaultEvent?.id ?? '')[0];
     setOtsResult(null);
     setOtsError('');
+    setOtsTouched({ full_name: false, whatsapp: false });
+    setOtsValidationSubmitted(false);
     setOtsForm({
       event_id: defaultEvent?.id ?? '',
       ticket_id: defaultCategory?.id ?? '',
       full_name: '',
       whatsapp: '',
       quantity: '1',
+      payment_method: 'cash',
+      payment_source: 'website',
+      payment_destination_id: '',
+      custom_recipient_name: '',
+      custom_bank_name: '',
+      custom_account_number: '',
+      custom_qris_recipient_name: '',
+      custom_qris_identifier: '',
+      custom_note: '',
     });
     setOtsOpen(true);
   }
 
   async function issueOtsSale(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!otsForm.event_id || !otsForm.ticket_id || !otsForm.full_name.trim() || !otsForm.whatsapp.trim()) {
-      setOtsError('Lengkapi Event, kategori, nama, dan nomor WhatsApp.');
+    setOtsValidationSubmitted(true);
+    setOtsTouched({ full_name: true, whatsapp: true });
+    const nameError = getContactFieldError('full_name', otsForm.full_name);
+    const whatsappError = getContactFieldError('whatsapp', otsForm.whatsapp);
+    if (nameError || whatsappError) {
+      window.setTimeout(() => document.getElementById(nameError ? 'ots-name' : 'ots-whatsapp')?.focus(), 0);
+      return;
+    }
+    if (!otsForm.event_id || !otsForm.ticket_id) {
+      setOtsError('Pilih Event dan kategori tiket.');
       return;
     }
     if (!Number.isInteger(Number(otsForm.quantity)) || Number(otsForm.quantity) < 1 || Number(otsForm.quantity) > otsQuantityLimit) {
@@ -373,9 +594,29 @@ export function TicketAdminTicketsPage() {
         : 'Kuota kategori tiket sudah habis.');
       return;
     }
-    if (normalizeWhatsappNumber(otsForm.whatsapp).length < 10) {
-      setOtsError('Nomor WhatsApp penerima tidak valid.');
-      return;
+    if (otsForm.payment_method !== 'cash') {
+      if (otsForm.payment_source === 'website' && !websiteOtsDestination) {
+        setOtsError('Tidak ada tujuan website yang sesuai. Pilih tujuan lain atau lengkapi Informasi Pembayaran Event.');
+        return;
+      }
+      if (otsForm.payment_source === 'other' && otsForm.payment_destination_id !== 'manual' && !selectedOtherOtsDestination) {
+        setOtsError('Pilih tujuan pembayaran lain yang tersedia.');
+        return;
+      }
+      if (otsForm.payment_source === 'other' && otsForm.payment_destination_id === 'manual') {
+        if (!otsForm.custom_recipient_name.trim()) {
+          setOtsError('Nama penerima tujuan pembayaran wajib diisi.');
+          return;
+        }
+        if (otsForm.payment_method === 'bank_transfer' && !otsForm.custom_account_number.trim()) {
+          setOtsError('Nomor rekening tujuan transfer wajib diisi.');
+          return;
+        }
+        if (otsForm.payment_method === 'qris' && !otsForm.custom_qris_identifier.trim()) {
+          setOtsError('Identitas QRIS tujuan wajib diisi.');
+          return;
+        }
+      }
     }
     setOtsSaving(true);
     setOtsError('');
@@ -388,6 +629,19 @@ export function TicketAdminTicketsPage() {
           full_name: otsForm.full_name.trim(),
           whatsapp: otsForm.whatsapp,
           quantity: Number(otsForm.quantity),
+          ots_payment_method: otsForm.payment_method,
+          ots_payment_source: otsForm.payment_method === 'cash' ? null : otsForm.payment_source,
+          ots_payment_method_id: otsForm.payment_method === 'cash' ? null
+            : otsForm.payment_source === 'website' ? websiteOtsDestination?.id
+              : otsForm.payment_destination_id === 'manual' ? null : otsForm.payment_destination_id,
+          ots_custom_destination: otsForm.payment_source === 'other' && otsForm.payment_destination_id === 'manual' ? {
+            recipient_name: otsForm.custom_recipient_name,
+            bank_name: otsForm.custom_bank_name,
+            account_number: otsForm.custom_account_number,
+            qris_recipient_name: otsForm.custom_qris_recipient_name,
+            qris_identifier: otsForm.custom_qris_identifier,
+            note: otsForm.custom_note,
+          } : undefined,
         },
       });
       let actionError = invokeError?.message ?? '';
@@ -413,7 +667,7 @@ export function TicketAdminTicketsPage() {
         })
         || typeof data.full_name !== 'string' || typeof data.category !== 'string'
         || !data.event || typeof data.event.title !== 'string' || typeof data.event.date !== 'string'
-        || typeof data.whatsapp_message !== 'string') {
+        || typeof data.whatsapp_message !== 'string' || data.payment_status !== 'pending') {
         setOtsError(actionError || 'Penjualan OTS gagal diterbitkan.');
         return;
       }
@@ -427,6 +681,7 @@ export function TicketAdminTicketsPage() {
         total_price: data.total_price,
         tickets: data.tickets,
         full_name: data.full_name,
+        payment_status: data.payment_status,
         category: data.category,
         event: {
           title: data.event.title,
@@ -524,19 +779,25 @@ export function TicketAdminTicketsPage() {
 
   async function issueFreePass(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!freePassForm.event_id || !freePassForm.ticket_id || !freePassForm.full_name.trim()
-      || !freePassForm.whatsapp.trim() || !freePassForm.reason.trim()) {
-      setFreePassError('Lengkapi Event, kategori, nama, WhatsApp, dan alasan Free Pass.');
+    setFreePassValidationSubmitted(true);
+    setFreePassTouched({ full_name: true, whatsapp: true, email: true });
+    const nameError = getContactFieldError('full_name', freePassForm.full_name);
+    const whatsappError = getContactFieldError('whatsapp', freePassForm.whatsapp);
+    const emailError = getOptionalEmailError(freePassForm.email);
+    if (nameError || whatsappError || emailError) {
+      window.setTimeout(() => {
+        document.getElementById(nameError ? 'free-pass-name' : whatsappError ? 'free-pass-whatsapp' : 'free-pass-email')?.focus();
+      }, 0);
+      return;
+    }
+    if (!freePassForm.event_id || !freePassForm.ticket_id || !freePassForm.reason.trim()) {
+      setFreePassError('Lengkapi Event, kategori, dan alasan Free Pass.');
       return;
     }
     if (!Number.isInteger(Number(freePassForm.quantity)) || Number(freePassForm.quantity) < 1 || Number(freePassForm.quantity) > freePassQuantityLimit) {
       setFreePassError(freePassQuantityLimit > 0
         ? `Jumlah tiket harus antara 1 dan ${freePassQuantityLimit}.`
         : 'Kuota kategori tiket sudah habis.');
-      return;
-    }
-    if (normalizeWhatsappNumber(freePassForm.whatsapp).length < 10) {
-      setFreePassError('Nomor WhatsApp penerima tidak valid.');
       return;
     }
     setFreePassSaving(true);
@@ -662,9 +923,9 @@ export function TicketAdminTicketsPage() {
         size="lg"
       >
         {otsResult ? <div className="space-y-4">
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-            <div className="flex items-center gap-2 text-emerald-800"><Check className="h-5 w-5" /><p className="font-extrabold">Order lunas dan tiket OTS sudah diterbitkan.</p></div>
-            <p className="mt-2 text-sm leading-6 text-emerald-900">{otsResult.ticket_count} tiket dengan QR unik. Total transaksi Rp{otsResult.total_price.toLocaleString('id-ID')} tercatat sebagai OTS.</p>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <div className="flex items-center gap-2 text-amber-900"><Check className="h-5 w-5" /><p className="font-extrabold">Tiket OTS diterbitkan; pembayaran menunggu konfirmasi.</p></div>
+            <p className="mt-2 text-sm leading-6 text-amber-900">{otsResult.ticket_count} tiket dengan QR unik. Total transaksi Rp{otsResult.total_price.toLocaleString('id-ID')} dicatat sebagai belum diterima sampai Admin Tiketing mengonfirmasikannya.</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-slate-200 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Nomor Order</p><p className="mt-1 break-all font-mono text-sm font-extrabold text-blue-800">{otsResult.order_number}</p></div>
@@ -684,7 +945,7 @@ export function TicketAdminTicketsPage() {
             <button type="button" onClick={downloadOtsPdf} disabled={otsPdfBusy} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-extrabold text-blue-800 shadow-sm transition hover:bg-blue-50 disabled:cursor-wait disabled:opacity-60 sm:w-auto"><Download className="h-4 w-4" />Unduh PDF Tiket</button>
             <button type="button" onClick={() => void shareOtsPdf()} disabled={otsPdfBusy} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-wait disabled:opacity-60 sm:w-auto"><Share2 className="h-4 w-4" />{otsPdfBusy ? 'Menyiapkan PDF...' : 'Kirim PDF via WhatsApp'}</button>
           </div>
-        </div> : <form onSubmit={(event) => void issueOtsSale(event)} className="space-y-4">
+        </div> : <form noValidate onSubmit={(event) => void issueOtsSale(event)} className="space-y-4">
           <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-900">
             Pilih kategori yang aktif dan tersedia untuk OTS. Harga diambil otomatis dari harga OTS kategori dan kuota bersama online/OTS akan diperiksa saat transaksi.
           </div>
@@ -696,7 +957,7 @@ export function TicketAdminTicketsPage() {
                   value={otsForm.event_id}
                   onChange={(nextEventId) => {
                 const firstCategory = availableOtsCategoriesFor(nextEventId)[0];
-                setOtsForm((current) => ({ ...current, event_id: nextEventId, ticket_id: firstCategory?.id ?? '', quantity: '1' }));
+                setOtsForm((current) => ({ ...current, event_id: nextEventId, ticket_id: firstCategory?.id ?? '', quantity: '1', payment_destination_id: '' }));
                   }}
                   allLabel="Pilih Event"
                   ariaLabel="Event Penjualan OTS"
@@ -713,12 +974,33 @@ export function TicketAdminTicketsPage() {
                 })}
               </select>
             </label>
-            <label className="block text-xs font-bold text-slate-700">Nama Pembeli
-              <input required maxLength={160} value={otsForm.full_name} onChange={(event) => setOtsForm((current) => ({ ...current, full_name: event.target.value }))} className="input-field mt-1" placeholder="Nama sesuai identitas" />
-            </label>
-            <label className="block text-xs font-bold text-slate-700">Nomor WhatsApp
-              <input required type="tel" inputMode="numeric" autoComplete="tel" value={otsForm.whatsapp} onChange={(event) => setOtsForm((current) => ({ ...current, whatsapp: event.target.value.replace(/\D/g, '') }))} className="input-field mt-1" placeholder="Contoh: 081234567890" />
-            </label>
+            <ValidatedContactInput
+              id="ots-name"
+              name="name"
+              label="Nama Pembeli"
+              value={otsForm.full_name}
+              placeholder="Nama sesuai identitas"
+              autoComplete="name"
+              required
+              maxLength={160}
+              validation={otsFieldStates.full_name}
+              onChange={(full_name) => setOtsForm((current) => ({ ...current, full_name }))}
+              onBlur={() => setOtsTouched((current) => ({ ...current, full_name: true }))}
+            />
+            <ValidatedContactInput
+              id="ots-whatsapp"
+              name="tel"
+              label="Nomor WhatsApp"
+              type="tel"
+              inputMode="tel"
+              value={otsForm.whatsapp}
+              placeholder="08xxxxxxxxxx"
+              autoComplete="tel"
+              required
+              validation={otsFieldStates.whatsapp}
+              onChange={(whatsapp) => setOtsForm((current) => ({ ...current, whatsapp }))}
+              onBlur={() => setOtsTouched((current) => ({ ...current, whatsapp: true }))}
+            />
             <label className="block text-xs font-bold text-slate-700">
               <span className="block">Jumlah Tiket</span>
               <TicketQuantityStepper value={otsForm.quantity} max={otsQuantityLimit} disabled={!selectedOtsCategory || otsQuantityLimit < 1} onChange={(quantity) => setOtsForm((current) => ({ ...current, quantity }))} />
@@ -729,10 +1011,127 @@ export function TicketAdminTicketsPage() {
               <p className="mt-1 text-lg font-black text-blue-800">Rp{((selectedOtsCategory?.ots_price ?? 0) * Number(otsForm.quantity)).toLocaleString('id-ID')}</p>
             </div>
           </div>
+          <fieldset className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4">
+            <legend className="px-1 text-xs font-extrabold uppercase tracking-wide text-slate-600">Metode Pembayaran</legend>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                ['cash', 'Cash / Tunai', Banknote],
+                ['qris', 'QRIS Statis', QrCode],
+                ['bank_transfer', 'Transfer Bank', Building2],
+              ] as const).map(([method, label, Icon]) => <label key={method} className={`relative flex min-h-[76px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border px-1.5 py-2 text-center text-[11px] font-bold leading-tight transition-colors sm:min-h-14 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs ${otsForm.payment_method === method ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm ring-1 ring-blue-200' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50/50'}`}>
+                <input
+                  type="radio"
+                  name="ots-payment-method"
+                  className="sr-only"
+                  checked={otsForm.payment_method === method}
+                  onChange={() => setOtsForm((current) => ({ ...current, payment_method: method, payment_source: websiteOtsDestination ? 'website' : 'other', payment_destination_id: '' }))}
+                />
+                <Icon className={`h-4 w-4 shrink-0 ${otsForm.payment_method === method ? 'text-blue-700' : 'text-slate-400'}`} aria-hidden="true" />
+                {label}
+                {otsForm.payment_method === method && <CheckCircle2 className="absolute right-1.5 top-1.5 h-3.5 w-3.5 text-blue-700" aria-hidden="true" />}
+              </label>)}
+            </div>
+          </fieldset>
+          {otsForm.payment_method !== 'cash' && <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+            <fieldset className="space-y-2">
+              <legend className="text-xs font-extrabold text-slate-800">Sumber Pembayaran</legend>
+              <div className="grid grid-cols-2 gap-2">
+                <label className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border px-3 text-xs font-bold transition-colors ${otsForm.payment_source === 'website' ? 'border-blue-400 bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'} ${!websiteOtsDestination || otsPaymentDestinationsLoading ? 'cursor-not-allowed opacity-50' : ''}`}>
+                  <input type="radio" name="ots-payment-source" checked={otsForm.payment_source === 'website'} disabled={!websiteOtsDestination || otsPaymentDestinationsLoading} onChange={() => setOtsForm((current) => ({ ...current, payment_source: 'website', payment_destination_id: '' }))} className="accent-blue-700" />
+                  <span className="min-w-0"><span className="block">Website</span><span className="mt-0.5 block text-[10px] font-medium opacity-70">Tujuan aktif</span></span>
+                </label>
+                <label className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border px-3 text-xs font-bold transition-colors ${otsForm.payment_source === 'other' ? 'border-blue-400 bg-blue-50 text-blue-800 ring-1 ring-blue-100' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
+                  <input type="radio" name="ots-payment-source" checked={otsForm.payment_source === 'other'} onChange={() => setOtsForm((current) => ({ ...current, payment_source: 'other', payment_destination_id: '' }))} className="accent-blue-700" />
+                  <span className="min-w-0"><span className="block">Tujuan Lain</span><span className="mt-0.5 block text-[10px] font-medium opacity-70">Pilih atau input</span></span>
+                </label>
+              </div>
+            </fieldset>
+            {otsPaymentDestinationsLoading && <p role="status" className="rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-500">Memuat tujuan pembayaran...</p>}
+            {otsForm.payment_source === 'website' && websiteOtsDestination && <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-xs text-blue-950">
+              <p className="text-[10px] font-extrabold uppercase tracking-wide text-blue-700">Tujuan Website</p>
+              <p className="mt-1.5 break-words font-extrabold">{otsForm.payment_method === 'qris' ? websiteOtsDestination.qris_recipient_name || websiteOtsDestination.recipient_name : websiteOtsDestination.recipient_name}</p>
+              {otsForm.payment_method === 'qris'
+                ? <div className="mt-2 flex items-center gap-3">
+                  {websiteOtsDestination.qris_storage_path && <button type="button" onClick={() => showOtsQris(websiteOtsDestination.qris_storage_path, websiteOtsDestination.qris_recipient_name || websiteOtsDestination.recipient_name)} className="group flex min-h-14 items-center gap-2 rounded-lg border border-blue-200 bg-white p-1.5 pr-3 text-left transition hover:border-blue-400 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600">
+                    <img src={otsQrisUrl(websiteOtsDestination.qris_storage_path)} alt="" className="h-11 w-11 rounded-md object-contain" />
+                    <span><span className="block font-bold text-blue-800">Lihat QRIS</span><span className="mt-0.5 block text-[10px] font-medium text-slate-500">Ketuk untuk memperbesar</span></span>
+                  </button>}
+                  {!websiteOtsDestination.qris_storage_path && <p className="text-blue-800">QRIS Statis</p>}
+                </div>
+                : <div className="mt-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-blue-700">{websiteOtsDestination.bank_name || 'Nomor Rekening'}</p>
+                  <div className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-blue-100 bg-white py-1.5 pl-2.5 pr-1.5">
+                    <span className="min-w-0 break-all font-mono text-sm font-bold tracking-wide text-slate-800">{websiteOtsDestination.account_number}</span>
+                    <button type="button" onClick={() => void copyOtsAccountNumber(websiteOtsDestination.account_number ?? '')} aria-label={copiedOtsAccount === websiteOtsDestination.account_number ? 'Nomor rekening tersalin' : 'Salin nomor rekening'} title={copiedOtsAccount === websiteOtsDestination.account_number ? 'Nomor rekening tersalin' : 'Salin nomor rekening'} className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${copiedOtsAccount === websiteOtsDestination.account_number ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                      {copiedOtsAccount === websiteOtsDestination.account_number ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>}
+            </div>}
+            {otsForm.payment_source === 'other' && <>
+              <label className="block text-xs font-bold text-slate-700">
+                Pilih Tujuan
+                <select value={otsForm.payment_destination_id} onChange={(event) => setOtsForm((current) => ({ ...current, payment_destination_id: event.target.value }))} className="input-field mt-1">
+                  <option value="">Pilih tujuan tersimpan</option>
+                  {otherOtsDestinations.map((destination) => <option key={destination.id} value={destination.id}>
+                    {otsForm.payment_method === 'qris' ? destination.qris_recipient_name || destination.recipient_name : `${destination.recipient_name} · ${destination.bank_name || 'Bank'} ${destination.account_number}`}
+                  </option>)}
+                  <option value="manual">+ Input tujuan baru</option>
+                </select>
+              </label>
+              {selectedOtherOtsDestination && <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">Detail Tujuan</p>
+                <p className="mt-1.5 break-words font-extrabold text-slate-900">{otsForm.payment_method === 'qris' ? selectedOtherOtsDestination.qris_recipient_name || selectedOtherOtsDestination.recipient_name : selectedOtherOtsDestination.recipient_name}</p>
+                {otsForm.payment_method === 'qris'
+                  ? <div className="mt-2">
+                    {selectedOtherOtsDestination.qris_storage_path
+                      ? <button type="button" onClick={() => showOtsQris(selectedOtherOtsDestination.qris_storage_path, selectedOtherOtsDestination.qris_recipient_name || selectedOtherOtsDestination.recipient_name)} className="group flex min-h-14 items-center gap-2 rounded-lg border border-slate-200 bg-white p-1.5 pr-3 text-left transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600">
+                        <img src={otsQrisUrl(selectedOtherOtsDestination.qris_storage_path)} alt="" className="h-11 w-11 rounded-md object-contain" />
+                        <span><span className="block text-xs font-bold text-blue-800">Lihat QRIS</span><span className="mt-0.5 block text-[10px] font-medium text-slate-500">Ketuk untuk memperbesar</span></span>
+                      </button>
+                      : <p className="text-slate-600">QRIS Statis</p>}
+                  </div>
+                  : <div className="mt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{selectedOtherOtsDestination.bank_name || 'Nomor Rekening'}</p>
+                    <div className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white py-1.5 pl-2.5 pr-1.5">
+                      <span className="min-w-0 break-all font-mono text-sm font-bold tracking-wide text-slate-800">{selectedOtherOtsDestination.account_number}</span>
+                      <button type="button" onClick={() => void copyOtsAccountNumber(selectedOtherOtsDestination.account_number ?? '')} aria-label={copiedOtsAccount === selectedOtherOtsDestination.account_number ? 'Nomor rekening tersalin' : 'Salin nomor rekening'} title={copiedOtsAccount === selectedOtherOtsDestination.account_number ? 'Nomor rekening tersalin' : 'Salin nomor rekening'} className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${copiedOtsAccount === selectedOtherOtsDestination.account_number ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                        {copiedOtsAccount === selectedOtherOtsDestination.account_number ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>}
+              </div>}
+              {otsForm.payment_destination_id === 'manual' && <div className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3 sm:grid-cols-2">
+                <p className="text-[10px] font-extrabold uppercase tracking-wide text-blue-800 sm:col-span-2">Informasi Tujuan Baru</p>
+                <label className="text-xs font-semibold text-slate-700">Nama Penerima
+                  <input required maxLength={160} value={otsForm.custom_recipient_name} onChange={(event) => setOtsForm((current) => ({ ...current, custom_recipient_name: event.target.value }))} className="input-field mt-1" placeholder="Nama pemilik tujuan" />
+                </label>
+                {otsForm.payment_method === 'bank_transfer' ? <>
+                  <label className="text-xs font-semibold text-slate-700">Nama Bank
+                    <input maxLength={120} value={otsForm.custom_bank_name} onChange={(event) => setOtsForm((current) => ({ ...current, custom_bank_name: event.target.value }))} className="input-field mt-1" placeholder="Contoh: BCA" />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-700 sm:col-span-2">Nomor Rekening
+                    <input required maxLength={80} value={otsForm.custom_account_number} onChange={(event) => setOtsForm((current) => ({ ...current, custom_account_number: event.target.value }))} className="input-field mt-1" placeholder="Nomor rekening tujuan" />
+                  </label>
+                </> : <>
+                  <label className="text-xs font-semibold text-slate-700">Nama Merchant QRIS
+                    <input maxLength={160} value={otsForm.custom_qris_recipient_name} onChange={(event) => setOtsForm((current) => ({ ...current, custom_qris_recipient_name: event.target.value }))} className="input-field mt-1" placeholder="Nama yang tampil di QRIS" />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-700 sm:col-span-2">Identitas QRIS
+                    <input required maxLength={160} value={otsForm.custom_qris_identifier} onChange={(event) => setOtsForm((current) => ({ ...current, custom_qris_identifier: event.target.value }))} className="input-field mt-1" placeholder="Contoh: nama penyedia atau ID merchant" />
+                  </label>
+                </>}
+                <label className="text-xs font-semibold text-slate-700 sm:col-span-2">Catatan (Opsional)
+                  <input maxLength={300} value={otsForm.custom_note} onChange={(event) => setOtsForm((current) => ({ ...current, custom_note: event.target.value }))} className="input-field mt-1" placeholder="Catatan tujuan pembayaran" />
+                </label>
+              </div>}
+            </>}
+          </div>}
+          {otsCopyError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700">{otsCopyError}</p>}
           {otsError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-700">{otsError}</p>}
           <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:justify-end">
             <button type="button" disabled={otsSaving} onClick={() => setOtsOpen(false)} className="btn-secondary min-h-11 w-full sm:w-auto">Batal</button>
-            <button type="submit" disabled={otsSaving || !eligibleOtsEvents.length || !selectedOtsCategory || otsQuantityLimit < 1} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
+            <button type="submit" disabled={otsSaving || otsPaymentDestinationsLoading || !eligibleOtsEvents.length || !selectedOtsCategory || otsQuantityLimit < 1 || (otsForm.payment_method !== 'cash' && otsForm.payment_source === 'website' && !websiteOtsDestination) || (otsForm.payment_method !== 'cash' && otsForm.payment_source === 'other' && !otsForm.payment_destination_id)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
               <Store className="h-4 w-4" />{otsSaving ? 'Menerbitkan tiket...' : 'Simpan Penjualan OTS'}
             </button>
           </div>
@@ -765,7 +1164,7 @@ export function TicketAdminTicketsPage() {
             <button type="button" onClick={() => { setFreePassOpen(false); setFreePassResult(null); }} className="btn-secondary min-h-11 w-full sm:w-auto">Selesai</button>
             {freePassResult.whatsapp_url && <a href={freePassResult.whatsapp_url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-emerald-800 sm:w-auto"><MessageCircle className="h-4 w-4" />Kirim akses via WhatsApp</a>}
           </div>
-        </div> : <form onSubmit={(event) => void issueFreePass(event)} className="space-y-4">
+        </div> : <form noValidate onSubmit={(event) => void issueFreePass(event)} className="space-y-4">
           <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-5 text-blue-900">
             Free Pass akan tercatat pada order dan daftar tiket dengan label khusus. Kuota tiket tetap terpakai, tetapi nominalnya tidak masuk laporan pendapatan.
           </div>
@@ -790,16 +1189,48 @@ export function TicketAdminTicketsPage() {
                 {freePassCategories.map((category) => <option key={category.id} value={category.id}>{category.name}{category.quota === null ? ' · kuota tanpa batas' : ` · kuota ${category.quota}`}</option>)}
               </select>
             </label>
-            <label className="block text-xs font-bold text-slate-700">Nama Penerima
-              <input required maxLength={160} value={freePassForm.full_name} onChange={(event) => setFreePassForm((current) => ({ ...current, full_name: event.target.value }))} className="input-field mt-1" placeholder="Nama sesuai identitas" />
-            </label>
-            <label className="block text-xs font-bold text-slate-700">Nomor WhatsApp
-              <input required type="tel" inputMode="numeric" autoComplete="tel" value={freePassForm.whatsapp} onChange={(event) => setFreePassForm((current) => ({ ...current, whatsapp: event.target.value.replace(/\D/g, '') }))} className="input-field mt-1" placeholder="Contoh: 081234567890" />
-            </label>
-            <label className="block text-xs font-bold text-slate-700">Email Penerima <span className="font-medium text-slate-400">(Opsional)</span>
-              <input type="email" autoComplete="email" value={freePassForm.email} onChange={(event) => setFreePassForm((current) => ({ ...current, email: event.target.value }))} className="input-field mt-1" placeholder="nama@email.com" />
+            <ValidatedContactInput
+              id="free-pass-name"
+              name="name"
+              label="Nama Penerima"
+              value={freePassForm.full_name}
+              placeholder="Nama sesuai identitas"
+              autoComplete="name"
+              required
+              maxLength={160}
+              validation={freePassFieldStates.full_name}
+              onChange={(full_name) => setFreePassForm((current) => ({ ...current, full_name }))}
+              onBlur={() => setFreePassTouched((current) => ({ ...current, full_name: true }))}
+            />
+            <ValidatedContactInput
+              id="free-pass-whatsapp"
+              name="tel"
+              label="Nomor WhatsApp"
+              type="tel"
+              inputMode="tel"
+              value={freePassForm.whatsapp}
+              placeholder="08xxxxxxxxxx"
+              autoComplete="tel"
+              required
+              validation={freePassFieldStates.whatsapp}
+              onChange={(whatsapp) => setFreePassForm((current) => ({ ...current, whatsapp }))}
+              onBlur={() => setFreePassTouched((current) => ({ ...current, whatsapp: true }))}
+            />
+            <div>
+              <ValidatedContactInput
+                id="free-pass-email"
+                name="email"
+                label="Email Penerima (Opsional)"
+                type="email"
+                value={freePassForm.email}
+                placeholder="nama@email.com"
+                autoComplete="email"
+                validation={freePassFieldStates.email}
+                onChange={(email) => setFreePassForm((current) => ({ ...current, email }))}
+                onBlur={() => setFreePassTouched((current) => ({ ...current, email: true }))}
+              />
               <span className="mt-1 block text-[11px] font-medium leading-4 text-slate-500">Jika diisi, informasi Free Pass dan Kode Akses dikirim otomatis lewat email.</span>
-            </label>
+            </div>
             <label className="block text-xs font-bold text-slate-700">
               <span className="block">Jumlah Tiket</span>
               <TicketQuantityStepper value={freePassForm.quantity} max={freePassQuantityLimit} disabled={!selectedFreePassCategory || freePassQuantityLimit < 1} onChange={(quantity) => setFreePassForm((current) => ({ ...current, quantity }))} />

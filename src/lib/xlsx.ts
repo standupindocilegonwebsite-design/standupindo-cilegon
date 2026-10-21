@@ -16,6 +16,7 @@ function xmlEscape(value: string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;')
+    // eslint-disable-next-line no-control-regex -- XML 1.0 forbids these control characters.
     .replace(/[^\u0009\u000A\u000D\u0020-\uD7FF\uE000-\uFFFD]/g, '');
 }
 

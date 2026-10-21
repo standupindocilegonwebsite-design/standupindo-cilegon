@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, BookOpen, Check, ChevronDown, Clock3, Download, FileText, FileType2, ListPlus, Moon, Pencil, Plus, Search, Star, Sun, Trash2, X, AlertTriangle } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { Material, MaterialSetlist, MaterialSetlistItem } from '@/lib/types';
@@ -32,7 +32,7 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
   const [deleteTarget, setDeleteTarget] = useState<MaterialSetlist | null>(null);
   const [draggedItem, setDraggedItem] = useState<{ setlistId: string; itemId: string } | null>(null);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
     const [materialsResult, setlistsResult, itemsResult] = await Promise.all([
@@ -49,9 +49,9 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
     }, {});
     setSetlistItems(grouped);
     setLoading(false);
-  }
+  }, [user?.id]);
 
-  useEffect(() => { void loadData(); }, [user?.id]);
+  useEffect(() => { void loadData(); }, [loadData]);
   const selectedDurationLabel = useMemo(() => formatSetlistDuration(materials.filter((material) => selected.includes(material.id))), [materials, selected]);
   const filteredMaterials = useMemo(() => {
     const query = materialSearch.trim().toLowerCase();

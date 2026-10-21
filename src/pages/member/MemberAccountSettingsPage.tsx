@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Eye, EyeOff, KeyRound, Save } from 'lucide-react';
+import { CheckCircle2, CircleX, Eye, EyeOff, KeyRound, Save } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
+import { PasswordChangeConfirmationModal } from '@/components/ui/PasswordChangeConfirmationModal';
 import { PushNotificationSettings } from '@/components/PushNotificationSettings';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -12,24 +13,36 @@ export function MemberAccountSettingsPage({ router }: { router: Router }) {
   const [visible, setVisible] = useState({ current: false, next: false, confirm: false });
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [passwordConfirmationOpen, setPasswordConfirmationOpen] = useState(false);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
     if (form.next.length < 6) { setMessage({ type: 'error', text: 'Password baru minimal 6 karakter.' }); return; }
     if (form.next !== form.confirm) { setMessage({ type: 'error', text: 'Konfirmasi password baru belum sama.' }); return; }
     if (!user?.email) return;
 
+    setPasswordConfirmationOpen(true);
+  }
+
+  async function confirmPasswordChange() {
+    const email = user?.email;
+    if (!email) {
+      setPasswordConfirmationOpen(false);
+      return;
+    }
     setSaving(true);
-    const verified = await signIn(user.email, form.current);
+    const verified = await signIn(email, form.current);
     if (verified.error) {
       setSaving(false);
+      setPasswordConfirmationOpen(false);
       setMessage({ type: 'error', text: 'Password lama tidak benar.' });
       return;
     }
 
     const { error } = await supabase.auth.updateUser({ password: form.next });
     setSaving(false);
+    setPasswordConfirmationOpen(false);
     if (error) {
       setMessage({ type: 'error', text: 'Password belum berhasil diubah. Silakan coba lagi.' });
       return;
@@ -49,6 +62,9 @@ export function MemberAccountSettingsPage({ router }: { router: Router }) {
             {visible[key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
+        {key === 'confirm' && form.confirm.length > 0 && <p aria-live="polite" className={`mt-1.5 flex items-center gap-1.5 text-xs font-semibold ${form.next === form.confirm ? 'text-emerald-700' : 'text-rose-700'}`}>
+          {form.next === form.confirm ? <><CheckCircle2 className="h-4 w-4" /> Password cocok</> : <><CircleX className="h-4 w-4" /> Password belum cocok</>}
+        </p>}
       </div>
     );
   }
@@ -65,6 +81,12 @@ export function MemberAccountSettingsPage({ router }: { router: Router }) {
           <button type="submit" disabled={saving} className="btn-primary mt-5 w-full !py-3.5"><Save className="h-4 w-4" />{saving ? 'Menyimpan...' : 'Simpan Password Baru'}</button>
         </form>
       </div></div>
+      <PasswordChangeConfirmationModal
+        open={passwordConfirmationOpen}
+        saving={saving}
+        onClose={() => setPasswordConfirmationOpen(false)}
+        onConfirm={() => void confirmPasswordChange()}
+      />
     </div>
   );
 }

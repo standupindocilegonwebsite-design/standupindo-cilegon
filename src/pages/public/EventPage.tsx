@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapPin, Search } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { EventItem, EventTicket } from '@/lib/types';
@@ -16,6 +16,32 @@ export function EventPage({ router }: { router: Router }) {
   const [upcomingSearch, setUpcomingSearch] = useState('');
   const [completedSearch, setCompletedSearch] = useState('');
   const [loadError, setLoadError] = useState(false);
+  const [notificationTargetError, setNotificationTargetError] = useState('');
+  const handledNotificationParticipantId = useRef<string | null>(null);
+  const navigateRef = useRef(router.navigate);
+  navigateRef.current = router.navigate;
+  const notificationParticipantId = router.query.get('notificationParticipantId');
+
+  useEffect(() => {
+    if (!notificationParticipantId || handledNotificationParticipantId.current === notificationParticipantId) return;
+    handledNotificationParticipantId.current = notificationParticipantId;
+    let active = true;
+    void (async () => {
+      const { data, error } = await supabase.from('event_participants')
+        .select('id, events(slug)')
+        .eq('id', notificationParticipantId)
+        .maybeSingle();
+      if (!active) return;
+      const eventSlug = (data?.events as { slug?: string } | null)?.slug;
+      if (error || !eventSlug) {
+        if (error) console.error('Failed to resolve linked member event notification', error);
+        setNotificationTargetError('Pendaftaran event dari notifikasi sudah tidak tersedia atau tidak dapat diakses oleh akun ini.');
+        return;
+      }
+      navigateRef.current(`/event/${encodeURIComponent(eventSlug)}?notificationParticipantId=${encodeURIComponent(notificationParticipantId)}`);
+    })();
+    return () => { active = false; };
+  }, [notificationParticipantId]);
 
   useEffect(() => {
     (async () => {
@@ -91,6 +117,7 @@ export function EventPage({ router }: { router: Router }) {
       <PageHeader router={router} title="Event" subtitle="Malam penuh tawa bersama komika terbaik Cilegon." />
 
       <div className="container-app py-6 space-y-8 sm:py-8 sm:space-y-10">
+        {notificationParticipantId && notificationTargetError && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">{notificationTargetError}</p>}
         <section data-scroll-reveal className="scroll-reveal">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-xl font-bold text-white">Mendatang</h2>
@@ -110,7 +137,7 @@ export function EventPage({ router }: { router: Router }) {
             <div className="flex gap-4 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
               {upcoming.map((e) => (
                 <div key={e.id} className="min-w-[270px] max-w-[270px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
-                  <EventCard event={e} router={router} price={ticketPrices[e.id] ?? null} />
+                  <EventCard event={e} router={router} price={ticketPrices[e.id] ?? (e.ticket_sales_mode === 'free' ? 0 : null)} />
                 </div>
               ))}
             </div>

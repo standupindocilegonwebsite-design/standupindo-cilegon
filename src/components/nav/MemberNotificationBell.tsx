@@ -1,11 +1,30 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Bell, CheckCircle2, ChevronRight, ClipboardCheck } from 'lucide-react';
-import type { Router } from '@/lib/router';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { MemberNotificationCountsContext, useMemberNotificationCounts } from '@/components/nav/member-notification-counts';
+import { NotificationInbox, type NotificationInboxItem } from '@/components/nav/NotificationInbox';
 
-type MemberNotification = { id: string; title: string; description: string; href: string; kind: 'registration' | 'event' | 'evaluation' };
+type MemberNotification = NotificationInboxItem & { kind: 'registration' | 'event' | 'evaluation' };
+type MemberNotificationSource = 'member-registration' | 'member-event' | 'member-evaluation';
+type MemberNotificationRow = {
+  id: string;
+  source_type: MemberNotificationSource;
+  source_id: string;
+  title: string;
+  description: string;
+  target_path: string;
+  created_at: string;
+  read_at: string | null;
+};
+type MemberNotificationCandidate = {
+  notification_key: string;
+  source_type: MemberNotificationSource;
+  source_id: string;
+  title: string;
+  description: string;
+  target_path: string;
+  kind: MemberNotification['kind'];
+};
 
 export function MemberNotificationCountsProvider({ children }: { children: ReactNode }) {
   const [counts, setCounts] = useState({ openMic: 0, evaluations: 0 });
@@ -20,21 +39,19 @@ export function MemberNotificationCountsProvider({ children }: { children: React
   return <MemberNotificationCountsContext.Provider value={value}>{children}</MemberNotificationCountsContext.Provider>;
 }
 
-async function fetchReadIds(userId: string): Promise<Set<string>> {
+async function fetchLegacyReadIds(userId: string): Promise<Set<string>> {
   const { data, error } = await supabase.from('member_notification_reads').select('notification_key').eq('user_id', userId);
-  if (error) return new Set();
+  if (error) throw error;
   return new Set((data ?? []).map((item) => String(item.notification_key)));
 }
 
-export function MemberNotificationBell({ router }: { router: Router }) {
+export function MemberNotificationBell({ router }: { router: import('@/lib/router').Router }) {
   const { user } = useAuth();
   const { setCounts } = useMemberNotificationCounts();
   const [items, setItems] = useState<MemberNotification[]>([]);
-  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string>();
   const [channelRevision, setChannelRevision] = useState(0);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const requestRevision = useRef(0);
 
   const loadNotifications = useCallback(async () => {
     if (!user?.id) {
@@ -42,45 +59,113 @@ export function MemberNotificationBell({ router }: { router: Router }) {
       setLoading(false);
       return;
     }
-    const requestId = ++requestRevision.current;
     setLoading(true);
-    const { data: profile } = await supabase.from('komika').select('id').eq('user_id', user.id).maybeSingle();
-    if (!profile?.id) {
-      if (requestId === requestRevision.current) {
+    setLoadError(undefined);
+    try {
+      const { data: profile, error: profileError } = await supabase.from('komika').select('id').eq('user_id', user.id).maybeSingle();
+      if (profileError) throw profileError;
+      if (!profile?.id) {
         setItems([]);
-        setLoading(false);
+        return;
       }
-      return;
-    }
 
-    const [{ data: registrations }, { data: evaluations }, { data: eventParticipants }, readSet] = await Promise.all([
-      supabase.from('open_mic_registrations').select('id, registration_id, open_mic_id, status, open_mics(title, slug)').eq('komika_id', profile.id).in('status', ['confirmed', 'rejected', 'cancelled']).order('updated_at', { ascending: false }).limit(10),
-      supabase.from('evaluations').select('id, open_mic_id, performer_registration_id, status, open_mics(title)').eq('performer_komika_id', profile.id).eq('status', 'submitted').order('updated_at', { ascending: false }).limit(10),
-      supabase.from('event_participants').select('id, registration_id, event_id, status, events(title)').eq('komika_id', profile.id).in('status', ['approved', 'rejected']).order('created_at', { ascending: false }).limit(10),
-      fetchReadIds(user.id),
-    ]);
+      const [{ data: registrations, error: registrationError }, { data: evaluations, error: evaluationError }, { data: eventParticipants, error: participantError }, legacyReadIds] = await Promise.all([
+        supabase.from('open_mic_registrations').select('id, registration_id, open_mic_id, status, updated_at, open_mics(title, slug)').eq('komika_id', profile.id).in('status', ['confirmed', 'rejected', 'cancelled']).order('updated_at', { ascending: false }),
+        supabase.from('evaluations').select('id, open_mic_id, performer_registration_id, status, updated_at, open_mics(title)').eq('performer_komika_id', profile.id).eq('status', 'submitted').order('updated_at', { ascending: false }),
+        supabase.from('event_participants').select('id, registration_id, event_id, status, updated_at, events(title, slug)').eq('komika_id', profile.id).in('status', ['approved', 'rejected']).order('updated_at', { ascending: false }),
+        fetchLegacyReadIds(user.id),
+      ]);
+      if (registrationError || evaluationError || participantError) throw registrationError ?? evaluationError ?? participantError;
 
-    const registrationItems = ((registrations ?? []) as Array<{ id: string; registration_id: string; status: string; open_mics?: { title?: string; slug?: string } | null }>).map((row) => ({
-      id: `registration:${row.id}:${row.status}`,
-      title: `Pendaftaran ${row.status === 'confirmed' ? 'dikonfirmasi' : row.status === 'rejected' ? 'ditolak' : 'dibatalkan'}`,
-      description: `${row.open_mics?.title ?? row.registration_id}`,
-      href: row.status === 'confirmed' && row.open_mics?.slug ? `/member/open-mic/${row.open_mics.slug}#lineup` : '/member/open-mic', kind: 'registration' as const,
-    }));
-    const eventItems = ((eventParticipants ?? []) as Array<{ id: string; registration_id: string; status: string; events?: { title?: string } | null }>).map((row) => ({
-      id: `event:${row.id}:${row.status}`,
-      title: `Pendaftaran event ${row.status === 'approved' ? 'disetujui' : 'ditolak'}`,
-      description: `${row.events?.title ?? row.registration_id}`,
-      href: '/member/open-mic', kind: 'event' as const,
-    }));
-    const evaluationItems = ((evaluations ?? []) as Array<{ id: string; open_mics?: { title?: string } | null }>).map((row) => ({
-      id: `evaluation:${row.id}`,
-      title: 'Evaluasi baru tersedia',
-      description: row.open_mics?.title ?? 'Performance kamu',
-      href: '/member/evaluations', kind: 'evaluation' as const,
-    }));
+      const candidates: MemberNotificationCandidate[] = [];
+      ((registrations ?? []) as Array<{ id: string; registration_id: string; open_mic_id: string; status: string; updated_at: string; open_mics?: { title?: string; slug?: string } | null }>).forEach((row) => {
+        const slug = row.open_mics?.slug;
+        candidates.push({
+          notification_key: `registration:${row.id}:${row.status}`,
+          source_type: 'member-registration',
+          source_id: row.id,
+          title: `Pendaftaran ${row.status === 'confirmed' ? 'dikonfirmasi' : row.status === 'rejected' ? 'ditolak' : 'dibatalkan'}`,
+          description: row.open_mics?.title ?? row.registration_id,
+          target_path: slug
+            ? `/member/open-mic/${encodeURIComponent(slug)}?notificationRegistrationId=${encodeURIComponent(row.id)}`
+            : `/member/open-mic?notificationRegistrationId=${encodeURIComponent(row.id)}`,
+          kind: 'registration',
+        });
+      });
+      ((eventParticipants ?? []) as Array<{ id: string; registration_id: string; event_id: string; status: string; updated_at: string; events?: { title?: string; slug?: string } | null }>).forEach((row) => {
+        candidates.push({
+          notification_key: `event:${row.id}:${row.status}`,
+          source_type: 'member-event',
+          source_id: row.id,
+          title: `Pendaftaran event ${row.status === 'approved' ? 'disetujui' : 'ditolak'}`,
+          description: row.events?.title ?? row.registration_id,
+          target_path: row.events?.slug
+            ? `/event/${encodeURIComponent(row.events.slug)}?notificationParticipantId=${encodeURIComponent(row.id)}`
+            : `/event?notificationParticipantId=${encodeURIComponent(row.id)}`,
+          kind: 'event',
+        });
+      });
+      ((evaluations ?? []) as Array<{ id: string; open_mic_id: string; status: string; updated_at: string; open_mics?: { title?: string } | null }>).forEach((row) => {
+        candidates.push({
+          notification_key: `evaluation:${row.id}`,
+          source_type: 'member-evaluation',
+          source_id: row.id,
+          title: 'Evaluasi baru tersedia',
+          description: row.open_mics?.title ?? 'Performance kamu',
+          target_path: `/member/evaluations?notificationEvaluationId=${encodeURIComponent(row.id)}`,
+          kind: 'evaluation',
+        });
+      });
 
-    if (requestId === requestRevision.current) {
-      setItems([...registrationItems, ...eventItems, ...evaluationItems].filter((item) => !readSet.has(item.id)));
+      if (candidates.length > 0) {
+        const timestamp = new Date().toISOString();
+        const { error: persistError } = await supabase.from('user_notifications').upsert(candidates.map((candidate) => ({
+          user_id: user.id,
+          notification_key: candidate.notification_key,
+          source_type: candidate.source_type,
+          source_id: candidate.source_id,
+          title: candidate.title,
+          description: candidate.description,
+          target_path: candidate.target_path,
+          read_at: legacyReadIds.has(candidate.notification_key) ? timestamp : null,
+        })), { onConflict: 'user_id,notification_key', ignoreDuplicates: true });
+        if (persistError) throw persistError;
+      }
+
+      const pageSize = 200;
+      const inboxRows: MemberNotificationRow[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error: inboxError } = await supabase.from('user_notifications')
+          .select('id, source_type, source_id, title, description, target_path, created_at, read_at')
+          .eq('user_id', user.id)
+          .in('source_type', ['member-registration', 'member-event', 'member-evaluation'])
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (inboxError) throw inboxError;
+        const page = (data ?? []) as MemberNotificationRow[];
+        inboxRows.push(...page);
+        if (page.length < pageSize) break;
+      }
+      const kindBySource: Record<MemberNotificationSource, MemberNotification['kind']> = {
+        'member-registration': 'registration',
+        'member-event': 'event',
+        'member-evaluation': 'evaluation',
+      };
+      setItems(inboxRows.map((row) => ({
+        id: row.id,
+        source: row.source_type,
+        title: row.title,
+        description: row.description,
+        targetPath: row.target_path,
+        createdAt: row.created_at,
+        readAt: row.read_at,
+        kind: kindBySource[row.source_type],
+      })));
+    } catch (error) {
+      console.error('Failed to load member notifications', error);
+      setLoadError('Notifikasi gagal dimuat. Coba buka panel lagi atau segarkan halaman.');
+    } finally {
       setLoading(false);
     }
   }, [user?.id]);
@@ -93,6 +178,7 @@ export function MemberNotificationBell({ router }: { router: Router }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'open_mic_registrations' }, () => void loadNotifications())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_participants' }, () => void loadNotifications())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evaluations' }, () => void loadNotifications())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_notifications', filter: `user_id=eq.${user.id}` }, () => void loadNotifications())
       .subscribe((status) => {
         if (active && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED')) {
           setChannelRevision((revision) => revision + 1);
@@ -116,53 +202,82 @@ export function MemberNotificationBell({ router }: { router: Router }) {
     };
   }, [channelRevision, loadNotifications, user?.id]);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const closeOnOutsideClick = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', closeOnOutsideClick);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('mousedown', closeOnOutsideClick);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [open]);
+  const unreadItems = useMemo(() => items.filter((item) => !item.readAt), [items]);
+  useEffect(() => { setCounts(unreadItems); }, [setCounts, unreadItems]);
 
-  const unreadCount = items.length;
-  const groupedLabel = useMemo(() => unreadCount > 99 ? '99+' : String(unreadCount), [unreadCount]);
-  useEffect(() => { setCounts(items); }, [items, setCounts]);
-
-  async function markRead(item: MemberNotification) {
-    if (!user?.id) return;
-    const { error } = await supabase.from('member_notification_reads').upsert({ user_id: user.id, notification_key: item.id, read_at: new Date().toISOString() }, { onConflict: 'user_id,notification_key' });
-    if (!error) {
-      setItems((current) => current.filter((entry) => entry.id !== item.id));
-    }
-    setOpen(false);
-    router.navigate(item.href);
+  async function markRead(id: string) {
+    if (!user?.id) throw new Error('Sesi login tidak tersedia.');
+    const { error } = await supabase.from('user_notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .is('deleted_at', null);
+    if (error) throw error;
+    await loadNotifications();
   }
 
   async function markAllRead() {
-    if (!user?.id || items.length === 0) return;
-    const payload = items.map((item) => ({ user_id: user.id, notification_key: item.id, read_at: new Date().toISOString() }));
-    const { error } = await supabase.from('member_notification_reads').upsert(payload, { onConflict: 'user_id,notification_key' });
-    if (!error) setItems([]);
+    if (!user?.id) throw new Error('Sesi login tidak tersedia.');
+    const { error } = await supabase.from('user_notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .in('source_type', ['member-registration', 'member-event', 'member-evaluation'])
+      .is('read_at', null)
+      .is('deleted_at', null);
+    if (error) throw error;
+    await loadNotifications();
+  }
+
+  async function clearAll() {
+    if (!user?.id) throw new Error('Sesi login tidak tersedia.');
+    const { error } = await supabase.from('user_notifications')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .in('source_type', ['member-registration', 'member-event', 'member-evaluation'])
+      .is('deleted_at', null);
+    if (error) throw error;
+    await loadNotifications();
+  }
+
+  async function deleteReadNotification(id: string) {
+    if (!user?.id) throw new Error('Sesi login tidak tersedia.');
+    const { error } = await supabase.from('user_notifications')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .in('source_type', ['member-registration', 'member-event', 'member-evaluation'])
+      .not('read_at', 'is', null)
+      .is('deleted_at', null);
+    if (error) throw error;
+    await loadNotifications();
+  }
+
+  async function clearRead() {
+    if (!user?.id) throw new Error('Sesi login tidak tersedia.');
+    const { error } = await supabase.from('user_notifications')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .in('source_type', ['member-registration', 'member-event', 'member-evaluation'])
+      .not('read_at', 'is', null)
+      .is('deleted_at', null);
+    if (error) throw error;
+    await loadNotifications();
   }
 
   return (
-    <div ref={rootRef} className="relative">
-      <button type="button" onClick={() => setOpen((value) => !value)} className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700" aria-label={`Notifikasi member${unreadCount ? `, ${groupedLabel} belum dibaca` : ''}`} aria-expanded={open}>
-        <Bell className="h-5 w-5" />
-        {unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-extrabold text-white">{groupedLabel}</span>}
-      </button>
-      {open && (
-        <div role="dialog" aria-label="Notifikasi member" className="fixed left-2 right-2 top-16 z-[60] max-h-[calc(100dvh-5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[min(23rem,calc(100vw-1.5rem))] sm:max-h-none">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3"><div><h3 className="text-sm font-extrabold text-slate-900">Notifikasi</h3><p className="mt-0.5 text-xs text-slate-500">Update aktivitas akun kamu</p></div>{items.length > 0 && <button type="button" onClick={markAllRead} className="text-xs font-bold text-blue-700">Tandai dibaca</button>}</div>
-          {loading ? <div className="px-5 py-8 text-center"><span className="mx-auto block h-6 w-6 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" /><p className="mt-3 text-sm font-semibold text-slate-500">Memuat notifikasi...</p></div> : items.length === 0 ? <div className="px-5 py-8 text-center"><CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" /><p className="mt-2 text-sm font-semibold text-slate-600">Belum ada notifikasi</p><p className="mt-1 text-xs text-slate-400">Update pendaftaran dan evaluasi akan muncul di sini.</p></div> : <div className="max-h-[min(20rem,calc(100vh-8rem))] overflow-y-auto p-2">{items.map((item) => <button key={item.id} type="button" onClick={() => markRead(item)} className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-blue-50"><span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">{item.kind === 'evaluation' ? <ClipboardCheck className="h-4 w-4" /> : item.kind === 'event' ? <CheckCircle2 className="h-4 w-4" /> : <Bell className="h-4 w-4" />}</span><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-slate-800">{item.title}</span><span className="mt-0.5 block truncate text-xs text-slate-500">{item.description}</span></span><ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-300" /></button>)}</div>}
-        </div>
-      )}
-    </div>
+    <NotificationInbox
+      items={items}
+      unreadCount={unreadItems.length}
+      loading={loading}
+      error={loadError}
+      label="Notifikasi member"
+      onMarkRead={markRead}
+      onMarkAllRead={markAllRead}
+      onClearAll={clearAll}
+      onDeleteRead={deleteReadNotification}
+      onClearRead={clearRead}
+      onRetry={loadNotifications}
+      onNavigate={(path) => router.navigate(path)}
+    />
   );
 }

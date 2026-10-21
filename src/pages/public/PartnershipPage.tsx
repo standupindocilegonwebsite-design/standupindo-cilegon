@@ -16,8 +16,6 @@ const TYPES = [
 ];
 
 function PartnerMarqueeStrip({ partners, category }: { partners: Partner[]; category: 'sponsor' | 'support' | 'media_partner' }) {
-  if (partners.length === 0) return null;
-
   const [dragging, setDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const dragStartRef = useRef({ x: 0, offset: 0 });
@@ -63,6 +61,8 @@ function PartnerMarqueeStrip({ partners, category }: { partners: Partner[]; cate
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     setDragging(false);
   }
+
+  if (partners.length === 0) return null;
 
   return (
     <div className="rounded-[28px] border border-white/50 bg-white/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] backdrop-blur-sm sm:p-4">

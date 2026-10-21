@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Calendar, ChevronDown, ClipboardList, Clock, Info, MessageCircle } from 'lucide-react';
+import { ArrowRight, Calendar, ChevronDown, ClipboardList, Clock, Info } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { EventItem, EventLineupEntry, EventLineupRole, EventTicket, EventPartnership, Partner, SiteSettings } from '@/lib/types';
+import type { EventItem, EventLineupEntry, EventLineupRole, EventTicket, EventPartnership, Partner } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -12,13 +12,13 @@ import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
-import { formatDate, formatPrice, getEventStatus, safeExternalUrl, waLink } from '@/lib/format';
+import { formatDate, formatPrice, getEventStatus, safeExternalUrl } from '@/lib/format';
 import { seoDescription, setPageMetadata } from '@/lib/seo';
+import { useAuth } from '@/lib/auth-context';
 
 interface Props {
   router: Router;
   slug: string;
-  settings: SiteSettings;
 }
 
 function EventPartnerMarquee({ partners, logoSize, role }: { partners: Partner[]; logoSize: string; role: 'sponsor' | 'support' | 'media_partner' }) {
@@ -203,9 +203,12 @@ function EventDocumentationGallery({ photos, eventTitle, eventDate, eventVenue, 
   );
 }
 
-export function EventDetailPage({ router, slug, settings }: Props) {
+export function EventDetailPage({ router, slug }: Props) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState<EventItem | null>(null);
+  const [targetParticipant, setTargetParticipant] = useState<{ id: string; registration_id: string; status: string } | null>(null);
+  const [targetParticipantUnavailable, setTargetParticipantUnavailable] = useState(false);
   const [posterLightboxOpen, setPosterLightboxOpen] = useState(false);
   const [tickets, setTickets] = useState<EventTicket[]>([]);
   const [ticketLoadError, setTicketLoadError] = useState('');
@@ -214,6 +217,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
   const [partnersByRole, setPartnersByRole] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
   const [infoTab, setInfoTab] = useState<'about' | 'rules'>('about');
   const [infoExpanded, setInfoExpanded] = useState(false);
+  const notificationParticipantId = router.query.get('notificationParticipantId');
 
   useEffect(() => {
     (async () => {
@@ -222,6 +226,25 @@ export function EventDetailPage({ router, slug, settings }: Props) {
       setEvent(ev);
 
       if (ev) {
+        if (notificationParticipantId) {
+          const { data: participant, error: participantError } = await supabase.from('event_participants')
+            .select('id, registration_id, status')
+            .eq('id', notificationParticipantId)
+            .eq('event_id', ev.id)
+            .maybeSingle();
+          if (participantError) {
+            console.error('Failed to load linked member event registration', participantError);
+            setTargetParticipantUnavailable(true);
+          } else if (participant) {
+            setTargetParticipant(participant);
+            setTargetParticipantUnavailable(false);
+          } else {
+            setTargetParticipantUnavailable(true);
+          }
+        } else {
+          setTargetParticipant(null);
+          setTargetParticipantUnavailable(false);
+        }
         const { data: ticketData, error: ticketError } = await supabase.from('event_tickets').select('*').eq('event_id', ev.id).eq('status', 'active').eq('available_public', true).order('sort_order', { ascending: true }).order('price', { ascending: true });
         if (ticketError) setTicketLoadError('Informasi tiket belum dapat dimuat. Coba segarkan halaman.');
         setTickets((ticketData as EventTicket[]) ?? []);
@@ -284,7 +307,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
       }
       setLoading(false);
     })();
-  }, [slug]);
+  }, [notificationParticipantId, slug, user?.id]);
 
   if (loading) {
     return (
@@ -304,11 +327,8 @@ export function EventDetailPage({ router, slug, settings }: Props) {
     );
   }
 
-  const defaultWaMessage = `Halo Admin Standupindo Cilegon, saya ingin membeli tiket ${event.title}.`;
-  const waMessage = event.whatsapp_message?.trim() ? event.whatsapp_message.trim() : defaultWaMessage;
-  const buyTicketNumber = event.whatsapp_number || settings.whatsapp_ticket || settings.whatsapp_admin;
   const cheapestTicketPrice = tickets.length > 0 ? Math.min(...tickets.map((ticket) => ticket.price)) : null;
-  const isFreeEvent = tickets.length === 0 && (event.ticket_price ?? 0) <= 0;
+  const isFreeEvent = tickets.length === 0 && event.ticket_sales_mode === 'free';
   const pageUrl = `${window.location.origin}/event/${event.slug}`;
   const currentStatus = getEventStatus(event.status, event.date);
   const shareMessage = currentStatus === 'completed'
@@ -335,6 +355,14 @@ export function EventDetailPage({ router, slug, settings }: Props) {
       <PageHeader router={router} title={event.title} />
 
       <div className="container-app space-y-6 py-6 sm:space-y-8 sm:py-8">
+        {notificationParticipantId && <section className={`rounded-2xl border p-4 ${targetParticipant ? 'border-blue-300 bg-blue-50' : targetParticipantUnavailable ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`} aria-live="polite">
+          <p className="text-xs font-extrabold uppercase tracking-wide text-blue-800">Detail pendaftaran dari notifikasi</p>
+          {targetParticipant
+            ? <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold text-slate-900">Nomor {targetParticipant.registration_id}</p><StatusBadge status={targetParticipant.status} /></div>
+            : targetParticipantUnavailable
+              ? <p className="mt-1 text-sm font-semibold text-amber-900">Detail pendaftaran tidak tersedia atau tidak dapat diakses oleh akun ini.</p>
+              : <p className="mt-1 text-sm text-slate-600">Memuat detail pendaftaran...</p>}
+        </section>}
         {/* Poster + meta */}
         <div className="grid gap-3 lg:grid-cols-5 lg:gap-4">
           <div className="lg:col-span-2">
@@ -371,6 +399,7 @@ export function EventDetailPage({ router, slug, settings }: Props) {
               <div className="border-t border-slate-100"><LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="items-center gap-2.5 !rounded-none !border-0 !shadow-none !px-3.5 !py-3" /></div>
             </div>
             {currentStatus === 'upcoming' && !ticketLoadError && isFreeEvent && <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">Acara gratis. Tidak perlu membeli tiket.</p>}
+            {currentStatus === 'upcoming' && !ticketLoadError && tickets.length === 0 && event.ticket_sales_mode === 'paid' && <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Tiket publik belum tersedia.</p>}
             {ticketLoadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{ticketLoadError}</p>}
             {currentStatus !== 'completed' && <NoSmokeAreaNotice detail context="event" />}
 
@@ -385,9 +414,6 @@ export function EventDetailPage({ router, slug, settings }: Props) {
                     <span className="ml-4 inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-white/40 bg-white px-4 text-sm font-extrabold text-blue-800 shadow-sm transition group-hover:bg-blue-50">Beli Tiket <ArrowRight className="h-4 w-4" /></span>
                   </button>
                 )}
-                {!ticketLoadError && tickets.length === 0 && !isFreeEvent && <a href={waLink(buyTicketNumber, waMessage)} target="_blank" rel="noopener noreferrer" className="btn-primary w-full !py-3.5 text-base">
-                  <MessageCircle className="h-5 w-5" /> Beli Tiket via WhatsApp
-                </a>}
                 {event.registration_status === 'open' && <button onClick={() => router.navigate(`/event/${event.slug}/daftar`)} className="btn-secondary w-full !py-3.5 text-base">Daftar sebagai Peserta</button>}
               </div>
             )}

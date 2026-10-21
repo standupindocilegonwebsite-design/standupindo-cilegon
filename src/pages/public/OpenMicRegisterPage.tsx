@@ -11,7 +11,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
 import { LOGO_URL } from '@/lib/types';
 import { InstagramFollowLink } from '@/components/ui/InstagramFollowLink';
-import { CommunityCombobox, CommunityOptions } from '@/components/ui/CommunityCombobox';
+import { CommunityCombobox } from '@/components/ui/CommunityCombobox';
 
 interface Props {
   router: Router;
@@ -289,7 +289,6 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
             {!memberProfile && <div>
               <label className="label-field" htmlFor="community">Komunitas</label>
               <CommunityCombobox id="community" value={form.community} onChange={(e) => setForm({ ...form, community: e.target.value })} placeholder="Pilih atau ketik komunitas" />
-              <CommunityOptions id="community" />
             </div>}
 
             {!memberProfile && <div>

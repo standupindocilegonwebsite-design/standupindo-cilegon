@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, BookOpen, CalendarDays, ChevronDown, ChevronUp, Clock3, Expand, Moon, Minus, Pencil, Plus, RotateCcw, Save, Shrink, Star, Sun, Trash2, X, ZoomIn } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { Material, MaterialNode } from '@/lib/types';
@@ -72,7 +72,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
     return () => window.cancelAnimationFrame(frame);
   }, [editing]);
 
-  async function loadMaterial() {
+  const loadMaterial = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
     const { data, error: loadError } = await supabase.from('materials').select('*').eq('id', id).eq('user_id', user.id).maybeSingle();
@@ -83,9 +83,9 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
     const { data: nodeData } = await supabase.from('material_nodes').select('*').eq('material_id', id).order('sort_order', { ascending: true }).order('created_at', { ascending: true });
     setNodes((nodeData as MaterialNode[]) ?? []);
     setLoading(false);
-  }
+  }, [id, user?.id]);
 
-  useEffect(() => { void loadMaterial(); }, [id, user?.id]);
+  useEffect(() => { void loadMaterial(); }, [loadMaterial]);
 
   async function saveChanges() {
     if (!user?.id || !material) return;
@@ -261,7 +261,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [mappingFullscreen, mindMap.height, mindMap.width]);
+  }, [canvasScale, mappingFullscreen, mindMap.height, mindMap.width]);
 
   const nodeEditorPosition = nodeParentId ? mindMap.positions.get(nodeParentId) : null;
 

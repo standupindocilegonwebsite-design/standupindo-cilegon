@@ -59,6 +59,7 @@ export interface EventItem {
   published: boolean;
   whatsapp_number: string;
   whatsapp_message: string | null;
+  ticket_sales_mode: 'free' | 'paid';
   ticket_price: number;
   created_at: string;
   updated_at: string;
@@ -137,6 +138,11 @@ export interface TicketOrder {
   quantity: number;
   unit_price: number;
   total_price: number;
+  ticket_subtotal?: number;
+  discount_amount?: number;
+  additional_fee_amount?: number;
+  voucher_code_snapshot?: string | null;
+  price_breakdown?: Record<string, unknown> | null;
   notes: string | null;
   status: TicketOrderStatus;
   expires_at?: string | null;
@@ -153,6 +159,13 @@ export interface TicketOrder {
   sale_channel?: 'online' | 'ots' | 'free_pass';
   free_pass_reason?: string | null;
   issued_by?: string | null;
+  ots_payment_method?: 'cash' | 'qris' | 'bank_transfer' | null;
+  ots_payment_source?: 'website' | 'other' | null;
+  ots_payment_method_id?: string | null;
+  ots_payment_snapshot?: Record<string, unknown> | null;
+  ots_payment_status?: 'pending' | 'confirmed' | null;
+  ots_payment_confirmed_at?: string | null;
+  ots_payment_confirmed_by?: string | null;
   created_at: string;
   updated_at: string;
 }

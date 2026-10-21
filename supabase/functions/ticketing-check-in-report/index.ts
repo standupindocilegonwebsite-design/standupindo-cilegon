@@ -84,13 +84,13 @@ serve(async (request) => {
     const scopedEventIds = [...new Set((scopes ?? [])
       .map((scope) => scope.event_id)
       .filter((id): id is string => Boolean(id)))];
-    const scopedEvents: Array<{ id: string; title: string; date: string; venue: string }> = [];
+    const scopedEvents: Array<{ id: string; title: string; date: string; venue: string; poster: string | null; status: 'upcoming' | 'completed' | 'cancelled' }> = [];
 
     if (allEventsAllowed || scopedEventIds.length > 0) {
       const eventIdChunks: Array<string[] | null> = allEventsAllowed ? [null] : chunkValues(scopedEventIds);
       for (const ids of eventIdChunks) {
         const { data, error } = await fetchAllPages((from, to) => {
-          let query = serviceClient.from('events').select('id, title, date, venue')
+          let query = serviceClient.from('events').select('id, title, date, venue, poster, status')
             .order('date', { ascending: true }).order('id', { ascending: true });
           if (ids) query = query.in('id', ids);
           return query.range(from, to);

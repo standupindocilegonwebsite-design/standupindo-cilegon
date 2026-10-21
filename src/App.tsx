@@ -288,7 +288,7 @@ function RoutedApp() {
   else if (ticketOrder) content = <TicketOrderPage router={router} slug={ticketOrder.slug} ticketId={ticketOrder.ticketId} />;
   else if (ticketSelection) content = <TicketSelectionPage router={router} slug={ticketSelection.slug} />;
   else if (eventRegister) content = <EventRegisterPage router={router} slug={eventRegister.slug} />;
-  else if (eventDetail) content = <EventDetailPage router={router} slug={eventDetail.slug} settings={settings} />;
+  else if (eventDetail) content = <EventDetailPage router={router} slug={eventDetail.slug} />;
   else if (router.path === '/syarat-ketentuan') content = <TicketLegalPage router={router} settings={settings} document="terms" />;
   else if (router.path === '/kebijakan-privasi') content = <TicketLegalPage router={router} settings={settings} document="privacy" />;
   else if (router.path === '/komika') content = <KomikaPage router={router} />;

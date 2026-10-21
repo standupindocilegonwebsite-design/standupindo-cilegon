@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { History, Plus, Search } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { OpenMic } from '@/lib/types';
@@ -57,7 +57,33 @@ export function OpenMicPage({ router }: { router: Router }) {
   const [selectedPerformerId, setSelectedPerformerId] = useState<string | null>(null);
   const [upcomingSearch, setUpcomingSearch] = useState('');
   const [completedSearch, setCompletedSearch] = useState('');
+  const [notificationTargetError, setNotificationTargetError] = useState('');
+  const handledNotificationRegistrationId = useRef<string | null>(null);
+  const navigateRef = useRef(router.navigate);
+  navigateRef.current = router.navigate;
   const openMicNumbers = useMemo(() => getOpenMicNumbers(mics), [mics]);
+  const notificationRegistrationId = router.query.get('notificationRegistrationId');
+
+  useEffect(() => {
+    if (!isMemberPage || !notificationRegistrationId || handledNotificationRegistrationId.current === notificationRegistrationId) return;
+    handledNotificationRegistrationId.current = notificationRegistrationId;
+    let active = true;
+    void (async () => {
+      const { data, error } = await supabase.from('open_mic_registrations')
+        .select('id, open_mics(slug)')
+        .eq('id', notificationRegistrationId)
+        .maybeSingle();
+      if (!active) return;
+      const micSlug = (data?.open_mics as { slug?: string } | null)?.slug;
+      if (error || !micSlug) {
+        if (error) console.error('Failed to resolve linked member Open Mic notification', error);
+        setNotificationTargetError('Pendaftaran dari notifikasi sudah tidak tersedia atau tidak dapat diakses oleh akun ini.');
+        return;
+      }
+      navigateRef.current(`/member/open-mic/${encodeURIComponent(micSlug)}?notificationRegistrationId=${encodeURIComponent(notificationRegistrationId)}`);
+    })();
+    return () => { active = false; };
+  }, [isMemberPage, notificationRegistrationId]);
 
   useEffect(() => {
     (async () => {
@@ -177,6 +203,7 @@ export function OpenMicPage({ router }: { router: Router }) {
     <div className="animate-fade-in">
       <PageHeader router={router} title="Open Mic" subtitle="Temukan panggungmu." />
 
+      {notificationRegistrationId && notificationTargetError && <div className="container-app pt-4"><p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">{notificationTargetError}</p></div>}
       {isMemberPage && (
         <div className="container-app pt-5">
           <div className="flex items-center gap-3">

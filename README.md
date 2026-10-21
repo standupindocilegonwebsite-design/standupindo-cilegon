@@ -36,6 +36,16 @@ Public, Admin, dan Member memakai subscription Web Push terpisah pada Service Wo
 
 Migration menjadwalkan pemeriksaan setiap 15 menit. Pengiriman Event/Open Mic publik, reminder Event untuk Admin/QR, tugas evaluasi untuk Evaluator, dan setiap target perangkat dicatat terpisah agar scheduler berulang tidak mengirim tahap yang sama dua kali. Waktu reminder mengikuti WIB. Push saat publish tetap memakai jalur pengiriman langsung yang ada. Reminder Open Mic sebelum acara hanya dikirim saat pendaftaran masih terbuka; notifikasi lineup H+1 menunggu data komika berstatus tampil (`confirmed` dan `attended`).
 
+## Harga dan Voucher Tiket
+
+Admin Tiket mengelola pengaturan biaya per Event dan voucher dari menu **Lainnya**. Pengaturan biaya tidak aktif secara default. Harga, diskon, biaya, serta snapshot order dihitung di database; angka dari browser tidak digunakan sebagai sumber nilai pembayaran. Voucher khusus dibatasi lagi dengan daftar nomor WhatsApp yang diizinkan, bukan hanya dengan kode yang tidak dipublikasikan.
+
+Kuota voucher dicadangkan ketika order dibuat. Reservasi mengikuti status order ticketing: berakhir ketika order kedaluwarsa atau pembayaran ditolak, tetap dicadangkan selama verifikasi pembayaran, dan menjadi penggunaan final setelah order lunas. Order OTS dan Free Pass tetap memakai alur lama dan tidak menerima biaya atau diskon otomatis.
+
+Daftar voucher khusus dicocokkan dengan nomor WhatsApp yang dimasukkan saat checkout. Kepemilikan nomor tidak diverifikasi dengan OTP pada saat voucher dipakai; gunakan alur verifikasi identitas terpisah bila kebijakan bisnis mensyaratkan pembatasan berdasarkan nomor yang sudah diverifikasi.
+
+Migration [20261021120000_ticket_pricing_vouchers.sql](./supabase/migrations/20261021120000_ticket_pricing_vouchers.sql) bersifat additive dan menerapkan scope role `admin_ticket` secara eksplisit. Terapkan dan uji migration ini terlebih dahulu di staging sesuai prosedur database proyek, lalu deploy perubahan aplikasi/Edge Function. Jangan menjalankan migration atau deploy production sebelum backup, pemeriksaan schema, serta persetujuan dan verifikasi staging.
+
 ## Clone komunitas
 
 Untuk tahapan membuat salinan mandiri—termasuk akun dan resource terpisah, migration, branding, build, hosting, keamanan, dan smoke test—gunakan [COMMUNITY_CLONE_RUNBOOK.md](COMMUNITY_CLONE_RUNBOOK.md). Jangan mengikuti panduan clone historis yang menginstruksikan menjalankan seluruh folder migration.

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, Check, CheckCircle2, ChevronDown, Clock, Info, Instagram, Mic, Search, Send, Ticket, ArrowRight } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { OpenMic, OpenMicRegistration } from '@/lib/types';
+import type { Komika, OpenMic, OpenMicRegistration } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -16,6 +16,7 @@ import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
 import { ShareLineupModal } from '@/components/open-mic/ShareLineupModal';
 import { useSiteSettings } from '@/lib/useSiteSettings';
 import { seoDescription, setPageMetadata } from '@/lib/seo';
+import { useAuth } from '@/lib/auth-context';
 
 interface Props {
   router: Router;
@@ -24,11 +25,18 @@ interface Props {
   isMemberArea?: boolean;
 }
 
+type OpenMicLineupRegistration = OpenMicRegistration & {
+  komika?: Pick<Komika, 'slug' | 'status' | 'published'> | Pick<Komika, 'slug' | 'status' | 'published'>[] | null;
+};
+
 export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, isMemberArea = false }: Props) {
   const { settings } = useSiteSettings();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [mic, setMic] = useState<OpenMic | null>(null);
-  const [confirmed, setConfirmed] = useState<OpenMicRegistration[]>([]);
+  const [targetRegistration, setTargetRegistration] = useState<{ id: string; registration_id: string; status: string } | null>(null);
+  const [targetRegistrationUnavailable, setTargetRegistrationUnavailable] = useState(false);
+  const [confirmed, setConfirmed] = useState<OpenMicLineupRegistration[]>([]);
   const [numberedMics, setNumberedMics] = useState<OpenMic[]>([]);
   const [lightbox, setLightbox] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -36,6 +44,7 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
   const [shareLineupOpen, setShareLineupOpen] = useState(false);
   const [stageInfoExpanded, setStageInfoExpanded] = useState(false);
   const [lineupSearch, setLineupSearch] = useState('');
+  const notificationRegistrationId = router.query.get('notificationRegistrationId');
 
   useEffect(() => {
     (async () => {
@@ -50,10 +59,30 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
           supabase.from('open_mics').select('*').eq('published', true),
         ]);
 
-        const regs = (regRes.data as OpenMicRegistration[]) ?? [];
+        const regs = (regRes.data as OpenMicLineupRegistration[]) ?? [];
         setConfirmed(regs);
 
         setNumberedMics((allMicsRes.data as OpenMic[]) ?? [m]);
+        if (isMemberArea && notificationRegistrationId) {
+          const { data: memberRegistration, error: memberRegistrationError } = await supabase
+            .from('open_mic_registrations')
+            .select('id, registration_id, status')
+            .eq('id', notificationRegistrationId)
+            .eq('open_mic_id', m.id)
+            .maybeSingle();
+          if (memberRegistrationError) {
+            console.error('Failed to load linked member Open Mic registration', memberRegistrationError);
+            setTargetRegistrationUnavailable(true);
+          } else if (memberRegistration) {
+            setTargetRegistration(memberRegistration);
+            setTargetRegistrationUnavailable(false);
+          } else {
+            setTargetRegistrationUnavailable(true);
+          }
+        } else {
+          setTargetRegistration(null);
+          setTargetRegistrationUnavailable(false);
+        }
 
         setPageMetadata({
           path: `/open-mic/${encodeURIComponent(m.slug)}`,
@@ -64,13 +93,13 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
       }
       setLoading(false);
     })();
-  }, [slug]);
+  }, [isMemberArea, notificationRegistrationId, slug, user?.id]);
 
   useEffect(() => {
     setPosterShareFile(null);
     const posterUrl = mic?.poster;
     const openMicSlug = mic?.slug;
-    if (!posterUrl || !openMicSlug || !mic || getOpenMicStatus(mic.status, mic.date) === 'completed' || typeof navigator === 'undefined' || typeof navigator.canShare !== 'function') return;
+    if (!posterUrl || !openMicSlug || getOpenMicStatus(mic.status, mic.date) === 'completed' || typeof navigator === 'undefined' || typeof navigator.canShare !== 'function') return;
 
     const controller = new AbortController();
     void (async () => {
@@ -96,15 +125,15 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
     const channel = supabase.channel(`lineup-${mic.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'open_mic_registrations', filter: `open_mic_id=eq.${mic.id}` }, async () => {
         const { data } = await publicLineupQuery(mic.id, getOpenMicStatus(mic.status, mic.date) === 'completed');
-        setConfirmed((data as OpenMicRegistration[]) ?? []);
+        setConfirmed((data as OpenMicLineupRegistration[]) ?? []);
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'open_mic_registrations', filter: `open_mic_id=eq.${mic.id}` }, async () => {
         const { data } = await publicLineupQuery(mic.id, getOpenMicStatus(mic.status, mic.date) === 'completed');
-        setConfirmed((data as OpenMicRegistration[]) ?? []);
+        setConfirmed((data as OpenMicLineupRegistration[]) ?? []);
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'open_mic_registrations', filter: `open_mic_id=eq.${mic.id}` }, async () => {
         const { data } = await publicLineupQuery(mic.id, getOpenMicStatus(mic.status, mic.date) === 'completed');
-        setConfirmed((data as OpenMicRegistration[]) ?? []);
+        setConfirmed((data as OpenMicLineupRegistration[]) ?? []);
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -222,6 +251,14 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
       <PageHeader router={router} title={`${mic.title} · Open Mic #${openMicNumbers.get(mic.id) ?? ''}`} />
 
       <div className="container-app py-6 space-y-6 sm:py-8 sm:space-y-8">
+        {isMemberArea && notificationRegistrationId && <section className={`rounded-2xl border p-4 ${targetRegistration ? 'border-blue-300 bg-blue-50' : targetRegistrationUnavailable ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`} aria-live="polite">
+          <p className="text-xs font-extrabold uppercase tracking-wide text-blue-800">Detail pendaftaran dari notifikasi</p>
+          {targetRegistration
+            ? <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold text-slate-900">Nomor {targetRegistration.registration_id}</p><StatusBadge status={targetRegistration.status} /></div>
+            : targetRegistrationUnavailable
+              ? <p className="mt-1 text-sm font-semibold text-amber-900">Detail pendaftaran tidak tersedia atau tidak dapat diakses oleh akun ini.</p>
+              : <p className="mt-1 text-sm text-slate-600">Memuat detail pendaftaran...</p>}
+        </section>}
         <div className="rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_10px_28px_rgba(11,60,93,0.04)] sm:p-4">
           {/* Poster + metadata */}
           <div className="grid gap-4 lg:grid-cols-5 lg:gap-6">
@@ -363,10 +400,25 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
                 <tbody className="divide-y divide-slate-100/80">
                   {filteredLineup.map((r, index) => {
                     const ig = normalizeInstagram(r.instagram);
+                    const linkedKomika = Array.isArray(r.komika) ? r.komika[0] : r.komika;
+                    const memberSlug = currentStatus === 'completed'
+                      && linkedKomika?.published
+                      && linkedKomika.status === 'active'
+                      ? linkedKomika.slug
+                      : null;
                     return (
                       <tr key={r.id} className={`text-sm transition-colors ${index % 2 === 0 ? 'bg-white hover:bg-blue-100' : 'bg-slate-100 hover:bg-blue-100'}`}>
                         <td className="px-3 py-3 sm:px-4">
-                          <p className="truncate font-bold text-slate-900">{r.stage_name}</p>
+                          {memberSlug ? (
+                            <button
+                              type="button"
+                              onClick={() => router.navigate(`/komika/${encodeURIComponent(memberSlug)}`)}
+                              className="block max-w-full truncate text-left font-bold text-slate-900 transition-colors hover:text-blue-700 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                              aria-label={`Lihat profil member ${r.stage_name}`}
+                            >
+                              {r.stage_name}
+                            </button>
+                          ) : <p className="truncate font-bold text-slate-900">{r.stage_name}</p>}
                           {r.community && <p className="truncate text-xs text-slate-500">{r.community}</p>}
                           {ig && <a href={ig.url} target="_blank" rel="noopener noreferrer" className="group/instagram mt-1 inline-flex max-w-full items-center gap-2 text-xs font-semibold text-slate-700 transition-colors hover:text-[#9f1857]">
                               <Instagram className="h-4 w-4 shrink-0 text-[#c13584] transition-transform group-hover/instagram:scale-110" />
@@ -411,7 +463,7 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
 function publicLineupQuery(openMicId: string, onlyAttended: boolean) {
   const query = supabase
     .from('open_mic_registrations')
-    .select('id, open_mic_id, komika_id, stage_name, community, instagram, status, created_at')
+    .select('*, komika:komika_id(slug, status, published)')
     .eq('open_mic_id', openMicId)
     .eq('status', 'confirmed')
     .order('created_at', { ascending: true });

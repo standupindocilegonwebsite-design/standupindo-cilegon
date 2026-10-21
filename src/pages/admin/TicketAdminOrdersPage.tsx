@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, CheckCheck, Eye, ExternalLink, Gift, KeyRound, MessageCircle, Printer, Search, ShieldCheck, Ticket as TicketIcon, Trash2, X } from 'lucide-react';
+import { Check, CheckCheck, Eye, Gift, KeyRound, MessageCircle, Printer, Search, ShieldCheck, Ticket as TicketIcon, Trash2, X } from 'lucide-react';
 import type { EventItem, TicketOrder } from '@/lib/types';
 import { formatPrice, getEventStatus } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -71,11 +71,12 @@ function paymentSnapshotDetails(snapshot: Record<string, unknown> | null | undef
 
 function csvCell(value: string | number) {
   const text = String(value);
+  // eslint-disable-next-line no-control-regex -- detect control bytes before spreadsheet formula prefixes.
   const safeText = typeof value === 'string' && /^[\s\u0000-\u001F]*[=+\-@]/.test(text) ? `'${text}` : text;
   return `"${safeText.replace(/"/g, '""')}"`;
 }
 
-export function TicketAdminOrdersPage({ orders, events, loading, onReload }: { orders: TicketOrder[]; events: EventItem[]; loading: boolean; onReload: () => void }) {
+export function TicketAdminOrdersPage({ orders, events, loading, onReload, initialOrderId }: { orders: TicketOrder[]; events: EventItem[]; loading: boolean; onReload: () => void; initialOrderId?: string | null }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('Menunggu Verifikasi');
   const [eventFilter, setEventFilter] = useState('all');
@@ -110,6 +111,14 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload }: { o
   const deleteOrder = orders.find((order) => order.id === deleteOrderId) ?? null;
 
   useEffect(() => { setPage(1); }, [eventFilter, search, statusFilter]);
+  useEffect(() => {
+    if (!initialOrderId || loading) return;
+    if (orders.some((order) => order.id === initialOrderId)) {
+      setDetailsOrderId(initialOrderId);
+    } else {
+      setError('Pesanan dari notifikasi sudah tidak tersedia atau tidak dapat diakses.');
+    }
+  }, [initialOrderId, loading, orders]);
   useEffect(() => {
     if (eventFilter !== 'all' && !selectableEvents.some((event) => event.id === eventFilter)) setEventFilter('all');
   }, [eventFilter, selectableEvents]);

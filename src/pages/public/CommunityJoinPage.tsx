@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { LOGO_URL } from '@/lib/types';
 import { InstagramFollowLink } from '@/components/ui/InstagramFollowLink';
-import { CommunityCombobox, CommunityOptions } from '@/components/ui/CommunityCombobox';
+import { CommunityCombobox } from '@/components/ui/CommunityCombobox';
 
 const INTERESTS = ['Komika', 'Penulis', 'Volunteer', 'Dokumentasi', 'Event', 'Supporter', 'Lainnya'];
 
@@ -82,7 +82,7 @@ export function CommunityJoinPage({ router }: { router: Router }) {
                 <div><label className="label-field" htmlFor="join-name">Nama lengkap</label><input id="join-name" required value={form.full_name} onChange={(e) => setForm({ ...form, full_name: capitalizeName(e.target.value) })} className="input-field" placeholder="Contoh: Budi Santoso" /></div>
                 <div><label className="label-field" htmlFor="join-whatsapp">WhatsApp</label><input id="join-whatsapp" required type="tel" inputMode="numeric" pattern="[0-9]+" value={form.whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="input-field" placeholder="Contoh: 082212345678" /></div>
                 <div><label className="label-field" htmlFor="join-instagram">Instagram</label><input id="join-instagram" required value={form.instagram} onChange={(e) => setInstagram(e.target.value)} className="input-field" placeholder="Contoh: @budisantoso" /></div>
-                <div><label className="label-field" htmlFor="join-city">Komunitas / Domisili</label><CommunityCombobox id="join-city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} required placeholder="Pilih atau ketik komunitas" /><CommunityOptions id="join-city" /></div>
+                <div><label className="label-field" htmlFor="join-city">Komunitas / Domisili</label><CommunityCombobox id="join-city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} required placeholder="Pilih atau ketik komunitas" /></div>
               </div>
               <fieldset><legend className="label-field">Minat kamu <span className="font-normal text-slate-400">(pilih minimal satu)</span></legend><div className="flex flex-wrap gap-1.5">{INTERESTS.map((interest) => <button type="button" key={interest} onClick={() => toggleInterest(interest)} className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ${interests.includes(interest) ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-600 ring-slate-200 hover:ring-blue-200'}`}>{interest}</button>)}</div>{interests.includes('Lainnya') && <input required value={otherInterest} onChange={(e) => setOtherInterest(e.target.value)} className="input-field mt-3" placeholder="Contoh: Fotografer, MC, atau Tim Kreatif" aria-label="Minat lainnya" />}</fieldset>
               <InstagramFollowLink />

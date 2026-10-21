@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, BarChart3, Bell, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, DoorOpen, Eye, EyeOff, FolderOpen, History, ImagePlus, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Power, Printer, RefreshCw, Search, Settings, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Archive, BarChart3, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, DoorOpen, Eye, EyeOff, FolderOpen, History, ImagePlus, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Power, Printer, RefreshCw, Search, Settings, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, MemberOpenMicHistoryStatus, MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { getFunctionErrorMessage } from '@/lib/function-errors';
 import { useAuth } from '@/lib/auth-context';
-import { formatDate, formatPrice, getEventStatus, getOpenMicNumbers, getOpenMicStatus, normalizeWhatsappNumber, slugify, waLink } from '@/lib/format';
+import { formatDate, formatPrice, getEventStatus, getOpenMicNumbers, getOpenMicStatus, slugify, waLink } from '@/lib/format';
 import { generateTicketOrderWhatsAppUrl } from '@/lib/whatsapp';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -13,9 +13,10 @@ import { ImageUpload } from '@/components/ui/ImageUpload';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { MultiImageUpload } from '@/components/ui/MultiImageUpload';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
+import { NotificationInbox } from '@/components/nav/NotificationInbox';
 import { LOGO_URL } from '@/lib/types';
 import { useNotifications } from '@/lib/notification-context';
-import type { NotificationRecord, NotificationSource } from '@/lib/notification-context';
+import type { NotificationRecord } from '@/lib/notification-context';
 import { MemberAccountsPage } from '@/pages/admin/MemberAccountsPage';
 import { AdminAccountsPage } from '@/pages/admin/AdminAccountsPage';
 import { AdminProfileSettingsPage } from '@/pages/admin/AdminProfileSettingsPage';
@@ -28,8 +29,10 @@ import { TicketAdminTicketsPage } from '@/pages/admin/TicketAdminTicketsPage';
 import { TicketSalesReportPage } from '@/pages/admin/TicketSalesReportPage';
 import { TicketCheckInReportPage } from '@/pages/admin/TicketCheckInReportPage';
 import { TicketGateSettingsPage } from '@/pages/admin/TicketGateSettingsPage';
+import { TicketPricingPage } from '@/pages/admin/TicketPricingPage';
 import { EventLineupManagementModal } from '@/pages/admin/EventLineupManagementModal';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
+import { AdminFormSelect } from '@/components/ui/AdminFormSelect';
 import { AppCredit } from '@/components/AppCredit';
 import { AnimatedBottomNav } from '@/components/nav/AnimatedBottomNav';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
@@ -37,7 +40,7 @@ import { AnnualRecapAdminPage } from '@/pages/admin/AnnualRecapAdminPage';
 import { CcsScheduleAdminPage } from '@/pages/admin/CcsScheduleAdminPage';
 
 interface Props { router: Router; settings: SiteSettings; }
-type Section = 'dashboard' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'annual-recap' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'ticket-gates' | 'check-in-report' | 'maintenance' | 'ccs-schedule' | 'more';
+type Section = 'dashboard' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'annual-recap' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'ticket-gates' | 'ticket-fees' | 'ticket-vouchers' | 'check-in-report' | 'maintenance' | 'ccs-schedule' | 'more';
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -92,11 +95,14 @@ function getSection(path: string): Section {
   if (parts[1] === 'payment-info') return 'payment-info';
   if (parts[1] === 'ticket-report') return 'ticket-report';
   if (parts[1] === 'ticket-gates') return 'ticket-gates';
+  if (parts[1] === 'ticket-fees') return 'ticket-fees';
+  if (parts[1] === 'ticket-vouchers') return 'ticket-vouchers';
   if (parts[1] === 'check-in-report') return 'check-in-report';
   if (parts[1] === 'maintenance') return 'maintenance';
   if (parts[1] === 'annual-recap') return 'annual-recap';
   if (parts[1] === 'ccs-schedule') return 'ccs-schedule';
   if (parts[1] === 'profile-settings') return 'profile-settings';
+  if (parts[1] === 'applications') return 'applications';
   const part = parts[1] as Section | undefined;
   if (part === 'more') return 'more';
   if (NAV.some((n) => n.key === part)) return part as Section;
@@ -104,6 +110,7 @@ function getSection(path: string): Section {
 }
 
 function canAccessSection(section: Section, isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean, isTicketAdmin: boolean, isQrScanner: boolean): boolean {
+  if (section === 'ticket-fees' || section === 'ticket-vouchers') return isTicketAdmin;
   if (isAdmin) return true;
   if (section === 'ccs-schedule') return isOpenMicAdmin;
   if (section === 'annual-recap') return isAdmin;
@@ -201,8 +208,8 @@ function isMoreNavigationActive(section: Section, isAdmin: boolean, isOpenMicAdm
     || (isAdmin && ['settings', 'annual-recap', 'applications', 'ticket-orders', 'member-accounts', 'admin-accounts', 'evaluator', 'open-mic-history', 'ticket-gates', 'ccs-schedule'].includes(section))
     || (isOpenMicAdmin && ['ccs-schedule', 'member-accounts', 'evaluator'].includes(section))
     || (isEventAdmin && section === 'admin-accounts')
-    || (!isAdmin && section === 'profile-settings')
-    || (isTicketAdmin && (section === 'payment-info' || section === 'ticket-report'))
+    || section === 'profile-settings'
+    || (isTicketAdmin && ['payment-info', 'ticket-report', 'ticket-fees', 'ticket-vouchers', 'ticket-gates'].includes(section))
     || (isQrScanner && (section === 'check-in-report' || section === 'tickets'));
 }
 
@@ -253,6 +260,7 @@ function ScopedEventList({ events, loading, onManageTickets }: { events: EventIt
     id: event.id,
     title: event.title,
     subtitle: `${event.venue}${event.location ? ` · ${event.location}` : ''}`,
+    poster: event.poster,
   })), [events]);
   const filteredEvents = useMemo(() => events.filter((event) => {
     if (eventFilter !== 'all') return event.id === eventFilter;
@@ -392,7 +400,7 @@ interface QrScannerSummary {
 function QrScannerDashboard({ events, onNavigate }: { events: EventItem[]; onNavigate: (section: Section) => void }) {
   const selectableEvents = useMemo(() => events
     .filter((event) => getEventStatus(event.status, event.date) !== 'completed')
-    .map((event) => ({ id: event.id, title: event.title, subtitle: `${formatDate(event.date)} · ${event.venue}` })), [events]);
+    .map((event) => ({ id: event.id, title: event.title, subtitle: `${formatDate(event.date)} · ${event.venue}`, poster: event.poster })), [events]);
   const [stats, setStats] = useState<{ total_tickets: number; checked_in: number; not_checked_in: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -657,121 +665,46 @@ function QrScannerDashboard({ events, onNavigate }: { events: EventItem[]; onNav
   </div>;
 }
 
-const NOTIFICATION_LABELS: Record<NotificationSource, string> = {
-  'ticket-orders': 'Pembeli Tiket',
-  'open-mic': 'Pendaftar Open Mic',
-  'event-participants': 'Pendaftar Event',
-  applications: 'Gabung Komunitas',
-};
-
-const NOTIFICATION_ROUTES: Record<NotificationSource, Section> = {
-  'ticket-orders': 'ticket-orders',
-  'open-mic': 'open-mic-list',
-  'event-participants': 'events',
-  applications: 'applications',
-};
-
 function NotificationBell({
   notifications,
   unreadCount,
-  onNavigate,
+  error,
   onMarkAsRead,
   onMarkAllAsRead,
+  onClearAll,
+  onDeleteRead,
+  onClearRead,
+  onRetry,
+  onNavigate,
   inverse = false,
 }: {
   notifications: NotificationRecord[];
   unreadCount: number;
-  onNavigate: (section: Section) => void;
-  onMarkAsRead: (source: NotificationSource, id: string) => Promise<void>;
+  error: string | null;
+  onNavigate: (path: string) => void;
+  onMarkAsRead: (id: string) => Promise<void>;
   onMarkAllAsRead: () => Promise<void>;
+  onClearAll: () => Promise<void>;
+  onDeleteRead: (id: string) => Promise<void>;
+  onClearRead: () => Promise<void>;
+  onRetry: () => Promise<void>;
   inverse?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const closeOnOutsideClick = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-
-    document.addEventListener('mousedown', closeOnOutsideClick);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('mousedown', closeOnOutsideClick);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [open]);
-
-  async function openNotification(notification: NotificationRecord) {
-    await onMarkAsRead(notification.source, notification.id);
-    setOpen(false);
-    onNavigate(NOTIFICATION_ROUTES[notification.source]);
-  }
-
   return (
-    <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition ${inverse ? (open ? 'bg-white/20 text-white' : 'text-white hover:bg-white/15') : (open ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-blue-50 hover:text-blue-700')}`}
-        title="Notifikasi admin"
-        aria-label={`Notifikasi admin${unreadCount ? `, ${unreadCount} belum dibaca` : ''}`}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-      >
-        <Bell className="h-5 w-5" />
-        {unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-extrabold text-white">{unreadCount > 99 ? '99+' : unreadCount}</span>}
-      </button>
-
-      {open && (
-        <div role="dialog" aria-label="Notifikasi admin" className="fixed left-2 right-2 top-16 z-50 max-h-[calc(100dvh-5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:absolute sm:left-auto sm:right-0 sm:top-11 sm:w-[min(22rem,calc(100vw-2rem))] sm:max-h-none">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-            <div>
-              <h3 className="text-sm font-extrabold text-slate-900">Notifikasi</h3>
-              <p className="mt-0.5 text-xs text-slate-500">Aktivitas yang perlu ditinjau</p>
-            </div>
-            {notifications.length > 0 && <button type="button" onClick={() => void onMarkAllAsRead()} className="text-xs font-bold text-blue-700 hover:text-blue-900">Tandai dibaca</button>}
-          </div>
-
-          {notifications.length === 0 ? (
-            <div className="px-5 py-8 text-center">
-              <Bell className="mx-auto h-7 w-7 text-slate-300" />
-              <p className="mt-2 text-sm font-semibold text-slate-600">Tidak ada notifikasi baru</p>
-              <p className="mt-1 text-xs text-slate-400">Semua aktivitas sudah ditinjau.</p>
-            </div>
-          ) : (
-            <div className="max-h-80 overflow-y-auto p-2">
-              {notifications.map((notification) => (
-                <button
-                  key={`${notification.source}:${notification.id}`}
-                  type="button"
-                  onClick={() => void openNotification(notification)}
-                  className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-blue-50"
-                >
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-bold text-slate-800">{NOTIFICATION_LABELS[notification.source]}</span>
-                    {notification.source === 'ticket-orders' && (
-                      <>
-                        <span className="mt-0.5 block truncate text-xs font-semibold text-slate-700">{notification.fullName || 'Nama pembeli tidak tersedia'}</span>
-                        <span className="mt-0.5 block truncate text-xs text-slate-500">Event: {notification.eventTitle || 'Event tidak tersedia'}</span>
-                      </>
-                    )}
-                    <span className="mt-0.5 block text-xs text-slate-500">Status: {notification.status}</span>
-                  </span>
-                  <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-300" />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    <NotificationInbox
+      items={notifications}
+      unreadCount={unreadCount}
+      error={error ?? undefined}
+      inverse={inverse}
+      label="Notifikasi admin"
+      onMarkRead={onMarkAsRead}
+      onMarkAllRead={onMarkAllAsRead}
+      onClearAll={onClearAll}
+      onDeleteRead={onDeleteRead}
+      onClearRead={onClearRead}
+      onRetry={onRetry}
+      onNavigate={onNavigate}
+    />
   );
 }
 
@@ -784,7 +717,7 @@ function AttendanceBadge({ status }: { status?: AttendanceStatus }) {
 
 export function AdminPage({ router, settings }: Props) {
   const { user, signOut, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner } = useAuth();
-  const { unreadCount, notifications, counts: notificationCounts, revision, resync: resyncNotifications, markAsRead, markAllAsRead } = useNotifications();
+  const { unreadCount, notifications, counts: notificationCounts, revision, resync: resyncNotifications, error: notificationError, markAsRead, markAllAsRead, clearAll: clearNotifications, deleteReadNotification, clearRead } = useNotifications();
   const requestedSection = getSection(router.path);
   const section = canAccessSection(requestedSection, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner)
     ? requestedSection
@@ -912,12 +845,7 @@ export function AdminPage({ router, settings }: Props) {
     navigateSection('dashboard');
   }
 
-  const sectionHasOwnBackButton = ['registrants', 'event-participants', 'payment-info', 'ticket-gates', 'ticket-report', 'check-in-report'].includes(section)
-    || (section === 'profile-settings' && isTicketAdmin);
-
-  async function markAllNotificationsAsRead() {
-    await Promise.all((Object.keys(notificationCounts) as NotificationSource[]).map((source) => markAllAsRead(source)));
-  }
+  const sectionHasOwnBackButton = ['registrants', 'event-participants', 'payment-info', 'ticket-fees', 'ticket-vouchers', 'ticket-report', 'check-in-report', 'profile-settings'].includes(section);
 
   async function updateTicketOrderStatus(id: string, status: TicketOrderStatus) {
     const { error } = await supabase.from('ticket_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
@@ -970,7 +898,7 @@ export function AdminPage({ router, settings }: Props) {
             <span className="text-sm font-extrabold text-white">{isAdmin && !isOpenMicWorkspaceSection ? <>ADMIN <span className="text-amber-300">PANEL</span></> : workspaceTitle}</span>
           </div>
           <div className="flex items-center gap-3">
-            <NotificationBell inverse notifications={notifications} unreadCount={unreadCount} onNavigate={navigateSection} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllNotificationsAsRead} />
+            <NotificationBell inverse notifications={notifications} unreadCount={unreadCount} error={notificationError} onRetry={resyncNotifications} onNavigate={(path) => router.navigate(path)} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllAsRead} onClearAll={clearNotifications} onDeleteRead={deleteReadNotification} onClearRead={clearRead} />
             <span className="text-sm text-blue-100">{user?.email}</span>
             <button type="button" onClick={async () => { await signOut(); router.navigate('/admin/login'); }} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-xs font-extrabold text-white shadow-sm transition hover:bg-red-700" title="Keluar dari Admin Panel">
               <LogOut className="h-4 w-4" />
@@ -992,7 +920,7 @@ export function AdminPage({ router, settings }: Props) {
             <span className="truncate text-sm font-extrabold tracking-tight text-white">{isAdmin && !isOpenMicWorkspaceSection ? 'ADMIN PANEL' : workspaceTitle}</span>
           </div>
           <div className="flex items-center gap-2">
-            <NotificationBell inverse notifications={notifications} unreadCount={unreadCount} onNavigate={navigateSection} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllNotificationsAsRead} />
+            <NotificationBell inverse notifications={notifications} unreadCount={unreadCount} error={notificationError} onRetry={resyncNotifications} onNavigate={(path) => router.navigate(path)} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllAsRead} onClearAll={clearNotifications} onDeleteRead={deleteReadNotification} onClearRead={clearRead} />
           </div>
         </div>
       </header>
@@ -1077,28 +1005,30 @@ export function AdminPage({ router, settings }: Props) {
           {section === 'open-mic' && <OpenMicManagement rows={openMics} registrations={registrations} loading={loading} showRegistrants={isAdmin} onAdd={() => { setEditing(null); setModal('open-mic'); }} onEdit={(row) => { setEditing(row); setModal('open-mic'); }} onDelete={(id) => deleteRow('open_mics', id)} onTogglePublish={(id, val) => togglePublish('open_mics', id, val)} onViewRegistrants={(m) => router.navigate(`/admin/pendaftar/${m.id}`)} />}
           {section === 'open-mic-list' && <PolishedOpenMicRosterView mode="registrants" openMics={openMics} registrations={registrations} komika={komika} loading={loading} onReload={load} />}
           {section === 'open-mic-performers' && <PolishedOpenMicRosterView mode="performers" openMics={openMics} registrations={registrations} komika={komika} loading={loading} onReload={load} />}
-          {section === 'registrants' && <RegistrantsView openMicId={registrantOpenMicId} komika={komika} onBack={() => router.navigate(isAdmin ? '/admin/open-mic' : '/admin/open-mic-list')} />}
-          {section === 'event-participants' && <EventParticipantsView eventId={router.path.split('/').filter(Boolean)[2] ?? ''} onBack={() => router.navigate('/admin/events')} />}
+          {section === 'registrants' && <RegistrantsView openMicId={registrantOpenMicId} komika={komika} onBack={() => router.navigate(isAdmin ? '/admin/open-mic' : '/admin/open-mic-list')} initialRegistrationId={router.query.get('notificationRegistrationId')} />}
+          {section === 'event-participants' && <EventParticipantsView eventId={router.path.split('/').filter(Boolean)[2] ?? ''} onBack={() => router.navigate('/admin/events')} initialParticipantId={router.query.get('notificationParticipantId')} />}
           {section === 'events' && (isAdmin || isEventAdmin
             ? <EventManagement rows={events} loading={loading} pendingCounts={eventPendingCounts} canManageTickets={isAdmin} initialStatus={router.query.get('status') === 'completed' ? 'completed' : 'upcoming'} onAdd={() => { setEditing(null); setModal('event'); }} onEdit={(row) => { setEditing(row); setModal('event'); }} onManagePhotos={setDocumentationEvent} onDelete={(id) => deleteRow('events', id)} onTogglePublish={(id, val) => togglePublish('events', id, val)} onManageTickets={(row) => setTicketEvent(row)} onManagePartnerships={(row) => setPartnershipEvent(row)} onManageLineup={setLineupEvent} onViewParticipants={(row) => router.navigate(`/admin/event-pendaftar/${row.id}`)} />
             : <ScopedEventList events={events} loading={loading} onManageTickets={isTicketAdmin ? setTicketEvent : undefined} />)}
-          {section === 'applications' && <ApplicationsView community={communityApplications} onNotice={setNotice} onReload={load} />}
+          {section === 'applications' && <ApplicationsView community={communityApplications} loading={loading} onNotice={setNotice} onReload={load} initialApplicationId={router.query.get('notificationApplicationId')} />}
           {section === 'open-mic-history' && <MemberOpenMicHistoryReview rows={memberHistory} komika={komika} onNotice={setNotice} onReload={load} />}
           {section === 'komika' && <KomikaManagement rows={komika} registrations={registrations} openMics={openMics} attendanceCounts={komikaAttendanceCounts} loading={loading} onReload={load} onNotice={setNotice} onAdd={() => { setEditing(null); setModal('komika'); }} onEdit={(row) => { setEditing(row); setModal('komika'); }} onDelete={(id) => deleteRow('komika', id)} />}
           {section === 'member-accounts' && <MemberAccountsPage komika={komika} onNotice={setNotice} />}
           {section === 'admin-accounts' && (isAdmin || isEventAdmin) && <AdminAccountsPage onNotice={setNotice} creatorRole={isAdmin ? 'admin' : 'event_admin'} />}
-          {section === 'profile-settings' && !isAdmin && <AdminProfileSettingsPage onNotice={setNotice} onBack={isTicketAdmin ? () => navigateSection('more') : undefined} />}
+          {section === 'profile-settings' && <AdminProfileSettingsPage onNotice={setNotice} onBack={() => navigateSection('more')} />}
           {section === 'partners' && <PartnerManagement rows={partners} events={events} partnerships={eventPartnerships} loading={loading} onAdd={() => { setEditing(null); setModal('partner'); }} onEdit={(row) => { setEditing(row); setModal('partner'); }} onDelete={(id) => deleteRow('partners', id)} onTogglePublish={(id, current) => togglePublish('partners', id, current)} />}
           {section === 'evaluator' && <EvaluatorAssignmentView openMics={openMics} komika={komika} assignments={evaluatorAssignments} currentUserId={user?.id ?? null} onReload={load} onNotice={setNotice} />}
           {section === 'ticket-orders' && isEventAdmin && <TicketAudiencePage events={events} />}
           {section === 'ticket-orders' && (isAdmin || isTicketAdmin
-            ? <TicketAdminOrdersPage orders={ticketOrders} events={events} loading={loading} onReload={load} />
+            ? <TicketAdminOrdersPage orders={ticketOrders} events={events} loading={loading} onReload={load} initialOrderId={router.query.get('notificationOrderId')} />
             : !isEventAdmin && <TicketOrdersPage orders={ticketOrders} events={events} loading={loading} onStatusChange={updateTicketOrderStatus} onDelete={deleteTicketOrder} />)}
           {section === 'tickets' && isTicketAdmin && <TicketAdminTicketsPage />}
           {section === 'scan' && isQrScanner && <TicketQrScannerPage events={events} />}
           {section === 'payment-info' && isTicketAdmin && <TicketPaymentMethodsPage events={events} onBack={() => navigateSection('more')} />}
-          {section === 'ticket-gates' && (isAdmin || isTicketAdmin) && <TicketGateSettingsPage events={events} onBack={() => navigateSection('more')} />}
-          {section === 'ticket-report' && isTicketAdmin && <TicketSalesReportPage events={events} orders={ticketOrders} onBack={() => navigateSection('more')} />}
+          {section === 'ticket-fees' && isTicketAdmin && <TicketPricingPage events={events} initialTab="fees" onBack={() => navigateSection('more')} />}
+          {section === 'ticket-vouchers' && isTicketAdmin && <TicketPricingPage events={events} initialTab="vouchers" onBack={() => navigateSection('more')} />}
+          {section === 'ticket-gates' && (isAdmin || isTicketAdmin) && <TicketGateSettingsPage events={events} />}
+          {section === 'ticket-report' && isTicketAdmin && <TicketSalesReportPage events={events} orders={ticketOrders} onBack={() => navigateSection('more')} onReload={load} />}
           {section === 'check-in-report' && isQrScanner && <TicketCheckInReportPage onBack={() => navigateSection('more')} />}
           {section === 'maintenance' && (isAdmin || isEventAdmin) && <TicketMaintenancePage events={events} />}
           {section === 'annual-recap' && isAdmin && <AnnualRecapAdminPage onNotice={setNotice} />}
@@ -1165,7 +1095,7 @@ export function AdminPage({ router, settings }: Props) {
 
       {/* Form Modal */}
       <EventDocumentationPhotosModal event={documentationEvent} onClose={() => setDocumentationEvent(null)} onNotice={setNotice} onSaved={async () => { setDocumentationEvent(null); await load(); }} />
-      <AdminFormModal kind={modal} editing={editing} venueHistory={openMics} saving={saving} onClose={() => setModal(null)} onSaving={setSaving} onNotice={setNotice} onPhotoSaved={load} onSaved={async () => { setModal(null); await load(); setNotice('Perubahan berhasil disimpan.'); }} />
+      <AdminFormModal kind={modal} editing={editing} venueHistory={openMics} eventVenueHistory={events} saving={saving} onClose={() => setModal(null)} onSaving={setSaving} onNotice={setNotice} onPhotoSaved={load} onSaved={async () => { setModal(null); await load(); setNotice('Perubahan berhasil disimpan.'); }} />
 
     </div>
   );
@@ -1284,9 +1214,22 @@ function MemberOpenMicHistoryReview({ rows, komika, onNotice, onReload }: { rows
   );
 }
 
-function ApplicationsView({ community, onNotice, onReload }: { community: CommunityApplication[]; onNotice: (message: string) => void; onReload: () => Promise<void> }) {
+function ApplicationsView({ community, loading, onNotice, onReload, initialApplicationId }: { community: CommunityApplication[]; loading: boolean; onNotice: (message: string) => void; onReload: () => Promise<void>; initialApplicationId?: string | null }) {
   const [folder, setFolder] = useState<ApplicationStatus>('pending');
   const [viewApplication, setViewApplication] = useState<CommunityApplication | null>(null);
+  const [handledApplicationId, setHandledApplicationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!initialApplicationId || loading || handledApplicationId === initialApplicationId) return;
+    setHandledApplicationId(initialApplicationId);
+    const application = community.find((row) => row.id === initialApplicationId);
+    if (!application) {
+      onNotice('Pendaftar komunitas dari notifikasi sudah tidak tersedia atau tidak dapat diakses.');
+      return;
+    }
+    setFolder(application.status);
+    setViewApplication(application);
+  }, [community, handledApplicationId, initialApplicationId, loading, onNotice]);
 
   async function updateStatus(id: string, status: ApplicationStatus) {
     const { error } = await supabase.from('community_applications').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
@@ -1456,6 +1399,7 @@ function OperationalDashboard({ kind, openMics, registrations, events, eventPend
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- retained legacy view; current route renders PolishedOpenMicRosterView.
 function OpenMicRosterView({ mode, openMics, registrations, loading, onReload }: { mode: 'registrants' | 'performers'; openMics: OpenMic[]; registrations: OpenMicRegistration[]; loading: boolean; onReload: () => Promise<void> }) {
   const [selectedOpenMicId, setSelectedOpenMicId] = useState('all');
   const [search, setSearch] = useState('');
@@ -1683,6 +1627,7 @@ function PolishedOpenMicRosterView({ mode, openMics, registrations, komika, load
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- retained legacy view; current route renders PolishedOpenMicRosterView.
 function CompactOpenMicRosterView({ mode, openMics, registrations, loading, onReload }: { mode: 'registrants' | 'performers'; openMics: OpenMic[]; registrations: OpenMicRegistration[]; loading: boolean; onReload: () => Promise<void> }) {
   const [selectedOpenMicId, setSelectedOpenMicId] = useState('all');
   const [search, setSearch] = useState('');
@@ -1691,7 +1636,6 @@ function CompactOpenMicRosterView({ mode, openMics, registrations, loading, onRe
   const [createTarget, setCreateTarget] = useState<OpenMic | null>(null);
   const [createForm, setCreateForm] = useState({ full_name: '', stage_name: '', whatsapp: '' });
   const isPerformerView = mode === 'performers';
-  const today = new Date().toISOString().slice(0, 10);
   const rows = registrations.filter((row) => isPerformerView ? row.status === 'confirmed' && row.attendance_status === 'attended' : row.attendance_status !== 'attended').filter((row) => {
     const query = search.trim().toLowerCase();
     return (selectedOpenMicId === 'all' || row.open_mic_id === selectedOpenMicId) && (!query || `${row.full_name} ${row.stage_name} ${row.registration_id}`.toLowerCase().includes(query));
@@ -1731,7 +1675,7 @@ function CompactOpenMicRosterView({ mode, openMics, registrations, loading, onRe
   );
 }
 
-function RegistrantsView({ openMicId, komika, onBack }: { openMicId: string; komika: Komika[]; onBack: () => void }) {
+function RegistrantsView({ openMicId, komika, onBack, initialRegistrationId }: { openMicId: string; komika: Komika[]; onBack: () => void; initialRegistrationId?: string | null }) {
   const [openMic, setOpenMic] = useState<OpenMic | null>(null);
   const [rows, setRows] = useState<OpenMicRegistration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1755,9 +1699,15 @@ function RegistrantsView({ openMicId, komika, onBack }: { openMicId: string; kom
       supabase.from('open_mic_registrations').select('*').eq('open_mic_id', openMicId).order('created_at', { ascending: false }),
     ]);
     setOpenMic((m.data as OpenMic) ?? null);
-    setRows((r.data as OpenMicRegistration[]) ?? []);
+    const registrations = (r.data as OpenMicRegistration[]) ?? [];
+    setRows(registrations);
+    if (initialRegistrationId) {
+      const target = registrations.find((row) => row.id === initialRegistrationId);
+      if (target) setViewReg(target);
+      else setNotice('Pendaftar Open Mic dari notifikasi sudah tidak tersedia atau tidak dapat diakses.');
+    }
     setLoading(false);
-  }, [openMicId]);
+  }, [initialRegistrationId, openMicId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -2285,7 +2235,7 @@ function OpenMicManagement({ rows, registrations, loading, showRegistrants = tru
   );
 }
 
-function EventParticipantsView({ eventId, onBack }: { eventId: string; onBack: () => void }) {
+function EventParticipantsView({ eventId, onBack, initialParticipantId }: { eventId: string; onBack: () => void; initialParticipantId?: string | null }) {
   const [event, setEvent] = useState<EventItem | null>(null);
   const [rows, setRows] = useState<EventParticipant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2302,9 +2252,15 @@ function EventParticipantsView({ eventId, onBack }: { eventId: string; onBack: (
       supabase.from('event_participants').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
     ]);
     setEvent((eventResult.data as EventItem) ?? null);
-    setRows((participantResult.data as EventParticipant[]) ?? []);
+    const participants = (participantResult.data as EventParticipant[]) ?? [];
+    setRows(participants);
+    if (initialParticipantId) {
+      const target = participants.find((row) => row.id === initialParticipantId);
+      if (target) setViewParticipant(target);
+      else setNotice('Peserta event dari notifikasi sudah tidak tersedia atau tidak dapat diakses.');
+    }
     setLoading(false);
-  }, [eventId]);
+  }, [eventId, initialParticipantId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -3636,6 +3592,8 @@ function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUn
     ...(isAdmin ? [{ label: 'Annual Recap', icon: BarChart3, onClick: () => onNavigate('annual-recap'), section: 'annual-recap' as Section, mobileOnly: true }] : []),
     ...(isEventAdmin ? [{ label: 'Akun Admin Tiket / QR', icon: ShieldPlus, onClick: () => onNavigate('admin-accounts'), section: 'admin-accounts' as Section }] : []),
     ...(isTicketAdmin ? [{ label: 'Informasi Pembayaran', icon: TicketIcon, onClick: () => onNavigate('payment-info'), section: 'payment-info' as Section }] : []),
+    ...(isTicketAdmin ? [{ label: 'Pajak / Biaya Tambahan', icon: TicketIcon, onClick: () => onNavigate('ticket-fees'), section: 'ticket-fees' as Section }] : []),
+    ...(isTicketAdmin ? [{ label: 'Kelola Voucher', icon: TicketIcon, onClick: () => onNavigate('ticket-vouchers'), section: 'ticket-vouchers' as Section }] : []),
     ...(isTicketAdmin ? [{ label: 'Laporan Tiket', icon: Printer, onClick: () => onNavigate('ticket-report'), section: 'ticket-report' as Section }] : []),
     ...(isQrScanner ? [{ label: 'Laporan Check-in', icon: Printer, onClick: () => onNavigate('check-in-report'), section: 'check-in-report' as Section }] : []),
     ...(isQrScanner ? [{ label: 'Riwayat Scan', icon: TicketIcon, onClick: () => onNavigate('tickets'), section: 'tickets' as Section }] : []),
@@ -3643,7 +3601,7 @@ function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUn
     ...(!isEventAdmin && !isTicketAdmin ? [{ label: 'Data Penonton', icon: TicketIcon, onClick: () => onNavigate('ticket-orders'), section: 'ticket-orders' as Section, badge: ticketOrderUnreadCount }] : []),
     { label: 'Akun Member', icon: UserPlus, onClick: () => onNavigate('member-accounts'), section: 'member-accounts' },
     ...(isAdmin ? [{ label: 'Akun Admin', icon: ShieldPlus, onClick: () => onNavigate('admin-accounts'), section: 'admin-accounts' as Section }] : []),
-    ...(!isAdmin ? [{ label: 'Pengaturan Profil', icon: Settings, onClick: () => onNavigate('profile-settings'), section: 'profile-settings' as Section }] : []),
+    { label: 'Pengaturan Profil', icon: Settings, onClick: () => onNavigate('profile-settings'), section: 'profile-settings' as Section },
     { label: 'Evaluator', icon: Users, onClick: () => onNavigate('evaluator'), section: 'evaluator' },
     ...(isAdmin ? [{ label: 'Pengaturan Gate', icon: DoorOpen, onClick: () => onNavigate('ticket-gates'), section: 'ticket-gates' as Section }] : []),
     { label: 'Settings', icon: Settings, onClick: () => onNavigate('settings'), section: 'settings' },
@@ -3774,7 +3732,7 @@ Peserta dan penonton wajib mengikuti ketentuan pendaftaran, tiket, dan akses mas
 8. Sanksi dan Keputusan Penyelenggara
 Pelanggaran terhadap peraturan dapat dikenai teguran atau tindakan lain yang sesuai dengan tingkat pelanggaran. Penyelenggara berwenang mengambil tindakan yang diperlukan demi kelancaran dan keselamatan acara.`;
 
-function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving, onNotice, onPhotoSaved, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; venueHistory: OpenMic[]; saving: boolean; onClose: () => void; onSaving: (v: boolean) => void; onNotice: (message: string) => void; onPhotoSaved: () => Promise<void>; onSaved: () => void }) {
+function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving, onClose, onSaving, onNotice, onPhotoSaved, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; venueHistory: OpenMic[]; eventVenueHistory: EventItem[]; saving: boolean; onClose: () => void; onSaving: (v: boolean) => void; onNotice: (message: string) => void; onPhotoSaved: () => Promise<void>; onSaved: () => void }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -3804,7 +3762,7 @@ function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving
     } else if (kind === 'partner') {
       setForm({ name: '', logo_url: '', website_url: '', contact_name: '', contact_phone: '', notes: '', category: 'sponsor', is_published: 'true', sort_order: '0' });
     } else {
-      setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', documentation_photos: '', status: 'upcoming', registration_status: 'closed', published: 'true', whatsapp_number: '', whatsapp_message: '', event_rules: DEFAULT_EVENT_RULES });
+      setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', documentation_photos: '', status: 'upcoming', registration_status: 'closed', published: 'true', ticket_sales_mode: 'free', event_rules: DEFAULT_EVENT_RULES });
     }
   }, [kind, editing, nextOpenMicTitle]);
 
@@ -3822,8 +3780,8 @@ function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving
     setForm((current) => ({ ...current, photo: photoUrl ?? '', photo_card: cardPhotoUrl ?? '' }));
   }
   const venueQuery = (form.venue ?? '').trim().toLocaleLowerCase();
-  const venueHistoryEntries = kind === 'open-mic'
-    ? Array.from(venueHistory.reduce((entries, row) => {
+  const venueHistoryEntries = kind === 'open-mic' || kind === 'event'
+    ? Array.from((kind === 'open-mic' ? venueHistory : eventVenueHistory).reduce((entries, row) => {
       const venue = row.venue.trim();
       if (!venue) return entries;
       const location = row.location.trim();
@@ -3868,15 +3826,16 @@ function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving
         const result = editing ? await supabase.from('open_mics').update(payload).eq('id', editing.id) : await supabase.from('open_mics').insert(payload);
         if (result.error) throw result.error;
       } else {
-        const whatsappNumber = normalizeWhatsappNumber(base.whatsapp_number || '');
         const eventFields = { ...base };
         delete eventFields.documentation_photos;
+        delete eventFields.whatsapp_number;
+        delete eventFields.whatsapp_message;
         const payload = {
           ...eventFields,
           slug: isEdit ? base.slug : slugify(base.title),
           published: base.published !== 'false',
-          whatsapp_number: whatsappNumber,
-          whatsapp_message: base.whatsapp_message?.trim() || null,
+          ...(!isEdit ? { whatsapp_number: '', whatsapp_message: null } : {}),
+          ticket_sales_mode: base.ticket_sales_mode === 'paid' ? 'paid' : 'free',
           event_rules: base.event_rules?.trim() || null,
         };
         const result = editing
@@ -3906,11 +3865,12 @@ function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving
     ? [['title', 'Title', 'text'], ['date', 'Date', 'date'], ['time', 'Time', 'text'], ['venue', 'Venue', 'text'], ['location', 'Location', 'text'], ['maps_url', 'Maps URL', 'text'], ['description', 'Description', 'textarea'], ['capacity', 'Capacity', 'number'], ['status', 'Status', 'select'], ['registration_status', 'Registration', 'select']]
     : kind === 'partner'
     ? [['name', 'Nama Partner', 'text'], ['category', 'Kategori', 'select'], ['website_url', 'Website URL', 'text'], ['contact_name', 'Nama Kontak', 'text'], ['contact_phone', 'Nomor Kontak', 'text'], ['notes', 'Catatan', 'textarea'], ['sort_order', 'Urutan tampil', 'number']]
-    : [['title', 'Event title', 'text'], ['date', 'Date', 'date'], ['time', 'Time', 'text'], ['venue', 'Venue', 'text'], ['location', 'Location', 'text'], ['maps_url', 'Maps URL', 'text'], ['description', 'Description', 'textarea'], ['event_rules', 'Peraturan Event', 'textarea'], ['whatsapp_number', 'WhatsApp number', 'text'], ['whatsapp_message', 'WhatsApp purchase message', 'textarea'], ['status', 'Status', 'select'], ['registration_status', 'Pendaftaran Peserta', 'select']];
+    : [['title', 'Event Title', 'text'], ['date', 'Date', 'date'], ['time', 'Time', 'text'], ['venue', 'Venue', 'text'], ['location', 'Location', 'text'], ['maps_url', 'Maps URL', 'text'], ['description', 'Description', 'textarea'], ['event_rules', 'Peraturan Event', 'textarea'], ['ticket_sales_mode', 'Status Penjualan Tiket', 'select'], ['status', 'Status', 'select'], ['registration_status', 'Pendaftaran Peserta', 'select']];
 
   const selectOptions: Record<string, [string, string][]> = {
     status: kind === 'komika' ? [['active', 'Active'], ['archived', 'Archived']] : [['upcoming', 'Upcoming'], ['completed', 'Completed'], ['cancelled', 'Cancelled']],
     registration_status: [['open', 'Open'], ['closed', 'Closed']],
+    ticket_sales_mode: [['free', 'GRATIS'], ['paid', 'TIKET BERBAYAR']],
     category: [['sponsor', 'Sponsor'], ['support', 'Support'], ['media_partner', 'Media Partner']],
   };
 
@@ -3970,7 +3930,7 @@ function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving
                       })}
                     </div>}
                   </div>
-                ) : kind === 'open-mic' && key === 'venue' ? (
+                ) : (kind === 'open-mic' || kind === 'event') && key === 'venue' ? (
                   <div className="relative">
                     <input
                       id={`admin-${key}`}
@@ -3988,11 +3948,11 @@ function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving
                       role="combobox"
                       aria-autocomplete="list"
                       aria-expanded={venueSuggestionsOpen && matchingVenueSuggestions.length > 0}
-                      aria-controls="admin-open-mic-venue-suggestions"
+                      aria-controls={`admin-${kind}-venue-suggestions`}
                       required={requiredFields.includes(key)}
                     />
                     {venueSuggestionsOpen && matchingVenueSuggestions.length > 0 && (
-                      <ul id="admin-open-mic-venue-suggestions" role="listbox" className="absolute inset-x-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+                      <ul id={`admin-${kind}-venue-suggestions`} role="listbox" className="absolute inset-x-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
                         {matchingVenueSuggestions.map((entry) => (
                           <li key={`${entry.venue}-${entry.location}-${entry.mapsUrl}`} role="presentation">
                             <button
@@ -4021,6 +3981,14 @@ function AdminFormModal({ kind, editing, venueHistory, saving, onClose, onSaving
                   </div>
                 ) : type === 'textarea' ? (
                   <textarea id={`admin-${key}`} value={form[key] ?? ''} onChange={(e) => set(key, e.target.value)} placeholder={getAdminFieldPlaceholder(key)} className="input-field min-h-[88px]" />
+                ) : (kind === 'event' || kind === 'open-mic') && type === 'select' ? (
+                  <AdminFormSelect
+                    id={`admin-${key}`}
+                    value={form[key] ?? ''}
+                    options={selectOptions[key] ?? []}
+                    onChange={(value) => set(key, value)}
+                    ariaLabel={label}
+                  />
                 ) : type === 'select' ? (
                   <select id={`admin-${key}`} value={form[key] ?? ''} onChange={(e) => set(key, e.target.value)} className="input-field">
                     {(selectOptions[key] ?? []).map(([val, lbl]) => <option key={val} value={val}>{lbl}</option>)}

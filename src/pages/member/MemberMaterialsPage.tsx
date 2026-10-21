@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BookOpen, Clock3, ListPlus, Plus, Search, SearchX, SlidersHorizontal, Star, TimerReset } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Router } from '@/lib/router';
@@ -41,16 +41,16 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
   const [form, setForm] = useState({ title: '', theme: '', premis: '', estimated_duration: '', content: '' });
   const [error, setError] = useState('');
 
-  async function loadMaterials() {
+  const loadMaterials = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
     const { data, error: loadError } = await supabase.from('materials').select('*').eq('user_id', user.id).order('updated_at', { ascending: false });
     if (loadError) setError('Materi belum dapat dimuat. Pastikan migration Buku Materi sudah dijalankan.');
     setMaterials((data as Material[]) ?? []);
     setLoading(false);
-  }
+  }, [user?.id]);
 
-  useEffect(() => { void loadMaterials(); }, [user?.id]);
+  useEffect(() => { void loadMaterials(); }, [loadMaterials]);
 
   const filteredMaterials = useMemo(() => materials.filter((material) => {
     const query = search.trim().toLowerCase();

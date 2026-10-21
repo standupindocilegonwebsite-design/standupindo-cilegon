@@ -353,7 +353,7 @@ export function HomePage({ router }: Props) {
               <AutoSlideRow highlightActive highlightTone="amber" lightLeakSlot="event" activeLightLeakSlot={activeLightLeakSlot} className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(Math.min(events.length, 5))} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
                 {events.map((e) => (
                   <div key={e.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
-                    <EventCard event={e} router={router} price={ticketPrices[e.id] ?? e.ticket_price ?? 0} />
+                    <EventCard event={e} router={router} price={ticketPrices[e.id] ?? (e.ticket_sales_mode === 'free' ? 0 : null)} />
                   </div>
                 ))}
               </AutoSlideRow>
