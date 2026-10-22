@@ -1,11 +1,12 @@
 import type { Komika } from '@/lib/types';
 import type { Router } from '@/lib/router';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
-import { normalizeSpecialties } from '@/lib/format';
+import { formatStageName, normalizeSpecialties } from '@/lib/format';
 
 export function KomikaCard({ komika, router }: { komika: Komika; router: Router }) {
   const specialties = normalizeSpecialties(komika.specialties);
   const cardPhoto = komika.photo_card || komika.photo;
+  const stageName = formatStageName(komika.stage_name);
 
   return (
     <article
@@ -22,12 +23,12 @@ export function KomikaCard({ komika, router }: { komika: Komika; router: Router 
       className="komika-card-light-leak group relative isolate aspect-[3/5] min-w-0 cursor-pointer overflow-hidden rounded-[22px] border-[3px] border-blue-600 bg-slate-900 shadow-[inset_2px_0_8px_rgba(255,255,255,0.62),inset_-2px_0_10px_rgba(96,165,250,0.76),inset_0_-3px_12px_rgba(37,99,235,0.64),0_0_12px_rgba(37,99,235,0.42),0_10px_22px_rgba(30,64,175,0.3)] ring-1 ring-blue-500/80 transition-[transform,box-shadow] duration-300 active:scale-[0.98] hover:-translate-y-1 hover:shadow-[inset_2px_0_10px_rgba(255,255,255,0.72),inset_-2px_0_12px_rgba(147,197,253,0.88),inset_0_-3px_14px_rgba(96,165,250,0.78),0_0_20px_rgba(37,99,235,0.68),0_16px_30px_rgba(30,64,175,0.4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
       role="button"
       tabIndex={0}
-      aria-label={`Lihat profil ${komika.stage_name}`}
+      aria-label={`Lihat profil ${stageName}`}
     >
       {cardPhoto ? (
         <img
           src={cardPhoto}
-          alt={komika.stage_name}
+          alt={stageName}
           width={600}
           height={1000}
           loading="lazy"
@@ -35,14 +36,14 @@ export function KomikaCard({ komika, router }: { komika: Komika; router: Router 
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-300 via-blue-600 to-indigo-950 text-6xl font-black text-white">
-          {komika.stage_name.charAt(0)}
+          {stageName.charAt(0)}
         </div>
       )}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(30,64,175,0.02)_18%,rgba(29,78,216,0.2)_48%,rgba(30,58,138,0.82)_72%,rgba(15,23,80,0.98)_100%)]" />
 
       <div className="absolute inset-x-0 bottom-0 min-w-0 p-3 text-white sm:p-4">
         <h3 className="line-clamp-2 break-words text-lg font-black leading-tight tracking-[-0.025em] text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] sm:text-xl">
-          {komika.stage_name}
+          {stageName}
         </h3>
         <div className="mt-2 scale-90 origin-left [&_a]:drop-shadow-[0_2px_5px_rgba(0,0,0,0.8)]">
           <SocialIconButton instagram={komika.instagram_url} tiktok={komika.tiktok_url} youtube={komika.youtube_url} size="sm" iconOnly />

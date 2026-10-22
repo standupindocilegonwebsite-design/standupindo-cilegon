@@ -7,6 +7,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
+import { EventPosterFallback } from '@/components/cards/EventPosterFallback';
 
 export function EventCard({ event, router, price }: { event: EventItem; router: Router; price?: number | null }) {
   const [lightbox, setLightbox] = useState(false);
@@ -50,9 +51,7 @@ export function EventCard({ event, router, price }: { event: EventItem; router: 
               />
             </button>
           ) : (
-            <button onClick={() => router.navigate(`/event/${event.slug}`)} className={`flex w-full items-center justify-center bg-slate-100 text-sm font-semibold text-slate-400 ${isCompleted ? 'h-full' : 'aspect-[4/5]'}`}>
-              Poster belum tersedia
-            </button>
+            <EventPosterFallback label={isCompleted ? 'ARSIP EVENT' : 'EVENT STANDUPINDO'} />
           )}
           {!isCompleted && <div className="absolute left-3 top-3"><StatusBadge status={currentStatus} /></div>}
           {!isCompleted && (

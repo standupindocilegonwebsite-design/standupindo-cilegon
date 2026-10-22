@@ -61,6 +61,32 @@ function chunkValues<T>(values: T[], size = 100) {
   return chunks;
 }
 
+export async function loadHistoricalArchiveYears(): Promise<number[]> {
+  const years = new Set<number>();
+  const pageSize = 1000;
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase.from('events')
+      .select('date')
+      .eq('is_historical_archive', true)
+      .eq('published', true)
+      .neq('status', 'cancelled')
+      .lte('date', getJakartaDate())
+      .order('date', { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    const page = data ?? [];
+    page.forEach((event) => {
+      const year = Number(event.date.slice(0, 4));
+      if (Number.isInteger(year)) years.add(year);
+    });
+    if (page.length < pageSize) break;
+  }
+
+  return [...years].sort((first, second) => second - first);
+}
+
 function loadImageDimensions(url: string): Promise<{ width: number; height: number } | null> {
   return new Promise((resolve) => {
     const image = new Image();
@@ -122,7 +148,10 @@ export async function loadAnnualRecapStats(year: number): Promise<AnnualRecapSta
   }
 
   const profilesById = new Map<string, KomikaProfile>();
-  const komikaIds = [...new Set(currentRegistrations.map((registration) => registration.komika_id).filter((id): id is string => Boolean(id)))];
+  const komikaIds = [...new Set([
+    ...currentRegistrations.map((registration) => registration.komika_id),
+    ...eventLineups.map((entry) => entry.komika_id),
+  ].filter((id): id is string => Boolean(id)))];
 
   for (const profileIds of chunkValues(komikaIds)) {
     const { data, error } = await supabase.from('komika').select('id, stage_name, photo, photo_card')
@@ -210,6 +239,20 @@ export async function loadAnnualRecapStats(year: number): Promise<AnnualRecapSta
     }
     community.count += 1;
     communityCounts.set(canonicalCommunityKey, community);
+  });
+
+  eventLineups.forEach((entry) => {
+    if (!entry.komika_id) return;
+    const profile = profilesById.get(entry.komika_id);
+    if (!profile) return;
+    const performer = performerCounts.get(entry.komika_id) ?? {
+      id: entry.komika_id,
+      name: profile.stage_name || entry.performer_name.trim(),
+      count: 0,
+      photo: profile.photo_card || profile.photo,
+    };
+    performer.count += 1;
+    performerCounts.set(entry.komika_id, performer);
   });
 
   const byCount = <T extends { count: number }>(first: T, second: T) => second.count - first.count;

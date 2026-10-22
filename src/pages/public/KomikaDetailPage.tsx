@@ -9,13 +9,14 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
-import { formatDate, getEventStatus, normalizeSpecialties, safeExternalUrl } from '@/lib/format';
+import { formatDate, formatStageName, getEventStatus, isStandupindoCilegonOrganizer, normalizeSpecialties, safeExternalUrl } from '@/lib/format';
 import { seoDescription, setPageMetadata } from '@/lib/seo';
 
 interface OfficialStageHistoryEntry {
   id: string;
   role_category: 'lineup' | 'opener' | 'guest_star' | 'mc_host' | 'judge' | 'special_show' | 'other';
   role_title: string | null;
+  role_labels?: string[];
   event: { id: string; title: string; slug: string; date: string; venue: string; location: string; status: 'upcoming' | 'completed' | 'cancelled'; published: boolean };
 }
 
@@ -93,18 +94,46 @@ export function KomikaDetailPage({ router, slug }: Props) {
           console.error('Failed to load public stage journey', officialResult.error ?? externalResult.error);
           setJourneyError('Perjalanan panggung belum dapat dimuat. Coba segarkan halaman.');
         } else {
+          const officialRoleLabels: Record<OfficialStageHistoryEntry['role_category'], string> = {
+            lineup: 'Lineup / Penampil',
+            opener: 'Opener',
+            guest_star: 'Guest Star',
+            mc_host: 'MC / Host',
+            judge: 'Juri',
+            special_show: 'Special Show',
+            other: 'Lainnya',
+          };
+          const stageExperiences = (externalResult.data ?? []) as ExternalStageHistoryEntry[];
+          const localRoleLabels = new Map<string, string[]>();
+          stageExperiences.filter((entry) => isStandupindoCilegonOrganizer(entry.organizer)).forEach((entry) => {
+            const key = `${entry.event_date}:${entry.event_name.trim().toLowerCase()}`;
+            const roleLabel = entry.role === 'Lainnya' ? entry.custom_role || entry.role : entry.role;
+            const roles = localRoleLabels.get(key) ?? [];
+            if (!roles.includes(roleLabel)) roles.push(roleLabel);
+            localRoleLabels.set(key, roles);
+          });
           const completed = ((officialResult.data ?? []) as unknown as OfficialStageHistoryEntry[])
             .filter((entry) => entry.event.published && getEventStatus(entry.event.status, entry.event.date) === 'completed')
+            .map((entry) => {
+              const key = `${entry.event.date}:${entry.event.title.trim().toLowerCase()}`;
+              const primaryRole = entry.role_category === 'other' && entry.role_title
+                ? entry.role_title
+                : officialRoleLabels[entry.role_category];
+              const roles = [primaryRole, ...(localRoleLabels.get(key) ?? [])]
+                .filter((role, index, allRoles) => allRoles.indexOf(role) === index);
+              return { ...entry, role_labels: roles };
+            })
             .sort((first, second) => second.event.date.localeCompare(first.event.date));
           setOfficialHistory(completed);
-          setExternalHistory((externalResult.data ?? []) as ExternalStageHistoryEntry[]);
+          setExternalHistory(stageExperiences.filter((entry) => !isStandupindoCilegonOrganizer(entry.organizer)));
           setJourneyError('');
         }
 
+        const stageName = formatStageName(k.stage_name);
         setPageMetadata({
           path: `/komika/${encodeURIComponent(k.slug)}`,
-          title: `${k.stage_name} | Komika Cilegon | Standupindo Cilegon`,
-          description: seoDescription(k.bio, `Kenali ${k.stage_name}, komika dari Standupindo Cilegon di Cilegon, Banten.`),
+          title: `${stageName} | Komika Cilegon | Standupindo Cilegon`,
+          description: seoDescription(k.bio, `Kenali ${stageName}, komika dari Standupindo Cilegon di Cilegon, Banten.`),
           image: k.photo_card || k.photo,
         });
       } catch (error) {
@@ -138,19 +167,10 @@ export function KomikaDetailPage({ router, slug }: Props) {
   const karyaUrl = safeExternalUrl(komika.karya_url);
   const specialties = normalizeSpecialties(komika.specialties);
   const profileCardPhoto = komika.photo_card || komika.photo;
-  const officialRoleLabels: Record<OfficialStageHistoryEntry['role_category'], string> = {
-    lineup: 'Lineup / Penampil',
-    opener: 'Opener',
-    guest_star: 'Guest Star',
-    mc_host: 'MC / Host',
-    judge: 'Juri',
-    special_show: 'Special Show',
-    other: 'Lainnya',
-  };
-
+  const stageName = formatStageName(komika.stage_name);
   return (
     <div className="animate-fade-in">
-      <PageHeader router={router} title={komika.stage_name} />
+      <PageHeader router={router} title={stageName} />
 
       <div className="container-app py-6 sm:py-8">
         <div data-scroll-reveal className="scroll-reveal rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_14px_32px_rgba(11,60,93,0.05)] sm:p-6">
@@ -158,12 +178,12 @@ export function KomikaDetailPage({ router, slug }: Props) {
             <div className="aspect-[3/5] rounded-[18px] bg-gradient-to-br from-blue-800 via-blue-600 to-red-600 p-1 shadow-[0_10px_26px_rgba(11,60,93,0.2)] ring-1 ring-blue-900/10 sm:rounded-[22px]">
               <div className="h-full w-full overflow-hidden rounded-[14px] bg-slate-100 sm:rounded-[18px]">
                 {profileCardPhoto ? (
-                  <button onClick={() => setLightbox(true)} aria-label={`Lihat foto ${komika.stage_name}`} className="block h-full w-full">
-                    <img src={profileCardPhoto} alt={komika.stage_name} className="h-full w-full object-cover object-top transition-transform duration-500 hover:scale-105" />
+                  <button onClick={() => setLightbox(true)} aria-label={`Lihat foto ${stageName}`} className="block h-full w-full">
+                    <img src={profileCardPhoto} alt={stageName} className="h-full w-full object-cover object-top transition-transform duration-500 hover:scale-105" />
                   </button>
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50 text-5xl font-extrabold text-blue-600">
-                    {komika.stage_name.charAt(0)}
+                    {stageName.charAt(0)}
                   </div>
                 )}
               </div>
@@ -173,11 +193,11 @@ export function KomikaDetailPage({ router, slug }: Props) {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-700">Komika</p>
-                  <h1 className="mt-1.5 break-words text-xl font-extrabold leading-tight tracking-[-0.04em] text-slate-900 sm:text-2xl md:mt-2 md:text-3xl">{komika.stage_name}</h1>
+                  <h1 className="mt-1.5 break-words text-xl font-extrabold leading-tight tracking-[-0.04em] text-slate-900 sm:text-2xl md:mt-2 md:text-3xl">{stageName}</h1>
                 </div>
                 <ShareButton
-                  title={`${komika.stage_name} — Standupindo Cilegon`}
-                  text={`Kenali ${komika.stage_name}, komika dari Standupindo Cilegon.`}
+                  title={`${stageName} — Standupindo Cilegon`}
+                  text={`Kenali ${stageName}, komika dari Standupindo Cilegon.`}
                   url={pageUrl}
                   image={komika.photo}
                   className="!rounded-full"
@@ -274,7 +294,7 @@ export function KomikaDetailPage({ router, slug }: Props) {
                           </td>
                           <td className="px-2 py-3 align-top">
                             <span className="inline-flex max-w-full rounded-md bg-blue-50 px-1.5 py-1 text-[10px] font-bold leading-4 text-blue-900 sm:px-2 sm:text-xs sm:leading-5">
-                              <span className="break-words">{entry.role_category === 'other' && entry.role_title ? entry.role_title : officialRoleLabels[entry.role_category]}</span>
+                              <span className="break-words">{entry.role_labels?.join(' / ') ?? (entry.role_category === 'other' && entry.role_title ? entry.role_title : entry.role_category)}</span>
                             </span>
                           </td>
                         </tr>
@@ -334,7 +354,7 @@ export function KomikaDetailPage({ router, slug }: Props) {
       </div>
 
       {profileCardPhoto && (
-        <ImageLightbox src={komika.photo || profileCardPhoto} alt={komika.stage_name} open={lightbox} onClose={() => setLightbox(false)} />
+        <ImageLightbox src={komika.photo || profileCardPhoto} alt={stageName} open={lightbox} onClose={() => setLightbox(false)} />
       )}
     </div>
   );

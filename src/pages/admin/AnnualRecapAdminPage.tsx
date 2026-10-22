@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { CheckCircle2, ChevronDown, Eye, EyeOff, FileText, Music2, Save, Search, Sparkles, Trash2, Upload } from 'lucide-react';
 import { AnnualRecapStory } from '@/pages/public/AnnualRecapStoryView';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
-import { DEFAULT_RECAP_CLOSING, loadAnnualRecapStats, type AnnualRecapRecord, type AnnualRecapStats } from '@/lib/annual-recap';
+import { DEFAULT_RECAP_CLOSING, loadAnnualRecapStats, loadHistoricalArchiveYears, type AnnualRecapRecord, type AnnualRecapStats } from '@/lib/annual-recap';
 import { supabase } from '@/lib/supabase';
 
 const AUDIO_CONTENT_TYPES: Record<string, string> = {
@@ -20,6 +20,8 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
   const [yearInput, setYearInput] = useState(String(currentYear));
   const [yearSearch, setYearSearch] = useState('');
   const [records, setRecords] = useState<AnnualRecapRecord[]>([]);
+  const [archiveYears, setArchiveYears] = useState<number[]>([]);
+  const [archiveYearsError, setArchiveYearsError] = useState(false);
   const [record, setRecord] = useState<AnnualRecapRecord | null>(null);
   const [closingNarrative, setClosingNarrative] = useState(DEFAULT_RECAP_CLOSING);
   const [musicUrl, setMusicUrl] = useState('');
@@ -37,7 +39,7 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
   const validYearInput = /^\d{4}$/.test(yearInput)
     && Number(yearInput) >= 1900
     && Number(yearInput) <= currentYear;
-  const availableYears = [...new Set([currentYear, selectedYear, ...records.map((item) => item.year)])]
+  const availableYears = [...new Set([currentYear, selectedYear, ...archiveYears, ...records.map((item) => item.year)])]
     .sort((first, second) => second - first);
   const filteredRecords = records.filter((item) => String(item.year).includes(yearSearch.trim()));
 
@@ -57,6 +59,19 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
 
     return () => { active = false; };
   }, [onNotice]);
+
+  useEffect(() => {
+    let active = true;
+
+    void loadHistoricalArchiveYears().then((years) => {
+      if (active) setArchiveYears(years);
+    }).catch((error: unknown) => {
+      console.error('Tahun arsip untuk Annual Recap gagal dimuat.', error);
+      if (active) setArchiveYearsError(true);
+    });
+
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -250,6 +265,7 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
             </div>
             <datalist id="annual-recap-year-options">{availableYears.map((year) => <option key={year} value={year} />)}</datalist>
             <p id="annual-recap-year-help" className="text-xs text-slate-500">Masukkan tahun 4 digit, maksimal {currentYear}.</p>
+            {archiveYearsError && <p role="alert" className="text-xs font-semibold text-amber-700">Daftar tahun arsip belum dapat dimuat. Tahun tetap bisa dibuka dengan mengetik langsung.</p>}
           </div>
 
           <label className="block space-y-1.5">

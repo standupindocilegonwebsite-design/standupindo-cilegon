@@ -3,7 +3,7 @@ import { CalendarDays, ChevronDown, ExternalLink, MapPin, Pencil } from 'lucide-
 import type { Router } from '@/lib/router';
 import type { EventLineupRole, MemberStageExperience } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { formatDate, getEventStatus, safeExternalUrl } from '@/lib/format';
+import { formatDate, getEventStatus, isStandupindoCilegonOrganizer, safeExternalUrl } from '@/lib/format';
 
 interface OfficialJourneyEntry {
   id: string;
@@ -66,7 +66,8 @@ export function MemberStageJourneySummary({ komikaId, router, onManage }: { komi
         .filter((entry) => entry.event.published && getEventStatus(entry.event.status, entry.event.date) === 'completed')
         .sort((first, second) => second.event.date.localeCompare(first.event.date));
       setOfficial(completed);
-      setExternal((externalResult.data ?? []) as MemberStageExperience[]);
+      setExternal(((externalResult.data ?? []) as MemberStageExperience[])
+        .filter((entry) => !isStandupindoCilegonOrganizer(entry.organizer)));
       setLoaded(true);
     }
     setLoading(false);

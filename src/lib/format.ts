@@ -5,6 +5,15 @@ const MONTHS = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
 
+export function formatStageName(value: string): string {
+  return value.trim().replace(/(^|[\s-])(\p{L})/gu, (_match, separator: string, letter: string) => `${separator}${letter.toLocaleUpperCase('id-ID')}`);
+}
+
+export function isStandupindoCilegonOrganizer(organizer: string | null) {
+  const normalized = (organizer ?? '').toLocaleLowerCase('id-ID').replace(/[^a-z0-9]/g, '');
+  return normalized === 'standupindocilegon' || normalized === 'komunitasstandupindocilegon';
+}
+
 export function getOpenMicNumbers(openMics: OpenMic[]): Map<string, number> {
   return new Map(
     [...openMics]

@@ -4,7 +4,7 @@ import { serve } from 'server';
 const JAKARTA_OFFSET_MS = 7 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
-const DUE_WINDOW_MS = 15 * MINUTE_MS;
+const DUE_WINDOW_MS = 30 * MINUTE_MS;
 const POST_EVENT_WINDOW_MS = DAY_MS;
 
 type EntityKind = 'event' | 'open-mic';

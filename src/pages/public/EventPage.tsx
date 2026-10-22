@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapPin, Search } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { EventItem, EventTicket } from '@/lib/types';
+import type { EventItem, EventLineupEntry, EventTicket } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { EventCard } from '@/components/cards/EventCard';
+import { EventPosterFallback } from '@/components/cards/EventPosterFallback';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatDate, getEventStatus } from '@/lib/format';
 
+type EventSearchLineupEntry = Pick<EventLineupEntry, 'event_id' | 'performer_name' | 'role_category' | 'role_title'> & {
+  komika?: { stage_name: string } | { stage_name: string }[] | null;
+};
+
 export function EventPage({ router }: { router: Router }) {
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [lineupSearchText, setLineupSearchText] = useState<Record<string, string>>({});
+  const [lineupSearchError, setLineupSearchError] = useState(false);
   const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
   const [upcomingSearch, setUpcomingSearch] = useState('');
   const [completedSearch, setCompletedSearch] = useState('');
@@ -52,7 +59,7 @@ export function EventPage({ router }: { router: Router }) {
         for (let from = 0; ; from += pageSize) {
           const { data, error } = await supabase
             .from('events')
-            .select('*')
+            .select('id, title, slug, poster, date, time, venue, location, maps_url, description, status, registration_status, published, ticket_sales_mode, created_at')
             .eq('published', true)
             .order('date', { ascending: true })
             .range(from, from + pageSize - 1);
@@ -72,6 +79,9 @@ export function EventPage({ router }: { router: Router }) {
 
       setLoadError(Boolean(eventError));
       const eventsList = eventData;
+      const searchableEventIds = eventsList
+        .filter((event) => ['upcoming', 'completed'].includes(getEventStatus(event.status, event.date)))
+        .map((event) => event.id);
       const prices: Record<string, number> = {};
 
       (ticketData as EventTicket[] | null)?.forEach((ticket) => {
@@ -81,17 +91,79 @@ export function EventPage({ router }: { router: Router }) {
         }
       });
 
+      if (searchableEventIds.length > 0) {
+        const pageSize = 1000;
+        const allLineupEntries: EventSearchLineupEntry[] = [];
+        let lineupLoadFailed = false;
+
+        for (let from = 0; ; from += pageSize) {
+          const { data, error } = await supabase
+            .from('event_lineups')
+            .select('event_id, performer_name, role_category, role_title, komika:komika_id(stage_name)')
+            .in('event_id', searchableEventIds)
+            .range(from, from + pageSize - 1);
+
+          if (error) {
+            console.error('Failed to load event lineup search data', error);
+            lineupLoadFailed = true;
+            break;
+          }
+
+          const page = (data as unknown as EventSearchLineupEntry[] | null) ?? [];
+          allLineupEntries.push(...page);
+          if (page.length < pageSize) break;
+        }
+
+        if (lineupLoadFailed) {
+          setLineupSearchError(true);
+        } else {
+          const searchTextByEvent: Record<string, string[]> = {};
+          allLineupEntries.forEach((entry) => {
+            const linkedMembers = Array.isArray(entry.komika) ? entry.komika : entry.komika ? [entry.komika] : [];
+            const text = [
+              entry.performer_name,
+              ...linkedMembers.map((member) => member.stage_name),
+              entry.role_category,
+              entry.role_title,
+            ].filter(Boolean).join(' ');
+            (searchTextByEvent[entry.event_id] ??= []).push(text);
+          });
+          setLineupSearchText(
+            Object.fromEntries(Object.entries(searchTextByEvent).map(([eventId, entries]) => [eventId, entries.join(' ')])),
+          );
+        }
+      }
+
       setEvents(eventsList);
       setTicketPrices(prices);
       setLoading(false);
     })();
   }, []);
 
-  const matchesSearch = (event: EventItem, query: string) => !query.trim() || `${event.title} ${event.venue} ${event.location} ${event.date} ${formatDate(event.date)}`.toLowerCase().includes(query.trim().toLowerCase());
-  const upcoming = events.filter((e) => getEventStatus(e.status, e.date) === 'upcoming' && matchesSearch(e, upcomingSearch));
+  const matchesEventSearch = (event: EventItem, query: string) => {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    if (!normalizedQuery) return true;
+    const date = new Date(`${event.date}T00:00:00`);
+    const shortDate = Number.isNaN(date.getTime())
+      ? ''
+      : new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+    const searchableText = [
+      event.title,
+      event.venue,
+      event.location,
+      event.date,
+      formatDate(event.date),
+      shortDate,
+      event.time,
+      event.date.slice(0, 4),
+      lineupSearchText[event.id],
+    ].filter(Boolean).join(' ').replace(/\s+/g, ' ').toLocaleLowerCase();
+    return searchableText.includes(normalizedQuery);
+  };
+  const upcoming = events.filter((e) => getEventStatus(e.status, e.date) === 'upcoming' && matchesEventSearch(e, upcomingSearch));
   const completed = events
     .filter((e) => getEventStatus(e.status, e.date) === 'completed')
-    .filter((e) => matchesSearch(e, completedSearch))
+    .filter((e) => matchesEventSearch(e, completedSearch))
     .sort((a, b) => {
       const dateOrder = b.date.localeCompare(a.date);
       if (dateOrder !== 0) return dateOrder;
@@ -124,6 +196,7 @@ export function EventPage({ router }: { router: Router }) {
             <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-blue-700">{upcoming.length}</span>
           </div>
           <div className="relative mb-4"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="search" value={upcomingSearch} onChange={(event) => setUpcomingSearch(event.target.value)} placeholder="Cari event mendatang..." className="input-field !pl-11" aria-label="Cari event mendatang" /></div>
+          {lineupSearchError && <p role="alert" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Data pengisi acara belum dapat dimuat, sehingga pencarian nama komika mungkin tidak lengkap.</p>}
           {loading ? (
             <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:overflow-visible lg:pb-0">
               <div className="min-w-[270px] max-w-[270px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
@@ -147,10 +220,15 @@ export function EventPage({ router }: { router: Router }) {
         {hasCompletedEvents && (
           <section id="completed-events" data-scroll-reveal className="scroll-reveal scroll-mt-24 border-t border-white/20 pt-7 sm:pt-9">
             <div className="mb-5 flex flex-col gap-1.5 sm:mb-6">
-              <div className="flex items-center gap-3">
-                <span className="h-8 w-1 rounded-full bg-blue-700" />
-                <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Event Selesai</h2>
-                <span aria-label={`${completed.length} event selesai`} className="inline-flex h-8 min-w-8 items-center justify-center rounded-full border border-blue-400 bg-blue-600 px-2 text-sm font-black text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)]">{completed.length}</span>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="h-8 w-1 shrink-0 rounded-full bg-blue-700" />
+                  <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Event Selesai</h2>
+                </div>
+                <span aria-label={`${completed.length} event selesai`} className="flex shrink-0 flex-col items-center text-white drop-shadow-[0_2px_10px_rgba(59,130,246,0.5)]">
+                  <span className="text-4xl font-black leading-none sm:text-5xl">{completed.length}</span>
+                  <span className="mt-1 text-[10px] font-extrabold uppercase leading-none tracking-[0.18em] sm:text-xs">EVENT</span>
+                </span>
               </div>
               <p className="pl-4 text-sm text-slate-300">Kenangan dari panggung yang pernah kita ramaikan.</p>
             </div>
@@ -199,9 +277,7 @@ function CompletedEventCard({ event, router }: { event: EventItem; router: Route
             className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.04]"
           />
         ) : (
-          <span className="flex h-full items-center justify-center bg-gradient-to-br from-slate-800 to-blue-950 px-3 text-center text-sm font-bold text-white/80">
-            Poster belum tersedia
-          </span>
+          <EventPosterFallback />
         )}
         <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-slate-950/40 to-transparent opacity-70" />
       </span>

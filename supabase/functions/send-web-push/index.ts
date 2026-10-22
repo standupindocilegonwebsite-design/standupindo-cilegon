@@ -258,7 +258,7 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
   const oldRecord = webhook.old_record ?? null;
   if (!record || type === 'DELETE') return { sent: 0, removed: 0, failed: 0 };
 
-  if (table === 'events' && type === 'INSERT') {
+  if (table === 'events' && type === 'INSERT' && record.is_historical_archive !== true) {
     const adminIds = await listUsersByRoles(adminClient, ['admin', 'event_admin']);
     await sendForUsers(adminClient, adminIds, {
       notification_id: `event-admin-created:${record.id}`,
@@ -470,6 +470,9 @@ serve(async (request) => {
         tag,
         ...(image ? { image } : {}),
       });
+      if (summary.failed > 0) {
+        return response({ success: false, error: 'Push terjadwal gagal dikirim ke subscription target.', ...summary }, 502);
+      }
       return response({ success: true, ...summary });
     }
 
