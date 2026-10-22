@@ -7,18 +7,20 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
+import { useAuth } from '@/lib/auth-context';
 
 interface Props {
   mic: OpenMic;
   openMicNumber?: number;
   confirmedCount: number;
-  lineup?: string[];
+  lineup?: Array<{ stageName: string; slug: string | null }>;
   router: Router;
   compact?: boolean;
 }
 
 export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], router, compact = false }: Props) {
   const [lightbox, setLightbox] = useState(false);
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const filled = confirmedCount;
   const total = mic.capacity;
   const isFull = filled >= total;
@@ -139,18 +141,45 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
           </div>}
 
           {isCompleted ? (
-            <button
-              type="button"
+            <div
               onClick={(event) => {
-                event.stopPropagation();
+                if ((event.target as HTMLElement).closest('button')) return;
                 router.navigate(`/open-mic/${mic.slug}#lineup`);
               }}
-              aria-label={`Buka Arsip Lineup ${mic.title}`}
-              className="group mt-3 w-full border-t border-slate-300 pt-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              className="group mt-3 w-full cursor-pointer border-t border-slate-300 pt-2.5 text-left"
             >
-              <p className="w-fit text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 group-hover:underline group-hover:decoration-blue-500 group-hover:underline-offset-2">Lineup</p>
-              <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-700">{lineup.length > 0 ? lineup.join(' · ') : 'Belum ada data lineup'}</p>
-            </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  router.navigate(`/open-mic/${mic.slug}#lineup`);
+                }}
+                aria-label={`Buka Arsip Lineup ${mic.title}`}
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              >
+                <p className="w-fit text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 group-hover:underline group-hover:decoration-blue-500 group-hover:underline-offset-2">Lineup</p>
+              </button>
+              <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-700">
+                {lineup.length > 0 ? lineup.map((performer, index) => (
+                  <span key={`${performer.stageName}-${index}`}>
+                    {index > 0 && ' · '}
+                    {!authLoading && !isAuthenticated && performer.slug ? (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          router.navigate(`/komika/${encodeURIComponent(performer.slug!)}`);
+                        }}
+                        className="hover:text-blue-700 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        aria-label={`Lihat profil komika ${performer.stageName}`}
+                      >
+                        {performer.stageName}
+                      </button>
+                    ) : performer.stageName}
+                  </span>
+                )) : 'Belum ada data lineup'}
+              </p>
+            </div>
           ) : <div className="mt-2 flex flex-col gap-2">
             <LocationLink venue={mic.venue} location={mic.location} mapsUrl={mic.maps_url} className="w-full min-w-0" />
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700"><Users className="h-4 w-4 shrink-0 text-blue-600" />{isFull ? 'Slot penuh' : `${filled} Komika`}</p>

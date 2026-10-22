@@ -31,7 +31,7 @@ type OpenMicLineupRegistration = OpenMicRegistration & {
 
 export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, isMemberArea = false }: Props) {
   const { settings } = useSiteSettings();
-  const { user } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [mic, setMic] = useState<OpenMic | null>(null);
   const [targetRegistration, setTargetRegistration] = useState<{ id: string; registration_id: string; status: string } | null>(null);
@@ -401,7 +401,9 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
                   {filteredLineup.map((r, index) => {
                     const ig = normalizeInstagram(r.instagram);
                     const linkedKomika = Array.isArray(r.komika) ? r.komika[0] : r.komika;
-                    const memberSlug = currentStatus === 'completed'
+                    const memberSlug = !authLoading
+                      && !isAuthenticated
+                      && currentStatus === 'completed'
                       && linkedKomika?.published
                       && linkedKomika.status === 'active'
                       ? linkedKomika.slug
@@ -414,7 +416,7 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
                               type="button"
                               onClick={() => router.navigate(`/komika/${encodeURIComponent(memberSlug)}`)}
                               className="block max-w-full truncate text-left font-bold text-slate-900 transition-colors hover:text-blue-700 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                              aria-label={`Lihat profil member ${r.stage_name}`}
+                              aria-label={`Lihat profil komika ${r.stage_name}`}
                             >
                               {r.stage_name}
                             </button>
@@ -463,7 +465,7 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
 function publicLineupQuery(openMicId: string, onlyAttended: boolean) {
   const query = supabase
     .from('open_mic_registrations')
-    .select('*, komika:komika_id(slug, status, published)')
+    .select('id, registration_id, open_mic_id, komika_id, stage_name, community, instagram, status, attendance_status, created_at, updated_at, komika:komika_id(slug, status, published)')
     .eq('open_mic_id', openMicId)
     .eq('status', 'confirmed')
     .order('created_at', { ascending: true });

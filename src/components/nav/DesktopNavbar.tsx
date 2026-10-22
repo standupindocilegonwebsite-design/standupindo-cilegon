@@ -1,4 +1,4 @@
-import { Home, Mic, CalendarDays, Drama, Menu } from 'lucide-react';
+import { Home, Mic, CalendarDays, Drama, CircleHelp, Menu } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { SiteSettings } from '@/lib/types';
 
@@ -54,11 +54,12 @@ export function DesktopNavbar({ router, settings }: { router: Router; settings: 
         </button>
 
         <button
-          onClick={() => router.navigate('/more')}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/60 bg-white/10 text-white shadow-sm transition hover:border-white hover:bg-white/20 sm:h-10 sm:w-10 md:hidden"
-          aria-label="Menu"
+          onClick={() => router.navigate('/panduan')}
+          className="flex h-10 w-10 shrink-0 items-center justify-center text-white transition hover:text-blue-100 focus-visible:rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 md:hidden"
+          aria-label="Panduan dan FAQ"
+          title="Panduan dan FAQ"
         >
-          <Menu className="h-5 w-5" />
+          <CircleHelp className="h-6 w-6" />
         </button>
       </div>
     </header>

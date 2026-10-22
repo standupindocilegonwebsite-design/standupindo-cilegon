@@ -24,6 +24,7 @@ type MemberNotificationCandidate = {
   description: string;
   target_path: string;
   kind: MemberNotification['kind'];
+  createdAt: string;
 };
 
 export function MemberNotificationCountsProvider({ children }: { children: ReactNode }) {
@@ -39,10 +40,13 @@ export function MemberNotificationCountsProvider({ children }: { children: React
   return <MemberNotificationCountsContext.Provider value={value}>{children}</MemberNotificationCountsContext.Provider>;
 }
 
-async function fetchLegacyReadIds(userId: string): Promise<Set<string>> {
-  const { data, error } = await supabase.from('member_notification_reads').select('notification_key').eq('user_id', userId);
-  if (error) throw error;
-  return new Set((data ?? []).map((item) => String(item.notification_key)));
+async function fetchLegacyReadIds(userId: string): Promise<Map<string, string>> {
+  const { data, error } = await supabase.from('member_notification_reads').select('notification_key, read_at').eq('user_id', userId);
+  if (error) {
+    console.error('Failed to load legacy member notification read states', error);
+    return new Map();
+  }
+  return new Map((data ?? []).map((item) => [String(item.notification_key), String(item.read_at)]));
 }
 
 export function MemberNotificationBell({ router }: { router: import('@/lib/router').Router }) {
@@ -52,6 +56,8 @@ export function MemberNotificationBell({ router }: { router: import('@/lib/route
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string>();
   const [channelRevision, setChannelRevision] = useState(0);
+  const [legacyStorageFallback, setLegacyStorageFallback] = useState(false);
+  const [persistentStorageAvailable, setPersistentStorageAvailable] = useState<boolean | null>(null);
 
   const loadNotifications = useCallback(async () => {
     if (!user?.id) {
@@ -75,7 +81,17 @@ export function MemberNotificationBell({ router }: { router: import('@/lib/route
         supabase.from('event_participants').select('id, registration_id, event_id, status, updated_at, events(title, slug)').eq('komika_id', profile.id).in('status', ['approved', 'rejected']).order('updated_at', { ascending: false }),
         fetchLegacyReadIds(user.id),
       ]);
-      if (registrationError || evaluationError || participantError) throw registrationError ?? evaluationError ?? participantError;
+      const sourceErrors = [
+        registrationError && ['Open Mic', registrationError],
+        evaluationError && ['evaluasi', evaluationError],
+        participantError && ['event', participantError],
+      ].filter((item): item is [string, NonNullable<typeof registrationError>] => Boolean(item));
+      sourceErrors.forEach(([source, error]) => {
+        console.error(`Failed to load member ${source} notification source`, error);
+      });
+      if (sourceErrors.length === 3) {
+        throw new Error('Notifikasi pendaftaran Open Mic, event, dan evaluasi tidak dapat dimuat.');
+      }
 
       const candidates: MemberNotificationCandidate[] = [];
       ((registrations ?? []) as Array<{ id: string; registration_id: string; open_mic_id: string; status: string; updated_at: string; open_mics?: { title?: string; slug?: string } | null }>).forEach((row) => {
@@ -90,6 +106,7 @@ export function MemberNotificationBell({ router }: { router: import('@/lib/route
             ? `/member/open-mic/${encodeURIComponent(slug)}?notificationRegistrationId=${encodeURIComponent(row.id)}`
             : `/member/open-mic?notificationRegistrationId=${encodeURIComponent(row.id)}`,
           kind: 'registration',
+          createdAt: row.updated_at,
         });
       });
       ((eventParticipants ?? []) as Array<{ id: string; registration_id: string; event_id: string; status: string; updated_at: string; events?: { title?: string; slug?: string } | null }>).forEach((row) => {
@@ -103,6 +120,7 @@ export function MemberNotificationBell({ router }: { router: import('@/lib/route
             ? `/event/${encodeURIComponent(row.events.slug)}?notificationParticipantId=${encodeURIComponent(row.id)}`
             : `/event?notificationParticipantId=${encodeURIComponent(row.id)}`,
           kind: 'event',
+          createdAt: row.updated_at,
         });
       });
       ((evaluations ?? []) as Array<{ id: string; open_mic_id: string; status: string; updated_at: string; open_mics?: { title?: string } | null }>).forEach((row) => {
@@ -114,11 +132,12 @@ export function MemberNotificationBell({ router }: { router: import('@/lib/route
           description: row.open_mics?.title ?? 'Performance kamu',
           target_path: `/member/evaluations?notificationEvaluationId=${encodeURIComponent(row.id)}`,
           kind: 'evaluation',
+          createdAt: row.updated_at,
         });
       });
 
+      let useLegacyStorage = false;
       if (candidates.length > 0) {
-        const timestamp = new Date().toISOString();
         const { error: persistError } = await supabase.from('user_notifications').upsert(candidates.map((candidate) => ({
           user_id: user.id,
           notification_key: candidate.notification_key,
@@ -127,32 +146,54 @@ export function MemberNotificationBell({ router }: { router: import('@/lib/route
           title: candidate.title,
           description: candidate.description,
           target_path: candidate.target_path,
-          read_at: legacyReadIds.has(candidate.notification_key) ? timestamp : null,
+          read_at: legacyReadIds.has(candidate.notification_key) ? legacyReadIds.get(candidate.notification_key) : null,
         })), { onConflict: 'user_id,notification_key', ignoreDuplicates: true });
-        if (persistError) throw persistError;
+        if (persistError) {
+          console.error('Failed to persist member notifications; using source data for this session', persistError);
+          useLegacyStorage = true;
+        }
       }
 
       const pageSize = 200;
       const inboxRows: MemberNotificationRow[] = [];
-      for (let from = 0; ; from += pageSize) {
-        const { data, error: inboxError } = await supabase.from('user_notifications')
-          .select('id, source_type, source_id, title, description, target_path, created_at, read_at')
-          .eq('user_id', user.id)
-          .in('source_type', ['member-registration', 'member-event', 'member-evaluation'])
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
-          .range(from, from + pageSize - 1);
-        if (inboxError) throw inboxError;
-        const page = (data ?? []) as MemberNotificationRow[];
-        inboxRows.push(...page);
-        if (page.length < pageSize) break;
+      if (!useLegacyStorage) {
+        for (let from = 0; ; from += pageSize) {
+          const { data, error: inboxError } = await supabase.from('user_notifications')
+            .select('id, source_type, source_id, title, description, target_path, created_at, read_at')
+            .eq('user_id', user.id)
+            .in('source_type', ['member-registration', 'member-event', 'member-evaluation'])
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false })
+            .range(from, from + pageSize - 1);
+          if (inboxError) {
+            console.error('Failed to load persisted member notifications; using source data for this session', inboxError);
+            useLegacyStorage = true;
+            break;
+          }
+          const page = (data ?? []) as MemberNotificationRow[];
+          inboxRows.push(...page);
+          if (page.length < pageSize) break;
+        }
       }
+      setLegacyStorageFallback(useLegacyStorage);
+      setPersistentStorageAvailable(!useLegacyStorage);
       const kindBySource: Record<MemberNotificationSource, MemberNotification['kind']> = {
         'member-registration': 'registration',
         'member-event': 'event',
         'member-evaluation': 'evaluation',
       };
-      setItems(inboxRows.map((row) => ({
+      const notifications = useLegacyStorage
+        ? candidates.map((candidate) => ({
+          id: candidate.notification_key,
+          source: candidate.source_type,
+          title: candidate.title,
+          description: candidate.description,
+          targetPath: candidate.target_path,
+          createdAt: candidate.createdAt,
+          readAt: legacyReadIds.get(candidate.notification_key) ?? null,
+          kind: candidate.kind,
+        }))
+        : inboxRows.map((row) => ({
         id: row.id,
         source: row.source_type,
         title: row.title,
@@ -161,10 +202,16 @@ export function MemberNotificationBell({ router }: { router: import('@/lib/route
         createdAt: row.created_at,
         readAt: row.read_at,
         kind: kindBySource[row.source_type],
-      })));
+        }));
+      setItems(notifications);
     } catch (error) {
       console.error('Failed to load member notifications', error);
-      setLoadError('Notifikasi gagal dimuat. Coba buka panel lagi atau segarkan halaman.');
+      const detail = typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string'
+        ? error.message
+        : '';
+      setLoadError(detail
+        ? `Notifikasi gagal dimuat: ${detail}`
+        : 'Notifikasi gagal dimuat. Coba buka panel lagi atau segarkan halaman.');
     } finally {
       setLoading(false);
     }
@@ -174,12 +221,15 @@ export function MemberNotificationBell({ router }: { router: import('@/lib/route
     void loadNotifications();
     if (!user?.id) return undefined;
     let active = true;
-    const channel = supabase.channel(`member-notifications-${user.id}`)
+    const channel = supabase.channel(`member-notifications-${user.id}`);
+    channel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'open_mic_registrations' }, () => void loadNotifications())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_participants' }, () => void loadNotifications())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'evaluations' }, () => void loadNotifications())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_notifications', filter: `user_id=eq.${user.id}` }, () => void loadNotifications())
-      .subscribe((status) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'evaluations' }, () => void loadNotifications());
+    if (persistentStorageAvailable) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'user_notifications', filter: `user_id=eq.${user.id}` }, () => void loadNotifications());
+    }
+    channel.subscribe((status) => {
         if (active && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED')) {
           setChannelRevision((revision) => revision + 1);
         }
@@ -200,13 +250,23 @@ export function MemberNotificationBell({ router }: { router: import('@/lib/route
       document.removeEventListener('visibilitychange', refreshOnResume);
       void supabase.removeChannel(channel);
     };
-  }, [channelRevision, loadNotifications, user?.id]);
+  }, [channelRevision, loadNotifications, persistentStorageAvailable, user?.id]);
 
   const unreadItems = useMemo(() => items.filter((item) => !item.readAt), [items]);
   useEffect(() => { setCounts(unreadItems); }, [setCounts, unreadItems]);
 
   async function markRead(id: string) {
     if (!user?.id) throw new Error('Sesi login tidak tersedia.');
+    if (legacyStorageFallback) {
+      const { error } = await supabase.from('member_notification_reads').upsert({
+        user_id: user.id,
+        notification_key: id,
+        read_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,notification_key' });
+      if (error) throw error;
+      await loadNotifications();
+      return;
+    }
     const { error } = await supabase.from('user_notifications')
       .update({ read_at: new Date().toISOString() })
       .eq('id', id)
@@ -218,6 +278,18 @@ export function MemberNotificationBell({ router }: { router: import('@/lib/route
 
   async function markAllRead() {
     if (!user?.id) throw new Error('Sesi login tidak tersedia.');
+    if (legacyStorageFallback) {
+      const unreadItems = items.filter((item) => !item.readAt);
+      if (unreadItems.length === 0) return;
+      const { error } = await supabase.from('member_notification_reads').upsert(unreadItems.map((item) => ({
+        user_id: user.id,
+        notification_key: item.id,
+        read_at: new Date().toISOString(),
+      })), { onConflict: 'user_id,notification_key' });
+      if (error) throw error;
+      await loadNotifications();
+      return;
+    }
     const { error } = await supabase.from('user_notifications')
       .update({ read_at: new Date().toISOString() })
       .eq('user_id', user.id)
@@ -270,7 +342,9 @@ export function MemberNotificationBell({ router }: { router: import('@/lib/route
       unreadCount={unreadItems.length}
       loading={loading}
       error={loadError}
+      inverse
       label="Notifikasi member"
+      canDelete={persistentStorageAvailable === true && !legacyStorageFallback}
       onMarkRead={markRead}
       onMarkAllRead={markAllRead}
       onClearAll={clearAll}

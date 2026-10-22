@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, Check, ChevronRight, Circle, RefreshCw, Trash2 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 
@@ -17,6 +18,7 @@ interface NotificationInboxProps {
   unreadCount: number;
   loading?: boolean;
   error?: string;
+  canDelete?: boolean;
   inverse?: boolean;
   label: string;
   onMarkRead: (id: string) => Promise<void>;
@@ -36,6 +38,7 @@ export function NotificationInbox({
   unreadCount,
   loading = false,
   error,
+  canDelete = true,
   inverse = false,
   label,
   onMarkRead,
@@ -50,11 +53,52 @@ export function NotificationInbox({
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation>(null);
   const [actionError, setActionError] = useState('');
+  const bellButtonRef = useRef<HTMLButtonElement>(null);
+  const [panelPosition, setPanelPosition] = useState<{ top: number; left: number; width: number; maxHeight: number; mobile: boolean } | null>(null);
   const readCount = items.filter((item) => item.readAt).length;
   const visibleItems = useMemo(() => items.filter((item) => (
     filter === 'all' || (filter === 'unread' ? !item.readAt : Boolean(item.readAt))
   )), [filter, items]);
   const badge = unreadCount > 99 ? '99+' : String(unreadCount);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const updatePosition = () => {
+      const button = bellButtonRef.current;
+      if (!button) return;
+
+      const bounds = button.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth;
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const mobile = window.matchMedia('(max-width: 767px)').matches;
+      const width = mobile ? viewportWidth : Math.min(416, viewportWidth - 32);
+      const top = Math.ceil(bounds.bottom + 8);
+      const left = mobile
+        ? 0
+        : Math.max(16, Math.min(bounds.right - width, viewportWidth - width - 16));
+
+      setPanelPosition({
+        top,
+        left,
+        width,
+        maxHeight: Math.max(0, viewportHeight - top - 8),
+        mobile,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    window.visualViewport?.addEventListener('resize', updatePosition);
+    window.visualViewport?.addEventListener('scroll', updatePosition);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+      window.visualViewport?.removeEventListener('resize', updatePosition);
+      window.visualViewport?.removeEventListener('scroll', updatePosition);
+    };
+  }, [open]);
 
   async function markRead(id: string) {
     setActionError('');
@@ -113,6 +157,7 @@ export function NotificationInbox({
   return (
     <div className="relative">
       <button
+        ref={bellButtonRef}
         type="button"
         onClick={() => setOpen((current) => !current)}
         className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition ${inverse ? (open ? 'bg-white/20 text-white' : 'text-white hover:bg-white/15') : (open ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-blue-50 hover:text-blue-700')}`}
@@ -125,13 +170,13 @@ export function NotificationInbox({
         {unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-extrabold text-white">{badge}</span>}
       </button>
 
-      {open && <div role="dialog" aria-label={label} className="fixed left-0 right-0 top-14 z-50 max-h-[calc(100dvh-3.5rem)] overflow-hidden rounded-b-2xl bg-white shadow-[0_16px_36px_rgba(15,23,42,0.14)] sm:absolute sm:left-auto sm:right-0 sm:top-11 sm:w-[min(26rem,calc(100vw-2rem))] sm:rounded-2xl">
+      {open && panelPosition && createPortal(<div role="dialog" aria-label={label} style={{ position: 'fixed', top: panelPosition.top, left: panelPosition.left, width: panelPosition.width, maxHeight: panelPosition.maxHeight }} className={`z-[60] overflow-hidden bg-white shadow-[0_16px_36px_rgba(15,23,42,0.24)] ring-1 ring-slate-900/10 ${panelPosition.mobile ? 'rounded-b-2xl' : 'rounded-2xl'}`}>
         <div className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
           <div className="flex items-start justify-between gap-2">
             <h3 className="text-base font-extrabold leading-6 text-slate-900 sm:text-lg">Notifikasi</h3>
-            {filter === 'read' && readCount > 0
+            {canDelete && (filter === 'read' && readCount > 0
               ? <button type="button" onClick={() => setDeleteConfirmation({ type: 'read' })} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50 sm:text-sm"><Trash2 className="h-4 w-4" />Hapus Dibaca</button>
-              : items.length > 0 && <button type="button" onClick={() => setDeleteConfirmation({ type: 'all' })} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50 sm:text-sm"><Trash2 className="h-4 w-4" />Hapus Semua</button>}
+              : items.length > 0 && <button type="button" onClick={() => setDeleteConfirmation({ type: 'all' })} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50 sm:text-sm"><Trash2 className="h-4 w-4" />Hapus Semua</button>)}
           </div>
           <div role="tablist" aria-label="Filter notifikasi" className="mt-4 grid w-full grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
               {([
@@ -161,12 +206,12 @@ export function NotificationInbox({
                 </button>
                 {!item.readAt
                   ? <button type="button" onClick={() => void markRead(item.id)} className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-blue-800 transition hover:bg-blue-100" aria-label="Tandai sudah dibaca" title="Tandai sudah dibaca"><Check className="h-4 w-4" /></button>
-                  : <button type="button" onClick={() => setDeleteConfirmation({ type: 'single', id: item.id, title: item.title })} className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-rose-700 transition hover:bg-rose-50" aria-label="Hapus notifikasi" title="Hapus notifikasi"><Trash2 className="h-4 w-4" /></button>}
+                  : canDelete && <button type="button" onClick={() => setDeleteConfirmation({ type: 'single', id: item.id, title: item.title })} className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-rose-700 transition hover:bg-rose-50" aria-label="Hapus notifikasi" title="Hapus notifikasi"><Trash2 className="h-4 w-4" /></button>}
               </div>)}
             </div>}
-      </div>}
+      </div>, document.body)}
 
-      <Modal open={Boolean(deleteConfirmation)} onClose={() => setDeleteConfirmation(null)} title={deleteConfirmation?.type === 'single' ? 'Hapus notifikasi?' : deleteConfirmation?.type === 'read' ? 'Hapus notifikasi yang sudah dibaca?' : 'Hapus semua notifikasi?'} titleEyebrow="Konfirmasi" size="sm">
+      <Modal open={canDelete && Boolean(deleteConfirmation)} onClose={() => setDeleteConfirmation(null)} title={deleteConfirmation?.type === 'single' ? 'Hapus notifikasi?' : deleteConfirmation?.type === 'read' ? 'Hapus notifikasi yang sudah dibaca?' : 'Hapus semua notifikasi?'} titleEyebrow="Konfirmasi" size="sm">
         <div className="space-y-4">
           <p className="text-sm leading-6 text-slate-600">{deleteConfirmation?.type === 'single' ? `“${deleteConfirmation.title}” akan dihapus dari daftar notifikasi akun ini.` : deleteConfirmation?.type === 'read' ? 'Semua notifikasi yang sudah dibaca akan dihapus dari daftar. Notifikasi belum dibaca dan data sumber tidak akan dihapus.' : 'Semua notifikasi akan dihapus dari daftar akun ini. Data sumber seperti pesanan, pendaftaran, dan evaluasi tidak akan dihapus.'}</p>
           {actionError && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{actionError}</p>}

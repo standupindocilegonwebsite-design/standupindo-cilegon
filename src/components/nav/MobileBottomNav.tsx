@@ -13,7 +13,7 @@ const ITEMS = [
 export function MobileBottomNav({ router }: { router: Router }) {
   const isActive = (to: string) => {
     if (to === '/') return router.path === '/';
-    if (to === '/more' && ['/syarat-ketentuan', '/kebijakan-privasi'].includes(router.path)) return true;
+    if (to === '/more' && ['/panduan', '/syarat-ketentuan', '/kebijakan-privasi'].includes(router.path)) return true;
     return router.path === to || router.path.startsWith(`${to}/`);
   };
 

@@ -24,6 +24,7 @@ type PerformerSummary = {
     openMicNumber: number | undefined;
     appearanceNumber: number;
     venue: string;
+    location: string;
     date: string;
     stageName: string;
     community: string | null;
@@ -52,7 +53,7 @@ export function OpenMicPage({ router }: { router: Router }) {
   const [loading, setLoading] = useState(true);
   const [mics, setMics] = useState<OpenMic[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [lineups, setLineups] = useState<Record<string, string[]>>({});
+  const [lineups, setLineups] = useState<Record<string, Array<{ stageName: string; slug: string | null }>>>({});
   const [performerSummaries, setPerformerSummaries] = useState<PerformerSummary[]>([]);
   const [selectedPerformerId, setSelectedPerformerId] = useState<string | null>(null);
   const [upcomingSearch, setUpcomingSearch] = useState('');
@@ -113,23 +114,24 @@ export function OpenMicPage({ router }: { router: Router }) {
           .neq('attendance_status', 'absent')
           .order('created_at', { ascending: true });
         const c: Record<string, number> = {};
-        const names: Record<string, string[]> = {};
+        const names: Record<string, Array<{ stageName: string; slug: string | null }>> = {};
+        const profileById = new Map(komikaList.map((profile) => [profile.id, profile]));
         const appearanceRows = ((regs ?? []) as PerformerRegistration[]).filter((r) => {
           const event = list.find((mic) => mic.id === r.open_mic_id);
           const isArchive = event && (event.status === 'completed' || event.date < new Date().toISOString().slice(0, 10));
           return Boolean(event && isArchive && r.attendance_status === 'attended');
         });
-        (regs ?? []).forEach((r: { open_mic_id: string; stage_name: string; attendance_status: string }) => {
+        (regs ?? []).forEach((r: PerformerRegistration) => {
           const event = list.find((mic) => mic.id === r.open_mic_id);
           const isArchive = event && (event.status === 'completed' || event.date < new Date().toISOString().slice(0, 10));
           if (isArchive ? r.attendance_status !== 'attended' : r.attendance_status === 'absent') return;
           c[r.open_mic_id] = (c[r.open_mic_id] ?? 0) + 1;
-          names[r.open_mic_id] = [...(names[r.open_mic_id] ?? []), r.stage_name];
+          const profile = r.komika_id ? profileById.get(r.komika_id) : undefined;
+          names[r.open_mic_id] = [...(names[r.open_mic_id] ?? []), { stageName: r.stage_name, slug: profile?.slug ?? null }];
         });
         setCounts(c);
         setLineups(names);
 
-        const profileById = new Map(komikaList.map((profile) => [profile.id, profile]));
         const openMicNumbersForHistory = getOpenMicNumbers(list);
         const summaryByIdentity = new Map<string, PerformerSummary & { latestDate: string }>();
         appearanceRows.forEach((row) => {
@@ -142,7 +144,7 @@ export function OpenMicPage({ router }: { router: Router }) {
           const current = summaryByIdentity.get(identityKey);
           if (current) {
             current.totalAppearances += 1;
-            current.appearances.push({ id: row.open_mic_id, title: event?.title ?? 'Open Mic', openMicNumber: openMicNumbersForHistory.get(row.open_mic_id), appearanceNumber: 0, venue: event?.venue ?? 'Lokasi tidak tersedia', date: eventDate, stageName: row.stage_name, community: row.community });
+            current.appearances.push({ id: row.open_mic_id, title: event?.title ?? 'Open Mic', openMicNumber: openMicNumbersForHistory.get(row.open_mic_id), appearanceNumber: 0, venue: event?.venue ?? 'Lokasi tidak tersedia', location: event?.location ?? '', date: eventDate, stageName: row.stage_name, community: row.community });
             if (eventDate > current.latestDate) {
               current.latestDate = eventDate;
               current.community = row.community;
@@ -162,7 +164,7 @@ export function OpenMicPage({ router }: { router: Router }) {
             instagram: profile?.instagram_url ?? row.instagram,
             community: row.community,
             totalAppearances: 1,
-            appearances: [{ id: row.open_mic_id, title: event?.title ?? 'Open Mic', openMicNumber: openMicNumbersForHistory.get(row.open_mic_id), appearanceNumber: 0, venue: event?.venue ?? 'Lokasi tidak tersedia', date: eventDate, stageName: row.stage_name, community: row.community }],
+            appearances: [{ id: row.open_mic_id, title: event?.title ?? 'Open Mic', openMicNumber: openMicNumbersForHistory.get(row.open_mic_id), appearanceNumber: 0, venue: event?.venue ?? 'Lokasi tidak tersedia', location: event?.location ?? '', date: eventDate, stageName: row.stage_name, community: row.community }],
             latestDate: eventDate,
           });
         });
@@ -196,7 +198,17 @@ export function OpenMicPage({ router }: { router: Router }) {
     .slice(0, completedSearch.trim() ? undefined : 5);
   const matchingPerformers = performerSummaries.filter((performer) => {
     const query = completedSearch.trim().toLowerCase();
-    return query && `${performer.fullName} ${performer.stageName} ${performer.instagram ?? ''} ${performer.community ?? ''}`.toLowerCase().includes(query);
+    const identityMatches = `${performer.fullName} ${performer.stageName} ${performer.instagram ?? ''} ${performer.community ?? ''}`.toLowerCase().includes(query);
+    const appearanceMatches = performer.appearances.some((appearance) => [
+      appearance.title,
+      appearance.venue,
+      appearance.location,
+      appearance.date,
+      formatDate(appearance.date),
+      appearance.stageName,
+      appearance.community ?? '',
+    ].join(' ').toLowerCase().includes(query));
+    return query && (identityMatches || appearanceMatches);
   });
 
   return (
@@ -261,13 +273,13 @@ export function OpenMicPage({ router }: { router: Router }) {
 
         <section data-scroll-reveal className={`scroll-reveal is-visible border-t ${isMemberPage ? 'border-slate-200' : 'border-white/20'} pt-6 sm:pt-8`}>
           <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-slate-400" /><h2 className={`text-xl font-extrabold uppercase ${isMemberPage ? 'text-slate-900' : 'text-white'}`}>Open Mic Selesai</h2><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{completed.length}</span></div>
-          <div className="relative mb-4"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="search" value={completedSearch} onChange={(event) => setCompletedSearch(event.target.value)} placeholder="Cari judul Open Mic, nama komika, panggung, komunitas..." className="input-field !pl-11" aria-label="Cari judul Open Mic, nama komika, panggung, atau komunitas" /></div>
+          <div className="relative mb-4"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="search" value={completedSearch} onChange={(event) => setCompletedSearch(event.target.value)} placeholder="Cari judul, nama panggung, komunitas, tempat, tanggal/tahun, atau Instagram..." className="input-field !pl-11" aria-label="Cari Open Mic selesai berdasarkan judul, nama panggung, komunitas, tempat, tanggal atau tahun, atau Instagram" /></div>
           {matchingPerformers.length > 0 && <div className="mb-5 space-y-2.5">
               <div className="flex items-center justify-between gap-3"><h3 className={`text-sm font-extrabold uppercase tracking-[0.12em] ${isMemberPage ? 'text-slate-700' : 'text-slate-200'}`}>Komika yang pernah tampil</h3><span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-extrabold text-slate-700">{matchingPerformers.length} hasil</span></div>
             <div className="grid gap-2.5 sm:grid-cols-2">
               {matchingPerformers.map((performer) => <div key={performer.id} className="space-y-2">
-                  <button type="button" onClick={() => setSelectedPerformerId((current) => current === performer.id ? null : performer.id)} aria-expanded={selectedPerformerId === performer.id} className={`w-full rounded-xl border px-3.5 py-3 text-left shadow-sm transition ${selectedPerformerId === performer.id ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100' : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-slate-50'}`}>
-                    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-base font-extrabold leading-tight text-slate-950">{performer.fullName}</p><div className="mt-1 flex items-baseline gap-2"><span className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.1em] text-slate-500">Panggung</span><span className="truncate text-sm font-bold text-slate-700">{performer.stageName}</span></div></div><span className="shrink-0 rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.05em] text-white">{performer.totalAppearances} X TAMPIL</span></div>
+                  <button type="button" onClick={() => setSelectedPerformerId((current) => current === performer.id ? null : performer.id)} aria-expanded={selectedPerformerId === performer.id} className={`w-full rounded-xl border px-3.5 py-3 text-left shadow-sm transition ${selectedPerformerId === performer.id ? 'border-blue-500 bg-[#EFF6FF] ring-2 ring-blue-200' : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-slate-50'}`}>
+                    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-base font-extrabold leading-tight text-slate-950">{performer.fullName}</p><div className="mt-1 flex items-baseline gap-2"><span className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.1em] text-slate-500">Nama Panggung</span><span className="truncate text-sm font-bold text-slate-700">{performer.stageName}</span></div></div><span className="shrink-0 rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.05em] text-white">{performer.totalAppearances} X TAMPIL</span></div>
                     <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-semibold text-slate-600"><span>{performer.community ?? 'Komunitas belum dicatat'}</span>{performer.instagram && <><span className="text-slate-300">·</span><span>{performer.instagram}</span></>}</div>
                 </button>
                   {selectedPerformerId === performer.id && <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-2.5">

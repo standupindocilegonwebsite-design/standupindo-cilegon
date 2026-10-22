@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, BarChart3, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, DoorOpen, Eye, EyeOff, FolderOpen, History, ImagePlus, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Power, Printer, RefreshCw, Search, Settings, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, MemberOpenMicHistoryStatus, MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
@@ -48,6 +48,58 @@ function getErrorMessage(error: unknown): string {
     return error.message;
   }
   return 'Kesalahan tidak diketahui.';
+}
+
+function getEventPosterStoragePath(posterUrl: string): string | null {
+  try {
+    const publicUrl = new URL(supabase.storage.from('standupindo-media').getPublicUrl('events/').data.publicUrl);
+    const candidateUrl = new URL(posterUrl);
+    if (candidateUrl.origin !== publicUrl.origin || !candidateUrl.pathname.startsWith(publicUrl.pathname)) return null;
+
+    const relativePath = decodeURIComponent(candidateUrl.pathname.slice(publicUrl.pathname.length));
+    if (!relativePath || relativePath.split('/').some((segment) => !segment || segment === '.' || segment === '..')) return null;
+    return `events/${relativePath}`;
+  } catch {
+    return null;
+  }
+}
+
+async function removeEventPosterFromStorage(posterUrl: string): Promise<string | null> {
+  const path = getEventPosterStoragePath(posterUrl);
+  if (!path) return null;
+  try {
+    const { error } = await supabase.storage.from('standupindo-media').remove([path]);
+    if (!error) return null;
+    console.error('Gagal membersihkan file poster Event dari Storage.', { path, error });
+    return getErrorMessage(error);
+  } catch (error) {
+    console.error('Gagal membersihkan file poster Event dari Storage.', { path, error });
+    return getErrorMessage(error);
+  }
+}
+
+async function removeEventPosterIfUnused(posterUrl: string, currentEventId: string): Promise<string | null> {
+  if (!getEventPosterStoragePath(posterUrl)) return null;
+  try {
+    const { data, error } = await supabase
+      .from('events')
+      .select('id')
+      .eq('poster', posterUrl)
+      .neq('id', currentEventId)
+      .limit(1);
+    if (error) {
+      console.error('Tidak dapat memeriksa apakah poster lama Event masih digunakan.', { posterUrl, error });
+      return getErrorMessage(error);
+    }
+    if (data?.length) {
+      console.info('Poster lama tidak dihapus karena masih digunakan Event lain.', posterUrl);
+      return null;
+    }
+    return removeEventPosterFromStorage(posterUrl);
+  } catch (error) {
+    console.error('Tidak dapat memeriksa apakah poster lama Event masih digunakan.', { posterUrl, error });
+    return getErrorMessage(error);
+  }
 }
 
 const NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
@@ -2365,7 +2417,8 @@ function EventManagement({ rows, loading, pendingCounts, canManageTickets, initi
   const filteredRows = rows.filter((row) => {
     const query = search.trim().toLowerCase();
     return !query || row.title.toLowerCase().includes(query) || row.venue.toLowerCase().includes(query);
-  }).filter((row) => search.trim() ? true : getEventStatus(row.status, row.date) === statusFilter);
+  }).filter((row) => search.trim() ? true : getEventStatus(row.status, row.date) === statusFilter)
+    .sort((first, second) => second.date.localeCompare(first.date));
   const statusFolders = [
     ['upcoming', 'Mendatang'],
     ['completed', 'Selesai'],
@@ -3717,18 +3770,25 @@ function EventDocumentationPhotosModal({ event, onClose, onNotice, onSaved }: { 
 
 const DEFAULT_EVENT_RULES = `1. Ketentuan Umum
 Seluruh peserta dan penonton wajib mematuhi peraturan acara serta arahan penyelenggara selama kegiatan berlangsung.
+
 2. Ketepatan Waktu
 Peserta wajib hadir sesuai jadwal yang ditentukan. Keterlambatan dapat memengaruhi keikutsertaan atau urutan tampil berdasarkan keputusan penyelenggara.
+
 3. Ketentuan Penampilan
 Komika wajib mengikuti durasi tampil, urutan penampilan, dan ketentuan teknis yang telah ditetapkan oleh penyelenggara.
+
 4. Etika dan Kenyamanan
 Seluruh pihak wajib saling menghormati. Kekerasan, pelecehan, intimidasi, diskriminasi, atau perilaku yang mengganggu keselamatan dan kenyamanan tidak diperbolehkan.
+
 5. Ketertiban Acara
 Penonton diharapkan menjaga ketertiban selama pertunjukan dan menghindari aktivitas yang mengganggu penampilan komika maupun kenyamanan penonton lainnya.
+
 6. Dokumentasi dan Perekaman
 Dokumentasi oleh penyelenggara dan perekaman oleh penonton mengikuti kebijakan yang berlaku pada masing-masing acara.
+
 7. Tiket dan Pendaftaran
 Peserta dan penonton wajib mengikuti ketentuan pendaftaran, tiket, dan akses masuk. Ketentuan pembatalan serta pengembalian dana mengikuti kebijakan yang diumumkan untuk acara tersebut.
+
 8. Sanksi dan Keputusan Penyelenggara
 Pelanggaran terhadap peraturan dapat dikenai teguran atau tindakan lain yang sesuai dengan tingkat pelanggaran. Penyelenggara berwenang mengambil tindakan yang diperlukan demi kelancaran dan keselamatan acara.`;
 
@@ -3739,12 +3799,18 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
   const [previewKomikaPhoto, setPreviewKomikaPhoto] = useState(false);
   const [venueSuggestionsOpen, setVenueSuggestionsOpen] = useState(false);
   const [partnerCategoryOpen, setPartnerCategoryOpen] = useState(false);
+  const stagedEventPosterUrls = useRef(new Set<string>());
+  const closingForm = useRef(false);
+  const submitInProgress = useRef(false);
+  const originalEventPoster = kind === 'event' && editing ? String((editing as EventItem).poster ?? '') : '';
   const nextOpenMicTitle = `Open Mic Standupindo Cilegon #${venueHistory.length + 1}`;
   useEffect(() => {
     if (!kind) return;
+    closingForm.current = false;
     setErrorMessage('');
     setPreviewKomikaPhoto(false);
     setPartnerCategoryOpen(false);
+    stagedEventPosterUrls.current.clear();
     const row = editing as Record<string, unknown> | null;
     if (row) {
       setForm({ ...Object.fromEntries(Object.entries(row).map(([k, v]) => [k === 'instagram_url' ? k : k === 'tiktok_url' ? k : k, k === 'instagram_url' ? formatInstagramHandle(String(v ?? '')) : k === 'tiktok_url' ? formatTikTokHandle(String(v ?? '')) : Array.isArray(v) ? v.join(', ') : String(v ?? '')])) });
@@ -3769,6 +3835,33 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
   if (!kind) return null;
   const isEdit = Boolean(editing);
   const set = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+  async function cleanupStagedEventPosters(keepUrl?: string): Promise<string[]> {
+    const failures: string[] = [];
+    for (const posterUrl of stagedEventPosterUrls.current) {
+      if (posterUrl === keepUrl) {
+        stagedEventPosterUrls.current.delete(posterUrl);
+        continue;
+      }
+      if (!getEventPosterStoragePath(posterUrl)) {
+        console.error('URL poster sementara tidak mengarah ke file Event pada bucket media.', posterUrl);
+        failures.push('URL poster sementara tidak dapat dibersihkan.');
+        continue;
+      }
+      const failure = await removeEventPosterFromStorage(posterUrl);
+      if (failure) failures.push(failure);
+      else stagedEventPosterUrls.current.delete(posterUrl);
+    }
+    return failures;
+  }
+  async function closeForm() {
+    if (saving || uploading || submitInProgress.current || closingForm.current) return;
+    closingForm.current = true;
+    const cleanupFailures = kind === 'event' ? await cleanupStagedEventPosters() : [];
+    if (cleanupFailures.length > 0) {
+      onNotice('Form ditutup, tetapi file poster sementara gagal dibersihkan. Periksa log admin untuk detailnya.');
+    }
+    onClose();
+  }
   async function saveKomikaPhoto(photoUrl: string | null, cardPhotoUrl: string | null) {
     if (kind !== 'komika') return;
     if (editing?.id) {
@@ -3799,9 +3892,14 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving || uploading || submitInProgress.current) return;
+    submitInProgress.current = true;
     setErrorMessage('');
     onSaving(true);
     const base = { ...form };
+    let posterActivationUncertain = false;
+    let posterCleanupWarning = false;
+    let eventRecordSaved = false;
     try {
       if (kind === 'komika') {
         const payload = { ...base, photo: base.photo?.trim() || null, photo_card: base.photo_card?.trim() || null, instagram_url: instagramProfileUrl(base.instagram_url), tiktok_url: tiktokProfileUrl(base.tiktok_url), slug: isEdit ? base.slug : slugify(base.stage_name), specialties: (base.specialties || '').split(',').map((s) => s.trim()).filter(Boolean), featured_order: base.featured_order ? Number(base.featured_order) : null, published: base.published !== 'false' };
@@ -3830,6 +3928,9 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
         delete eventFields.documentation_photos;
         delete eventFields.whatsapp_number;
         delete eventFields.whatsapp_message;
+        const nextPoster = base.poster ?? '';
+        const posterChanged = !isEdit || nextPoster !== originalEventPoster;
+        if (isEdit && !posterChanged) delete eventFields.poster;
         const payload = {
           ...eventFields,
           slug: isEdit ? base.slug : slugify(base.title),
@@ -3839,19 +3940,69 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
           event_rules: base.event_rules?.trim() || null,
         };
         const result = editing
-          ? await supabase.from('events').update(payload).eq('id', editing.id)
-          : await supabase.from('events').insert(payload);
-        if (result.error) throw result.error;
+          ? await supabase.from('events').update(payload).eq('id', editing.id).select('id, poster').maybeSingle()
+          : await supabase.from('events').insert(payload).select('id, poster').maybeSingle();
+        let savedEvent = result.data;
+        let saveFailure: unknown = result.error;
+        if (!result.error && !savedEvent) saveFailure = new Error('Event tidak ditemukan atau tidak dapat disimpan.');
+
+        if (saveFailure || !savedEvent) {
+          const verification = editing
+            ? await supabase.from('events').select('id, poster').eq('id', editing.id).maybeSingle()
+            : await supabase.from('events').select('id, poster').eq('slug', payload.slug).maybeSingle();
+          if (verification.error) {
+            posterActivationUncertain = posterChanged;
+            throw new Error(`Penyimpanan Event belum dapat diverifikasi. ${getErrorMessage(saveFailure ?? verification.error)}`);
+          }
+          const verifiedEvent = verification.data;
+          const canConfirmCommittedWrite = posterChanged && (isEdit || Boolean(nextPoster && stagedEventPosterUrls.current.has(nextPoster)));
+          if (!verifiedEvent || !canConfirmCommittedWrite || String(verifiedEvent.poster ?? '') !== nextPoster) {
+            throw saveFailure ?? new Error('Poster Event baru belum aktif.');
+          }
+          savedEvent = verifiedEvent;
+        }
+
+        if (posterChanged && String(savedEvent.poster ?? '') !== nextPoster) {
+          throw new Error('Poster baru belum aktif pada Event. Poster lama tetap dipertahankan.');
+        }
+        eventRecordSaved = true;
+
+        const cleanupFailures = await cleanupStagedEventPosters(posterChanged && nextPoster ? nextPoster : undefined);
+        if (cleanupFailures.length > 0) posterCleanupWarning = true;
+
+        if (editing && posterChanged && originalEventPoster) {
+          const oldPosterCleanupFailure = await removeEventPosterIfUnused(originalEventPoster, editing.id);
+          if (oldPosterCleanupFailure) posterCleanupWarning = true;
+        }
       }
       onSaving(false);
-      onSaved();
+      await onSaved();
+      if (posterCleanupWarning) {
+        onNotice('Event berhasil disimpan, tetapi ada file poster lama atau sementara yang gagal dibersihkan. Periksa log admin untuk detailnya.');
+      }
     } catch (saveError) {
       onSaving(false);
+      if (kind === 'event' && eventRecordSaved) {
+        console.error('Event berhasil disimpan, tetapi tampilan admin gagal diperbarui.', saveError);
+        const message = 'Event berhasil disimpan, tetapi daftar Event gagal diperbarui. Muat ulang halaman untuk memeriksa hasilnya.';
+        setErrorMessage(message);
+        onNotice(message);
+        return;
+      }
+      let cleanupWarning = false;
+      if (kind === 'event' && !posterActivationUncertain) {
+        const cleanupFailures = await cleanupStagedEventPosters();
+        cleanupWarning = cleanupFailures.length > 0;
+        if (isEdit) setForm((current) => ({ ...current, poster: originalEventPoster }));
+        else setForm((current) => ({ ...current, poster: '' }));
+      }
       const detail = getErrorMessage(saveError);
       console.error(`${isEdit ? 'Perubahan' : 'Event'} gagal disimpan.`, saveError);
-      const message = `Event gagal disimpan: ${detail}`;
+      const message = `Event gagal disimpan: ${detail}${posterActivationUncertain ? ' File poster sementara dipertahankan karena status penyimpanan belum dapat dipastikan.' : cleanupWarning ? ' File poster sementara gagal dibersihkan; poster lama tetap dipertahankan.' : ''}`;
       setErrorMessage(message);
       onNotice(message);
+    } finally {
+      submitInProgress.current = false;
     }
   }
 
@@ -3875,7 +4026,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
   };
 
   return (
-    <Modal open={Boolean(kind)} onClose={onClose} title={`${isEdit ? 'Edit' : 'Tambah'} ${title}`} size={kind === 'event' || kind === 'open-mic' ? 'xl' : 'lg'}>
+    <Modal open={Boolean(kind)} onClose={() => { void closeForm(); }} title={`${isEdit ? 'Edit' : 'Tambah'} ${title}`} size={kind === 'event' || kind === 'open-mic' ? 'xl' : 'lg'}>
       <form onSubmit={submit} className="space-y-4 overflow-y-auto pr-1 sm:max-h-[75vh] sm:min-h-0">
         <div className="lg:grid lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.5fr)] lg:items-start lg:gap-6">
           <div className="lg:sticky lg:top-0">
@@ -3886,7 +4037,19 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
               <ImageUpload label="Poster / Foto Open Mic" folder="open-mic" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" processingProfile="poster" onUploadingChange={setUploading} skipCrop />
             )}
             {kind === 'event' && (
-              <ImageUpload label="Poster Event" folder="events" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" processingProfile="poster" onUploadingChange={setUploading} skipCrop />
+              <ImageUpload
+                label="Poster Event"
+                folder="events"
+                value={isEdit && originalEventPoster && stagedEventPosterUrls.current.has(form.poster ?? '') ? originalEventPoster : form.poster ?? ''}
+                onChange={(url) => {
+                  if (url && url !== originalEventPoster) stagedEventPosterUrls.current.add(url);
+                  set('poster', url);
+                }}
+                aspect="landscape"
+                processingProfile="poster"
+                onUploadingChange={setUploading}
+                skipCrop
+              />
             )}
             {kind === 'partner' && (
               <ImageUpload label="Logo Partner" folder="partners" value={form.logo_url ?? ''} onChange={(url) => set('logo_url', url)} aspect="square" processingProfile="logo" onUploadingChange={setUploading} />

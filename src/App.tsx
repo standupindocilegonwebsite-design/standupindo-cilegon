@@ -20,6 +20,7 @@ const TicketLegalPage = lazy(() => import('@/pages/public/TicketLegalPage').then
 const KomikaPage = lazy(() => import('@/pages/public/KomikaPage').then(({ KomikaPage }) => ({ default: KomikaPage })));
 const KomikaDetailPage = lazy(() => import('@/pages/public/KomikaDetailPage').then(({ KomikaDetailPage }) => ({ default: KomikaDetailPage })));
 const MorePage = lazy(() => import('@/pages/public/MorePage').then(({ MorePage }) => ({ default: MorePage })));
+const PublicGuidePage = lazy(() => import('@/pages/public/PublicGuidePage').then(({ PublicGuidePage }) => ({ default: PublicGuidePage })));
 const AboutPage = lazy(() => import('@/pages/public/AboutPage').then(({ AboutPage }) => ({ default: AboutPage })));
 const PartnershipPage = lazy(() => import('@/pages/public/PartnershipPage').then(({ PartnershipPage }) => ({ default: PartnershipPage })));
 const ContactPage = lazy(() => import('@/pages/public/ContactPage').then(({ ContactPage }) => ({ default: ContactPage })));
@@ -71,6 +72,10 @@ function updateSeo(path: string, siteName: string) {
     '/more': {
       title: `Informasi Komunitas | ${siteName}`,
       description: 'Informasi tentang Standupindo Cilegon, kegiatan komunitas, kerja sama, kontak, dan cara bergabung.',
+    },
+    '/panduan': {
+      title: `Panduan Open Mic dan Pembelian Tiket | ${siteName}`,
+      description: 'Panduan langkah demi langkah untuk mendaftar Open Mic, memesan tiket Event, dan mengakses QR tiket.',
     },
     '/more/tentang': {
       title: `Tentang Komunitas | ${siteName}`,
@@ -294,6 +299,7 @@ function RoutedApp() {
   else if (router.path === '/komika') content = <KomikaPage router={router} />;
   else if (komikaDetail) content = <KomikaDetailPage router={router} slug={komikaDetail.slug} />;
   else if (annualRecap) content = <AnnualRecapPage router={router} year={annualRecap.year} />;
+  else if (router.path === '/panduan') content = <PublicGuidePage router={router} />;
   else if (router.path === '/more') content = <MorePage router={router} settings={settings} />;
   else if (router.path === '/more/tentang') content = <AboutPage router={router} settings={settings} />;
   else if (router.path === '/more/kerja-sama') content = <PartnershipPage router={router} settings={settings} />;

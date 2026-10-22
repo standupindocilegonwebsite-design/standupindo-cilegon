@@ -288,12 +288,12 @@ function PriceBreakdown({ quote }: { quote: PriceQuote | null }) {
           {feeLines.map((fee, index) => <div key={`${fee.label}-${index}`} className="mt-3 flex items-center justify-between gap-3 text-slate-600"><span>{fee.label}</span><span className="font-medium text-slate-800">{formatPrice(fee.amount)}</span></div>)}
         </div>
       </div>
-      <div className="flex items-center justify-between gap-3 border-t border-blue-100 bg-blue-50/80 px-4 py-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Total Pembayaran</p>
-          <p className="mt-0.5 text-[11px] text-slate-500">Sudah termasuk biaya yang berlaku</p>
+      <div className="flex items-center justify-between gap-2 border-t border-[#d8e2f0] bg-[#f1f5fb] px-3 py-3.5 sm:gap-4 sm:px-4 sm:py-4">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-700">Total Pembayaran</p>
+          <p className="mt-0.5 text-[10px] leading-4 text-slate-500 sm:text-[11px]">Sudah termasuk biaya yang berlaku</p>
         </div>
-        <span className="text-xl font-black tracking-tight text-blue-700">{formatPrice(quote.total_price)}</span>
+        <span className="shrink-0 whitespace-nowrap text-lg font-black tracking-tight text-[#23447f] sm:text-xl">{formatPrice(quote.total_price)}</span>
       </div>
     </div>
   );
@@ -512,7 +512,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
       return;
     }
     if (!proofFile) {
-      setError('Pilih bukti transfer sebelum mengirim order.');
+      setError('Upload bukti transfer sebelum mengirim order.');
       return;
     }
     if (voucherCode.trim() && voucherCode.trim() !== appliedVoucherCode) {
@@ -932,14 +932,14 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
               {priceQuote?.voucher_code && !quoteError && <p role="status" className="mt-1 flex items-center gap-1 text-xs font-medium text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Voucher {priceQuote.voucher_code} berhasil digunakan.</p>}
               {quoteError && <p role="alert" className="mt-1 text-xs font-medium text-red-600">{quoteError}</p>}
             </div>
-            {quoteLoading && !priceQuote && <p className="flex items-center gap-2 text-sm text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin" /> Memeriksa harga di server...</p>}
+            {quoteLoading && !priceQuote && <p className="flex items-center gap-2 text-sm text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin" /> Memeriksa Rincian Harga...</p>}
             {priceQuote && <PriceBreakdown quote={priceQuote} />}
             {!buyerInfoReady && !priceQuote && <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">Rincian pembayaran akan muncul setelah data pembeli dan jumlah tiket diisi dengan benar.</p>}
             {buyerInfoReady && !quoteLoading && !priceQuote && quoteError && <button type="button" onClick={() => setQuoteRefresh((current) => current + 1)} className="text-sm font-semibold text-blue-700 underline underline-offset-2">Coba muat rincian harga lagi</button>}
             {paymentMethod && priceQuote && <PaymentInstructions method={paymentMethod} totalPrice={displayedTotal} />}
             {paymentMethodError && <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{paymentMethodError}</p>}
             <div>
-              <label className="label-field" htmlFor="ticket-payment-proof">Bukti transfer</label>
+              <label className="label-field" htmlFor="ticket-payment-proof">Upload Bukti Transfer</label>
               <input id="ticket-payment-proof" type="file" accept="image/jpeg,image/png,image/webp" onChange={(input) => setProofFile(input.target.files?.[0] ?? null)} className="input-field" required />
               <p className="mt-1 text-xs text-slate-500">JPG, PNG, WEBP · Maks. 5 MB</p>
             </div>
