@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, Sparkles } from 'lucide-react';
+import { ArrowUpRight, Handshake, Sparkles } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { Komika } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -9,8 +9,10 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
-import { formatDate, formatStageName, getEventStatus, isStandupindoCilegonOrganizer, normalizeSpecialties, safeExternalUrl } from '@/lib/format';
+import { AnimatedCount } from '@/components/ui/AnimatedCount';
+import { formatDate, formatStageName, getEventStatus, isStandupindoCilegonOrganizer, normalizeSpecialties, safeExternalUrl, waLink } from '@/lib/format';
 import { seoDescription, setPageMetadata } from '@/lib/seo';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 
 interface OfficialStageHistoryEntry {
   id: string;
@@ -44,6 +46,7 @@ function formatJourneyDate(value: string): string {
 }
 
 export function KomikaDetailPage({ router, slug }: Props) {
+  const { settings, loading: settingsLoading } = useSiteSettings();
   const [loading, setLoading] = useState(true);
   const [komika, setKomika] = useState<Komika | null>(null);
   const [lightbox, setLightbox] = useState(false);
@@ -95,7 +98,7 @@ export function KomikaDetailPage({ router, slug }: Props) {
           setJourneyError('Perjalanan panggung belum dapat dimuat. Coba segarkan halaman.');
         } else {
           const officialRoleLabels: Record<OfficialStageHistoryEntry['role_category'], string> = {
-            lineup: 'Lineup / Penampil',
+            lineup: 'Lineup',
             opener: 'Opener',
             guest_star: 'Guest Star',
             mc_host: 'MC / Host',
@@ -107,7 +110,8 @@ export function KomikaDetailPage({ router, slug }: Props) {
           const localRoleLabels = new Map<string, string[]>();
           stageExperiences.filter((entry) => isStandupindoCilegonOrganizer(entry.organizer)).forEach((entry) => {
             const key = `${entry.event_date}:${entry.event_name.trim().toLowerCase()}`;
-            const roleLabel = entry.role === 'Lainnya' ? entry.custom_role || entry.role : entry.role;
+            const rawRoleLabel = entry.role === 'Lainnya' ? entry.custom_role || entry.role : entry.role;
+            const roleLabel = rawRoleLabel === 'Lineup / Penampil' ? 'Lineup' : rawRoleLabel;
             const roles = localRoleLabels.get(key) ?? [];
             if (!roles.includes(roleLabel)) roles.push(roleLabel);
             localRoleLabels.set(key, roles);
@@ -168,6 +172,9 @@ export function KomikaDetailPage({ router, slug }: Props) {
   const specialties = normalizeSpecialties(komika.specialties);
   const profileCardPhoto = komika.photo_card || komika.photo;
   const stageName = formatStageName(komika.stage_name);
+  const partnershipWhatsapp = settings.whatsapp_partnership || settings.whatsapp_admin;
+  const partnershipMessage = `Halo, saya ingin menanyakan informasi mengenai kerja sama dan penawaran penampilan untuk komika *${stageName}* dari *Standupindo Cilegon*.\n\nSaya menemukan profil komika tersebut melalui website resmi ${pageUrl}.\n\nMohon informasi lebih lanjut mengenai prosedur booking, ketersediaan jadwal, serta ketentuan atau penawaran untuk kebutuhan acara.\n\nTerima kasih atas waktu dan informasinya. Saya menantikan kabar selanjutnya.`;
+  const partnershipUrl = waLink(partnershipWhatsapp, partnershipMessage);
   return (
     <div className="animate-fade-in">
       <PageHeader router={router} title={stageName} />
@@ -195,13 +202,27 @@ export function KomikaDetailPage({ router, slug }: Props) {
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-700">Komika</p>
                   <h1 className="mt-1.5 break-words text-xl font-extrabold leading-tight tracking-[-0.04em] text-slate-900 sm:text-2xl md:mt-2 md:text-3xl">{stageName}</h1>
                 </div>
-                <ShareButton
-                  title={`${stageName} — Standupindo Cilegon`}
-                  text={`Kenali ${stageName}, komika dari Standupindo Cilegon.`}
-                  url={pageUrl}
-                  image={komika.photo}
-                  className="!rounded-full"
-                />
+                <div className="flex shrink-0 items-center gap-2">
+                  <ShareButton
+                    title={`${stageName} — Standupindo Cilegon`}
+                    text={`Kenali ${stageName}, komika dari Standupindo Cilegon.`}
+                    url={pageUrl}
+                    image={komika.photo}
+                    className="!rounded-full"
+                  />
+                  {!settingsLoading && partnershipUrl !== '#' && (
+                    <a
+                      href={partnershipUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Kerja sama untuk ${stageName}`}
+                      title="Kerja Sama"
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-white text-blue-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                    >
+                      <Handshake aria-hidden="true" className="h-[18px] w-[18px]" />
+                    </a>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -255,8 +276,8 @@ export function KomikaDetailPage({ router, slug }: Props) {
                   <h2 className="mt-0.5 text-xl font-black tracking-tight text-slate-900 sm:text-2xl">Perjalanan Panggung</h2>
                 </div>
               </div>
-              {!journeyError && <span className="flex shrink-0 flex-col items-center text-blue-800">
-                <span className="text-2xl font-black leading-none tracking-tight sm:text-3xl">{officialHistory.length + externalHistory.length}</span>
+              {!journeyError && <span aria-label={`${officialHistory.length + externalHistory.length} panggung`} className="flex shrink-0 flex-col items-center text-blue-800">
+                <AnimatedCount value={officialHistory.length + externalHistory.length} className="text-2xl font-black leading-none tracking-tight tabular-nums sm:text-3xl" />
                 <span className="mt-1 text-[9px] font-extrabold uppercase leading-none tracking-[0.12em] sm:text-[10px]">Panggung</span>
               </span>}
             </div>
@@ -346,7 +367,7 @@ export function KomikaDetailPage({ router, slug }: Props) {
                             <td className="px-2 py-3 align-top">
                               <span className="inline-flex max-w-full items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/80 px-2.5 py-1.5 text-xs font-bold leading-5 text-blue-900 sm:px-3 sm:text-sm">
                                 <span aria-hidden="true" className="mt-[7px] h-2 w-2 shrink-0 rounded-full bg-blue-500" />
-                                <span className="min-w-0 break-words text-center">{entry.role === 'Lainnya' ? entry.custom_role : entry.role}</span>
+                                <span className="min-w-0 break-words text-center">{entry.role === 'Lainnya' ? entry.custom_role : entry.role === 'Lineup / Penampil' ? 'Lineup' : entry.role}</span>
                               </span>
                             </td>
                           </tr>

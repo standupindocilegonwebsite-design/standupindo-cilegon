@@ -343,7 +343,7 @@ export function EventDetailPage({ router, slug }: Props) {
   const lineupCategories: { key: EventLineupRole; label: string }[] = [
     { key: 'special_show', label: 'Special Show' },
     { key: 'guest_star', label: 'Guest Star' },
-    { key: 'lineup', label: 'Lineup / Penampil' },
+    { key: 'lineup', label: 'Lineup' },
     { key: 'judge', label: 'Juri' },
     { key: 'opener', label: 'Opener' },
     { key: 'mc_host', label: 'MC / Host' },

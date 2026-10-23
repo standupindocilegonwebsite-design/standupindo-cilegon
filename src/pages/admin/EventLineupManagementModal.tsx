@@ -9,7 +9,7 @@ import { formatDate, safeExternalUrl } from '@/lib/format';
 const ROLE_OPTIONS: { value: EventLineupRole; label: string }[] = [
   { value: 'special_show', label: 'Special Show' },
   { value: 'guest_star', label: 'Guest Star' },
-  { value: 'lineup', label: 'Lineup / Penampil' },
+  { value: 'lineup', label: 'Lineup' },
   { value: 'judge', label: 'Juri' },
   { value: 'opener', label: 'Opener' },
   { value: 'mc_host', label: 'MC / Host' },

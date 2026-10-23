@@ -215,7 +215,7 @@ export function buildKomikaYearRecap(sources: RecapSources, year: number, today:
   for (const [eventId, event] of officialById) {
     const lineup = yearLineups.find((item) => item.event_id === eventId)!;
     const labels: Record<string, string> = {
-      lineup: 'Lineup / Penampil',
+      lineup: 'Lineup',
       opener: 'Opener',
       guest_star: 'Guest Star',
       mc_host: 'MC / Host',

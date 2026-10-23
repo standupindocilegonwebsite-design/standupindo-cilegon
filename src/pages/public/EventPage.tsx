@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { EventCard } from '@/components/cards/EventCard';
 import { EventPosterFallback } from '@/components/cards/EventPosterFallback';
 import { PageHeader } from '@/components/PageHeader';
+import { AnimatedCount } from '@/components/ui/AnimatedCount';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatDate, getEventStatus } from '@/lib/format';
@@ -240,7 +241,7 @@ export function EventPage({ router }: { router: Router }) {
                   <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Event Selesai</h2>
                 </div>
                 <span aria-label={`${completed.length} event selesai`} className="flex shrink-0 flex-col items-center text-white drop-shadow-[0_2px_10px_rgba(59,130,246,0.5)]">
-                  <AnimatedEventCount value={completed.length} />
+                  <AnimatedCount value={completed.length} className="text-4xl font-black leading-none tabular-nums sm:text-5xl" />
                   <span className="mt-1 text-[10px] font-extrabold uppercase leading-none tracking-[0.18em] sm:text-xs">EVENT</span>
                 </span>
               </div>
@@ -262,40 +263,6 @@ export function EventPage({ router }: { router: Router }) {
       </div>
     </div>
   );
-}
-
-function AnimatedEventCount({ value }: { value: number }) {
-  const [count, setCount] = useState(0);
-  const hasAnimated = useRef(false);
-
-  useEffect(() => {
-    if (hasAnimated.current) {
-      setCount(value);
-      return;
-    }
-
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      hasAnimated.current = true;
-      setCount(value);
-      return;
-    }
-
-    const duration = 2000;
-    const startedAt = performance.now();
-    let frame = 0;
-    const updateCount = (now: number) => {
-      hasAnimated.current = true;
-      const progress = Math.min((now - startedAt) / duration, 1);
-      const easedProgress = progress ** 3 * (progress * (progress * 6 - 15) + 10);
-      setCount(Math.round(value * easedProgress));
-      if (progress < 1) frame = window.requestAnimationFrame(updateCount);
-    };
-    frame = window.requestAnimationFrame(updateCount);
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [value]);
-
-  return <span className="text-4xl font-black leading-none tabular-nums sm:text-5xl">{count}</span>;
 }
 
 function CompletedEventCard({ event, router }: { event: EventItem; router: Router }) {

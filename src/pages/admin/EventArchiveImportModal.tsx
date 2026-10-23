@@ -10,7 +10,7 @@ type MemberRow = Pick<Komika, 'id' | 'stage_name' | 'slug'>;
 type ImportSummary = { events_created: number; lineups_created: number; experiences_created: number };
 
 const ROLE_LABELS: Record<EventLineupRole, string> = {
-  lineup: 'Lineup / Penampil',
+  lineup: 'Lineup',
   opener: 'Opener',
   guest_star: 'Guest Star',
   mc_host: 'MC / Host',

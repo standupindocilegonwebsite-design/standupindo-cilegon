@@ -56,7 +56,9 @@ const OPEN_MIC_STEPS: GuideStep[] = [
       <>
         Pengunjung umum mengisi data pendaftaran. Member yang sudah masuk menggunakan profil komika yang terhubung ke akunnya.
         <br /><br />
-        Gunakan nama lengkap, nama panggung, komunitas, dan akun Instagram secara konsisten agar riwayat penampilan mudah dikenali.
+        Pastikan nama lengkap, nama panggung, komunitas, dan akun Instagram yang digunakan konsisten agar riwayat penampilan mudah dikenali.
+        <br /><br />
+        Nomor WhatsApp bersifat opsional, tetapi disarankan agar Koordinator Open Mic dapat menghubungimu untuk keperluan konfirmasi.
       </>
     ),
     icon: UserRound,
@@ -102,7 +104,7 @@ const OPEN_MIC_STEPS: GuideStep[] = [
     title: 'Periksa Riwayat Penampilan di Open Mic Selesai',
     description: (
       <>
-        Jika kamu hadir dan tampil, Koordinator Open Mic akan menandainya. Namamu kemudian masuk ke DAFTAR LINEUP dengan ikon <CheckCircle2 aria-hidden="true" className="inline-block h-4 w-4 align-[-3px] text-green-600" /> dan status Tampil. Jumlah KOMIKA PERFORM mengikuti data acara.
+        Setelah Open Mic selesai, Koordinator akan mencatat siapa saja yang hadir dan tampil. Jika kamu ditandai tampil, namamu akan masuk ke DAFTAR LINEUP. Ikon <CheckCircle2 aria-hidden="true" className="inline-block h-4 w-4 align-[-3px] text-green-600" /> pada kolom Status menandakan bahwa kamu telah tampil. Jumlah KOMIKA PERFORM mengikuti data acara.
         <br /><br />
         Cari berdasarkan nama panggung, komunitas, tempat, tanggal atau tahun, judul Open Mic, maupun akun Instagram di bagian Open Mic Selesai.
         <br /><br />
@@ -131,7 +133,7 @@ const TICKET_STEPS: GuideStep[] = [
     title: 'Isi Data Pemesan dan Jumlah Tiket',
     description: (
       <>
-        Isi nama lengkap, alamat email aktif, nomor WhatsApp aktif, dan jumlah tiket yang ingin dibeli.
+        Isi <strong>nama lengkap</strong>, <strong>alamat email aktif</strong>, <strong>nomor WhatsApp aktif</strong>, dan jumlah tiket yang ingin dibeli.
         <br /><br />
         Masukkan kode voucher jika tersedia.
       </>

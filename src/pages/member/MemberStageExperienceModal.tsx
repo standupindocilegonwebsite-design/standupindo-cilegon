@@ -15,6 +15,10 @@ const ROLE_OPTIONS: MemberStageRole[] = [
   'Lainnya',
 ];
 
+function getRoleLabel(role: MemberStageRole): string {
+  return role === 'Lineup / Penampil' ? 'Lineup' : role;
+}
+
 const EMPTY_FORM = {
   event_date: '',
   event_name: '',
@@ -194,7 +198,7 @@ export function MemberStageExperienceModal({ komikaId, onClose }: { komikaId: st
                   }}
                   className="input-field flex min-h-12 items-center justify-between gap-3 text-left"
                 >
-                  <span className="truncate font-semibold">{form.role}</span>
+                  <span className="truncate font-semibold">{getRoleLabel(form.role)}</span>
                   <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${roleDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {roleDropdownOpen && <div role="listbox" aria-labelledby="stage-experience-role-label" className="absolute inset-x-0 top-full z-30 mt-1 max-h-56 overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -211,7 +215,7 @@ export function MemberStageExperienceModal({ komikaId, onClose }: { komikaId: st
                       }}
                       className={`flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition ${isSelected ? 'bg-blue-50 text-blue-800' : 'text-slate-700 hover:bg-slate-50'}`}
                     >
-                      <span className="min-w-0 flex-1 text-sm font-semibold">{role}</span>
+                      <span className="min-w-0 flex-1 text-sm font-semibold">{getRoleLabel(role)}</span>
                       {isSelected && <Check className="h-4 w-4 shrink-0 text-blue-600" />}
                     </button>;
                   })}
@@ -255,7 +259,7 @@ export function MemberStageExperienceModal({ komikaId, onClose }: { komikaId: st
                       <p className="text-xs font-semibold text-slate-500">{formatDate(row.event_date)}</p>
                       <p className="font-bold text-slate-900">{row.event_name}</p>
                       {row.event_type && <p className="text-xs text-slate-500">{row.event_type}</p>}
-                      <p className="text-sm text-slate-700">{row.role === 'Lainnya' ? row.custom_role : row.role}</p>
+                      <p className="text-sm text-slate-700">{row.role === 'Lainnya' ? row.custom_role : getRoleLabel(row.role)}</p>
                       <p className="text-xs text-slate-500">{[row.organizer, row.city].filter(Boolean).join(' · ')}</p>
                       {url && <a href={url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-800">Buka tautan <ExternalLink className="h-3 w-3" /></a>}
                     </div>

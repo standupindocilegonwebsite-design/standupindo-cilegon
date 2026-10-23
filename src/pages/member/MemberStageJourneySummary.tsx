@@ -24,13 +24,17 @@ function roleLabel(entry: OfficialJourneyEntry) {
   const labels: Record<EventLineupRole, string> = {
     special_show: 'Special Show',
     guest_star: 'Guest Star',
-    lineup: 'Lineup / Penampil',
+    lineup: 'Lineup',
     judge: 'Juri',
     opener: 'Opener',
     mc_host: 'MC / Host',
     other: 'Lainnya',
   };
   return labels[entry.role_category];
+}
+
+function stageExperienceRoleLabel(role: MemberStageExperience['role']) {
+  return role === 'Lineup / Penampil' ? 'Lineup' : role;
 }
 
 export function MemberStageJourneySummary({ komikaId, router, onManage }: { komikaId: string; router: Router; onManage: () => void }) {
@@ -164,7 +168,7 @@ export function MemberStageJourneySummary({ komikaId, router, onManage }: { komi
                           </a>
                           : <p className="text-sm font-bold leading-snug text-slate-900">{entry.event_name}</p>}
                         {entry.event_type && <p className="text-xs text-slate-600">{entry.event_type}</p>}
-                        <p className="text-xs text-slate-600">{entry.role === 'Lainnya' ? entry.custom_role : entry.role}</p>
+                        <p className="text-xs text-slate-600">{entry.role === 'Lainnya' ? entry.custom_role : stageExperienceRoleLabel(entry.role)}</p>
                         {(entry.organizer || entry.city) && <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-slate-500"><MapPin className="h-3 w-3" />{[entry.organizer, entry.city].filter(Boolean).join(' · ')}</p>}
                       </div>
                     </li>;
