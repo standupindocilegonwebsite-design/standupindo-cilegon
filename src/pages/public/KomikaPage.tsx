@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
-import type { Router } from '@/lib/router';
+import { useRestoreScrollPosition, type Router } from '@/lib/router';
 import type { Komika } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { KomikaCard } from '@/components/cards/KomikaCard';
@@ -31,6 +31,8 @@ export function KomikaPage({ router }: { router: Router }) {
     })();
   }, []);
 
+  useRestoreScrollPosition(router, !loading);
+
   const filtered = useMemo(() => komika.filter((k) => {
     const specialties = normalizeSpecialties(k.specialties);
     return !search || k.stage_name.toLowerCase().includes(search.toLowerCase()) || specialties.some((s) => s.toLowerCase().includes(search.toLowerCase()));
@@ -46,13 +48,13 @@ export function KomikaPage({ router }: { router: Router }) {
           <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari komika..." className="input-field !pl-11" aria-label="Cari komika" />
         </div>
 
-        <div data-scroll-reveal className="scroll-reveal">
+        <div data-scroll-reveal className="home-reveal">
         {loading ? (
           <div className="grid gap-5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"><LoadingSkeleton count={8} /></div>
         ) : filtered.length === 0 ? (
           <EmptyState title="Belum ada komika yang ditemukan." />
         ) : (
-          <div className="grid gap-5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="home-stagger grid gap-5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
             {filtered.map((k) => <KomikaCard key={k.id} komika={k} router={router} />)}
           </div>
         )}

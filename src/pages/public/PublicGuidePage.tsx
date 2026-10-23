@@ -31,37 +31,67 @@ interface GuideStep {
 
 const OPEN_MIC_STEPS: GuideStep[] = [
   {
-    title: 'Pilih Open Mic yang akan datang',
-    description: 'Buka daftar Open Mic, pilih acara berstatus mendatang, lalu periksa tanggal, waktu, lokasi, dan status pendaftarannya.',
+    title: 'Pilih Open Mic yang Akan Datang',
+    description: (
+      <>
+        Buka daftar <strong>Open Mic</strong> dan pilih acara berstatus mendatang.
+        <br /><br />
+        Periksa tanggal, waktu, lokasi, serta status pendaftarannya.
+      </>
+    ),
     icon: CalendarDays,
   },
   {
-    title: 'Buka detail dan mulai pendaftaran',
-    description: 'Tekan “Daftar Open Mic” jika pendaftaran masih dibuka dan slot belum penuh.',
+    title: 'Buka Detail dan Mulai Pendaftaran',
+    description: (
+      <>
+        Buka detail acara, lalu tekan <strong>“Daftar Open Mic”</strong> jika pendaftaran masih dibuka dan slot belum penuh.
+      </>
+    ),
     icon: Mic,
   },
   {
-    title: 'Isi atau periksa data pendaftar',
-    description: 'Pengunjung umum mengisi data pendaftaran. Member yang masuk menggunakan profil komika yang terhubung ke akunnya. Saat mendaftar lagi, gunakan nama lengkap, nama panggung, komunitas, dan Instagram yang konsisten—terutama nama panggung dan Instagram agar riwayat tampil mudah dikenali.',
+    title: 'Isi atau Periksa Data Pendaftar',
+    description: (
+      <>
+        Pengunjung umum mengisi data pendaftaran. Member yang sudah masuk menggunakan profil komika yang terhubung ke akunnya.
+        <br /><br />
+        Gunakan nama lengkap, nama panggung, komunitas, dan akun Instagram secara konsisten agar riwayat penampilan mudah dikenali.
+      </>
+    ),
     icon: UserRound,
   },
   {
-    title: 'Periksa data lalu kirim',
-    description: 'Tinjau data pada konfirmasi pendaftaran sebelum mengirim. Pengunjung umum juga perlu menyetujui peraturan yang ditampilkan.',
+    title: 'Periksa Data, lalu Kirim',
+    description: (
+      <>
+        Periksa kembali data pada halaman konfirmasi sebelum mengirim pendaftaran.
+        <br /><br />
+        Pengunjung umum juga perlu menyetujui peraturan yang ditampilkan.
+      </>
+    ),
     icon: ClipboardCheck,
   },
   {
-    title: 'Tunggu konfirmasi Koordinator Open Mic',
-    description: 'Setelah pendaftaran dikirim, Koordinator Open Mic akan meninjau dan mengonfirmasinya. Namamu belum masuk lineup sampai pendaftaran dikonfirmasi.',
+    title: 'Tunggu Konfirmasi Koordinator Open Mic',
+    description: (
+      <>
+        Setelah pendaftaran dikirim, statusnya Menunggu Konfirmasi.
+        <br /><br />
+        Koordinator Open Mic akan meninjau pendaftaran. Namamu belum masuk lineup sebelum pendaftaran dikonfirmasi.
+      </>
+    ),
     icon: Clock3,
     status: 'Menunggu Konfirmasi',
     statusStyle: 'border-amber-200 bg-amber-50 text-amber-800',
   },
   {
-    title: 'Cek Lineup Sementara setelah dikonfirmasi',
+    title: 'Periksa Lineup Sementara setelah Dikonfirmasi',
     description: (
       <>
-        Setelah Koordinator Open Mic mengonfirmasi pendaftaran, nama panggungmu masuk ke LINEUP SEMENTARA pada detail Open Mic. Ikon <Ticket aria-hidden="true" className="inline-block h-4 w-4 align-[-3px] text-blue-600" /> di kolom Status menandakan pendaftaranmu sudah dikonfirmasi.
+        Setelah Koordinator Open Mic mengonfirmasi pendaftaran, nama panggungmu akan masuk ke LINEUP SEMENTARA pada detail Open Mic.
+        <br /><br />
+        Ikon <Ticket aria-hidden="true" className="inline-block h-4 w-4 align-[-3px] text-blue-600" /> di kolom Status menandakan pendaftaran sudah dikonfirmasi.
       </>
     ),
     icon: Ticket,
@@ -69,10 +99,14 @@ const OPEN_MIC_STEPS: GuideStep[] = [
     statusStyle: 'border-blue-200 bg-blue-50 text-blue-800',
   },
   {
-    title: 'Cek penampilan di Open Mic Selesai',
+    title: 'Periksa Riwayat Penampilan di Open Mic Selesai',
     description: (
       <>
-        Jika kamu benar hadir dan tampil, setelah Koordinator Open Mic menandainya namamu masuk ke DAFTAR LINEUP dengan ikon <CheckCircle2 aria-hidden="true" className="inline-block h-4 w-4 align-[-3px] text-green-600" /> dan status Tampil. Jumlah KOMIKA PERFORM mengikuti data acara. Di pencarian Open Mic Selesai, cari nama panggung, komunitas, tempat, tanggal atau tahun, judul Open Mic, maupun Instagram. Pilih hasil komika untuk melihat jumlah penampilanmu di Open Mic Cilegon dan rincian riwayatnya.
+        Jika kamu hadir dan tampil, Koordinator Open Mic akan menandainya. Namamu kemudian masuk ke DAFTAR LINEUP dengan ikon <CheckCircle2 aria-hidden="true" className="inline-block h-4 w-4 align-[-3px] text-green-600" /> dan status Tampil. Jumlah KOMIKA PERFORM mengikuti data acara.
+        <br /><br />
+        Cari berdasarkan nama panggung, komunitas, tempat, tanggal atau tahun, judul Open Mic, maupun akun Instagram di bagian Open Mic Selesai.
+        <br /><br />
+        Pilih hasil komika untuk melihat jumlah penampilan dan rincian riwayatnya.
       </>
     ),
     icon: CheckCircle2,
@@ -83,37 +117,73 @@ const OPEN_MIC_STEPS: GuideStep[] = [
 
 const TICKET_STEPS: GuideStep[] = [
   {
-    title: 'Pilih Event dan kategori tiket',
-    description: 'Buka detail Event, tekan “Beli Tiket”, lalu pilih tiket publik yang tersedia. Jika tombol membawa ke situs lain, lanjutkan pembelian di situs tersebut.',
+    title: 'Pilih Event dan Kategori Tiket',
+    description: (
+      <>
+        Buka detail Event dan tekan <strong>“Beli Tiket”</strong>, lalu pilih kategori yang tersedia untuk publik.
+        <br /><br />
+        Jika diarahkan ke situs lain, lanjutkan pembelian di situs tersebut.
+      </>
+    ),
     icon: CalendarDays,
   },
   {
-    title: 'Isi data pemesan dan jumlah tiket',
-    description: 'Isi nama lengkap, email aktif, nomor WhatsApp aktif, dan jumlah tiket. Kode voucher dapat dimasukkan jika tersedia.',
+    title: 'Isi Data Pemesan dan Jumlah Tiket',
+    description: (
+      <>
+        Isi nama lengkap, alamat email aktif, nomor WhatsApp aktif, dan jumlah tiket yang ingin dibeli.
+        <br /><br />
+        Masukkan kode voucher jika tersedia.
+      </>
+    ),
     icon: UserRound,
   },
   {
-    title: 'Periksa total dan cara pembayaran',
-    description: 'Periksa rincian harga yang ditampilkan. Ikuti informasi pembayaran yang tersedia, seperti transfer bank atau QRIS.',
+    title: 'Periksa Total Pembayaran dan Cara Pembayaran',
+    description: (
+      <>
+        Periksa rincian harga akhir, termasuk potongan voucher jika digunakan.
+        <br /><br />
+        Bayar menggunakan metode yang tersedia, seperti transfer bank atau QRIS.
+      </>
+    ),
     icon: CreditCard,
   },
   {
-    title: 'Upload bukti pembayaran',
-    description: 'Pilih file bukti transfer lalu kirim order. Setelah bukti diterima, status order menjadi “Menunggu Verifikasi”.',
+    title: 'Unggah Bukti Pembayaran',
+    description: (
+      <>
+        Pilih bukti pembayaran, lalu kirim pesanan. Setelah bukti berhasil dikirim, status pesanan menjadi “Menunggu Verifikasi”.
+      </>
+    ),
     icon: Upload,
     status: 'Menunggu Verifikasi',
     statusStyle: 'border-amber-200 bg-amber-50 text-amber-800',
   },
   {
-    title: 'Tunggu pembayaran disetujui',
-    description: 'QR belum tersedia setelah bukti pembayaran dikirim. Setelah admin memverifikasi pembayaran dan status pesanan menjadi Lunas, tiket digital dan Kode Akses akan dikirim ke email yang kamu daftarkan. Jika belum menerima email, periksa folder Spam atau Promosi.',
+    title: 'Tunggu Pembayaran Disetujui',
+    description: (
+      <>
+        QR tiket belum tersedia selama pembayaran masih diverifikasi.
+        <br /><br />
+        Setelah admin menyetujui pembayaran dan status pesanan menjadi Lunas, tiket digital beserta Kode Akses dikirim ke email terdaftar.
+        <br /><br />
+        Periksa folder Spam atau Promosi jika email belum ditemukan.
+      </>
+    ),
     icon: CheckCircle2,
     status: 'Lunas',
     statusStyle: 'border-emerald-200 bg-emerald-50 text-emerald-800',
   },
   {
-    title: 'Masuk ke Tiket Saya untuk melihat QR',
-    description: 'Buka Akses Tiket, lalu masukkan nomor WhatsApp pada pesanan dan Kode Akses yang dikirim ke email terdaftar. Jika email belum terlihat, periksa folder Spam atau Promosi. Tekan “Lihat Tiket” untuk membuka tiket digital; setiap tiket memiliki QR tersendiri.',
+    title: 'Buka Akses Tiket untuk Melihat QR',
+    description: (
+      <>
+        Buka <strong>Akses Tiket</strong> atau “Tiket Saya”, lalu masukkan nomor WhatsApp pemesan dan Kode Akses dari email.
+        <br /><br />
+        Tekan <strong>“Lihat Tiket”</strong> untuk membuka tiket digital. Setiap tiket memiliki kode QR tersendiri.
+      </>
+    ),
     icon: QrCode,
   },
 ];
@@ -124,30 +194,43 @@ const QUESTIONS: Record<GuideSection, Array<[string, ReactNode]>> = {
       'Mengapa nama saya belum muncul di lineup?',
       <>
         Pendaftaran yang sudah dikonfirmasi Koordinator Open Mic muncul di LINEUP SEMENTARA dengan ikon <Ticket aria-hidden="true" className="inline-block h-5 w-5 align-[-4px] text-blue-600" />.
-        {' '}Untuk DAFTAR LINEUP Open Mic Selesai, Koordinator Open Mic harus menandai bahwa kamu hadir dan tampil; statusnya ditunjukkan dengan ikon <CheckCircle2 aria-hidden="true" className="inline-block h-5 w-5 align-[-4px] text-green-600" />.
+        <br /><br />
+        Untuk DAFTAR LINEUP Open Mic Selesai, Koordinator Open Mic harus menandai bahwa kamu hadir dan tampil. Status Tampil ditunjukkan dengan ikon <CheckCircle2 aria-hidden="true" className="inline-block h-5 w-5 align-[-4px] text-green-600" />.
       </>,
     ],
     [
       'Apa yang bisa dilakukan jika pendaftaran ditutup atau slot penuh?',
-      'Jika pendaftaran ditutup atau slot penuh, kamu tetap bisa datang sebagai penonton dan menikmati acaranya. Bila ada komika di lineup sementara yang berhalangan hadir, tanyakan kepada Koordinator Open Mic apakah ada kesempatan untuk menggantikannya.',
+      'Jika pendaftaran ditutup atau slot penuh, kamu tetap bisa datang sebagai penonton. Jika ada komika di LINEUP SEMENTARA yang berhalangan hadir, tanyakan kepada Koordinator Open Mic apakah ada kesempatan untuk menggantikannya.',
     ],
     [
       'Di mana melihat daftar komika yang tampil?',
-      'Buka detail Open Mic dari daftar Open Mic. Untuk acara yang sudah selesai, lineup arsip muncul setelah kehadiran komika ditandai oleh Koordinator Open Mic.',
+      'Buka detail Open Mic dari daftar Open Mic. Untuk acara yang sudah selesai, DAFTAR LINEUP akan muncul setelah Koordinator Open Mic mencatat kehadiran komika.',
     ],
     [
       'Bagaimana cara membagikan Komika Perform?',
-      'Buka detail Open Mic yang sudah selesai, lalu tekan tombol bagikan pada bagian DAFTAR LINEUP. Gambar ringkasan lineup dibuat otomatis dan bisa dibagikan dari perangkat atau diunduh. Foto profil ditampilkan untuk member yang memiliki foto profil; komika non-member tidak memiliki foto profil di sistem, jadi gambarnya memakai ikon mikrofon.',
+      <>
+        Buka detail Open Mic yang sudah selesai, lalu tekan tombol bagikan pada bagian DAFTAR LINEUP. Gambar ringkasan lineup dibuat otomatis dan dapat dibagikan dari perangkat atau diunduh.
+        <br /><br />
+        Foto profil ditampilkan untuk member yang memilikinya. Untuk komika nonmember, gambar ringkasan menggunakan ikon mikrofon karena foto profil tidak tersedia di sistem.
+      </>,
     ],
   ],
   ticket: [
     [
       'Apakah QR langsung muncul setelah bukti pembayaran dikirim?',
-      'Belum. Bukti masuk ke status “Menunggu Verifikasi”. Setelah pembayaran dikonfirmasi dan order berstatus lunas, tiket digital dan Kode Akses dikirim melalui email atas nama Standupindo Cilegon. Jika belum menerima email, cek folder Spam atau Promosi.',
+      <>
+        Belum. Setelah bukti dikirim, status pesanan menjadi <strong>“Menunggu Verifikasi”</strong>.
+        <br /><br />
+        Setelah admin menyetujui pembayaran dan status pesanan menjadi <strong>Lunas</strong>, tiket digital dan Kode Akses dikirim melalui email atas nama Standupindo Cilegon. Periksa folder Spam atau Promosi jika email belum ditemukan.
+      </>,
     ],
     [
       'Di mana memasukkan Kode Akses?',
-      'Buka halaman Akses Tiket atau “Tiket Saya” di /tiket, lalu masukkan nomor WhatsApp pemesan dan Kode Akses dari email atas nama Standupindo Cilegon. Jika email tidak ada di Kotak Masuk, cek folder Spam atau Promosi.',
+      <>
+        Buka halaman <strong>Akses Tiket</strong> atau “Tiket Saya” di /tiket. Masukkan nomor WhatsApp pemesan dan Kode Akses dari email atas nama Standupindo Cilegon.
+        <br /><br />
+        Jika email tidak ada di Kotak Masuk, periksa folder Spam atau Promosi.
+      </>,
     ],
     [
       'Bagaimana jika membeli lebih dari satu tiket?',

@@ -309,8 +309,14 @@ function RoutedApp() {
 
   if (annualRecap) return <Suspense fallback={<RouteLoading />}><div key={router.path} className="route-transition">{content}</div></Suspense>;
 
+  const returningToList = router.navigationType === 'pop' && (
+    (router.path === '/open-mic' && /^\/open-mic\/[^/]+$/.test(router.fromPath ?? ''))
+    || (router.path === '/event' && /^\/event\/[^/]+$/.test(router.fromPath ?? ''))
+    || (router.path === '/komika' && /^\/komika\/[^/]+$/.test(router.fromPath ?? ''))
+  );
+
   return <AppShell router={router} settings={settings}>
-    <Suspense fallback={<RouteLoading />}><div key={router.path} className={router.path === '/tiket' ? '' : 'route-transition'}>{content}</div></Suspense>
+    <Suspense fallback={<RouteLoading />}><div key={router.path} className={router.path === '/tiket' ? '' : returningToList ? 'route-return' : 'route-transition'}>{content}</div></Suspense>
   </AppShell>;
 }
 

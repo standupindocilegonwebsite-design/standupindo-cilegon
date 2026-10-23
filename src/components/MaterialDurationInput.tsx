@@ -24,7 +24,8 @@ export function MaterialDurationInput({ id, value, onChange, extraOption }: Mate
     const updatePosition = () => {
       const bounds = rootRef.current?.getBoundingClientRect();
       if (!bounds) return;
-      const preferredHeight = Math.min(288, window.innerHeight * 0.45);
+      const mobileMaxHeight = 148;
+      const preferredHeight = Math.min(window.matchMedia('(max-width: 639px)').matches ? mobileMaxHeight : 288, window.innerHeight * 0.45);
       const roomBelow = window.innerHeight - bounds.bottom;
       const shouldOpenAbove = roomBelow < preferredHeight + 44 && bounds.top > roomBelow;
       const availableSpace = shouldOpenAbove ? bounds.top : roomBelow;

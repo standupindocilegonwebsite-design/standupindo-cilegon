@@ -153,7 +153,7 @@ export function EventDocumentationPage({ router, slug, settings }: EventDocument
         }, 1800);
         return next;
       });
-    }, 5500);
+    }, 3000);
 
     return () => {
       window.clearInterval(slideTimer);

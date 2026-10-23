@@ -1,6 +1,6 @@
 import { cloneElement, isValidElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Mic, CalendarDays, ArrowRight, Sparkles, Handshake, Drama, Inbox } from 'lucide-react';
-import type { Router } from '@/lib/router';
+import { useRestoreScrollPosition, type Router } from '@/lib/router';
 import type { OpenMic, EventItem, Komika, EventTicket, Partner } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { LOGO_URL } from '@/lib/types';
@@ -10,7 +10,7 @@ import { KomikaCard } from '@/components/cards/KomikaCard';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { getOpenMicNumbers } from '@/lib/format';
+import { getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { CcsScheduleHighlights } from '@/components/CcsScheduleHighlights';
 
 interface Props {
@@ -116,8 +116,8 @@ function carouselEndPadding(itemCount: number): string {
 }
 
 export function HomePage({ router }: Props) {
-  const revealRootRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
+  const revealRootRef = useRef<HTMLDivElement>(null);
   const [activeLightLeakSlot, setActiveLightLeakSlot] = useState<'open-mic' | 'event' | 'komika' | 'event-cta' | null>(null);
   const [mics, setMics] = useState<OpenMic[]>([]);
   const [numberedOpenMics, setNumberedOpenMics] = useState<OpenMic[]>([]);
@@ -128,6 +128,13 @@ export function HomePage({ router }: Props) {
   const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
   const [confirmedCounts, setConfirmedCounts] = useState<Record<string, number>>({});
   const openMicNumbers = useMemo(() => getOpenMicNumbers(numberedOpenMics), [numberedOpenMics]);
+  const latestCompletedMic = useMemo(() => numberedOpenMics
+    .filter((mic) => getOpenMicStatus(mic.status, mic.date) === 'completed')
+    .sort((first, second) => second.date.localeCompare(first.date)
+      || (second.time ?? '').localeCompare(first.time ?? '')
+      || (second.created_at ?? '').localeCompare(first.created_at ?? '')
+      || second.id.localeCompare(first.id))[0], [numberedOpenMics]);
+  useRestoreScrollPosition(router, !loading);
 
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -309,7 +316,20 @@ export function HomePage({ router }: Props) {
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
               </div>
             ) : mics.length === 0 ? (
-              <EmptyState title="Belum ada Open Mic yang tersedia." description="Pantau terus untuk panggung berikutnya." noSmokeArea />
+              <EmptyState
+                title="Belum ada Open Mic yang tersedia."
+                description="Pantau terus untuk panggung berikutnya."
+                noSmokeArea
+                action={latestCompletedMic && (
+                  <button
+                    type="button"
+                    onClick={() => router.navigate(`/open-mic/${encodeURIComponent(latestCompletedMic.slug)}#lineup`)}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-800 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                  >
+                    Lihat Lineup Open Mic Sebelumnya <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  </button>
+                )}
+              />
             ) : (
               <AutoSlideRow highlightActive highlightTone="blue" lightLeakSlot="open-mic" activeLightLeakSlot={activeLightLeakSlot} className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(Math.min(mics.length, 5))} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
                 {mics.slice(0, 5).map((m) => (

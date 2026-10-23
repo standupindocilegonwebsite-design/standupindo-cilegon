@@ -90,7 +90,7 @@ serve(async (request) => {
       const limitedTicketIds = limitedTickets.filter((ticket) => ticket.quota !== null).map((ticket) => ticket.id);
       const quantitiesByTicket = new Map<string, { confirmed: number; reserved: number }>();
       const confirmedStatuses = new Set(['Lunas', 'Terverifikasi', 'Selesai']);
-      const reservationStatuses = ['Menunggu Pembayaran', 'Menunggu Verifikasi', 'Sudah Bayar'];
+      const reservationStatuses = ['Draft Pembayaran', 'Menunggu Pembayaran', 'Menunggu Verifikasi', 'Sudah Bayar'];
       const now = Date.now();
 
       for (const ticketIds of chunkValues(limitedTicketIds)) {
@@ -114,13 +114,14 @@ serve(async (request) => {
 
       const availability = limitedTickets.map((ticket) => {
         if (ticket.quota === null) {
-          return { ticket_id: ticket.id, sold_out: false, temporarily_unavailable: false };
+          return { ticket_id: ticket.id, sold_out: false, temporarily_unavailable: false, remaining_tickets: null };
         }
         const counts = quantitiesByTicket.get(ticket.id) ?? { confirmed: 0, reserved: 0 };
         return {
           ticket_id: ticket.id,
           sold_out: counts.confirmed >= ticket.quota,
           temporarily_unavailable: counts.confirmed < ticket.quota && counts.confirmed + counts.reserved >= ticket.quota,
+          remaining_tickets: Math.max(0, ticket.quota - counts.confirmed - counts.reserved),
         };
       });
       return json({ availability });

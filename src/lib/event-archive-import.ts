@@ -39,6 +39,7 @@ const ROLE_ALIASES: Record<string, EventLineupRole> = {
 const MEMBER_ALIASES: Record<string, string> = {
   devan: 'Devan Yulio',
   'devan yukio': 'Devan Yulio',
+  'juan hendrik': 'Juan Hendrick',
   'robi bojo': 'Mang Obi',
   alfarobi: 'Mang Obi',
   diliana: 'Dili',

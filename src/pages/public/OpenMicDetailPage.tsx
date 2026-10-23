@@ -2,7 +2,7 @@ import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, Check, CheckCircle2, ChevronDown, Clock, Info, Instagram, Mic, Search, Send, Ticket, ArrowRight } from 'lucide-react';
-import type { Router } from '@/lib/router';
+import { scrollToInstantly, type Router } from '@/lib/router';
 import type { Komika, OpenMic, OpenMicRegistration } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
@@ -140,9 +140,53 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
   }, [mic]);
 
   useEffect(() => {
-    if (!loading && window.location.hash === '#lineup') {
-      document.getElementById('lineup')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (loading || window.location.hash !== '#lineup') return undefined;
+    const target = document.getElementById('lineup');
+    if (!target) return undefined;
+
+    const targetStyle = window.getComputedStyle(target);
+    const scrollMarginTop = Number.parseFloat(targetStyle.scrollMarginTop) || 0;
+    const targetTop = Math.max(0, window.scrollY + target.getBoundingClientRect().top - scrollMarginTop);
+    const startTop = window.scrollY;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion || Math.abs(targetTop - startTop) < 2) {
+      scrollToInstantly(targetTop);
+      return undefined;
     }
+
+    const root = document.documentElement;
+    const previousBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    const duration = 900;
+    const startedAt = performance.now();
+    let frame = 0;
+    let cancelledByUser = false;
+    const cancelForUserInput = () => {
+      cancelledByUser = true;
+      root.style.scrollBehavior = previousBehavior;
+    };
+    window.addEventListener('wheel', cancelForUserInput, { passive: true });
+    window.addEventListener('touchstart', cancelForUserInput, { passive: true });
+
+    const animateScroll = (now: number) => {
+      if (cancelledByUser) return;
+      const progress = Math.min((now - startedAt) / duration, 1);
+      const easedProgress = 1 - (1 - progress) ** 3;
+      window.scrollTo(0, startTop + (targetTop - startTop) * easedProgress);
+      if (progress < 1) {
+        frame = window.requestAnimationFrame(animateScroll);
+      } else {
+        root.style.scrollBehavior = previousBehavior;
+      }
+    };
+    frame = window.requestAnimationFrame(animateScroll);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('wheel', cancelForUserInput);
+      window.removeEventListener('touchstart', cancelForUserInput);
+      root.style.scrollBehavior = previousBehavior;
+    };
   }, [loading]);
 
   if (loading) {

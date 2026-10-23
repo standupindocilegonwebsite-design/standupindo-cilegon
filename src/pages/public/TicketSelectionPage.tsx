@@ -17,6 +17,7 @@ interface TicketAvailability {
   ticket_id: string;
   sold_out: boolean;
   temporarily_unavailable: boolean;
+  remaining_tickets: number | null;
 }
 
 export function TicketSelectionPage({ router, slug }: Props) {
@@ -88,7 +89,6 @@ export function TicketSelectionPage({ router, slug }: Props) {
 
   const backToEvent = `/event/${slug}`;
   const pageTitle = loading ? 'Akses Acara' : event?.title ?? 'Event tidak ditemukan';
-  const availableTickets = tickets.filter((ticket) => !ticketAvailability.get(ticket.id)?.sold_out);
 
   if (loading) {
     return (
@@ -154,15 +154,15 @@ export function TicketSelectionPage({ router, slug }: Props) {
             </div>
             {tickets.length === 0 ? (
               <EmptyState title={event.ticket_sales_mode === 'free' ? 'Acara ini gratis dan tidak memerlukan tiket.' : 'Tiket publik belum tersedia.'} />
-            ) : availableTickets.length === 0 ? (
-              <EmptyState title="Semua tiket publik untuk acara ini sudah habis terjual." />
             ) : (
               <div className="grid gap-3 sm:gap-4">
-                {availableTickets.map((ticket) => {
+                {tickets.map((ticket) => {
                   const externalTicketUrl = ticket.ticket_url && /^https?:\/\//i.test(ticket.ticket_url)
                     ? ticket.ticket_url
                     : null;
-                  const temporarilyUnavailable = ticketAvailability.get(ticket.id)?.temporarily_unavailable ?? false;
+                  const availability = ticketAvailability.get(ticket.id);
+                  const soldOut = availability?.sold_out ?? false;
+                  const temporarilyUnavailable = availability?.temporarily_unavailable ?? false;
                   return (
                     <article key={ticket.id} className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-[0_6px_18px_rgba(15,23,42,0.045)] transition hover:border-blue-200 hover:shadow-[0_10px_24px_rgba(37,99,235,0.1)]">
                       <div className="flex items-start gap-3 bg-gradient-to-r from-blue-50/80 via-white to-white p-4 sm:items-center sm:gap-4 sm:p-5">
@@ -171,6 +171,9 @@ export function TicketSelectionPage({ router, slug }: Props) {
                           <p className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-blue-700">Kategori Tiket</p>
                           <h3 className="mt-0.5 break-words text-base font-extrabold text-slate-900 sm:text-lg">{ticket.name}</h3>
                           {ticket.description && <p className="mt-1.5 whitespace-pre-line text-xs leading-5 text-slate-600 sm:text-sm">{ticket.description}</p>}
+                          {ticket.quota != null && availability?.remaining_tickets != null && (
+                            <p className="mt-2 text-xs font-bold text-slate-700">Sisa {availability.remaining_tickets} tiket</p>
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3.5 sm:px-5">
@@ -178,10 +181,19 @@ export function TicketSelectionPage({ router, slug }: Props) {
                           <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Harga tiket</p>
                           <p className="mt-0.5 text-xl font-black tracking-tight text-slate-900">{formatPrice(ticket.price)}</p>
                         </div>
-                        {temporarilyUnavailable ? (
-                          <p role="status" className="max-w-xs text-right text-xs font-semibold leading-5 text-amber-800">
-                            Sudah ada pesanan untuk tiket ini. Sedang menunggu pembayaran atau verifikasi admin; pemesanan sementara ditutup.
-                          </p>
+                        {soldOut ? (
+                          <button type="button" disabled className="btn-primary !min-h-11 !rounded-xl !px-4 !py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-60">
+                            Sold out
+                          </button>
+                        ) : temporarilyUnavailable ? (
+                          <div role="status" className="max-w-xs text-right">
+                            <button type="button" disabled className="btn-primary !min-h-11 !rounded-xl !px-4 !py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-60">
+                              Sedang diproses
+                            </button>
+                            <p className="mt-1 text-xs font-semibold leading-5 text-amber-800">
+                              Menunggu pembayaran atau verifikasi admin.
+                            </p>
+                          </div>
                         ) : externalTicketUrl ? (
                           <a href={externalTicketUrl} target="_blank" rel="noopener noreferrer" className="btn-primary !min-h-11 !rounded-xl !px-4 !py-2.5 text-sm">
                             <ExternalLink className="h-4 w-4" /> Beli

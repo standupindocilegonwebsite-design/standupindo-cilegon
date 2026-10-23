@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { History, Plus, Search } from 'lucide-react';
-import type { Router } from '@/lib/router';
+import { useHistoryEntryState, useRestoreScrollPosition, type Router } from '@/lib/router';
 import type { OpenMic } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { OpenMicCard } from '@/components/cards/OpenMicCard';
@@ -56,14 +56,15 @@ export function OpenMicPage({ router }: { router: Router }) {
   const [lineups, setLineups] = useState<Record<string, Array<{ stageName: string; slug: string | null }>>>({});
   const [performerSummaries, setPerformerSummaries] = useState<PerformerSummary[]>([]);
   const [selectedPerformerId, setSelectedPerformerId] = useState<string | null>(null);
-  const [upcomingSearch, setUpcomingSearch] = useState('');
-  const [completedSearch, setCompletedSearch] = useState('');
+  const [upcomingSearch, setUpcomingSearch] = useHistoryEntryState('open-mic-upcoming-search', '');
+  const [completedSearch, setCompletedSearch] = useHistoryEntryState('open-mic-completed-search', '');
   const [notificationTargetError, setNotificationTargetError] = useState('');
   const handledNotificationRegistrationId = useRef<string | null>(null);
   const navigateRef = useRef(router.navigate);
   navigateRef.current = router.navigate;
   const openMicNumbers = useMemo(() => getOpenMicNumbers(mics), [mics]);
   const notificationRegistrationId = router.query.get('notificationRegistrationId');
+  useRestoreScrollPosition(router, !isMemberPage && !loading);
 
   useEffect(() => {
     if (!isMemberPage || !notificationRegistrationId || handledNotificationRegistrationId.current === notificationRegistrationId) return;

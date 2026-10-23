@@ -39,6 +39,8 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
   const [readingTheme, setReadingTheme] = useState<ReadingTheme>('light');
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
+  const [leaveConfirmationOpen, setLeaveConfirmationOpen] = useState(false);
+  const [rewriteDraftRecovered, setRewriteDraftRecovered] = useState(false);
   const [materialContentCollapsed, setMaterialContentCollapsed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -58,6 +60,18 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
   const canvasRef = useRef<HTMLDivElement>(null);
   const canvasTouchDistance = useRef<number | null>(null);
   const canvasTouchScale = useRef(1);
+  const pendingLeaveRef = useRef<(() => void) | null>(null);
+  const allowBrowserBackRef = useRef(false);
+  const rewriteDraftKey = `member-material-rewrite:${user?.id ?? ''}:${id}`;
+  const hasUnsavedRewrite = Boolean(editing && material && (
+    form.title !== material.title
+    || form.theme !== material.theme
+    || form.premis !== (material.premis ?? '')
+    || form.estimated_duration !== (material.estimated_duration == null ? '' : String(material.estimated_duration))
+    || form.content !== material.content
+    || form.rating !== (material.rating ? String(material.rating) : '')
+    || form.personal_note !== (material.personal_note ?? '')
+  ));
 
   useEffect(() => {
     if (!mappingFullscreen) return;
@@ -79,23 +93,112 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
     if (loadError || !data) setError('Materi tidak ditemukan atau tidak dapat diakses.');
     const row = data as Material | null;
     setMaterial(row);
-    if (row) setForm({ title: row.title, theme: row.theme, premis: row.premis ?? '', estimated_duration: row.estimated_duration == null ? '' : String(row.estimated_duration), content: row.content, rating: row.rating ? String(row.rating) : '', personal_note: row.personal_note ?? '' });
+    if (row) {
+      const originalForm = { title: row.title, theme: row.theme, premis: row.premis ?? '', estimated_duration: row.estimated_duration == null ? '' : String(row.estimated_duration), content: row.content, rating: row.rating ? String(row.rating) : '', personal_note: row.personal_note ?? '' };
+      let restoredForm = originalForm;
+      try {
+        const savedDraft = window.sessionStorage.getItem(rewriteDraftKey);
+        if (savedDraft) {
+          const parsed: unknown = JSON.parse(savedDraft);
+          const draftFields = ['title', 'theme', 'premis', 'estimated_duration', 'content', 'rating', 'personal_note'];
+          if (parsed && typeof parsed === 'object' && draftFields.every((key) => typeof (parsed as Record<string, unknown>)[key] === 'string')) {
+            restoredForm = parsed as typeof originalForm;
+            if (draftFields.some((key) => restoredForm[key as keyof typeof originalForm] !== originalForm[key as keyof typeof originalForm])) {
+              setEditing(true);
+              setRewriteDraftRecovered(true);
+            }
+          }
+        }
+      } catch (draftError) {
+        console.error('Draft rewrite materi gagal dipulihkan.', draftError);
+      }
+      setForm(restoredForm);
+    }
     const { data: nodeData } = await supabase.from('material_nodes').select('*').eq('material_id', id).order('sort_order', { ascending: true }).order('created_at', { ascending: true });
     setNodes((nodeData as MaterialNode[]) ?? []);
     setLoading(false);
-  }, [id, user?.id]);
+  }, [id, rewriteDraftKey, user?.id]);
 
   useEffect(() => { void loadMaterial(); }, [loadMaterial]);
 
-  async function saveChanges() {
-    if (!user?.id || !material) return;
+  useEffect(() => {
+    if (!hasUnsavedRewrite || !material || !user?.id) return;
+    try {
+      window.sessionStorage.setItem(rewriteDraftKey, JSON.stringify(form));
+    } catch (draftError) {
+      console.error('Draft rewrite materi gagal disimpan di sesi ini.', draftError);
+    }
+  }, [form, hasUnsavedRewrite, material, rewriteDraftKey, user?.id]);
+
+  useEffect(() => {
+    if (!hasUnsavedRewrite) return;
+    const editorUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const onPopState = () => {
+      if (allowBrowserBackRef.current) {
+        allowBrowserBackRef.current = false;
+        return;
+      }
+      window.history.pushState({ materialEditorGuard: true }, '', editorUrl);
+      pendingLeaveRef.current = () => {
+        allowBrowserBackRef.current = true;
+        window.history.back();
+      };
+      setLeaveConfirmationOpen(true);
+    };
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('popstate', onPopState, true);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('popstate', onPopState, true);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [hasUnsavedRewrite]);
+
+  function requestLeave(action: () => void) {
+    if (!hasUnsavedRewrite) {
+      action();
+      return;
+    }
+    pendingLeaveRef.current = action;
+    setLeaveConfirmationOpen(true);
+  }
+
+  function dismissLeaveConfirmation() {
+    pendingLeaveRef.current = null;
+    setLeaveConfirmationOpen(false);
+  }
+
+  function discardRewriteAndLeave() {
+    try {
+      window.sessionStorage.removeItem(rewriteDraftKey);
+    } catch (draftError) {
+      console.error('Draft rewrite materi gagal dihapus dari sesi ini.', draftError);
+    }
+    setEditing(false);
+    setLeaveConfirmationOpen(false);
+    pendingLeaveRef.current?.();
+    pendingLeaveRef.current = null;
+  }
+
+  async function saveRewriteAndLeave() {
+    if (!await saveChanges()) return;
+    setLeaveConfirmationOpen(false);
+    pendingLeaveRef.current?.();
+    pendingLeaveRef.current = null;
+  }
+
+  async function saveChanges(): Promise<boolean> {
+    if (!user?.id || !material) return false;
     if (!form.title.trim() || !form.theme.trim() || !form.content.trim()) {
       setError('Judul, tema, dan materi wajib diisi.');
-      return;
+      return false;
     }
     if (!isEstimatedDurationInputValid(form.estimated_duration)) {
       setError('Estimasi durasi harus berupa angka menit lebih besar dari 0.');
-      return;
+      return false;
     }
     setSaving(true);
     setError('');
@@ -116,10 +219,17 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
     setSaving(false);
     if (saveError) {
       setError(`Materi gagal disimpan: ${saveError.message}`);
-      return;
+      return false;
     }
+    try {
+      window.sessionStorage.removeItem(rewriteDraftKey);
+    } catch (draftError) {
+      console.error('Draft rewrite materi gagal dihapus dari sesi ini.', draftError);
+    }
+    setRewriteDraftRecovered(false);
     setEditing(false);
     await loadMaterial();
+    return true;
   }
 
   function confirmRewriteSubmit(event: React.FormEvent) {
@@ -336,7 +446,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
   return (
     <div className="animate-fade-in">
       <div className="container-app py-6 sm:py-8">
-        <button type="button" onClick={() => router.navigate('/member/materials')} className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-blue-700"><ArrowLeft className="h-4 w-4" /> Kembali ke Buku Materi</button>
+        <button type="button" onClick={() => requestLeave(() => router.navigate('/member/materials'))} className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-blue-700"><ArrowLeft className="h-4 w-4" /> Kembali ke Buku Materi</button>
         <div className="mx-auto max-w-3xl space-y-5">
           <section className="rounded-2xl border border-blue-100 bg-white px-4 py-3 shadow-[0_8px_22px_rgba(37,99,235,0.08)] sm:px-5">
             <div className="flex items-center gap-3">
@@ -356,6 +466,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
           {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
           {editing ? (
             <form ref={editFormRef} onSubmit={confirmRewriteSubmit} className="scroll-mt-24 space-y-4 rounded-[26px] border border-blue-100 bg-blue-50/60 p-4 sm:p-5">
+              {rewriteDraftRecovered && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">Draft rewrite yang belum tersimpan berhasil dipulihkan.</p>}
               <input className="input-field" placeholder="Judul materi" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
               <input className="input-field" placeholder="Tema materi" value={form.theme} onChange={(event) => setForm({ ...form, theme: event.target.value })} />
               <div><label htmlFor="edit-material-premis" className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Premis</label><textarea id="edit-material-premis" className="input-field !min-h-[88px]" placeholder="Inti atau gagasan utama materi..." value={form.premis} onChange={(event) => setForm({ ...form, premis: event.target.value })} /></div>
@@ -534,6 +645,20 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
           <div className="flex gap-2">
             <button type="button" onClick={() => setSaveConfirmationOpen(false)} className="btn-secondary flex-1">Batal</button>
             <button type="button" onClick={() => { setSaveConfirmationOpen(false); void saveChanges(); }} disabled={saving} className="btn-primary flex-1"><Save className="h-4 w-4" />Simpan</button>
+          </div>
+        </div>
+      </Modal>
+      <Modal open={leaveConfirmationOpen} onClose={dismissLeaveConfirmation} title="SIMPAN REWRITE?" titleEyebrow="DRAFT BELUM TERSIMPAN" size="sm">
+        <div className="space-y-4">
+          <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-950">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+            <p>Perubahan rewrite belum tersimpan. Simpan perubahan sebelum meninggalkan materi?</p>
+          </div>
+          {error && <p role="alert" className="rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-red-700">{error}</p>}
+          <div className="grid gap-2">
+            <button type="button" onClick={() => void saveRewriteAndLeave()} disabled={saving} className="btn-primary w-full"><Save className="h-4 w-4" />{saving ? 'Menyimpan...' : 'Simpan Rewrite & Keluar'}</button>
+            <button type="button" onClick={discardRewriteAndLeave} disabled={saving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-extrabold text-red-700 transition hover:bg-red-50 disabled:opacity-60"><Trash2 className="h-4 w-4" />Keluar tanpa menyimpan</button>
+            <button type="button" onClick={dismissLeaveConfirmation} disabled={saving} className="btn-secondary w-full">Lanjut menulis</button>
           </div>
         </div>
       </Modal>

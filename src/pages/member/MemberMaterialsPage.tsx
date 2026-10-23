@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, Clock3, ListPlus, Plus, Search, SearchX, SlidersHorizontal, Star, TimerReset } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, ArrowLeft, BookOpen, Clock3, ListPlus, Plus, Save, Search, SearchX, SlidersHorizontal, Star, TimerReset, Trash2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { Material } from '@/lib/types';
@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MaterialDurationInput } from '@/components/MaterialDurationInput';
+import { Modal } from '@/components/ui/Modal';
 import { formatEstimatedDuration, isEstimatedDurationInputValid, parseEstimatedDuration } from '@/lib/material-duration';
 
 const THEMES = ['Observasi', 'Percintaan', 'Keluarga', 'Pekerjaan', 'Kehidupan', 'Politik', 'Random', 'Lainnya'];
@@ -40,6 +41,12 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
   const [filterMenuOpen, setFilterMenuOpen] = useState<'theme' | 'duration' | 'rating' | null>(null);
   const [form, setForm] = useState({ title: '', theme: '', premis: '', estimated_duration: '', content: '' });
   const [error, setError] = useState('');
+  const [createDraftReady, setCreateDraftReady] = useState(!isCreatePage);
+  const [leaveConfirmationOpen, setLeaveConfirmationOpen] = useState(false);
+  const pendingLeaveRef = useRef<(() => void) | null>(null);
+  const allowBrowserBackRef = useRef(false);
+  const createDraftKey = `member-material-create:${user?.id ?? ''}`;
+  const hasCreateChanges = (isCreatePage || showForm) && [form.title, form.theme, form.premis, form.estimated_duration, form.content].some((value) => value.trim());
 
   const loadMaterials = useCallback(async () => {
     if (!user?.id) return;
@@ -51,6 +58,90 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
   }, [user?.id]);
 
   useEffect(() => { void loadMaterials(); }, [loadMaterials]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setCreateDraftReady(true);
+      return;
+    }
+    try {
+      const savedDraft = window.sessionStorage.getItem(createDraftKey);
+      if (savedDraft) {
+        const parsed: unknown = JSON.parse(savedDraft);
+        if (parsed && typeof parsed === 'object' && ['title', 'theme', 'premis', 'estimated_duration', 'content'].every((key) => typeof (parsed as Record<string, unknown>)[key] === 'string')) {
+          setForm(parsed as typeof form);
+          if (!isCreatePage) setShowForm(true);
+        }
+      }
+    } catch (draftError) {
+      console.error('Draft materi baru gagal dipulihkan.', draftError);
+    } finally {
+      setCreateDraftReady(true);
+    }
+  }, [createDraftKey, isCreatePage, user?.id]);
+
+  useEffect(() => {
+    if (!createDraftReady || (!isCreatePage && !showForm) || !user?.id) return;
+    try {
+      if (hasCreateChanges) window.sessionStorage.setItem(createDraftKey, JSON.stringify(form));
+      else window.sessionStorage.removeItem(createDraftKey);
+    } catch (draftError) {
+      console.error('Draft materi baru gagal disimpan di sesi ini.', draftError);
+    }
+  }, [createDraftKey, createDraftReady, form, hasCreateChanges, isCreatePage, showForm, user?.id]);
+
+  useEffect(() => {
+    if (!hasCreateChanges) return;
+    const editorUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const onPopState = () => {
+      if (allowBrowserBackRef.current) {
+        allowBrowserBackRef.current = false;
+        return;
+      }
+      window.history.pushState({ materialEditorGuard: true }, '', editorUrl);
+      pendingLeaveRef.current = () => {
+        allowBrowserBackRef.current = true;
+        window.history.back();
+      };
+      setLeaveConfirmationOpen(true);
+    };
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('popstate', onPopState, true);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('popstate', onPopState, true);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [hasCreateChanges]);
+
+  function requestLeave(action: () => void) {
+    if (!hasCreateChanges) {
+      action();
+      return;
+    }
+    pendingLeaveRef.current = action;
+    setLeaveConfirmationOpen(true);
+  }
+
+  function dismissLeaveConfirmation() {
+    pendingLeaveRef.current = null;
+    setLeaveConfirmationOpen(false);
+  }
+
+  function leaveWithoutSaving() {
+    try {
+      window.sessionStorage.removeItem(createDraftKey);
+    } catch (draftError) {
+      console.error('Draft materi baru gagal dihapus dari sesi ini.', draftError);
+    }
+    setForm({ title: '', theme: '', premis: '', estimated_duration: '', content: '' });
+    setLeaveConfirmationOpen(false);
+    pendingLeaveRef.current?.();
+    pendingLeaveRef.current = null;
+  }
 
   const filteredMaterials = useMemo(() => materials.filter((material) => {
     const query = search.trim().toLowerCase();
@@ -131,16 +222,15 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
     );
   }
 
-  async function saveMaterial(event: React.FormEvent) {
-    event.preventDefault();
-    if (!user?.id) return;
+  async function persistMaterial(): Promise<boolean> {
+    if (!user?.id) return false;
     if (!form.title.trim() || !normalizeTheme(form.theme) || !form.content.trim()) {
       setError('Judul, tema, dan materi wajib diisi.');
-      return;
+      return false;
     }
     if (!isEstimatedDurationInputValid(form.estimated_duration)) {
       setError('Estimasi durasi harus berupa angka menit lebih besar dari 0.');
-      return;
+      return false;
     }
     setSaving(true);
     setError('');
@@ -157,18 +247,37 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
     setSaving(false);
     if (saveError) {
       setError('Materi gagal disimpan. Pastikan migration Buku Materi sudah dijalankan.');
-      return;
+      return false;
     }
+    setError('');
+    try {
+      window.sessionStorage.removeItem(createDraftKey);
+    } catch (draftError) {
+      console.error('Draft materi baru gagal dihapus dari sesi ini.', draftError);
+    }
+    await loadMaterials();
+    return true;
+  }
+
+  async function saveMaterial(event: React.FormEvent) {
+    event.preventDefault();
+    if (!await persistMaterial()) return;
     setForm({ title: '', theme: '', premis: '', estimated_duration: '', content: '' });
     setThemeMenuOpen(false);
     if (isCreatePage) {
-      await loadMaterials();
       setShowForm(false);
       router.navigate('/member/materials');
       return;
     }
     setShowForm(false);
-    await loadMaterials();
+  }
+
+  async function saveDraftAndLeave() {
+    if (!await persistMaterial()) return;
+    setForm({ title: '', theme: '', premis: '', estimated_duration: '', content: '' });
+    setLeaveConfirmationOpen(false);
+    pendingLeaveRef.current?.();
+    pendingLeaveRef.current = null;
   }
 
   return (
@@ -176,12 +285,26 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
       {isCreatePage ? (
         <div className="border-b-2 border-blue-100 bg-white">
           <div className="container-app py-5">
-            <button type="button" onClick={() => router.navigate('/member/materials')} className="mb-3 inline-flex items-center gap-1.5 text-sm font-bold text-slate-700 transition hover:text-blue-700"><ArrowLeft className="h-4 w-4" /> Kembali ke Buku Materi</button>
+            <button type="button" onClick={() => requestLeave(() => router.navigate('/member/materials'))} className="mb-3 inline-flex items-center gap-1.5 text-sm font-bold text-slate-700 transition hover:text-blue-700"><ArrowLeft className="h-4 w-4" /> Kembali ke Buku Materi</button>
             <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Tambah Materi</h1>
             <p className="mt-1.5 text-sm font-medium text-slate-600 sm:text-base">Simpan materi baru ke Buku Materi pribadi kamu.</p>
           </div>
         </div>
       ) : <PageHeader router={router} title="Buku Materi" subtitle="Kumpulan materi pribadi kamu." />}
+      <Modal open={leaveConfirmationOpen} onClose={dismissLeaveConfirmation} title="SIMPAN MATERI?" titleEyebrow="DRAFT BELUM TERSIMPAN" size="sm">
+        <div className="space-y-4">
+          <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-950">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+            <p>Materi yang sedang kamu tulis belum tersimpan. Simpan ke Buku Materi sebelum keluar?</p>
+          </div>
+          {error && <p role="alert" className="rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-red-700">{error}</p>}
+          <div className="grid gap-2">
+            <button type="button" onClick={() => void saveDraftAndLeave()} disabled={saving} className="btn-primary w-full"><Save className="h-4 w-4" />{saving ? 'Menyimpan...' : 'Simpan Materi & Keluar'}</button>
+            <button type="button" onClick={leaveWithoutSaving} disabled={saving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-extrabold text-red-700 transition hover:bg-red-50 disabled:opacity-60"><Trash2 className="h-4 w-4" />Keluar tanpa menyimpan</button>
+            <button type="button" onClick={dismissLeaveConfirmation} disabled={saving} className="btn-secondary w-full">Lanjut menulis</button>
+          </div>
+        </div>
+      </Modal>
       <div className="container-app space-y-5 py-6 sm:py-8">
         {!isCreatePage && <div className="flex items-center justify-between gap-3">
           <div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Member Area</p><h1 className="mt-1 text-2xl font-black text-slate-950">Buku Materi</h1></div>

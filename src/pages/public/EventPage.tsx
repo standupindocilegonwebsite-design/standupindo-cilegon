@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapPin, Search } from 'lucide-react';
-import type { Router } from '@/lib/router';
+import { useHistoryEntryState, useRestoreScrollPosition, type Router } from '@/lib/router';
 import type { EventItem, EventLineupEntry, EventTicket } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { EventCard } from '@/components/cards/EventCard';
@@ -20,8 +20,8 @@ export function EventPage({ router }: { router: Router }) {
   const [lineupSearchText, setLineupSearchText] = useState<Record<string, string>>({});
   const [lineupSearchError, setLineupSearchError] = useState(false);
   const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
-  const [upcomingSearch, setUpcomingSearch] = useState('');
-  const [completedSearch, setCompletedSearch] = useState('');
+  const [upcomingSearch, setUpcomingSearch] = useHistoryEntryState('event-upcoming-search', '');
+  const [completedSearch, setCompletedSearch] = useHistoryEntryState('event-completed-search', '');
   const [loadError, setLoadError] = useState(false);
   const [notificationTargetError, setNotificationTargetError] = useState('');
   const handledNotificationParticipantId = useRef<string | null>(null);
@@ -184,6 +184,8 @@ export function EventPage({ router }: { router: Router }) {
     return () => window.cancelAnimationFrame(frame);
   }, [hasCompletedEvents, loading]);
 
+  useRestoreScrollPosition(router, !loading);
+
   return (
     <div className="animate-fade-in">
       <PageHeader router={router} title="Event" subtitle="Malam penuh tawa bersama komika terbaik Cilegon." />
@@ -226,7 +228,7 @@ export function EventPage({ router }: { router: Router }) {
                   <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Event Selesai</h2>
                 </div>
                 <span aria-label={`${completed.length} event selesai`} className="flex shrink-0 flex-col items-center text-white drop-shadow-[0_2px_10px_rgba(59,130,246,0.5)]">
-                  <span className="text-4xl font-black leading-none sm:text-5xl">{completed.length}</span>
+                  <AnimatedEventCount value={completed.length} />
                   <span className="mt-1 text-[10px] font-extrabold uppercase leading-none tracking-[0.18em] sm:text-xs">EVENT</span>
                 </span>
               </div>
@@ -248,6 +250,40 @@ export function EventPage({ router }: { router: Router }) {
       </div>
     </div>
   );
+}
+
+function AnimatedEventCount({ value }: { value: number }) {
+  const [count, setCount] = useState(0);
+  const hasAnimated = useRef(false);
+
+  useEffect(() => {
+    if (hasAnimated.current) {
+      setCount(value);
+      return;
+    }
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      hasAnimated.current = true;
+      setCount(value);
+      return;
+    }
+
+    const duration = 2000;
+    const startedAt = performance.now();
+    let frame = 0;
+    const updateCount = (now: number) => {
+      hasAnimated.current = true;
+      const progress = Math.min((now - startedAt) / duration, 1);
+      const easedProgress = progress ** 3 * (progress * (progress * 6 - 15) + 10);
+      setCount(Math.round(value * easedProgress));
+      if (progress < 1) frame = window.requestAnimationFrame(updateCount);
+    };
+    frame = window.requestAnimationFrame(updateCount);
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [value]);
+
+  return <span className="text-4xl font-black leading-none tabular-nums sm:text-5xl">{count}</span>;
 }
 
 function CompletedEventCard({ event, router }: { event: EventItem; router: Router }) {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Info, Handshake, MessageCircle, Users } from 'lucide-react';
-import type { Router } from '@/lib/router';
+import { useRestoreScrollPosition, type Router } from '@/lib/router';
 import type { SiteSettings } from '@/lib/types';
 import { PageHeader } from '@/components/PageHeader';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
@@ -15,6 +15,7 @@ const ITEMS = [
 
 export function MorePage({ router, settings }: { router: Router; settings: SiteSettings }) {
   const [logoLightbox, setLogoLightbox] = useState(false);
+  useRestoreScrollPosition(router);
   const logoSrc = settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png';
 
   return (

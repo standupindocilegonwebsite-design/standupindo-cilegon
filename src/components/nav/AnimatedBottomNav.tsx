@@ -131,7 +131,7 @@ export function AnimatedBottomNav({
 
   return (
     <MobileBottomNavPortal className={visibilityClassName} ariaLabel={ariaLabel}>
-      <div className="animated-bottom-nav relative w-full">
+      <div className={`animated-bottom-nav relative w-full ${activeIndex < 0 ? 'animated-bottom-nav--inactive' : ''}`}>
         {ActiveIcon && initialShape && <>
           <svg
             ref={navShapeRef}

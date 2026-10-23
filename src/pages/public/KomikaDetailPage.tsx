@@ -247,30 +247,36 @@ export function KomikaDetailPage({ router, slug }: Props) {
 
         {(journeyError || officialHistory.length > 0 || externalHistory.length > 0) && (
           <section data-scroll-reveal className="scroll-reveal mt-6 rounded-2xl border border-blue-200/80 bg-gradient-to-br from-blue-50/70 via-white to-slate-50 p-3.5 shadow-[0_10px_24px_rgba(30,64,175,0.06)] sm:p-4">
-            <div className="flex items-start gap-3">
-              <span className="mt-0.5 h-7 w-1 shrink-0 rounded-full bg-gradient-to-b from-blue-600 to-indigo-500" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-blue-700">Pengalaman Tampil</p>
-                <h2 className="mt-0.5 text-xl font-black tracking-tight text-slate-900 sm:text-2xl">Perjalanan Panggung</h2>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="mt-0.5 h-7 w-1 shrink-0 rounded-full bg-gradient-to-b from-blue-600 to-indigo-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-blue-700">Pengalaman Tampil</p>
+                  <h2 className="mt-0.5 text-xl font-black tracking-tight text-slate-900 sm:text-2xl">Perjalanan Panggung</h2>
+                </div>
               </div>
+              {!journeyError && <span className="flex shrink-0 flex-col items-center text-blue-800">
+                <span className="text-2xl font-black leading-none tracking-tight sm:text-3xl">{officialHistory.length + externalHistory.length}</span>
+                <span className="mt-1 text-[9px] font-extrabold uppercase leading-none tracking-[0.12em] sm:text-[10px]">Panggung</span>
+              </span>}
             </div>
             {journeyError && <p role="alert" className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-900">{journeyError}</p>}
             <div className="mt-4 grid gap-3.5">
-              {!journeyError && officialHistory.length > 0 && <div className="rounded-xl border border-blue-100 bg-white/90 p-3 shadow-sm sm:p-3.5">
+              {!journeyError && officialHistory.length > 0 && <div className="rounded-xl border border-blue-200 bg-white p-3 shadow-sm sm:p-3.5">
                 <div className="mb-3 flex items-start justify-between gap-3 border-b border-blue-100 pb-2.5">
                   <div>
-                    <h3 className="text-sm font-extrabold tracking-tight text-slate-900 sm:text-base">Event Standupindo Cilegon</h3>
+                    <h3 className="text-sm font-extrabold tracking-tight text-blue-950 sm:text-base">Event Standupindo Cilegon</h3>
                     <p className="mt-0.5 text-xs font-medium leading-5 text-slate-700">Acara bersama komunitas</p>
                   </div>
-                  <span className="ml-auto shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-800">{officialHistory.length}</span>
+                  <span className="ml-auto shrink-0 rounded-full bg-blue-100 px-2.5 py-1 text-sm font-extrabold leading-none text-blue-900">{officialHistory.length}</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full table-fixed text-left">
                     <thead>
                       <tr className="border-b border-blue-100 text-[10px] font-extrabold uppercase tracking-[0.06em] text-blue-800 sm:text-[11px]">
-                        <th scope="col" className="w-[26%] px-2 py-2.5 sm:w-[24%]">Tanggal</th>
-                        <th scope="col" className="w-[44%] px-2 py-2.5 sm:w-[48%]">Event</th>
-                        <th scope="col" className="w-[30%] px-2 py-2.5 sm:w-[28%]">Peran</th>
+                        <th scope="col" className="w-[24%] px-2 py-2.5 sm:w-[24%]">Tanggal</th>
+                        <th scope="col" className="w-[42%] px-2 py-2.5 sm:w-[48%]">Event</th>
+                        <th scope="col" className="w-[34%] px-2 py-2.5 sm:w-[28%]">Peran</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -293,8 +299,9 @@ export function KomikaDetailPage({ router, slug }: Props) {
                             <span className="mt-0.5 block break-words text-[11px] font-medium leading-4 text-slate-700 sm:text-xs">{[entry.event.venue, entry.event.location].filter(Boolean).join(' · ') || 'Lokasi tidak tersedia'}</span>
                           </td>
                           <td className="px-2 py-3 align-top">
-                            <span className="inline-flex max-w-full rounded-md bg-blue-50 px-1.5 py-1 text-[10px] font-bold leading-4 text-blue-900 sm:px-2 sm:text-xs sm:leading-5">
-                              <span className="break-words">{entry.role_labels?.join(' / ') ?? (entry.role_category === 'other' && entry.role_title ? entry.role_title : entry.role_category)}</span>
+                            <span className="inline-flex max-w-full items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/80 px-2.5 py-1.5 text-xs font-bold leading-5 text-blue-900 sm:px-3 sm:text-sm">
+                              <span aria-hidden="true" className="mt-[7px] h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                              <span className="min-w-0 break-words text-center">{entry.role_labels?.join(' / ') ?? (entry.role_category === 'other' && entry.role_title ? entry.role_title : entry.role_category)}</span>
                             </span>
                           </td>
                         </tr>
@@ -303,28 +310,28 @@ export function KomikaDetailPage({ router, slug }: Props) {
                   </table>
                 </div>
               </div>}
-              {!journeyError && externalHistory.length > 0 && <div className="rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm sm:p-3.5">
+              {!journeyError && externalHistory.length > 0 && <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-3.5">
                 <div className="mb-3 flex items-start justify-between gap-3 border-b border-slate-200 pb-2.5">
                   <div>
-                    <h3 className="text-sm font-extrabold tracking-tight text-slate-900 sm:text-base">Event di Luar Standupindo Cilegon</h3>
+                    <h3 className="text-sm font-extrabold tracking-tight text-slate-800 sm:text-base">Event di Luar Standupindo Cilegon</h3>
                     <p className="mt-0.5 text-xs font-medium leading-5 text-slate-700">Acara bersama komunitas atau penyelenggara lain</p>
                   </div>
-                  <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">{externalHistory.length}</span>
+                  <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-sm font-extrabold leading-none text-slate-800">{externalHistory.length}</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full table-fixed text-left">
                     <thead>
-                      <tr className="border-b border-slate-200 text-[10px] font-extrabold uppercase tracking-[0.06em] text-blue-800 sm:text-[11px]">
-                        <th scope="col" className="w-[26%] px-2 py-2.5 sm:w-[24%]">Tanggal</th>
-                        <th scope="col" className="w-[44%] px-2 py-2.5 sm:w-[48%]">Event</th>
-                        <th scope="col" className="w-[30%] px-2 py-2.5 sm:w-[28%]">Peran</th>
+                      <tr className="border-b border-slate-200 text-[10px] font-extrabold uppercase tracking-[0.06em] text-slate-700 sm:text-[11px]">
+                        <th scope="col" className="w-[24%] px-2 py-2.5 sm:w-[24%]">Tanggal</th>
+                        <th scope="col" className="w-[42%] px-2 py-2.5 sm:w-[48%]">Event</th>
+                        <th scope="col" className="w-[34%] px-2 py-2.5 sm:w-[28%]">Peran</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {externalHistory.map((entry) => {
                         const url = safeExternalUrl(entry.external_url);
                         return (
-                          <tr key={entry.id} className="transition-colors hover:bg-blue-50/60">
+                          <tr key={entry.id} className="transition-colors hover:bg-slate-50">
                             <td className="px-2 py-3 align-top">
                               <span className="text-xs font-semibold leading-5 text-slate-800 sm:text-sm">
                                 {formatJourneyDate(entry.event_date)}
@@ -337,8 +344,9 @@ export function KomikaDetailPage({ router, slug }: Props) {
                               {(entry.organizer || entry.city) && <span className="mt-0.5 block break-words text-[11px] font-medium leading-4 text-slate-700 sm:text-xs">{[entry.organizer, entry.city].filter(Boolean).join(' · ')}</span>}
                             </td>
                             <td className="px-2 py-3 align-top">
-                              <span className="inline-flex max-w-full rounded-md bg-blue-50 px-1.5 py-1 text-[10px] font-bold leading-4 text-blue-900 sm:px-2 sm:text-xs sm:leading-5">
-                                <span className="break-words">{entry.role === 'Lainnya' ? entry.custom_role : entry.role}</span>
+                              <span className="inline-flex max-w-full items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/80 px-2.5 py-1.5 text-xs font-bold leading-5 text-blue-900 sm:px-3 sm:text-sm">
+                                <span aria-hidden="true" className="mt-[7px] h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                                <span className="min-w-0 break-words text-center">{entry.role === 'Lainnya' ? entry.custom_role : entry.role}</span>
                               </span>
                             </td>
                           </tr>

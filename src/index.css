@@ -249,6 +249,11 @@
     --animated-nav-cutout-gap: 4px;
   }
 
+  .animated-bottom-nav--inactive {
+    border-top: 2px solid #3b82f6;
+    background: #fff;
+  }
+
   .mobile-bottom-nav {
     pointer-events: none;
   }
@@ -1412,6 +1417,18 @@
     transform-origin: 50% 0;
   }
 
+  .route-return {
+    animation: routeReturn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .route-return .animate-fade-in {
+    animation: none;
+  }
+  .route-return .scroll-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
   .animate-fade-up {
     animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
@@ -1476,6 +1493,17 @@
   from { opacity: 0; transform: translateY(14px) scale(0.992); }
   65% { opacity: 1; transform: translateY(-2px) scale(1.001); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes routeReturn {
+  from { opacity: 0.92; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-return {
+    animation: none;
+  }
 }
 
 .home-hero-cta-icon {

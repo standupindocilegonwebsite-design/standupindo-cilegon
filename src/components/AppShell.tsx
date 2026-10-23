@@ -81,7 +81,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
     <div ref={shellRef} className={`flex min-h-screen flex-col ${isTicketAccessPage ? 'bg-slate-200' : isEventDocumentationPage ? 'bg-[#030712]' : isPublicNavyPage ? 'bg-[#0B1F44]' : 'bg-slate-50'}`}>
       {!isTicketAccessPage && !isEventDocumentationPage && <DesktopNavbar router={router} settings={settings} />}
 
-      <main className={`flex-1 ${isEventDocumentationPage ? 'pb-safe-nav md:pb-0' : ''} ${isPublicNavyPage ? 'text-slate-100' : ''}`}>{children}</main>
+      <main className={`flex-1 ${isPublicNavyPage ? 'text-slate-100' : ''}`}>{children}</main>
 
       {/* Footer (desktop + mobile compact) */}
       {!isTicketAccessPage && !isEventDocumentationPage && <footer className="border-t border-slate-200 bg-white pb-safe-nav md:pb-0">
@@ -161,7 +161,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
         </div>
       </footer>}
 
-      {!isTicketAccessPage && <MobileBottomNav router={router} />}
+      {!isTicketAccessPage && !isEventDocumentationPage && <MobileBottomNav router={router} />}
       {!isEventDocumentationPage && <UpcomingEventPopup router={router} />}
       {!isEventDocumentationPage && <FollowInstagramPopup router={router} settings={settings} />}
     </div>
