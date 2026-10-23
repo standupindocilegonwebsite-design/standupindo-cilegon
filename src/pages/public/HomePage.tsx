@@ -1,5 +1,5 @@
 import { cloneElement, isValidElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Mic, CalendarDays, ArrowRight, Sparkles, Handshake, Drama, Inbox } from 'lucide-react';
+import { Mic, CalendarDays, ArrowRight, Sparkles, Handshake, Drama } from 'lucide-react';
 import { useRestoreScrollPosition, type Router } from '@/lib/router';
 import type { OpenMic, EventItem, Komika, EventTicket, Partner } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -361,14 +361,15 @@ export function HomePage({ router }: Props) {
                 <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
               </div>
             ) : events.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-blue-200 bg-white px-6 py-12 text-center shadow-[0_8px_24px_rgba(37,99,235,0.05)] sm:py-16">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400"><Inbox className="h-7 w-7" /></div>
-                <h3 className="mt-4 text-base font-semibold text-slate-800 sm:text-lg">Belum ada event baru untuk saat ini.</h3>
-                <p className="mt-1 max-w-lg text-sm leading-6 text-slate-500">Tapi tenang, keseruan berikutnya sedang dalam perjalanan. Sampai jumpa di tawa selanjutnya!</p>
-                <button type="button" onClick={() => router.navigate('/event#completed-events')} className="mt-4 inline-flex min-h-10 items-center gap-1.5 text-sm font-bold text-blue-700 transition hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
-                  Lihat Event Sebelumnya <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
+              <EmptyState
+                title="Belum ada event baru untuk saat ini."
+                description="Tapi tenang, keseruan berikutnya sedang dalam perjalanan. Sampai jumpa di tawa selanjutnya!"
+                action={
+                  <button type="button" onClick={() => router.navigate('/event#completed-events')} className="inline-flex min-h-10 items-center gap-1.5 text-sm font-bold text-blue-700 transition hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+                    Lihat Event Sebelumnya <ArrowRight className="h-4 w-4" />
+                  </button>
+                }
+              />
             ) : (
               <AutoSlideRow highlightActive highlightTone="amber" lightLeakSlot="event" activeLightLeakSlot={activeLightLeakSlot} className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(Math.min(events.length, 5))} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
                 {events.map((e) => (

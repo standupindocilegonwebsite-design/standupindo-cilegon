@@ -19,6 +19,7 @@ const MAIN_MENU = [
 export function MemberDashboardPage({ router }: { router: Router }) {
   const { user } = useAuth();
   const [openMics, setOpenMics] = useState<OpenMic[]>([]);
+  const [latestCompletedMic, setLatestCompletedMic] = useState<OpenMic | null>(null);
   const [attendedOpenMicCount, setAttendedOpenMicCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState('Member');
@@ -36,7 +37,7 @@ export function MemberDashboardPage({ router }: { router: Router }) {
 
     (async () => {
       const today = new Date().toISOString();
-      const [{ data: micData }, { data: profileData }] = await Promise.all([
+      const [{ data: micData }, { data: profileData }, { data: completedMicData }] = await Promise.all([
         supabase
           .from('open_mics')
           .select('*')
@@ -49,6 +50,11 @@ export function MemberDashboardPage({ router }: { router: Router }) {
           .select('id, stage_name, photo, photo_card')
           .or(`user_id.eq.${user.id},id.eq.${user.id}`)
           .maybeSingle(),
+        supabase
+          .from('open_mics')
+          .select('*')
+          .eq('published', true)
+          .order('date', { ascending: false }),
       ]);
 
       const memberKomikaId = profileData?.id ?? null;
@@ -95,6 +101,13 @@ export function MemberDashboardPage({ router }: { router: Router }) {
       }
 
       setOpenMics((micData as OpenMic[]) ?? []);
+      const previousMic = ((completedMicData as OpenMic[]) ?? [])
+        .filter((mic) => getOpenMicStatus(mic.status, mic.date) === 'completed')
+        .sort((first, second) => second.date.localeCompare(first.date)
+          || (second.time ?? '').localeCompare(first.time ?? '')
+          || (second.created_at ?? '').localeCompare(first.created_at ?? '')
+          || second.id.localeCompare(first.id))[0] ?? null;
+      setLatestCompletedMic(previousMic);
       setOpenMicHistory(historyData);
       setLoading(false);
     })();
@@ -196,7 +209,18 @@ export function MemberDashboardPage({ router }: { router: Router }) {
               )}
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-[11px] text-slate-500">Belum ada Open Mic mendatang.</div>
+            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
+              <p className="text-[11px] font-medium text-slate-500">Belum ada Open Mic mendatang.</p>
+              {latestCompletedMic && (
+                <button
+                  type="button"
+                  onClick={() => router.navigate(`/member/open-mic/${encodeURIComponent(latestCompletedMic.slug)}#lineup`)}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-800 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                >
+                  Lihat Lineup Open Mic Sebelumnya <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           )}
         </section>
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MapPin, Search } from 'lucide-react';
+import { ArrowRight, MapPin, Search } from 'lucide-react';
 import { useHistoryEntryState, useRestoreScrollPosition, type Router } from '@/lib/router';
 import type { EventItem, EventLineupEntry, EventTicket } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -207,7 +207,19 @@ export function EventPage({ router }: { router: Router }) {
           ) : loadError ? (
             <EmptyState title="Event belum dapat dimuat." description="Silakan coba lagi beberapa saat." />
           ) : upcoming.length === 0 ? (
-            <EmptyState title="Belum ada event mendatang." noSmokeArea />
+            <EmptyState
+              title="Belum ada event baru untuk saat ini."
+              description="Tapi tenang, keseruan berikutnya sedang dalam perjalanan. Sampai jumpa di tawa selanjutnya!"
+              action={hasCompletedEvents && (
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('completed-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="inline-flex min-h-10 items-center gap-1.5 text-sm font-bold text-blue-700 transition hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                >
+                  Lihat Event Sebelumnya <ArrowRight className="h-4 w-4" />
+                </button>
+              )}
+            />
           ) : (
             <div className="flex gap-4 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
               {upcoming.map((e) => (

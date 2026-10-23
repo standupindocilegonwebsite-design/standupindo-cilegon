@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { History, Plus, Search } from 'lucide-react';
+import { ArrowRight, History, Plus, Search } from 'lucide-react';
 import { useHistoryEntryState, useRestoreScrollPosition, type Router } from '@/lib/router';
 import type { OpenMic } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -7,7 +7,7 @@ import { OpenMicCard } from '@/components/cards/OpenMicCard';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { formatDate, getOpenMicNumbers } from '@/lib/format';
+import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { MemberPerformanceHistoryPage } from '@/pages/member/MemberPerformanceHistoryPage';
 
 type PerformerSummary = {
@@ -63,6 +63,12 @@ export function OpenMicPage({ router }: { router: Router }) {
   const navigateRef = useRef(router.navigate);
   navigateRef.current = router.navigate;
   const openMicNumbers = useMemo(() => getOpenMicNumbers(mics), [mics]);
+  const latestCompletedMic = useMemo(() => mics
+    .filter((mic) => getOpenMicStatus(mic.status, mic.date) === 'completed')
+    .sort((first, second) => second.date.localeCompare(first.date)
+      || (second.time ?? '').localeCompare(first.time ?? '')
+      || (second.created_at ?? '').localeCompare(first.created_at ?? '')
+      || second.id.localeCompare(first.id))[0], [mics]);
   const notificationRegistrationId = router.query.get('notificationRegistrationId');
   useRestoreScrollPosition(router, !isMemberPage && !loading);
 
@@ -264,7 +270,20 @@ export function OpenMicPage({ router }: { router: Router }) {
           {loading ? (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"><LoadingSkeleton count={3} /></div>
           ) : upcoming.length === 0 ? (
-            <EmptyState title="Belum ada Open Mic mendatang." description="Pantau terus untuk panggung berikutnya." noSmokeArea />
+            <EmptyState
+              title="Belum ada Open Mic yang tersedia."
+              description="Pantau terus untuk panggung berikutnya."
+              noSmokeArea
+              action={latestCompletedMic && (
+                <button
+                  type="button"
+                  onClick={() => router.navigate(`/open-mic/${encodeURIComponent(latestCompletedMic.slug)}#lineup`)}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-800 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                >
+                  Lihat Lineup Open Mic Sebelumnya <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                </button>
+              )}
+            />
           ) : (
             <div className="flex gap-4 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:pb-0">
               {upcoming.map((m) => <div key={m.id} className="min-w-[270px] max-w-[270px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><OpenMicCard mic={m} openMicNumber={openMicNumbers.get(m.id)} confirmedCount={counts[m.id] ?? 0} lineup={lineups[m.id]} router={router} /></div>)}
