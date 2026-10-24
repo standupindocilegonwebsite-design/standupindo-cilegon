@@ -4,7 +4,7 @@ import type { EventLineupRole, Komika } from '@/lib/types';
 import { getArchiveStageHistoryRole, matchArchivePerformers, parseEventArchive } from '@/lib/event-archive-import';
 import { slugify } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { Modal } from '@/components/ui/Modal';
+import { AdminModal as Modal } from '@/components/admin/AdminModal';
 
 type MemberRow = Pick<Komika, 'id' | 'stage_name' | 'slug'>;
 type ImportSummary = { events_created: number; lineups_created: number; experiences_created: number };

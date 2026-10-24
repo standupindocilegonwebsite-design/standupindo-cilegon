@@ -1,4 +1,6 @@
 import { KeyRound } from 'lucide-react';
+import { AdminModal } from '@/components/admin/AdminModal';
+import { MemberModal } from '@/components/member/MemberModal';
 import { Modal } from '@/components/ui/Modal';
 
 interface PasswordChangeConfirmationModalProps {
@@ -6,11 +8,15 @@ interface PasswordChangeConfirmationModalProps {
   saving: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  useAdminHeader?: boolean;
+  useMemberHeader?: boolean;
 }
 
-export function PasswordChangeConfirmationModal({ open, saving, onClose, onConfirm }: PasswordChangeConfirmationModalProps) {
+export function PasswordChangeConfirmationModal({ open, saving, onClose, onConfirm, useAdminHeader = false, useMemberHeader = false }: PasswordChangeConfirmationModalProps) {
+  const ConfirmationModal = useAdminHeader ? AdminModal : useMemberHeader ? MemberModal : Modal;
+
   return (
-    <Modal
+    <ConfirmationModal
       open={open}
       onClose={() => { if (!saving) onClose(); }}
       title="Yakin ingin mengganti password?"
@@ -26,6 +32,6 @@ export function PasswordChangeConfirmationModal({ open, saving, onClose, onConfi
           </button>
         </div>
       </div>
-    </Modal>
+    </ConfirmationModal>
   );
 }

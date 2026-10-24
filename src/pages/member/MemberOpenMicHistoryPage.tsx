@@ -9,7 +9,7 @@ import { formatDate } from '@/lib/format';
 import { CommunityCombobox } from '@/components/ui/CommunityCombobox';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
-import { Modal } from '@/components/ui/Modal';
+import { MemberModal } from '@/components/member/MemberModal';
 
 type FormState = { title: string; organizer_name: string; event_date: string; event_time: string; venue: string; city: string; notes: string; proof_url: string };
 type PageMode = 'overview' | 'choices' | 'mc-kind' | 'internal-mics' | 'performance-form' | 'mc-external-form';
@@ -258,10 +258,11 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
           {performerStatusSubmissions.length > 0 && <section className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4"><div className="flex items-center justify-between"><h2 className="text-sm font-extrabold text-slate-900">Riwayat Open Mic Eksternal</h2><span className="text-[10px] font-semibold text-slate-400">Jam terbang · bukan evaluasi</span></div><div className="mt-3 space-y-2">{performerStatusSubmissions.map((item) => <SubmissionCard key={item.id} item={item} deleting={deletingId === item.id} onDelete={deleteRejectedSubmission} />)}</div></section>}
         </div>
       </div>
-      <Modal
+      <MemberModal
         open={mode === 'choices' || mode === 'mc-kind'}
         onClose={() => { setModeHistory([]); setMode('overview'); setError(''); }}
         title={mode === 'mc-kind' ? 'Tambahkan Riwayat MC' : 'Tambahkan Riwayat'}
+        titleEyebrow="Riwayat Open Mic"
         size="sm"
       >
         <div className="space-y-2">
@@ -308,7 +309,7 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
             </>
           )}
         </div>
-      </Modal>
+      </MemberModal>
     </div>
   );
 }

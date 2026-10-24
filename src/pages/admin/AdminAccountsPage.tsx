@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Eye, EyeOff, KeyRound, Power, ShieldPlus, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { Modal } from '@/components/ui/Modal';
+import { AdminModal as Modal } from '@/components/admin/AdminModal';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
 
 type AdminRole = 'open_mic_admin' | 'event_admin' | 'admin_ticket' | 'admin_qr';

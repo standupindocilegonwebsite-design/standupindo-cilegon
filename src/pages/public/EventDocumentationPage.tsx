@@ -180,11 +180,30 @@ export function EventDocumentationPage({ router, slug, settings }: EventDocument
 
   if (loading) {
     return (
-      <div className="min-h-[70vh] bg-slate-950 px-4 py-10 text-white sm:px-8">
-        <div className="mx-auto max-w-6xl space-y-5">
-          <div className="h-[28rem] animate-pulse rounded-2xl bg-white/[0.06]" />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {Array.from({ length: 4 }, (_, index) => <div key={index} className="aspect-[4/5] animate-pulse rounded-lg bg-white/[0.06]" />)}
+      <div aria-busy="true" aria-label="Memuat dokumentasi event" className="animate-fade-in bg-slate-950 text-white">
+        <div className="relative flex min-h-[min(780px,88svh)] flex-col justify-end overflow-hidden bg-slate-900 px-4 pb-10 pt-20 sm:px-8 sm:pb-14">
+          <div className="pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-blue-950/50 via-slate-900 to-slate-950 motion-reduce:animate-none" />
+          <div className="relative mx-auto w-full max-w-7xl">
+            <div className="h-7 w-36 animate-pulse rounded-full bg-white/10 motion-reduce:animate-none" />
+            <div className="mt-5 h-10 max-w-xl animate-pulse rounded-lg bg-white/10 motion-reduce:animate-none sm:h-14" />
+            <div className="mt-5 flex flex-wrap gap-3">
+              <div className="h-5 w-32 animate-pulse rounded bg-white/10 motion-reduce:animate-none" />
+              <div className="h-5 w-40 animate-pulse rounded bg-white/10 motion-reduce:animate-none" />
+            </div>
+          </div>
+        </div>
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-8 sm:py-12">
+          <div className="mb-5 flex items-end justify-between gap-3 sm:mb-7">
+            <div className="space-y-2">
+              <div className="h-3 w-24 animate-pulse rounded bg-white/10 motion-reduce:animate-none" />
+              <div className="h-7 w-48 animate-pulse rounded bg-white/10 motion-reduce:animate-none" />
+            </div>
+            <div className="h-8 w-16 animate-pulse rounded-full bg-white/10 motion-reduce:animate-none" />
+          </div>
+          <div className="columns-2 gap-3 sm:columns-3 sm:gap-4 xl:columns-4">
+            {Array.from({ length: 4 }, (_, index) => (
+              <div key={index} className={`mb-3 break-inside-avoid animate-pulse rounded-lg bg-white/[0.06] motion-reduce:animate-none sm:mb-4 ${index % 2 === 0 ? 'aspect-[4/5]' : 'aspect-[4/3]'}`} />
+            ))}
           </div>
         </div>
       </div>

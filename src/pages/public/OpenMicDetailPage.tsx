@@ -1,5 +1,5 @@
 import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, Check, CheckCircle2, ChevronDown, Clock, Info, Instagram, Mic, Search, Send, Ticket, ArrowRight, Drama } from 'lucide-react';
 import { scrollToInstantly, type Router } from '@/lib/router';
@@ -40,7 +40,8 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
   const [numberedMics, setNumberedMics] = useState<OpenMic[]>([]);
   const [lightbox, setLightbox] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [posterShareFile, setPosterShareFile] = useState<File | null>(null);
+  const [posterShareFile, setPosterShareFile] = useState<{ posterUrl: string; slug: string; file: File } | null>(null);
+  const posterShareFileRequest = useRef<{ posterUrl: string; slug: string; promise: Promise<File | null>; controller: AbortController } | null>(null);
   const [shareLineupOpen, setShareLineupOpen] = useState(false);
   const [stageInfoExpanded, setStageInfoExpanded] = useState(false);
   const [lineupSearch, setLineupSearch] = useState('');
@@ -95,30 +96,42 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
     })();
   }, [isMemberArea, notificationRegistrationId, slug, user?.id]);
 
-  useEffect(() => {
-    setPosterShareFile(null);
+  useEffect(() => () => {
+    posterShareFileRequest.current?.controller.abort();
+  }, [mic?.poster, mic?.slug]);
+
+  async function preparePosterShareFile(): Promise<File | null> {
     const posterUrl = mic?.poster;
     const openMicSlug = mic?.slug;
-    if (!posterUrl || !openMicSlug || getOpenMicStatus(mic.status, mic.date) === 'completed' || typeof navigator === 'undefined' || typeof navigator.canShare !== 'function') return;
+    if (!posterUrl || !openMicSlug || getOpenMicStatus(mic.status, mic.date) === 'completed' || typeof navigator === 'undefined' || typeof navigator.canShare !== 'function') return null;
+    const cachedPosterFile = posterShareFile;
+    if (cachedPosterFile && cachedPosterFile.posterUrl === posterUrl && cachedPosterFile.slug === openMicSlug) return cachedPosterFile.file;
+    if (posterShareFileRequest.current?.posterUrl === posterUrl && posterShareFileRequest.current.slug === openMicSlug) return posterShareFileRequest.current.promise;
 
-    const controller = new AbortController();
-    void (async () => {
+    const requestInfo = { posterUrl, slug: openMicSlug, promise: Promise.resolve<File | null>(null), controller: new AbortController() };
+    const request = (async () => {
       try {
-        const response = await fetch(posterUrl, { signal: controller.signal });
+        const response = await fetch(posterUrl, { signal: requestInfo.controller.signal });
         if (!response.ok) throw new Error(`Gagal mengambil poster Open Mic (${response.status}).`);
         const posterBlob = await response.blob();
         if (!posterBlob.type.startsWith('image/')) throw new Error('Poster Open Mic bukan file gambar yang dapat dibagikan.');
 
         const extension = posterBlob.type === 'image/png' ? 'png' : posterBlob.type === 'image/webp' ? 'webp' : 'jpg';
         const candidate = new File([posterBlob], `${openMicSlug}-poster.${extension}`, { type: posterBlob.type });
-        if (!controller.signal.aborted && navigator.canShare({ files: [candidate] })) setPosterShareFile(candidate);
+        if (!navigator.canShare({ files: [candidate] })) return null;
+        setPosterShareFile({ posterUrl, slug: openMicSlug, file: candidate });
+        return candidate;
       } catch (error) {
-        if (!controller.signal.aborted) console.error('Gagal menyiapkan poster Open Mic untuk dibagikan.', error);
+        if ((error as DOMException)?.name !== 'AbortError') console.error('Gagal menyiapkan poster Open Mic untuk dibagikan.', error);
+        return null;
+      } finally {
+        if (posterShareFileRequest.current === requestInfo) posterShareFileRequest.current = null;
       }
     })();
-
-    return () => controller.abort();
-  }, [mic?.poster, mic?.slug, mic?.status, mic?.date]);
+    requestInfo.promise = request;
+    posterShareFileRequest.current = requestInfo;
+    return request;
+  }
 
   useEffect(() => {
     if (!mic) return;
@@ -265,11 +278,17 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
   async function shareLineup() {
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
-        await navigator.share({
+        const cachedPosterFile = posterShareFile;
+        const sharePosterFile = cachedPosterFile && cachedPosterFile.posterUrl === mic?.poster && cachedPosterFile.slug === mic?.slug
+          ? cachedPosterFile.file
+          : null;
+        const shareRequest = navigator.share({
           title: shareTitle,
           text: `${shareText}\n${pageUrl}`,
-          ...(posterShareFile && navigator.canShare?.({ files: [posterShareFile] }) ? { files: [posterShareFile] } : {}),
+          ...(sharePosterFile && navigator.canShare?.({ files: [sharePosterFile] }) ? { files: [sharePosterFile] } : {}),
         });
+        void preparePosterShareFile();
+        await shareRequest;
         return;
       } catch (error) {
         if ((error as DOMException)?.name === 'AbortError') return;
@@ -411,7 +430,7 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
               <h2 className={`text-lg font-bold sm:text-xl ${isMemberArea ? 'text-slate-900' : 'text-white'}`}>{currentStatus === 'completed' ? 'DAFTAR LINEUP' : 'LINEUP SEMENTARA'}</h2>
               <p className={`mt-1 text-sm font-semibold ${isMemberArea ? 'text-slate-600' : 'text-slate-300'}`}>{currentStatus === 'completed' ? `${confirmed.length} KOMIKA PERFORM` : `${confirmed.length} KOMIKA TERDAFTAR`}</p>
             </div>
-            <button onClick={() => currentStatus === 'completed' ? setShareLineupOpen(true) : void shareLineup()} aria-label={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} title={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} className={`inline-flex h-11 w-11 shrink-0 items-center justify-center transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 ${isMemberArea ? 'text-blue-700 focus-visible:ring-blue-500/70' : 'text-white focus-visible:ring-white/70'}`}>
+            <button onClick={() => currentStatus === 'completed' ? setShareLineupOpen(true) : void shareLineup()} onPointerEnter={() => void preparePosterShareFile()} onFocus={() => void preparePosterShareFile()} aria-label={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} title={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} className={`inline-flex h-11 w-11 shrink-0 items-center justify-center transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 ${isMemberArea ? 'text-blue-700 focus-visible:ring-blue-500/70' : 'text-white focus-visible:ring-white/70'}`}>
               {copied ? <Check className="h-5 w-5" /> : <Send className="h-5 w-5" />}
             </button>
           </div>

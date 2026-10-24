@@ -3,7 +3,7 @@ import { Check, ChevronDown, Eye, EyeOff, KeyRound, Power, RefreshCw, Search, Tr
 import type { Komika } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { getFunctionErrorMessage } from '@/lib/function-errors';
-import { Modal } from '@/components/ui/Modal';
+import { AdminModal as Modal } from '@/components/admin/AdminModal';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
 
 interface MemberAccount {

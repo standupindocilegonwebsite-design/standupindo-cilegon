@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownWideNarrow, Building2, CalendarDays, Download, Globe2, MapPin, Mic, Search, Send, Share2, Trophy } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration } from '@/lib/types';
@@ -6,7 +6,8 @@ import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { formatDate } from '@/lib/format';
-import { Modal } from '@/components/ui/Modal';
+import { MemberModal } from '@/components/member/MemberModal';
+import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 import { useSiteSettings } from '@/lib/useSiteSettings';
 
 type PerformanceHistoryItem = {
@@ -276,6 +277,7 @@ export function MemberPerformanceHistoryPage({ router, embedded = false }: { rou
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [historyCategory, setHistoryCategory] = useState<HistoryCategory>('open-mic');
+  const historyTabsRef = useRef<HTMLDivElement>(null);
   const [sourceFilter, setSourceFilter] = useState<'all' | PerformanceHistoryItem['source']>('all');
   const [shareType, setShareType] = useState<ShareSummaryType | null>(null);
   const [shareFeedback, setShareFeedback] = useState('');
@@ -535,7 +537,8 @@ export function MemberPerformanceHistoryPage({ router, embedded = false }: { rou
       {!embedded && <PageHeader router={router} title="Riwayat Pengalamanku" subtitle="Catatan penampilan Open Mic dan pengalaman MC kamu." />}
       <div className={`container-app rounded-2xl py-6 transition-colors sm:py-8 ${historyCategory === 'mc' ? 'bg-violet-50/50' : 'bg-blue-50/50'}`}>
         {error && <div role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
-        <div className="mb-4 grid grid-cols-2 rounded-xl border border-slate-300 bg-white p-1" aria-label="Kategori riwayat pengalaman">
+        <div ref={historyTabsRef} className="relative isolate mb-4 grid grid-cols-2 rounded-xl border border-slate-300 bg-white p-1" aria-label="Kategori riwayat pengalaman">
+          <SlidingTabIndicator trackRef={historyTabsRef} activeId={historyCategory} className={`rounded-lg shadow-sm ${historyCategory === 'mc' ? 'bg-violet-600' : 'bg-blue-600'}`} />
           {([
             ['open-mic', 'OPEN MIC'],
             ['mc', 'MC'],
@@ -543,9 +546,10 @@ export function MemberPerformanceHistoryPage({ router, embedded = false }: { rou
             <button
               key={category}
               type="button"
+              data-sliding-tab={category}
               onClick={() => { setHistoryCategory(category); setSearch(''); setSourceFilter('all'); }}
               aria-pressed={historyCategory === category}
-              className={`rounded-lg px-2 py-2.5 text-xs font-extrabold transition sm:text-sm ${historyCategory === category ? category === 'mc' ? 'bg-violet-600 text-white shadow-sm' : 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+              className={`relative z-10 rounded-lg px-2 py-2.5 text-xs font-extrabold transition sm:text-sm ${historyCategory === category ? 'bg-transparent text-white shadow-none' : 'text-slate-600 hover:bg-slate-100'}`}
             >
               {label}
             </button>
@@ -731,7 +735,7 @@ export function MemberPerformanceHistoryPage({ router, embedded = false }: { rou
           </div>
         )}
       </div>
-      <Modal open={shareType !== null} onClose={() => { if (!sharing) { setShareType(null); setShareFeedback(''); } }} title="Bagikan Ringkasan" size="md">
+      <MemberModal open={shareType !== null} onClose={() => { if (!sharing) { setShareType(null); setShareFeedback(''); } }} title="Bagikan Ringkasan" size="md">
         {shareType && <div className="space-y-4">
           <div>
             <p className="mb-2 text-xs font-bold text-slate-700">Pilih ringkasan</p>
@@ -802,7 +806,7 @@ export function MemberPerformanceHistoryPage({ router, embedded = false }: { rou
             </button>
           </div>
         </div>}
-      </Modal>
+      </MemberModal>
     </div>
   );
 }

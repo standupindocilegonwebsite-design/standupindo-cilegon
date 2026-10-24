@@ -7,6 +7,7 @@ import { OpenMicCard } from '@/components/cards/OpenMicCard';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { MemberPerformanceHistoryPage } from '@/pages/member/MemberPerformanceHistoryPage';
 
@@ -50,6 +51,7 @@ function normalizePerformerValue(value: string | null): string {
 export function OpenMicPage({ router }: { router: Router }) {
   const isMemberPage = router.path === '/member/open-mic';
   const [memberTab, setMemberTab] = useState<MemberOpenMicTab>('upcoming');
+  const memberTabsRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [mics, setMics] = useState<OpenMic[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -226,13 +228,15 @@ export function OpenMicPage({ router }: { router: Router }) {
       {isMemberPage && (
         <div className="container-app pt-5">
           <div className="flex items-center gap-3">
-            <div className="grid min-w-0 flex-1 grid-cols-2 gap-1.5 rounded-2xl border border-slate-200 bg-slate-100 p-1.5" role="tablist" aria-label="Menu Open Mic Member">
+            <div ref={memberTabsRef} className="relative isolate grid min-w-0 flex-1 grid-cols-2 gap-1.5 rounded-2xl border border-slate-200 bg-slate-100 p-1.5" role="tablist" aria-label="Menu Open Mic Member">
+              <SlidingTabIndicator trackRef={memberTabsRef} activeId={memberTab} className="rounded-xl border border-blue-600 bg-blue-600 shadow-md shadow-blue-600/20" />
               <button
                 type="button"
                 role="tab"
                 aria-selected={memberTab === 'upcoming'}
                 onClick={() => setMemberTab('upcoming')}
-                className={`rounded-xl border px-2 py-2.5 text-[10px] font-extrabold tracking-wide transition sm:text-xs ${memberTab === 'upcoming' ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'border-transparent bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-900'}`}
+                data-sliding-tab="upcoming"
+                className={`relative z-10 rounded-xl border px-2 py-2.5 text-[10px] font-extrabold tracking-wide transition sm:text-xs ${memberTab === 'upcoming' ? '!border-transparent !bg-transparent !shadow-none text-white' : 'border-transparent bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-900'}`}
               >
                 MENDATANG
               </button>
@@ -241,7 +245,8 @@ export function OpenMicPage({ router }: { router: Router }) {
                 role="tab"
                 aria-selected={memberTab === 'history'}
                 onClick={() => setMemberTab('history')}
-                className={`flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-[10px] font-extrabold tracking-wide transition sm:text-xs ${memberTab === 'history' ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'border-transparent bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-900'}`}
+                data-sliding-tab="history"
+                className={`relative z-10 flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-[10px] font-extrabold tracking-wide transition sm:text-xs ${memberTab === 'history' ? '!border-transparent !bg-transparent !shadow-none text-white' : 'border-transparent bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-900'}`}
               >
                 <History className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">RIWAYAT PENGALAMANKU</span>
@@ -265,7 +270,7 @@ export function OpenMicPage({ router }: { router: Router }) {
       ) : (
       <div className="container-app space-y-8 py-8">
         <section data-scroll-reveal className="scroll-reveal is-visible">
-          <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-blue-400" /><h2 className={`text-xl font-extrabold ${isMemberPage ? 'text-slate-900' : 'text-white'}`}>Mendatang</h2><span aria-label={`${upcoming.length} Open Mic mendatang`} className="inline-flex h-10 min-w-10 items-center justify-center rounded-full border-2 border-blue-700 bg-white px-2 text-lg font-black leading-none tabular-nums text-blue-800 shadow-md">{upcoming.length}</span></div>
+          <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-blue-400" /><h2 className={`text-xl font-extrabold ${isMemberPage ? 'text-slate-900' : 'text-white'}`}>Mendatang</h2><span aria-label={`${upcoming.length} Open Mic mendatang`} className={`inline-flex items-center justify-center rounded-full border border-blue-700 bg-white font-black leading-none tabular-nums text-blue-800 ${isMemberPage ? 'h-8 min-w-8 px-1.5 text-sm shadow-sm' : 'h-10 min-w-10 border-2 px-2 text-lg shadow-md'}`}>{upcoming.length}</span></div>
           <div className="relative mb-4"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="search" value={upcomingSearch} onChange={(event) => setUpcomingSearch(event.target.value)} placeholder="Cari Open Mic mendatang..." className="input-field !pl-11" aria-label="Cari Open Mic mendatang" /></div>
           {loading ? (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"><LoadingSkeleton count={3} /></div>

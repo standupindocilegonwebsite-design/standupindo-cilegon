@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, Clock3, Crown, Download, LoaderCircle, Medal, MessageCircle, Printer, Search, Users } from 'lucide-react';
-import { Modal } from '@/components/ui/Modal';
+import { AdminModal as Modal } from '@/components/admin/AdminModal';
 import type { EventItem } from '@/lib/types';
 import { formatDate, getEventStatus, normalizeWhatsappNumber } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +8,7 @@ import { TicketPagination } from '@/components/TicketPagination';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
 import { downloadXlsxTable } from '@/lib/xlsx';
+import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 
 const PAGE_SIZE = 30;
 const AUDIENCE_HEADERS = ['Nama', 'WhatsApp', 'Event', 'Jumlah Order', 'Jumlah Tiket', 'Check-in', 'Belum Check-in', 'Nomor Order'];
@@ -84,6 +85,7 @@ async function loadAudience(eventFilter: string) {
 }
 
 export function TicketAudiencePage({ events }: { events: EventItem[] }) {
+  const rankingTabsRef = useRef<HTMLDivElement>(null);
   const [guests, setGuests] = useState<AudienceGuest[]>([]);
   const [search, setSearch] = useState('');
   const [eventFilter, setEventFilter] = useState('all');
@@ -332,10 +334,11 @@ export function TicketAudiencePage({ events }: { events: EventItem[] }) {
             </> : <p className="mt-1 text-sm text-slate-500">Belum ada data pembeli.</p>}
           </div>
         </div>
-        <div role="group" aria-label="Urutkan peringkat pembeli" className="mt-3 grid min-h-12 w-full grid-cols-3 rounded-lg bg-slate-200 p-1 sm:mt-0 sm:w-[340px] sm:shrink-0">
-          <button type="button" aria-pressed={sortBy === 'tickets'} onClick={() => setSortBy('tickets')} className={`min-h-11 rounded-md px-1 py-2 text-xs font-extrabold leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 sm:px-2 ${sortBy === 'tickets' ? 'bg-blue-700 text-white shadow-md ring-1 ring-blue-800' : 'text-slate-800 hover:bg-white/70'}`}>Tiket Terbanyak</button>
-          <button type="button" aria-pressed={sortBy === 'combined'} onClick={() => setSortBy('combined')} className={`min-h-11 rounded-md px-1 py-2 text-xs font-extrabold leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 sm:px-2 ${sortBy === 'combined' ? 'bg-blue-700 text-white shadow-md ring-1 ring-blue-800' : 'text-slate-800 hover:bg-white/70'}`}>Gabungan</button>
-          <button type="button" aria-pressed={sortBy === 'events'} onClick={() => setSortBy('events')} className={`min-h-11 rounded-md px-1 py-2 text-xs font-extrabold leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 sm:px-2 ${sortBy === 'events' ? 'bg-blue-700 text-white shadow-md ring-1 ring-blue-800' : 'text-slate-800 hover:bg-white/70'}`}>Event Terbanyak</button>
+        <div ref={rankingTabsRef} role="tablist" aria-label="Urutkan peringkat pembeli" className="relative isolate mt-3 grid min-h-12 w-full grid-cols-3 rounded-lg bg-slate-200 p-1 sm:mt-0 sm:w-[340px] sm:shrink-0">
+          <SlidingTabIndicator trackRef={rankingTabsRef} activeId={sortBy} className="rounded-md bg-blue-700 shadow-md ring-1 ring-blue-800" />
+          <button type="button" role="tab" aria-selected={sortBy === 'tickets'} data-sliding-tab="tickets" onClick={() => setSortBy('tickets')} className={`relative z-10 min-h-11 rounded-md px-1 py-2 text-xs font-extrabold leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 sm:px-2 ${sortBy === 'tickets' ? 'bg-transparent text-white shadow-none' : 'text-slate-800 hover:bg-white/70'}`}>Tiket Terbanyak</button>
+          <button type="button" role="tab" aria-selected={sortBy === 'combined'} data-sliding-tab="combined" onClick={() => setSortBy('combined')} className={`relative z-10 min-h-11 rounded-md px-1 py-2 text-xs font-extrabold leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 sm:px-2 ${sortBy === 'combined' ? 'bg-transparent text-white shadow-none' : 'text-slate-800 hover:bg-white/70'}`}>Gabungan</button>
+          <button type="button" role="tab" aria-selected={sortBy === 'events'} data-sliding-tab="events" onClick={() => setSortBy('events')} className={`relative z-10 min-h-11 rounded-md px-1 py-2 text-xs font-extrabold leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 sm:px-2 ${sortBy === 'events' ? 'bg-transparent text-white shadow-none' : 'text-slate-800 hover:bg-white/70'}`}>Event Terbanyak</button>
         </div>
       </div>
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}

@@ -4,7 +4,7 @@ import type { Router } from '@/lib/router';
 import type { Material, MaterialSetlist, MaterialSetlistItem } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { Modal } from '@/components/ui/Modal';
+import { MemberModal } from '@/components/member/MemberModal';
 import { parseMaterialContent } from '@/lib/material-content';
 import { PageHeader } from '@/components/PageHeader';
 import { downloadSetlistDocx, downloadSetlistPdf } from '@/lib/material-setlist-export';
@@ -231,7 +231,7 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
           })}
         </section>
       </div>
-      <Modal
+      <MemberModal
         open={builderOpen}
         onClose={() => { if (!saving) cancelSetlistBuilder(); }}
         title={editingSetlistId ? 'Edit Setlist' : 'Buat Setlist'}
@@ -338,8 +338,8 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
             </div>
           </div>
         </form>
-      </Modal>
-      <Modal
+      </MemberModal>
+      <MemberModal
         open={Boolean(readingSetlist)}
         onClose={() => setReadingSetlist(null)}
         title={readingSetlist?.name ?? 'Mode Baca Setlist'}
@@ -394,8 +394,8 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
             </div>
           );
         })()}
-      </Modal>
-      <Modal open={Boolean(exportSetlist)} onClose={() => setExportSetlist(null)} title="Unduh Setlist" titleEyebrow={exportSetlist?.name} size="sm">
+      </MemberModal>
+      <MemberModal open={Boolean(exportSetlist)} onClose={() => setExportSetlist(null)} title="Unduh Setlist" titleEyebrow={exportSetlist?.name} size="sm">
         <div className="space-y-3">
           <p className="text-sm leading-6 text-slate-600">Pilih format file. PDF siap dibaca atau dicetak, sedangkan Word bisa diedit kembali.</p>
           <button type="button" onClick={() => exportSetlistFile('pdf')} className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-300 hover:bg-blue-50/50">
@@ -408,8 +408,8 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
           </button>
           <button type="button" onClick={() => setExportSetlist(null)} className="btn-secondary w-full">Batal</button>
         </div>
-      </Modal>
-      <Modal open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} title="YAKIN HAPUS SETLIST?" titleEyebrow="KONFIRMASI HAPUS" size="sm">
+      </MemberModal>
+      <MemberModal open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} title="YAKIN HAPUS SETLIST?" titleEyebrow="KONFIRMASI HAPUS" size="sm">
         {deleteTarget && <div className="space-y-4">
           <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
             <div className="flex items-center gap-2 bg-red-700 px-4 py-3 text-white">
@@ -423,10 +423,10 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
             <button type="button" onClick={() => { const target = deleteTarget; setDeleteTarget(null); if (target) void deleteSetlist(target); }} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"><Trash2 className="h-4 w-4" /> Hapus Setlist</button>
           </div>
         </div>}
-      </Modal>
-      <Modal open={Boolean(error)} onClose={() => setError('')} title="Setlist">
+      </MemberModal>
+      <MemberModal open={Boolean(error)} onClose={() => setError('')} title="Setlist">
         <div className="space-y-4"><div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-700">{error}</div><button type="button" onClick={() => setError('')} className="btn-primary w-full">Mengerti</button></div>
-      </Modal>
+      </MemberModal>
     </div>
   );
 }

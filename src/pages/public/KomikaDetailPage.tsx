@@ -39,6 +39,8 @@ interface Props {
   slug: string;
 }
 
+const JOURNEY_PAGE_SIZE = 20;
+
 function formatJourneyDate(value: string): string {
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return formatDate(value);
@@ -52,6 +54,8 @@ export function KomikaDetailPage({ router, slug }: Props) {
   const [lightbox, setLightbox] = useState(false);
   const [officialHistory, setOfficialHistory] = useState<OfficialStageHistoryEntry[]>([]);
   const [externalHistory, setExternalHistory] = useState<ExternalStageHistoryEntry[]>([]);
+  const [visibleOfficialCount, setVisibleOfficialCount] = useState(JOURNEY_PAGE_SIZE);
+  const [visibleExternalCount, setVisibleExternalCount] = useState(JOURNEY_PAGE_SIZE);
   const [journeyError, setJourneyError] = useState('');
 
   useEffect(() => {
@@ -284,12 +288,12 @@ export function KomikaDetailPage({ router, slug }: Props) {
             {journeyError && <p role="alert" className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-900">{journeyError}</p>}
             <div className="mt-4 grid gap-3.5">
               {!journeyError && officialHistory.length > 0 && <div className="rounded-xl border border-blue-200 bg-white p-3 shadow-sm sm:p-3.5">
-                <div className="mb-3 flex items-start justify-between gap-3 border-b border-blue-100 pb-2.5">
+                <div className="-mx-3 -mt-3 mb-3 flex items-start justify-between gap-3 rounded-t-xl border-b border-[#0B1F44] bg-[#0B1F44] px-3 pt-3 pb-2.5 text-white sm:-mx-3.5 sm:-mt-3.5 sm:px-3.5 sm:pt-3.5">
                   <div>
-                    <h3 className="text-sm font-extrabold tracking-tight text-blue-950 sm:text-base">Event Standupindo Cilegon</h3>
-                    <p className="mt-0.5 text-xs font-medium leading-5 text-slate-700">Acara bersama komunitas</p>
+                    <h3 className="text-sm font-extrabold tracking-tight text-white sm:text-base">Event Standupindo Cilegon</h3>
+                    <p className="mt-0.5 text-xs font-medium leading-5 text-blue-100">Acara bersama komunitas</p>
                   </div>
-                  <span className="ml-auto shrink-0 rounded-full bg-blue-100 px-2.5 py-1 text-sm font-extrabold leading-none text-blue-900">{officialHistory.length}</span>
+                  <span className="ml-auto shrink-0 rounded-full bg-white px-2.5 py-1 text-sm font-extrabold leading-none text-[#0B1F44] shadow-sm">{officialHistory.length}</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full table-fixed text-left">
@@ -301,7 +305,7 @@ export function KomikaDetailPage({ router, slug }: Props) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {officialHistory.map((entry) => (
+                      {officialHistory.slice(0, visibleOfficialCount).map((entry) => (
                         <tr key={entry.id} className="group transition-colors hover:bg-blue-50/60">
                           <td className="px-2 py-3 align-top">
                             <span className="text-xs font-semibold leading-5 text-slate-800 sm:text-sm">
@@ -330,14 +334,15 @@ export function KomikaDetailPage({ router, slug }: Props) {
                     </tbody>
                   </table>
                 </div>
+                {visibleOfficialCount < officialHistory.length && <button type="button" onClick={() => setVisibleOfficialCount((count) => count + JOURNEY_PAGE_SIZE)} className="mt-3 min-h-10 w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-800 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">Lihat Lebih Banyak ({officialHistory.length - visibleOfficialCount} tersisa)</button>}
               </div>}
               {!journeyError && externalHistory.length > 0 && <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-3.5">
-                <div className="mb-3 flex items-start justify-between gap-3 border-b border-slate-200 pb-2.5">
+                <div className="-mx-3 -mt-3 mb-3 flex items-start justify-between gap-3 rounded-t-xl border-b border-blue-100 bg-blue-50 px-3 pt-3 pb-2.5 sm:-mx-3.5 sm:-mt-3.5 sm:px-3.5 sm:pt-3.5">
                   <div>
-                    <h3 className="text-sm font-extrabold tracking-tight text-slate-800 sm:text-base">Event di Luar Standupindo Cilegon</h3>
+                    <h3 className="text-sm font-extrabold tracking-tight text-blue-950 sm:text-base">Event di Luar Standupindo Cilegon</h3>
                     <p className="mt-0.5 text-xs font-medium leading-5 text-slate-700">Acara bersama komunitas atau penyelenggara lain</p>
                   </div>
-                  <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-sm font-extrabold leading-none text-slate-800">{externalHistory.length}</span>
+                  <span className="ml-auto shrink-0 rounded-full bg-blue-100 px-2.5 py-1 text-sm font-extrabold leading-none text-blue-900">{externalHistory.length}</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full table-fixed text-left">
@@ -349,7 +354,7 @@ export function KomikaDetailPage({ router, slug }: Props) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {externalHistory.map((entry) => {
+                      {externalHistory.slice(0, visibleExternalCount).map((entry) => {
                         const url = safeExternalUrl(entry.external_url);
                         return (
                           <tr key={entry.id} className="transition-colors hover:bg-slate-50">
@@ -376,6 +381,7 @@ export function KomikaDetailPage({ router, slug }: Props) {
                     </tbody>
                   </table>
                 </div>
+                {visibleExternalCount < externalHistory.length && <button type="button" onClick={() => setVisibleExternalCount((count) => count + JOURNEY_PAGE_SIZE)} className="mt-3 min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-800 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">Lihat Lebih Banyak ({externalHistory.length - visibleExternalCount} tersisa)</button>}
               </div>}
             </div>
           </section>

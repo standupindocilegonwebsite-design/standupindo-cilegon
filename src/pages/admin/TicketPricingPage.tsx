@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, BadgePercent, CalendarClock, Check, ChevronDown, Clock3, Pencil, Plus, RefreshCw, Save, Ticket, Trash2, X } from 'lucide-react';
 import type { EventItem, EventTicket } from '@/lib/types';
 import { formatPrice, getEventStatus } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
-import { Modal } from '@/components/ui/Modal';
+import { AdminModal as Modal } from '@/components/admin/AdminModal';
+import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 
 type Tab = 'fees' | 'vouchers';
 type FeeSetting = {
@@ -128,6 +129,7 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
   onBack: () => void;
 }) {
   const [tab, setTab] = useState<Tab>(initialTab);
+  const tabsRef = useRef<HTMLDivElement>(null);
   const [eventId, setEventId] = useState(events[0]?.id ?? '');
   const [tickets, setTickets] = useState<EventTicket[]>([]);
   const [feeSettings, setFeeSettings] = useState<FeeSetting[]>([]);
@@ -495,9 +497,10 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
         action={<button type="button" onClick={() => void load()} disabled={loading} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 disabled:cursor-wait disabled:opacity-60" aria-label="Muat ulang pengaturan" title="Muat ulang pengaturan"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /></button>}
       />
 
-      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5 sm:inline-grid sm:min-w-[24rem]">
-        <button type="button" onClick={() => setTab('fees')} className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition ${tab === 'fees' ? 'bg-white text-blue-800 shadow-sm' : 'text-slate-600 hover:bg-white/70'}`}><Ticket className="h-4 w-4" /> Biaya</button>
-        <button type="button" onClick={() => setTab('vouchers')} className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition ${tab === 'vouchers' ? 'bg-white text-blue-800 shadow-sm' : 'text-slate-600 hover:bg-white/70'}`}><BadgePercent className="h-4 w-4" /> Voucher</button>
+      <div ref={tabsRef} className="relative isolate grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5 sm:inline-grid sm:min-w-[24rem]">
+        <SlidingTabIndicator trackRef={tabsRef} activeId={tab} className={`rounded-xl shadow-sm ${tab === 'fees' ? 'bg-blue-600' : 'bg-violet-600'}`} />
+        <button type="button" data-sliding-tab="fees" onClick={() => setTab('fees')} className={`relative z-10 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition ${tab === 'fees' ? 'bg-transparent text-white shadow-none' : 'text-slate-600 hover:bg-white/70'}`}><Ticket className="h-4 w-4" /> Biaya</button>
+        <button type="button" data-sliding-tab="vouchers" onClick={() => setTab('vouchers')} className={`relative z-10 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition ${tab === 'vouchers' ? 'bg-transparent text-white shadow-none' : 'text-slate-600 hover:bg-white/70'}`}><BadgePercent className="h-4 w-4" /> Voucher</button>
       </div>
 
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -576,13 +579,13 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
           }}
         >
           <form onSubmit={(event) => void saveFee(event)} className="max-h-[92dvh] w-full space-y-5 overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-4 shadow-2xl sm:max-w-xl sm:rounded-2xl sm:p-6">
-            <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><Ticket className="h-5 w-5" /></span>
+            <div className="-mx-4 -mt-4 flex items-start gap-3 bg-gradient-to-br from-blue-700 via-blue-800 to-blue-900 px-4 pb-3 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pb-4 sm:pt-5">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white"><Ticket className="h-5 w-5" /></span>
               <div className="min-w-0 flex-1">
-                <h2 id="fee-form-title" className="text-base font-extrabold text-slate-900">{feeEditingId ? 'Edit Biaya Tambahan' : 'Tambah Biaya Tambahan'}</h2>
-                <p className="mt-1 text-sm text-slate-500">{selectedEvent.title}</p>
+                <h2 id="fee-form-title" className="text-base font-extrabold text-white">{feeEditingId ? 'Edit Biaya Tambahan' : 'Tambah Biaya Tambahan'}</h2>
+                <p className="mt-1 text-sm text-blue-100">{selectedEvent.title}</p>
               </div>
-              <button type="button" onClick={() => setFeeModalOpen(false)} disabled={saving} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 disabled:opacity-50" aria-label="Tutup pengaturan biaya"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setFeeModalOpen(false)} disabled={saving} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 disabled:opacity-50" aria-label="Tutup pengaturan biaya"><X className="h-5 w-5" /></button>
             </div>
             {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
             <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 px-4">
@@ -626,13 +629,13 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
           }}
         >
         <form onSubmit={(event) => void saveVoucher(event)} className="max-h-[92dvh] w-full space-y-5 overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-4 shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:p-6">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-700"><BadgePercent className="h-5 w-5" /></span>
+          <div className="-mx-4 -mt-4 flex items-start gap-3 bg-gradient-to-br from-blue-700 via-blue-800 to-blue-900 px-4 pb-3 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pb-4 sm:pt-5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white"><BadgePercent className="h-5 w-5" /></span>
             <div className="min-w-0 flex-1">
-              <h2 id="voucher-form-title" className="text-base font-extrabold text-slate-900">{voucherForm.id ? 'Edit Voucher' : 'Buat Voucher Baru'}</h2>
-              <p className="mt-1 text-sm text-slate-500">{selectedEvent.title}</p>
+              <h2 id="voucher-form-title" className="text-base font-extrabold text-white">{voucherForm.id ? 'Edit Voucher' : 'Buat Voucher Baru'}</h2>
+              <p className="mt-1 text-sm text-blue-100">{selectedEvent.title}</p>
             </div>
-            <button type="button" onClick={() => setVoucherModalOpen(false)} disabled={saving} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 disabled:opacity-50" aria-label="Tutup form voucher"><X className="h-5 w-5" /></button>
+            <button type="button" onClick={() => setVoucherModalOpen(false)} disabled={saving} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 disabled:opacity-50" aria-label="Tutup form voucher"><X className="h-5 w-5" /></button>
           </div>
           {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
           <div className="grid gap-4 sm:grid-cols-2">

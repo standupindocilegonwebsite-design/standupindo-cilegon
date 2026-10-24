@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Check, ChevronDown, ExternalLink, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import type { MemberStageExperience, MemberStageRole } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { Modal } from '@/components/ui/Modal';
+import { MemberModal } from '@/components/member/MemberModal';
 import { formatDate, safeExternalUrl } from '@/lib/format';
 
 const ROLE_OPTIONS: MemberStageRole[] = [
@@ -155,7 +155,7 @@ export function MemberStageExperienceModal({ komikaId, onClose }: { komikaId: st
   }
 
   return (
-    <Modal open onClose={onClose} title="Kelola Perjalanan Panggung" titleEyebrow="Perjalanan Lainnya" size="lg">
+    <MemberModal open onClose={onClose} title="Kelola Perjalanan Panggung" titleEyebrow="Perjalanan Lainnya" size="lg">
       <div className="space-y-5">
         <p className="text-sm leading-6 text-slate-600">Catat penampilan di luar Event resmi Standupindo Cilegon. Pengalaman yang disimpan akan tampil pada profil publikmu.</p>
         {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
@@ -270,6 +270,6 @@ export function MemberStageExperienceModal({ komikaId, onClose }: { komikaId: st
               </ul>}
         </section>
       </div>
-    </Modal>
+    </MemberModal>
   );
 }

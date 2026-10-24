@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/lib/auth-context';
-import { Modal } from '@/components/ui/Modal';
+import { MemberModal } from '@/components/member/MemberModal';
 
 export function MemberMorePage({ router }: { router: Router }) {
   const { isEvaluator, signOut } = useAuth();
@@ -89,7 +89,7 @@ export function MemberMorePage({ router }: { router: Router }) {
           </button>
         </div>
       </div>
-      <Modal
+      <MemberModal
         open={confirmLogout}
         onClose={() => setConfirmLogout(false)}
         title="KONFIRMASI KELUAR"
@@ -97,10 +97,6 @@ export function MemberMorePage({ router }: { router: Router }) {
         ariaLabel="Konfirmasi keluar akun"
         size="sm"
         panelClassName="!max-w-[26rem] !rounded-[1.75rem] !border-blue-700 !shadow-[0_28px_80px_rgba(15,23,42,0.28)]"
-        headerClassName="!bg-blue-700 !px-5 !pb-4 !pt-4 sm:!px-6 sm:!pb-4"
-        titleClassName="!text-white"
-        titleEyebrowClassName="!text-blue-100"
-        closeButtonClassName="!bg-white/15 !text-white hover:!bg-white/25 hover:!text-white"
       >
         <div className="space-y-5 pb-1 pt-1">
           <div className="flex items-center gap-3.5 rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 sm:p-4">
@@ -119,7 +115,7 @@ export function MemberMorePage({ router }: { router: Router }) {
             </button>
           </div>
         </div>
-      </Modal>
+      </MemberModal>
     </div>
   );
 }

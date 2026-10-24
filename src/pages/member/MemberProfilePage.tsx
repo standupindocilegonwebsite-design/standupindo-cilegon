@@ -248,7 +248,6 @@ export function MemberProfilePage({ router }: { router: Router }) {
           {!editingProfile && <MemberStageJourneySummary
             key={journeyRefresh}
             komikaId={profile.id}
-            router={router}
             onManage={() => setStageExperienceOpen(true)}
           />}
 
@@ -279,7 +278,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
               <div>
                 <label className="label-field" htmlFor="new-specialty">Spesialisasi</label>
                 <div className="flex gap-2">
-                  <input id="new-specialty" value={newSpecialty} onChange={(event) => setNewSpecialty(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addSpecialty(); } }} className="input-field" placeholder="Contoh: Observasi" />
+                  <input id="new-specialty" value={newSpecialty} onChange={(event) => setNewSpecialty(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addSpecialty(); } }} className="input-field" placeholder="Contoh: Komika" />
                   <button type="button" onClick={addSpecialty} className="btn-secondary shrink-0" aria-label="Tambah spesialisasi" title="Tambah spesialisasi"><Plus className="h-4 w-4" /></button>
                 </div>
                 {form.specialties.length > 0 && <ul className="mt-3 space-y-2">

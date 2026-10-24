@@ -216,6 +216,7 @@ export function AdminProfileSettingsPage({ onNotice, onBack }: { onNotice: (mess
         saving={savingPassword}
         onClose={() => setPasswordConfirmationOpen(false)}
         onConfirm={() => void changePassword()}
+        useAdminHeader
       />
     </div>
   );

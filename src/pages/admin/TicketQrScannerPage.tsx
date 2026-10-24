@@ -9,7 +9,7 @@ import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
 import { getEventStatus } from '@/lib/format';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
-import { Modal } from '@/components/ui/Modal';
+import { AdminModal as Modal } from '@/components/admin/AdminModal';
 
 interface ScannerEvent { id: string; title: string; date: string; status: 'upcoming' | 'completed' | 'cancelled'; total: number; checked_in: number; }
 interface RecentCheckIn {

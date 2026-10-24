@@ -7,7 +7,8 @@ import { supabase } from '@/lib/supabase';
 import { formatDate } from '@/lib/format';
 import { MaterialContentEditor } from '@/components/MaterialContentEditor';
 import { parseMaterialContent, type MaterialContentBlock } from '@/lib/material-content';
-import { Modal } from '@/components/ui/Modal';
+import { MemberModal } from '@/components/member/MemberModal';
+import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 import { MaterialDurationInput } from '@/components/MaterialDurationInput';
 import { formatEstimatedDuration, isEstimatedDurationInputValid, parseEstimatedDuration } from '@/lib/material-duration';
 
@@ -35,6 +36,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState<DetailTab>('current');
+  const versionTabsRef = useRef<HTMLDivElement>(null);
   const [readingMode, setReadingMode] = useState(false);
   const [readingTheme, setReadingTheme] = useState<ReadingTheme>('light');
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
@@ -479,7 +481,11 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
             </form>
           ) : (
             <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
-              <div className="mb-4 flex gap-2 rounded-xl bg-slate-100 p-1"><button type="button" onClick={() => setTab('current')} className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold ${tab === 'current' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Versi Sekarang</button><button type="button" disabled={!material.previous_content} onClick={() => setTab('previous')} className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40 ${tab === 'previous' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Versi Sebelumnya</button></div>
+              <div ref={versionTabsRef} className="relative isolate mb-4 flex gap-2 rounded-xl bg-slate-100 p-1">
+                <SlidingTabIndicator trackRef={versionTabsRef} activeId={tab} className="rounded-lg bg-white shadow-sm" />
+                <button type="button" data-sliding-tab="current" onClick={() => setTab('current')} className={`relative z-10 flex-1 rounded-lg px-3 py-2 text-sm font-bold ${tab === 'current' ? 'bg-transparent text-blue-700 shadow-none' : 'text-slate-500'}`}>Versi Sekarang</button>
+                <button type="button" data-sliding-tab="previous" disabled={!material.previous_content} onClick={() => setTab('previous')} className={`relative z-10 flex-1 rounded-lg px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40 ${tab === 'previous' ? 'bg-transparent text-blue-700 shadow-none' : 'text-slate-500'}`}>Versi Sebelumnya</button>
+              </div>
               <div className="mb-2 flex items-center justify-between gap-3">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{tab === 'current' ? 'Versi Sekarang' : 'Versi Sebelumnya'}</p>
                 <div className="flex shrink-0 items-center gap-2">
@@ -583,13 +589,12 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
         </div>
       </div>
       {editing && <button type="button" onClick={() => editFormRef.current?.requestSubmit()} disabled={saving} className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue-700 text-white shadow-[0_4px_14px_rgba(29,78,216,0.3)] transition hover:bg-blue-800 disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:bottom-6 sm:right-6" aria-label={saving ? 'Menyimpan rewrite' : 'Simpan rewrite'} title={saving ? 'Menyimpan...' : 'Simpan rewrite'}><Save className="h-4 w-4" /></button>}
-      <Modal
+      <MemberModal
         open={readingMode}
         onClose={() => setReadingMode(false)}
         title={material.title}
         titleEyebrow="Mode Baca Materi"
         titleLayout="stacked"
-        titleClassName="!text-[15px] !leading-snug sm:!text-xl [overflow-wrap:anywhere]"
         size="lg"
         headerContent={
           <div className="space-y-2">
@@ -638,8 +643,8 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
             </div>
           </article>
         </div>
-      </Modal>
-      <Modal open={saveConfirmationOpen} onClose={() => setSaveConfirmationOpen(false)} title="SIMPAN PERUBAHAN" titleEyebrow="KONFIRMASI" size="sm">
+      </MemberModal>
+      <MemberModal open={saveConfirmationOpen} onClose={() => setSaveConfirmationOpen(false)} title="SIMPAN PERUBAHAN" titleEyebrow="KONFIRMASI" size="sm">
         <div className="space-y-4">
           <p className="text-sm leading-6 text-slate-600">Simpan perubahan untuk materi <strong className="text-slate-900">{material.title}</strong>?</p>
           <div className="flex gap-2">
@@ -647,8 +652,8 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
             <button type="button" onClick={() => { setSaveConfirmationOpen(false); void saveChanges(); }} disabled={saving} className="btn-primary flex-1"><Save className="h-4 w-4" />Simpan</button>
           </div>
         </div>
-      </Modal>
-      <Modal open={leaveConfirmationOpen} onClose={dismissLeaveConfirmation} title="SIMPAN REWRITE?" titleEyebrow="DRAFT BELUM TERSIMPAN" size="sm">
+      </MemberModal>
+      <MemberModal open={leaveConfirmationOpen} onClose={dismissLeaveConfirmation} title="SIMPAN REWRITE?" titleEyebrow="DRAFT BELUM TERSIMPAN" size="sm">
         <div className="space-y-4">
           <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-950">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
@@ -661,8 +666,8 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
             <button type="button" onClick={dismissLeaveConfirmation} disabled={saving} className="btn-secondary w-full">Lanjut menulis</button>
           </div>
         </div>
-      </Modal>
-      <Modal open={deleteConfirmationOpen} onClose={() => setDeleteConfirmationOpen(false)} title="YAKIN HAPUS MATERI?" titleEyebrow="KONFIRMASI HAPUS" size="sm">
+      </MemberModal>
+      <MemberModal open={deleteConfirmationOpen} onClose={() => setDeleteConfirmationOpen(false)} title="YAKIN HAPUS MATERI?" titleEyebrow="KONFIRMASI HAPUS" size="sm">
         <div className="space-y-4">
           <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
             <div className="flex items-center gap-2 bg-red-700 px-4 py-3 text-white">
@@ -680,7 +685,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
             <button type="button" onClick={() => { setDeleteConfirmationOpen(false); void deleteMaterial(); }} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"><Trash2 className="h-4 w-4" /> Hapus Materi</button>
           </div>
         </div>
-      </Modal>
+      </MemberModal>
     </div>
   );
 }

@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, CheckCheck, Eye, Gift, KeyRound, MessageCircle, Printer, Search, ShieldCheck, Ticket as TicketIcon, Trash2, X } from 'lucide-react';
 import type { EventItem, TicketOrder } from '@/lib/types';
 import { formatPrice, getEventStatus } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { Modal } from '@/components/ui/Modal';
+import { AdminModal as Modal } from '@/components/admin/AdminModal';
 import { TicketPagination } from '@/components/TicketPagination';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
+import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 
 const PAGE_SIZE = 25;
 
@@ -77,6 +78,7 @@ function csvCell(value: string | number) {
 }
 
 export function TicketAdminOrdersPage({ orders, events, loading, onReload, initialOrderId }: { orders: TicketOrder[]; events: EventItem[]; loading: boolean; onReload: () => void; initialOrderId?: string | null }) {
+  const statusTabsRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('Menunggu Verifikasi');
   const [eventFilter, setEventFilter] = useState('all');
@@ -226,8 +228,9 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload, initi
   return (
     <div className="space-y-5">
       <TicketWorkspaceHeader title="Order" subtitle={`${filteredOrders.length} order sesuai filter · ${waitingReview.length} menunggu verifikasi.`} action={<div className="flex shrink-0 gap-2"><button type="button" onClick={exportCsv} disabled={!filteredOrders.length} className="inline-flex min-h-10 items-center rounded-xl bg-white px-3 py-2 text-xs font-bold text-blue-800 shadow-sm transition hover:bg-blue-50 disabled:opacity-50">Export CSV</button><button type="button" onClick={printOrders} disabled={!filteredOrders.length} className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-800 shadow-sm transition hover:bg-blue-50 disabled:opacity-50" aria-label="Cetak order" title="Cetak order"><Printer className="h-4 w-4" /></button></div>} />
-      <div role="tablist" aria-label="Filter status order" className="flex gap-2 overflow-x-auto pb-1">
-        {statusTabs.map((tab) => <button key={tab.value} type="button" role="tab" aria-selected={statusFilter === tab.value} onClick={() => setStatusFilter(tab.value)} className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold uppercase transition ${statusFilter === tab.value ? 'bg-blue-700 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'}`}>{tab.label}</button>)}
+      <div ref={statusTabsRef} role="tablist" aria-label="Filter status order" className="relative isolate grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+        <SlidingTabIndicator trackRef={statusTabsRef} activeId={statusFilter} className={`rounded-lg shadow-sm ${statusFilter === 'Ditolak' ? 'bg-rose-600' : 'bg-blue-700'}`} />
+        {statusTabs.map((tab) => <button key={tab.value} type="button" role="tab" aria-selected={statusFilter === tab.value} data-sliding-tab={tab.value} onClick={() => setStatusFilter(tab.value)} className={`relative z-10 min-h-10 min-w-0 rounded-lg px-2 py-2 text-[11px] font-bold uppercase transition sm:text-xs ${statusFilter === tab.value ? 'bg-transparent text-white shadow-none' : 'bg-white/70 text-slate-600 hover:bg-white'}`}>{tab.label}</button>)}
       </div>
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
         <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input className="input-field pl-10" placeholder="Cari order, nama, WhatsApp..." value={search} onChange={(event) => setSearch(event.target.value)} /></div>

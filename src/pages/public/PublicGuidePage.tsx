@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ArrowRight,
   CalendarDays,
@@ -18,6 +18,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
+import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 
 type GuideSection = 'open-mic' | 'ticket';
 
@@ -243,6 +244,7 @@ const QUESTIONS: Record<GuideSection, Array<[string, ReactNode]>> = {
 
 export function PublicGuidePage({ router }: { router: Router }) {
   const [section, setSection] = useState<GuideSection>('open-mic');
+  const guideTabsRef = useRef<HTMLDivElement>(null);
   const steps = section === 'open-mic' ? OPEN_MIC_STEPS : TICKET_STEPS;
   const questions = QUESTIONS[section];
 
@@ -263,13 +265,15 @@ export function PublicGuidePage({ router }: { router: Router }) {
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-1.5 rounded-2xl bg-slate-100 p-1.5 sm:mt-5 sm:gap-2" role="group" aria-label="Pilih panduan">
+          <div ref={guideTabsRef} className="relative isolate mt-4 grid grid-cols-2 gap-1.5 rounded-2xl bg-slate-100 p-1.5 sm:mt-5 sm:gap-2" role="group" aria-label="Pilih panduan">
+            <SlidingTabIndicator trackRef={guideTabsRef} activeId={section} className="rounded-xl bg-blue-700 shadow-[0_4px_10px_rgba(29,78,216,0.2)]" />
             <button
               id="guide-tab-open-mic"
               type="button"
               aria-pressed={section === 'open-mic'}
+              data-sliding-tab="open-mic"
               onClick={() => setSection('open-mic')}
-              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-extrabold transition sm:min-h-12 sm:gap-2 sm:px-3 sm:text-sm ${section === 'open-mic' ? 'bg-blue-700 text-white shadow-[0_4px_10px_rgba(29,78,216,0.2)]' : 'text-slate-600 hover:bg-white hover:text-blue-800'}`}
+              className={`relative z-10 flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-transparent px-2 py-2 text-xs font-extrabold transition sm:min-h-12 sm:gap-2 sm:px-3 sm:text-sm ${section === 'open-mic' ? 'text-white' : 'text-slate-600 hover:text-blue-800'}`}
             >
               <Mic className="h-4 w-4 shrink-0 sm:h-[18px] sm:w-[18px]" />
               <span className="whitespace-nowrap"><span className="sm:hidden">Open Mic</span><span className="hidden sm:inline">Daftar Open Mic</span></span>
@@ -278,8 +282,9 @@ export function PublicGuidePage({ router }: { router: Router }) {
               id="guide-tab-ticket"
               type="button"
               aria-pressed={section === 'ticket'}
+              data-sliding-tab="ticket"
               onClick={() => setSection('ticket')}
-              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-extrabold transition sm:min-h-12 sm:gap-2 sm:px-3 sm:text-sm ${section === 'ticket' ? 'bg-blue-700 text-white shadow-[0_4px_10px_rgba(29,78,216,0.2)]' : 'text-slate-600 hover:bg-white hover:text-blue-800'}`}
+              className={`relative z-10 flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-transparent px-2 py-2 text-xs font-extrabold transition sm:min-h-12 sm:gap-2 sm:px-3 sm:text-sm ${section === 'ticket' ? 'text-white' : 'text-slate-600 hover:text-blue-800'}`}
             >
               <Ticket className="h-4 w-4 shrink-0 sm:h-[18px] sm:w-[18px]" />
               <span className="whitespace-nowrap"><span className="sm:hidden">Tiket Event</span><span className="hidden sm:inline">Beli Tiket Event</span></span>

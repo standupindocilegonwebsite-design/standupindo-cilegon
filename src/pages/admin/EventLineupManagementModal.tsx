@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Check, ChevronDown, ImageIcon, MapPin, Pencil, Save, Star, Trash2, UserRound, X } from 'lucide-react';
 import type { EventItem, EventLineupEntry, EventLineupRole, Komika } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { Modal } from '@/components/ui/Modal';
+import { AdminModal as Modal } from '@/components/admin/AdminModal';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { formatDate, safeExternalUrl } from '@/lib/format';
 

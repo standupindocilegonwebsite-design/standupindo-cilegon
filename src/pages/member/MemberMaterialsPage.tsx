@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { MaterialDurationInput } from '@/components/MaterialDurationInput';
-import { Modal } from '@/components/ui/Modal';
+import { MemberModal } from '@/components/member/MemberModal';
 import { formatEstimatedDuration, isEstimatedDurationInputValid, parseEstimatedDuration } from '@/lib/material-duration';
 
 const THEMES = ['Observasi', 'Percintaan', 'Keluarga', 'Pekerjaan', 'Kehidupan', 'Politik', 'Random', 'Lainnya'];
@@ -291,7 +291,7 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
           </div>
         </div>
       ) : <PageHeader router={router} title="Buku Materi" subtitle="Kumpulan materi pribadi kamu." />}
-      <Modal open={leaveConfirmationOpen} onClose={dismissLeaveConfirmation} title="SIMPAN MATERI?" titleEyebrow="DRAFT BELUM TERSIMPAN" size="sm">
+      <MemberModal open={leaveConfirmationOpen} onClose={dismissLeaveConfirmation} title="SIMPAN MATERI?" titleEyebrow="DRAFT BELUM TERSIMPAN" size="sm">
         <div className="space-y-4">
           <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-950">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
@@ -304,7 +304,7 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
             <button type="button" onClick={dismissLeaveConfirmation} disabled={saving} className="btn-secondary w-full">Lanjut menulis</button>
           </div>
         </div>
-      </Modal>
+      </MemberModal>
       <div className="container-app space-y-5 py-6 sm:py-8">
         {!isCreatePage && <div className="flex items-center justify-between gap-3">
           <div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Member Area</p><h1 className="mt-1 text-2xl font-black text-slate-950">Buku Materi</h1></div>

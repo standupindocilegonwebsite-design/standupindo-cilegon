@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, Check, ChevronRight, Circle, RefreshCw, Trash2 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
+import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 
 export interface NotificationInboxItem {
   id: string;
@@ -50,16 +51,54 @@ export function NotificationInbox({
   onNavigate,
 }: NotificationInboxProps) {
   const [open, setOpen] = useState(false);
+  const [panelMounted, setPanelMounted] = useState(false);
+  const [panelVisible, setPanelVisible] = useState(false);
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation>(null);
   const [actionError, setActionError] = useState('');
   const bellButtonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const filterTabsRef = useRef<HTMLDivElement>(null);
   const [panelPosition, setPanelPosition] = useState<{ top: number; left: number; width: number; maxHeight: number; mobile: boolean } | null>(null);
   const readCount = items.filter((item) => item.readAt).length;
   const visibleItems = useMemo(() => items.filter((item) => (
     filter === 'all' || (filter === 'unread' ? !item.readAt : Boolean(item.readAt))
   )), [filter, items]);
   const badge = unreadCount > 99 ? '99+' : String(unreadCount);
+
+  useEffect(() => {
+    if (open) {
+      setPanelMounted(true);
+      const frame = requestAnimationFrame(() => setPanelVisible(true));
+      return () => cancelAnimationFrame(frame);
+    }
+
+    if (!panelMounted) return undefined;
+
+    setPanelVisible(false);
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      setPanelMounted(false);
+      return undefined;
+    }
+    const timeout = window.setTimeout(() => setPanelMounted(false), 220);
+    return () => window.clearTimeout(timeout);
+  }, [open, panelMounted]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)
+        || panelRef.current?.contains(target)
+        || bellButtonRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -170,7 +209,30 @@ export function NotificationInbox({
         {unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-extrabold text-white">{badge}</span>}
       </button>
 
-      {open && panelPosition && createPortal(<div role="dialog" aria-label={label} style={{ position: 'fixed', top: panelPosition.top, left: panelPosition.left, width: panelPosition.width, maxHeight: panelPosition.maxHeight }} className={`z-[60] overflow-hidden bg-white shadow-[0_16px_36px_rgba(15,23,42,0.24)] ring-1 ring-slate-900/10 ${panelPosition.mobile ? 'rounded-b-2xl' : 'rounded-2xl'}`}>
+      {panelMounted && panelPosition && createPortal(<div
+        ref={panelRef}
+        role="dialog"
+        aria-label={label}
+        aria-hidden={!open}
+        style={{
+          position: 'fixed',
+          top: panelPosition.top,
+          left: panelPosition.left,
+          width: panelPosition.width,
+          maxHeight: panelPosition.maxHeight,
+          transformOrigin: `${Math.max(0, Math.min(
+            (bellButtonRef.current?.getBoundingClientRect().left ?? panelPosition.left)
+              + (bellButtonRef.current?.getBoundingClientRect().width ?? 0) / 2
+              - panelPosition.left,
+            panelPosition.width,
+          ))}px 0px`,
+          transitionDuration: open ? '420ms' : '180ms',
+          transitionTimingFunction: open
+            ? 'cubic-bezier(0.22, 1.35, 0.36, 1)'
+            : 'cubic-bezier(0.4, 0, 1, 1)',
+        }}
+        className={`z-[60] overflow-hidden bg-white shadow-[0_16px_36px_rgba(15,23,42,0.24)] ring-1 ring-slate-900/10 transition-[opacity,transform] motion-reduce:transition-none ${panelPosition.mobile ? 'rounded-b-2xl' : 'rounded-2xl'} ${panelVisible ? 'translate-y-0 scale-100 opacity-100' : open ? '-translate-y-2 scale-[0.94] opacity-0' : '-translate-y-1 scale-[0.96] opacity-0 pointer-events-none'}`}
+      >
         <div className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
           <div className="flex items-start justify-between gap-2">
             <h3 className="text-base font-extrabold leading-6 text-slate-900 sm:text-lg">Notifikasi</h3>
@@ -178,12 +240,13 @@ export function NotificationInbox({
               ? <button type="button" onClick={() => setDeleteConfirmation({ type: 'read' })} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50 sm:text-sm"><Trash2 className="h-4 w-4" />Hapus Dibaca</button>
               : items.length > 0 && <button type="button" onClick={() => setDeleteConfirmation({ type: 'all' })} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50 sm:text-sm"><Trash2 className="h-4 w-4" />Hapus Semua</button>)}
           </div>
-          <div role="tablist" aria-label="Filter notifikasi" className="mt-4 grid w-full grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+          <div ref={filterTabsRef} role="tablist" aria-label="Filter notifikasi" className="relative isolate mt-4 grid w-full grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+              <SlidingTabIndicator trackRef={filterTabsRef} activeId={filter} className="rounded-lg bg-blue-100 shadow-sm" />
               {([
                 { id: 'all', label: 'Semua' },
                 { id: 'unread', label: 'Belum Dibaca' },
                 { id: 'read', label: 'Sudah Dibaca' },
-              ] as const).map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={filter === tab.id} onClick={() => setFilter(tab.id)} className={`flex min-h-10 min-w-0 items-center justify-center rounded-lg px-1 py-2 text-[11px] font-bold leading-tight transition sm:px-2 sm:text-xs ${filter === tab.id ? 'bg-blue-100 text-blue-900' : 'text-slate-700 hover:bg-white/70 hover:text-slate-900'}`}>{tab.label}</button>)}
+              ] as const).map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={filter === tab.id} data-sliding-tab={tab.id} onClick={() => setFilter(tab.id)} className={`relative z-10 flex min-h-10 min-w-0 items-center justify-center rounded-lg bg-transparent px-1 py-2 text-[11px] font-bold leading-tight transition sm:px-2 sm:text-xs ${filter === tab.id ? 'text-blue-900' : 'text-slate-700 hover:text-slate-900'}`}>{tab.label}</button>)}
           </div>
           {unreadCount > 0 && <div className="mt-2 flex justify-end"><button type="button" onClick={() => void markAllRead()} className="min-h-9 rounded-lg px-2 text-xs font-bold text-blue-800 transition hover:bg-blue-50 sm:text-sm">Tandai Semua Sudah Dibaca</button></div>}
         </div>

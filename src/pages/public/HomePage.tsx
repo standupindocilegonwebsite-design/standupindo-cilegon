@@ -10,7 +10,7 @@ import { KomikaCard } from '@/components/cards/KomikaCard';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
+import { getEventStatus, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { CcsScheduleHighlights } from '@/components/CcsScheduleHighlights';
 
 interface Props {
@@ -122,6 +122,7 @@ export function HomePage({ router }: Props) {
   const [mics, setMics] = useState<OpenMic[]>([]);
   const [numberedOpenMics, setNumberedOpenMics] = useState<OpenMic[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [latestCompletedEvent, setLatestCompletedEvent] = useState<EventItem | null>(null);
   const [komika, setKomika] = useState<Komika[]>([]);
   const [publishedRecap, setPublishedRecap] = useState<{ year: number } | null>(null);
   const [partnersByCategory, setPartnersByCategory] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
@@ -179,10 +180,11 @@ export function HomePage({ router }: Props) {
   useEffect(() => {
     (async () => {
       const today = new Date().toISOString().slice(0, 10);
-      const [{ data: micData }, { data: allMicData }, { data: eventData }, { data: komikaData }, { data: ticketData }, { data: partnerData }, { data: recapData }] = await Promise.all([
+      const [{ data: micData }, { data: allMicData }, { data: eventData }, { data: latestCompletedEventData }, { data: komikaData }, { data: ticketData }, { data: partnerData }, { data: recapData }] = await Promise.all([
         supabase.from('open_mics').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }),
         supabase.from('open_mics').select('*').eq('published', true),
         supabase.from('events').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(5),
+        supabase.from('events').select('*').eq('published', true).or(`status.eq.completed,and(status.eq.upcoming,date.lte.${today})`).order('date', { ascending: false }).order('time', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('komika').select('id, full_name, stage_name, slug, photo, photo_card, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active'),
         supabase.from('event_tickets').select('event_id, price').eq('status', 'active').eq('available_public', true).order('price', { ascending: true }),
         supabase.from('partners').select('*').eq('is_published', true).order('sort_order', { ascending: true }).order('name', { ascending: true }),
@@ -211,6 +213,8 @@ export function HomePage({ router }: Props) {
       setMics(micsList);
       setNumberedOpenMics((allMicData as OpenMic[]) ?? []);
       setEvents(eventsList);
+      const completedEvent = (latestCompletedEventData as EventItem | null) ?? null;
+      setLatestCompletedEvent(completedEvent && getEventStatus(completedEvent.status, completedEvent.date) === 'completed' ? completedEvent : null);
       setKomika(randomKomika);
       setPartnersByCategory(groupedPartners);
       setTicketPrices(prices);
@@ -364,11 +368,11 @@ export function HomePage({ router }: Props) {
               <EmptyState
                 title="Belum ada event baru untuk saat ini."
                 description="Tapi tenang, keseruan berikutnya sedang dalam perjalanan. Sampai jumpa di tawa selanjutnya!"
-                action={
-                  <button type="button" onClick={() => router.navigate('/event#completed-events')} className="inline-flex min-h-10 items-center gap-1.5 text-sm font-bold text-blue-700 transition hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+                action={latestCompletedEvent && (
+                  <button type="button" onClick={() => router.navigate(`/event/${encodeURIComponent(latestCompletedEvent.slug)}/dokumentasi`)} className="inline-flex min-h-10 items-center gap-1.5 text-sm font-bold text-blue-700 transition hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
                     Lihat Event Sebelumnya <ArrowRight className="h-4 w-4" />
                   </button>
-                }
+                )}
               />
             ) : (
               <AutoSlideRow highlightActive highlightTone="amber" lightLeakSlot="event" activeLightLeakSlot={activeLightLeakSlot} className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(Math.min(events.length, 5))} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>

@@ -4,7 +4,7 @@ import type { Router } from '@/lib/router';
 import type { MemberOpenMicHistorySubmission, MemberStageExperience, OpenMic } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { formatDate, getEventStatus, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
+import { formatDate, getEventStatus, getOpenMicNumbers, getOpenMicStatus, isStandupindoCilegonOrganizer } from '@/lib/format';
 import { CcsScheduleHighlights } from '@/components/CcsScheduleHighlights';
 
 const MAIN_MENU = [
@@ -86,7 +86,8 @@ export function MemberDashboardPage({ router }: { router: Router }) {
         }
         setAttendedOpenMicCount((registrations ?? []).filter((item) => item.attendance_status === 'attended').length);
         historyData = (history as MemberOpenMicHistorySubmission[]) ?? [];
-        setStageExperienceCount(((experiences as MemberStageExperience[]) ?? []).length);
+        setStageExperienceCount(((experiences as MemberStageExperience[]) ?? [])
+          .filter((experience) => !isStandupindoCilegonOrganizer(experience.organizer)).length);
         const completedEventIds = new Set(
           ((lineup ?? []) as unknown as { event: { id: string; date: string; status: 'upcoming' | 'completed' | 'cancelled'; published: boolean } }[])
             .filter((entry) => entry.event.published && getEventStatus(entry.event.status, entry.event.date) === 'completed')
@@ -172,9 +173,9 @@ export function MemberDashboardPage({ router }: { router: Router }) {
           <h2 id="member-main-menu-title" className="mb-1.5 text-sm font-extrabold text-slate-900">Menu Utama</h2>
           <div className="grid grid-cols-3 gap-2">
             {MAIN_MENU.map(({ label, to, icon: Icon }) => (
-              <button key={to} type="button" onClick={() => router.navigate(to)} className="flex min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-xl border border-blue-100 bg-white px-1.5 py-2 text-center text-slate-800 shadow-[0_4px_10px_rgba(37,99,235,0.07)] transition hover:border-blue-200 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 text-blue-700"><Icon className="h-5 w-5" /></span>
-                <span className="max-w-full text-[10px] font-bold leading-tight sm:text-[11px]">{label}</span>
+              <button key={to} type="button" onClick={() => router.navigate(to)} className="group flex min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-xl border border-blue-100 bg-white px-1.5 py-2 text-center text-slate-800 shadow-[0_4px_10px_rgba(37,99,235,0.07)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-[0_8px_16px_rgba(37,99,235,0.13)] active:translate-y-0 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-[0_3px_8px_rgba(37,99,235,0.28)] ring-2 ring-blue-100 transition duration-200 group-hover:scale-105 group-hover:ring-blue-200"><Icon className="h-5 w-5" /></span>
+                <span className="max-w-full text-[10px] font-bold leading-tight transition-colors group-hover:text-blue-800 sm:text-[11px]">{label}</span>
               </button>
             ))}
           </div>
@@ -209,15 +210,15 @@ export function MemberDashboardPage({ router }: { router: Router }) {
               )}
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
+            <div className="flex flex-col items-center gap-1.5 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-2.5 py-3 text-center">
               <p className="text-[11px] font-medium text-slate-500">Belum ada Open Mic mendatang.</p>
               {latestCompletedMic && (
                 <button
                   type="button"
                   onClick={() => router.navigate(`/member/open-mic/${encodeURIComponent(latestCompletedMic.slug)}#lineup`)}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-800 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                  className="inline-flex min-h-9 max-w-full items-center justify-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                 >
-                  Lihat Lineup Open Mic Sebelumnya <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  Lihat Lineup Open Mic Sebelumnya <ArrowRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                 </button>
               )}
             </div>

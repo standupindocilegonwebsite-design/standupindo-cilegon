@@ -9,7 +9,7 @@ import { TicketPagination } from '@/components/TicketPagination';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
-import { Modal } from '@/components/ui/Modal';
+import { AdminModal as Modal } from '@/components/admin/AdminModal';
 
 const PAGE_SIZE = 30;
 

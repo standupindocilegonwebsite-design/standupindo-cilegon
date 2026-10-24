@@ -12,6 +12,7 @@ import { LocationMapPanel } from '@/components/ui/LocationMapPanel';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
+import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 import { formatDate, formatPrice, getEventStatus, safeExternalUrl } from '@/lib/format';
 import { seoDescription, setPageMetadata } from '@/lib/seo';
 import { useAuth } from '@/lib/auth-context';
@@ -217,6 +218,7 @@ export function EventDetailPage({ router, slug }: Props) {
   const [partnersByRole, setPartnersByRole] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
   const [infoTab, setInfoTab] = useState<'about' | 'rules'>('about');
   const [infoExpanded, setInfoExpanded] = useState(false);
+  const infoTabsRef = useRef<HTMLDivElement>(null);
   const notificationParticipantId = router.query.get('notificationParticipantId');
 
   useEffect(() => {
@@ -437,13 +439,15 @@ export function EventDetailPage({ router, slug }: Props) {
 
         <section data-scroll-reveal className="scroll-reveal !mt-3">
           <div className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-            <div className="flex gap-1 bg-slate-100 p-1" role="tablist" aria-label="Informasi event">
+            <div ref={infoTabsRef} className="relative isolate flex gap-1 bg-slate-100 p-1" role="tablist" aria-label="Informasi event">
+            <SlidingTabIndicator trackRef={infoTabsRef} activeId={infoTab} className="rounded-xl bg-blue-600 shadow-[0_6px_14px_rgba(37,99,235,0.24)]" />
             <button
               type="button"
               role="tab"
               aria-selected={infoTab === 'about'}
+              data-sliding-tab="about"
               onClick={() => { if (infoTab === 'about') setInfoExpanded((current) => !current); else { setInfoTab('about'); setInfoExpanded(true); } }}
-              className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-left transition-all sm:justify-start sm:px-4 ${infoTab === 'about' ? 'bg-blue-600 text-white shadow-[0_6px_14px_rgba(37,99,235,0.24)]' : 'text-slate-700 hover:bg-white'}`}
+              className={`relative z-10 flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-left transition-all sm:justify-start sm:px-4 ${infoTab === 'about' ? 'bg-transparent text-white shadow-none' : 'text-slate-700 hover:bg-white'}`}
             >
               <Info className="h-4 w-4 shrink-0" />
               <span className="truncate text-xs font-extrabold sm:text-sm">About Event</span>
@@ -453,8 +457,9 @@ export function EventDetailPage({ router, slug }: Props) {
               type="button"
               role="tab"
               aria-selected={infoTab === 'rules'}
+              data-sliding-tab="rules"
               onClick={() => { if (infoTab === 'rules') setInfoExpanded((current) => !current); else { setInfoTab('rules'); setInfoExpanded(true); } }}
-              className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-left transition-all sm:justify-start sm:px-4 ${infoTab === 'rules' ? 'bg-blue-600 text-white shadow-[0_6px_14px_rgba(37,99,235,0.24)]' : 'text-slate-700 hover:bg-white'}`}
+              className={`relative z-10 flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-left transition-all sm:justify-start sm:px-4 ${infoTab === 'rules' ? 'bg-transparent text-white shadow-none' : 'text-slate-700 hover:bg-white'}`}
             >
               <ClipboardList className="h-4 w-4 shrink-0" />
               <span className="truncate text-xs font-extrabold sm:text-sm">Peraturan</span>

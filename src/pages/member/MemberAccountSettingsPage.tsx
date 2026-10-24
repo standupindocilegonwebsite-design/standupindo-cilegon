@@ -86,6 +86,7 @@ export function MemberAccountSettingsPage({ router }: { router: Router }) {
         saving={saving}
         onClose={() => setPasswordConfirmationOpen(false)}
         onConfirm={() => void confirmPasswordChange()}
+        useMemberHeader
       />
     </div>
   );

@@ -64,6 +64,7 @@ export interface RecapStage {
   date: string;
   place: string;
   roles: string[];
+  type: 'event' | 'open_mic';
 }
 
 export interface KomikaYearRecap {
@@ -99,6 +100,58 @@ function isCompletedEvent(status: string, date: string, today: string) {
 
 function eventKey(date: string, title: string, place: string | null | undefined) {
   return `${date}|${normalizeRecapText(title)}|${normalizeRecapText(place)}`;
+}
+
+function differsByOneCharacter(first: string, second: string) {
+  if (Math.abs(first.length - second.length) > 1) return false;
+  let firstIndex = 0;
+  let secondIndex = 0;
+  let differences = 0;
+  while (firstIndex < first.length && secondIndex < second.length) {
+    if (first[firstIndex] === second[secondIndex]) {
+      firstIndex += 1;
+      secondIndex += 1;
+      continue;
+    }
+    differences += 1;
+    if (differences > 1) return false;
+    if (first.length > second.length) firstIndex += 1;
+    else if (second.length > first.length) secondIndex += 1;
+    else {
+      firstIndex += 1;
+      secondIndex += 1;
+    }
+  }
+  if (firstIndex < first.length || secondIndex < second.length) differences += 1;
+  return differences === 1;
+}
+
+function likelySameEventTitle(first: string, second: string) {
+  const firstWords = normalizeRecapText(first).split(' ');
+  const secondWords = normalizeRecapText(second).split(' ');
+  if (firstWords.length !== secondWords.length) return false;
+  let typoCount = 0;
+  for (let index = 0; index < firstWords.length; index += 1) {
+    if (firstWords[index] === secondWords[index]) continue;
+    if (Math.min(firstWords[index].length, secondWords[index].length) < 6
+      || !differsByOneCharacter(firstWords[index], secondWords[index])) return false;
+    typoCount += 1;
+    if (typoCount > 1) return false;
+  }
+  return typoCount === 1;
+}
+
+function matchesOfficialExperience(
+  experience: RecapStageExperience,
+  event: NonNullable<RecapOfficialLineup['event']>,
+) {
+  const city = normalizeRecapText(experience.city);
+  const samePlace = [event.location, event.venue].some((place) => normalizeRecapText(place) === city);
+  const sameTitle = normalizeRecapText(experience.event_name) === normalizeRecapText(event.title)
+    || likelySameEventTitle(experience.event_name, event.title);
+  return event.date === experience.event_date
+    && samePlace
+    && sameTitle;
 }
 
 function hasYear(date: string, year: number) {
@@ -165,7 +218,10 @@ export function buildKomikaYearRecap(sources: RecapSources, year: number, today:
   const externalExperienceByKey = new Map<string, RecapStageExperience>();
   for (const item of yearExperiences) {
     const key = eventKey(item.event_date, item.event_name, item.city);
-    if (!officialKeys.has(key) && !internalOpenMicKeys.has(key) && !externalPerformanceKeys.has(key)) {
+    const matchingOfficialEvents = [...officialById.entries()]
+      .filter(([, event]) => matchesOfficialExperience(item, event));
+    if (!officialKeys.has(key) && matchingOfficialEvents.length === 0
+      && !internalOpenMicKeys.has(key) && !externalPerformanceKeys.has(key)) {
       externalExperienceByKey.set(key, item);
     }
   }
@@ -186,13 +242,14 @@ export function buildKomikaYearRecap(sources: RecapSources, year: number, today:
       if (!target.title && stage.title) target.title = stage.title;
       if (!target.place && stage.place) target.place = stage.place;
     }
+    if (stage.type === 'event') target.type = 'event';
     if (stage.role && !target.roles.includes(stage.role)) target.roles.push(stage.role);
     for (const alias of aliases) stageByAlias.set(alias, target);
   };
 
   for (const { openMic } of yearOpenMics) {
     const identity = eventKey(openMic.date, openMic.title, openMic.location || openMic.venue);
-    addStage({ id: `open-mic:${openMic.id}`, title: openMic.title, date: openMic.date, place: openMic.venue || openMic.location || '', role: 'Open Mic' }, [
+    addStage({ id: `open-mic:${openMic.id}`, title: openMic.title, date: openMic.date, place: openMic.venue || openMic.location || '', role: 'Open Mic', type: 'open_mic' }, [
       `open-mic:${openMic.id}`,
       identity,
     ]);
@@ -209,6 +266,7 @@ export function buildKomikaYearRecap(sources: RecapSources, year: number, today:
       date: item.event_date,
       place: item.venue || item.city || '',
       role: type === 'performance' ? 'Open Mic' : 'MC',
+      type: type === 'mc_external' ? 'event' : 'open_mic',
     }, aliases);
   }
 
@@ -232,23 +290,33 @@ export function buildKomikaYearRecap(sources: RecapSources, year: number, today:
       date: event.date,
       place: event.venue || event.location || '',
       role,
+      type: 'event',
     }, [`event:${eventId}`, eventKey(event.date, event.title, event.location || event.venue)]);
   }
 
   for (const item of yearExperiences) {
     const identity = eventKey(item.event_date, item.event_name, item.city);
+    const matchingOfficialEventAliases = [...officialById.entries()]
+      .filter(([, event]) => matchesOfficialExperience(item, event))
+      .map(([eventId]) => `event:${eventId}`);
     addStage({
       id: `experience:${item.id}`,
       title: item.event_name,
       date: item.event_date,
       place: item.city,
       role: item.role === 'Lainnya' ? item.custom_role || 'Lainnya' : item.role,
-    }, [identity]);
+      type: 'event',
+    }, [identity, ...matchingOfficialEventAliases]);
   }
 
-  const recentStages = [...stages]
-    .sort((first, second) => second.date.localeCompare(first.date) || first.title.localeCompare(second.title, 'id'))
-    .slice(0, 5)
+  const compareStages = (first: RecapStage, second: RecapStage) =>
+    second.date.localeCompare(first.date) || first.title.localeCompare(second.title, 'id');
+  const sortedStages = [...stages].sort(compareStages);
+  const events = sortedStages.filter((stage) => stage.type === 'event');
+  const openMics = sortedStages.filter((stage) => stage.type === 'open_mic');
+  const recentEvents = events.slice(0, openMics.length > 0 ? 3 : 5);
+  const recentOpenMics = openMics.slice(0, events.length > 0 ? 2 : 5);
+  const recentStages = [...recentEvents, ...recentOpenMics]
     .map((item) => ({ ...item, roles: [...item.roles] }));
   const journeyInternal = officialById.size;
   const journeyExternal = externalExperienceByKey.size;

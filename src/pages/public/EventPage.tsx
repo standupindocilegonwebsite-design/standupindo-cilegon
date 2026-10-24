@@ -162,9 +162,8 @@ export function EventPage({ router }: { router: Router }) {
     return searchableText.includes(normalizedQuery);
   };
   const upcoming = events.filter((e) => getEventStatus(e.status, e.date) === 'upcoming' && matchesEventSearch(e, upcomingSearch));
-  const completed = events
+  const completedEvents = events
     .filter((e) => getEventStatus(e.status, e.date) === 'completed')
-    .filter((e) => matchesEventSearch(e, completedSearch))
     .sort((a, b) => {
       const dateOrder = b.date.localeCompare(a.date);
       if (dateOrder !== 0) return dateOrder;
@@ -172,7 +171,9 @@ export function EventPage({ router }: { router: Router }) {
       if (timeOrder !== 0) return timeOrder;
       return (b.created_at ?? '').localeCompare(a.created_at ?? '') || b.id.localeCompare(a.id);
     });
-  const hasCompletedEvents = events.some((event) => getEventStatus(event.status, event.date) === 'completed');
+  const completed = completedEvents.filter((event) => matchesEventSearch(event, completedSearch));
+  const latestCompletedEvent = completedEvents[0];
+  const hasCompletedEvents = completedEvents.length > 0;
 
   useEffect(() => {
     if (loading || window.location.hash !== '#completed-events' || !hasCompletedEvents) return undefined;
@@ -211,10 +212,10 @@ export function EventPage({ router }: { router: Router }) {
             <EmptyState
               title="Belum ada event baru untuk saat ini."
               description="Tapi tenang, keseruan berikutnya sedang dalam perjalanan. Sampai jumpa di tawa selanjutnya!"
-              action={hasCompletedEvents && (
+              action={latestCompletedEvent && (
                 <button
                   type="button"
-                  onClick={() => document.getElementById('completed-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  onClick={() => router.navigate(`/event/${encodeURIComponent(latestCompletedEvent.slug)}/dokumentasi`)}
                   className="inline-flex min-h-10 items-center gap-1.5 text-sm font-bold text-blue-700 transition hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                 >
                   Lihat Event Sebelumnya <ArrowRight className="h-4 w-4" />

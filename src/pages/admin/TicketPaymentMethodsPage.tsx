@@ -4,7 +4,7 @@ import type { TicketPaymentMethod } from '@/lib/types';
 import { formatDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
-import { Modal } from '@/components/ui/Modal';
+import { AdminModal as Modal } from '@/components/admin/AdminModal';
 import { getImageFileExtension, processImageForUpload, validateImageFile } from '@/lib/image-processing';
 
 interface EventOption { id: string; title: string; date: string; status: string; }
