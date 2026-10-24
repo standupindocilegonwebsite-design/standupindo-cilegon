@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, BarChart3, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, DoorOpen, Eye, EyeOff, FolderOpen, History, ImagePlus, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Plus, Power, Printer, RefreshCw, Search, Settings, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Archive, BarChart3, Building2, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, DoorOpen, Eye, EyeOff, FolderOpen, Handshake, History, ImagePlus, Instagram, Info, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Phone, Plus, Power, Printer, RefreshCw, Search, Settings, Share2, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink, Youtube } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, MemberOpenMicHistoryStatus, MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -4725,9 +4725,19 @@ function TicketFormModal({ event, ticket, onClose, onSaved }: { event: EventItem
   );
 }
 
+function TikTokSettingsIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.3 0 .59.04.86.13V9.4a6.33 6.33 0 0 0-.86-.06A6.34 6.34 0 0 0 3.14 15.7a6.34 6.34 0 0 0 11.94-3V8.4a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-.26-.83z" />
+    </svg>
+  );
+}
+
 function SettingsPanel({ settings, onSaved, onNotice }: { settings: SiteSettings; onSaved: () => void; onNotice: (msg: string) => void }) {
   const [form, setForm] = useState<SiteSettings>(settings);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [info, setInfo] = useState<{ title: string; description: string; locations: string[] } | null>(null);
 
   useEffect(() => { setForm(settings); }, [settings]);
 
@@ -4737,81 +4747,182 @@ function SettingsPanel({ settings, onSaved, onNotice }: { settings: SiteSettings
     const { error } = await supabase.from('site_settings').update(form).eq('id', 1);
     setSaving(false);
     if (error) { onNotice('Gagal menyimpan pengaturan.'); return; }
+    setEditing(false);
     onNotice('Pengaturan berhasil disimpan.');
     onSaved();
   }
 
-  const renderField = ([key, label, type]: [keyof SiteSettings, string, 'text' | 'textarea']) => (
+  const renderField = ([key, label, type]: readonly [keyof SiteSettings, string, 'text' | 'textarea' | 'digits'], icon?: React.ReactNode) => (
     <div key={key}>
-      <label className="label-field" htmlFor={`settings-${key}`}>{label}</label>
-      {type === 'textarea' ? (
-        <textarea id={`settings-${key}`} value={form[key] ?? ''} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="input-field min-h-[96px]" />
+      <label className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold leading-5 text-slate-700" htmlFor={`settings-${key}`}>{icon && <span className="text-slate-500">{icon}</span>}{label}</label>
+      {editing ? (
+        type === 'textarea' ? (
+          <textarea id={`settings-${key}`} value={form[key] ?? ''} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="input-field min-h-[96px]" />
+        ) : (
+          <input id={`settings-${key}`} type="text" inputMode={type === 'digits' ? 'numeric' : undefined} value={form[key] ?? ''} onChange={(e) => setForm({ ...form, [key]: type === 'digits' ? e.target.value.replace(/\D/g, '') : e.target.value })} className="input-field" />
+        )
       ) : (
-        <input id={`settings-${key}`} type="text" value={form[key] ?? ''} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="input-field" />
+        <div className={`min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm leading-5 text-slate-800 ${type === 'textarea' ? 'min-h-20 whitespace-pre-wrap' : 'break-all'}`}>
+          {String(form[key] ?? '').trim() || <span className="text-slate-400">Belum diisi</span>}
+        </div>
       )}
     </div>
   );
 
+  const renderInfoButton = (title: string, description: string, locations: string[], inverse = false) => (
+    <button
+      type="button"
+      onClick={() => setInfo({ title, description, locations })}
+      className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 ${inverse ? 'text-blue-100 hover:bg-white/15 hover:text-white focus-visible:ring-white' : 'text-blue-700 hover:bg-blue-100 focus-visible:ring-blue-500'}`}
+      aria-label={`Informasi: ${title}`}
+      title={`Informasi: ${title}`}
+    >
+      <Info className="h-4 w-4" />
+    </button>
+  );
+
+  const renderSectionHeading = (title: string, description: string, Icon: typeof Building2, locations: string[]) => (
+    <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-blue-800 bg-blue-700 p-2.5 text-white shadow-sm sm:gap-3 sm:p-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <h2 className="flex min-w-0 items-center gap-2 text-sm font-extrabold text-white sm:text-base">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white"><Icon className="h-4 w-4" /></span>
+            <span>{title}</span>
+          </h2>
+          {renderInfoButton(title, description, locations, true)}
+        </div>
+        <p className="mt-1 text-xs leading-5 text-blue-100">{description}</p>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="space-y-5">
-      <WorkspacePageHeader eyebrow="Menu Lainnya" title="Settings" subtitle="Kelola identitas, kontak, dan tampilan publik komunitas." />
-      <form onSubmit={handleSubmit} className="max-w-3xl space-y-4">
-        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 sm:p-5">
-          <div className="mb-4"><h2 className="text-base font-bold text-slate-900">Identitas Komunitas</h2><p className="mt-1 text-xs leading-5 text-slate-500">Nama dan logo yang tampil di header, footer, dan halaman publik.</p></div>
-          <ImageUpload label="Logo Utama" folder="branding" value={form.logo_url ?? ''} onChange={(url) => setForm({ ...form, logo_url: url || null })} aspect="square" />
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">{renderField(['site_name', 'Nama Komunitas', 'text'])}{renderField(['site_short_name', 'Nama Singkat di Header', 'text'])}</div>
+    <div className="space-y-4">
+      <WorkspacePageHeader
+        eyebrow="Menu Lainnya"
+        title="Settings"
+        subtitle={editing ? 'Mode edit aktif. Perubahan baru diterapkan setelah disimpan.' : 'Informasi identitas, kontak, dan tampilan publik komunitas.'}
+        action={editing
+          ? <button type="button" onClick={() => { setForm(settings); setEditing(false); }} disabled={saving} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl bg-white/15 px-3 text-sm font-bold text-white transition hover:bg-white/25 disabled:opacity-60" aria-label="Batalkan perubahan"><X className="h-4 w-4" /><span>Batal</span></button>
+          : <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl bg-white px-3 text-sm font-bold text-blue-700 shadow-sm transition hover:bg-blue-50" aria-label="Edit pengaturan"><Pencil className="h-4 w-4" /><span>Edit</span></button>}
+      />
+      <form onSubmit={handleSubmit} className="grid w-full max-w-6xl gap-3 pb-24 xl:grid-cols-2 xl:pb-0">
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] sm:p-4">
+          {renderSectionHeading('Identitas Komunitas', 'Nama dan logo yang tampil di website.', Building2, [
+            'Logo Utama tampil pada header navigasi, halaman Tentang, Kerja Sama, footer, dan beberapa tampilan dokumentasi atau riwayat.',
+            'Nama Komunitas tampil pada halaman Tentang dan Kerja Sama, footer, SEO/judul halaman, serta sebagai teks alternatif logo.',
+            'Nama Singkat di Header tampil sebagai nama brand di header website dan dokumentasi event; akhiran “Cilegon” dapat dihilangkan otomatis pada beberapa tampilan.',
+          ])}
+          {editing ? (
+            <ImageUpload label="Logo Utama" folder="branding" value={form.logo_url ?? ''} onChange={(url) => setForm({ ...form, logo_url: url || null })} aspect="square" objectFit="contain" compact processingProfile="logo" />
+          ) : (
+            <div>
+              <p className="mb-1.5 text-[13px] font-semibold leading-5 text-slate-700">Logo Utama</p>
+              <div className="flex min-h-20 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                {form.logo_url
+                  ? <img src={form.logo_url} alt={form.site_name} className="h-14 w-14 shrink-0 rounded-lg bg-white object-contain p-1 ring-1 ring-slate-200" />
+                  : <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-white text-xs text-slate-400 ring-1 ring-slate-200">Tidak ada logo</span>}
+                <span className="text-sm text-slate-600">{form.logo_url ? 'Logo komunitas yang digunakan di website.' : 'Logo belum diatur.'}</span>
+              </div>
+            </div>
+          )}
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">{renderField(['site_name', 'Nama Komunitas', 'text'])}{renderField(['site_short_name', 'Nama Singkat di Header', 'text'])}</div>
         </section>
 
-        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 sm:p-5">
-          <div className="mb-4"><h2 className="text-base font-bold text-slate-900">Kontak Berdasarkan Kebutuhan</h2><p className="mt-1 text-xs leading-5 text-slate-500">Gunakan format internasional, contoh: 62812xxxx. Nomor tidak ditampilkan sebagai nama admin kepada publik.</p></div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {renderField(['whatsapp_admin_name', 'Nama Penanggung Jawab WhatsApp Umum', 'text'])}
-            {renderField(['whatsapp_admin', 'Nomor WhatsApp Umum / Fallback', 'text'])}
-            {renderField(['whatsapp_registration_name', 'Nama Penanggung Jawab Pendaftaran', 'text'])}
-            {renderField(['whatsapp_registration', 'Nomor WhatsApp Pendaftaran / Open Mic', 'text'])}
-            {renderField(['whatsapp_partnership_name', 'Nama Penanggung Jawab Kerja Sama', 'text'])}
-            {renderField(['whatsapp_partnership', 'Nomor WhatsApp Kerja Sama', 'text'])}
-            {renderField(['whatsapp_ticket_name', 'Nama Penanggung Jawab Tiket Event', 'text'])}
-            {renderField(['whatsapp_ticket', 'Nomor WhatsApp Tiket Event', 'text'])}
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] sm:p-4 xl:col-span-2">
+          {renderSectionHeading('Kontak WhatsApp', 'Nomor untuk tiap kebutuhan. Gunakan format internasional, contoh: 62812xxxx.', Phone, [
+            'Nomor WhatsApp menentukan tujuan tautan chat di fitur terkait. Nomor umum menjadi fallback bila nomor khusus belum diisi.',
+            'Kolom nama penanggung jawab saat ini tersimpan di pengaturan, tetapi belum digunakan sebagai nama publik di halaman website.',
+          ])}
+          <div className="grid gap-3 md:grid-cols-2">
+            {([
+              ['WhatsApp Umum', ['whatsapp_admin_name', 'Nama Penanggung Jawab', 'text'], ['whatsapp_admin', 'Nomor WhatsApp / Fallback', 'digits']],
+              ['Pendaftaran & Open Mic', ['whatsapp_registration_name', 'Nama Penanggung Jawab', 'text'], ['whatsapp_registration', 'Nomor WhatsApp', 'digits']],
+              ['Kerja Sama', ['whatsapp_partnership_name', 'Nama Penanggung Jawab', 'text'], ['whatsapp_partnership', 'Nomor WhatsApp', 'digits']],
+              ['Tiket Event', ['whatsapp_ticket_name', 'Nama Penanggung Jawab', 'text'], ['whatsapp_ticket', 'Nomor WhatsApp', 'digits']],
+            ] as const).map(([group, nameField, numberField]) => (
+              <div key={group} className="min-w-0 rounded-xl border border-slate-200 border-l-4 border-l-blue-500 bg-slate-50/60 p-3">
+                <div className="mb-2 flex items-center gap-1">
+                  <h3 className="text-sm font-extrabold leading-5 text-slate-900">{group}</h3>
+                  {renderInfoButton(group, `Mengubah nomor WhatsApp ${group}. Nama penanggung jawab tersimpan, tetapi saat ini belum ditampilkan sebagai nama publik di website.`, [
+                    group === 'WhatsApp Umum'
+                      ? 'Nomor ini digunakan di ikon WhatsApp pada footer dan tombol bantuan Member Area. Nomor ini juga menjadi fallback jika nomor pendaftaran, kerja sama, atau tiket belum diisi.'
+                      : group === 'Pendaftaran & Open Mic'
+                        ? 'Nomor ini digunakan pada tombol pendaftaran di halaman Kontak. Jika kosong, website memakai nomor WhatsApp Umum.'
+                        : group === 'Kerja Sama'
+                          ? 'Nomor ini digunakan pada tombol kontak di halaman Kerja Sama dan profil detail Komika. Jika kosong, website memakai nomor WhatsApp Umum.'
+                          : 'Nomor ini digunakan pada tombol hubungi admin dari halaman Syarat & Ketentuan serta Kebijakan Privasi tiket. Jika kosong, website memakai nomor WhatsApp Umum.',
+                  ])}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {renderField(nameField)}
+                  {renderField(numberField)}
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
-        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 sm:p-5">
-          <div className="mb-4"><h2 className="text-base font-bold text-slate-900">Sosial Media & Lokasi</h2><p className="mt-1 text-xs leading-5 text-slate-500">Link ini digunakan pada halaman Kontak, footer, dan profil komunitas.</p></div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {renderField(['instagram_url', 'Instagram URL', 'text'])}
-            {renderField(['tiktok_url', 'TikTok URL', 'text'])}
-            {renderField(['youtube_url', 'YouTube URL', 'text'])}
-            {renderField(['address', 'Alamat Komunitas', 'text'])}
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] sm:p-4">
+          {renderSectionHeading('Sosial Media & Lokasi', 'Link ini tampil pada halaman Kontak, footer, dan profil komunitas.', Share2, [
+            'Instagram, TikTok, dan YouTube menentukan tautan ikon media sosial pada halaman Kontak dan footer. Instagram juga dipakai untuk membuka ajakan Follow Instagram.',
+            'Alamat Komunitas tampil di halaman Kontak dan footer.',
+            'Deskripsi Singkat tampil pada halaman Tentang dan deskripsi halaman Kontak.',
+          ])}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {renderField(['instagram_url', 'Instagram URL', 'text'], <Instagram className="h-4 w-4 text-pink-600" />)}
+            {renderField(['tiktok_url', 'TikTok URL', 'text'], <TikTokSettingsIcon className="h-4 w-4 text-slate-800" />)}
+            {renderField(['youtube_url', 'YouTube URL', 'text'], <Youtube className="h-4 w-4 text-red-600" />)}
+            {renderField(['address', 'Alamat Komunitas', 'text'], <MapPin className="h-4 w-4 text-blue-600" />)}
             <div className="sm:col-span-2">{renderField(['short_description', 'Deskripsi Singkat', 'textarea'])}</div>
           </div>
         </section>
 
-        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 sm:p-5">
-          <div className="mb-4"><h2 className="text-base font-bold text-slate-900">Afiliasi</h2><p className="mt-1 text-xs leading-5 text-slate-500">Opsional. Akan tampil sebagai Bagian Dari di halaman Kontak dan footer.</p></div>
-          <div className="grid gap-4 sm:grid-cols-2">
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] sm:p-4">
+          {renderSectionHeading('Afiliasi', 'Opsional. Tampil sebagai “Bagian Dari” di halaman Kontak dan footer.', Handshake, [
+            'Nama organisasi, website, dan logo afiliasi mengatur identitas partner afiliasi yang ditampilkan sebagai “Bagian Dari”.',
+            'Afiliasi tampil di halaman Kontak dan footer jika nama, website, serta logo tersedia. Nama dan logo juga dipakai pada tampilan riwayat penampilan member.',
+          ])}
+          <div className="grid gap-3 sm:grid-cols-2">
             {renderField(['affiliation_name', 'Nama Organisasi Afiliasi', 'text'])}
             {renderField(['affiliation_website', 'Website Afiliasi', 'text'])}
             <div className="sm:col-span-2">{renderField(['affiliation_logo_url', 'URL Logo Afiliasi', 'text'])}</div>
           </div>
         </section>
 
-        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70 sm:p-5">
-          <div className="mb-4"><h2 className="text-base font-bold text-slate-900">Identitas Warna</h2><p className="mt-1 text-xs leading-5 text-slate-500">Warna utama, hover, dan aksen untuk elemen brand.</p></div>
-          <div className="grid gap-4 sm:grid-cols-3">
-          {([['brand_primary', 'Warna Utama'], ['brand_hover', 'Warna Hover'], ['brand_accent', 'Warna Aksen']] as const).map(([key, label]) => (
-            <div key={key}>
-              <label className="label-field" htmlFor={`settings-${key}`}>{label}</label>
-              <div className="flex gap-2">
-                <input id={`settings-${key}`} type="color" value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="h-11 w-14 cursor-pointer rounded-lg border border-slate-200 bg-white p-1" />
-                <input type="text" value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="input-field" pattern="^#[0-9a-fA-F]{6}$" title="Gunakan format warna HEX, contoh #2563EB" />
-              </div>
-            </div>
-          ))}
-          </div>
-        </section>
-        <button type="submit" disabled={saving} className="btn-primary w-full sm:w-auto">{saving ? 'Menyimpan...' : 'Simpan Pengaturan'}</button>
+        {editing && <div className="xl:col-span-2">
+          <button type="submit" disabled={saving} className="btn-primary w-full sm:w-auto">{saving ? 'Menyimpan...' : 'Simpan Pengaturan'}</button>
+        </div>}
       </form>
+      <Modal
+        open={Boolean(info)}
+        onClose={() => setInfo(null)}
+        title={`Apa yang berubah pada ${info?.title ?? 'pengaturan ini'}?`}
+        titleEyebrow="Informasi Pengaturan"
+        size="lg"
+        headerClassName="!bg-gradient-to-br !from-blue-700 !via-blue-800 !to-blue-900 !px-4 !pb-3 !pt-3 sm:!px-6 sm:!pb-4 sm:!pt-4"
+        titleClassName="!text-lg !font-black !text-white sm:!text-xl"
+        titleEyebrowClassName="!mb-1 !text-blue-200"
+        closeButtonClassName="!bg-white/15 !text-white hover:!bg-white/25 hover:!text-white"
+        panelClassName="!max-w-xl"
+      >
+        {info && (
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-slate-600">{info.description}</p>
+            <div className="grid grid-cols-1 gap-2">
+              {info.locations.map((location, index) => (
+                <div key={location} className="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-700 text-[10px] font-extrabold text-white">{index + 1}</span>
+                    <p className="min-w-0 text-xs font-medium leading-snug text-slate-700 sm:text-sm">{location}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 text-[10px] font-medium leading-snug text-slate-600 sm:text-xs">Perubahan diterapkan setelah disimpan. Beberapa halaman yang sudah terbuka mungkin perlu dimuat ulang.</p>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -196,7 +196,7 @@ export function EventPage({ router }: { router: Router }) {
         <section data-scroll-reveal className="scroll-reveal">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-xl font-bold text-white">Mendatang</h2>
-            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-blue-700">{upcoming.length}</span>
+            <span aria-label={`${upcoming.length} event mendatang`} className="inline-flex h-10 min-w-10 items-center justify-center rounded-full border-2 border-blue-700 bg-white px-2 text-lg font-black leading-none tabular-nums text-blue-800 shadow-md">{upcoming.length}</span>
           </div>
           <div className="relative mb-4"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="search" value={upcomingSearch} onChange={(event) => setUpcomingSearch(event.target.value)} placeholder="Cari event mendatang..." className="input-field !pl-11" aria-label="Cari event mendatang" /></div>
           {lineupSearchError && <p role="alert" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Data pengisi acara belum dapat dimuat, sehingga pencarian nama komika mungkin tidak lengkap.</p>}
@@ -233,7 +233,7 @@ export function EventPage({ router }: { router: Router }) {
         </section>
 
         {hasCompletedEvents && (
-          <section id="completed-events" data-scroll-reveal className="scroll-reveal scroll-mt-24 border-t border-white/20 pt-7 sm:pt-9">
+          <section id="completed-events" data-scroll-reveal className="home-reveal scroll-mt-24 border-t border-white/20 pt-7 sm:pt-9">
             <div className="mb-5 flex flex-col gap-1.5 sm:mb-6">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
@@ -253,8 +253,15 @@ export function EventPage({ router }: { router: Router }) {
             </div>
             {completed.length === 0 ? <EmptyState title="Riwayat event tidak ditemukan." /> : (
               <div className="grid min-w-0 grid-cols-2 items-start gap-x-3 gap-y-6 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-8 lg:grid-cols-4 xl:grid-cols-5">
-                {completed.map((event) => (
-                  <CompletedEventCard key={event.id} event={event} router={router} />
+                {completed.map((event, index) => (
+                  <div
+                    key={event.id}
+                    data-scroll-reveal
+                    className="scroll-reveal min-w-0"
+                    style={{ transitionDelay: `${(index % 5) * 90}ms` }}
+                  >
+                    <CompletedEventCard event={event} router={router} />
+                  </div>
                 ))}
               </div>
             )}

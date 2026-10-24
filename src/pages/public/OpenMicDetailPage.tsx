@@ -1,7 +1,7 @@
 import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, Check, CheckCircle2, ChevronDown, Clock, Info, Instagram, Mic, Search, Send, Ticket, ArrowRight } from 'lucide-react';
+import { Calendar, Check, CheckCircle2, ChevronDown, Clock, Info, Instagram, Mic, Search, Send, Ticket, ArrowRight, Drama } from 'lucide-react';
 import { scrollToInstantly, type Router } from '@/lib/router';
 import type { Komika, OpenMic, OpenMicRegistration } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { LocationLink } from '@/components/ui/LocationLink';
+import { LocationMapPanel } from '@/components/ui/LocationMapPanel';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
@@ -331,12 +331,12 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
                 />
               </div>
               <div className="space-y-2 text-sm text-slate-600">
+                <div className="flex items-center gap-2.5 font-bold text-slate-800"><Drama className="h-4 w-4 text-blue-600" /> {filled} Komika Open Mic</div>
                 <div className="flex items-center gap-2.5"><Calendar className="h-4 w-4 text-blue-600" /> {formatDate(mic.date)}</div>
                 <div className="flex items-center gap-2.5"><Clock className="h-4 w-4 text-blue-600" /> {mic.time} WIB</div>
-                <LocationLink venue={mic.venue} location={mic.location} mapsUrl={mic.maps_url} className="items-center gap-2.5" />
+                <LocationMapPanel venue={mic.venue} location={mic.location} mapsUrl={mic.maps_url} title={mic.title} completed={currentStatus === 'completed'} locationClassName="items-center gap-2.5" />
               </div>
 
-              <p className="text-sm font-bold text-slate-900 sm:text-base">{filled} Komika</p>
               {currentStatus !== 'completed' && <NoSmokeAreaNotice detail context="open-mic" />}
 
               {currentStatus === 'upcoming' && !closed && !isFull && (

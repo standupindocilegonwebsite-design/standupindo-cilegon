@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { LocationLink } from '@/components/ui/LocationLink';
+import { LocationMapPanel } from '@/components/ui/LocationMapPanel';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
@@ -396,7 +396,7 @@ export function EventDetailPage({ router, slug }: Props) {
             <div className="space-y-0 overflow-hidden rounded-2xl border border-slate-200 bg-white text-sm text-slate-600 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
               <div className="flex items-center gap-2.5 px-3.5 py-3"><Calendar className="h-5 w-5 shrink-0 text-blue-600" /> <span>{formatDate(event.date)}</span></div>
               <div className="flex items-center gap-2.5 border-t border-slate-100 px-3.5 py-3"><Clock className="h-5 w-5 shrink-0 text-blue-600" /> <span>{event.time} WIB</span></div>
-              <div className="border-t border-slate-100"><LocationLink venue={event.venue} location={event.location} mapsUrl={event.maps_url} className="items-center gap-2.5 !rounded-none !border-0 !shadow-none !px-3.5 !py-3" /></div>
+              <div className="border-t border-slate-100"><LocationMapPanel venue={event.venue} location={event.location} mapsUrl={event.maps_url} title={event.title} completed={currentStatus === 'completed'} locationClassName="items-center gap-2.5 !rounded-none !border-0 !shadow-none !px-3.5 !py-3" /></div>
             </div>
             {currentStatus === 'upcoming' && !ticketLoadError && isFreeEvent && <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">Acara gratis. Tidak perlu membeli tiket.</p>}
             {currentStatus === 'upcoming' && !ticketLoadError && tickets.length === 0 && event.ticket_sales_mode === 'paid' && <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Tiket publik belum tersedia.</p>}
@@ -501,7 +501,7 @@ export function EventDetailPage({ router, slug }: Props) {
                   <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5">
                     {categoryLineup.map((entry) => {
                       const member = Array.isArray(entry.komika) ? entry.komika[0] : entry.komika;
-                      const name = member?.stage_name ?? entry.performer_name;
+                      const name = entry.performer_name || member?.stage_name || 'Pengisi Acara';
                       const photo = member?.photo_card || member?.photo || entry.photo_url;
                       const externalUrl = safeExternalUrl(entry.external_url);
                       const performerCardClass = 'group relative isolate aspect-[3/5] min-w-0 overflow-hidden bg-slate-900 text-left shadow-[0_8px_18px_rgba(2,12,32,0.35)]';

@@ -606,6 +606,30 @@
     transform: translateY(0);
   }
 
+  .scroll-reveal.guide-step-reveal {
+    opacity: 0;
+    transform: translateY(44px) scale(0.97);
+    transition: opacity 950ms ease, transform 950ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+
+  .scroll-reveal.guide-step-reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .guide-step-line {
+    transform: scaleY(0);
+    transform-origin: top;
+    opacity: 0.45;
+    transition: transform 1100ms cubic-bezier(0.22, 1, 0.36, 1), opacity 700ms ease;
+  }
+
+  .scroll-reveal.is-visible .guide-step-line {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+
   .home-reveal.is-visible {
     opacity: 1;
     transform: translateY(0);
@@ -631,8 +655,16 @@
   @media (prefers-reduced-motion: reduce) {
     .home-reveal,
     .scroll-reveal,
+    .scroll-reveal.guide-step-reveal,
     .home-stagger > *,
     .home-reveal.is-visible .home-stagger > * {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+
+    .guide-step-line,
+    .scroll-reveal.is-visible .guide-step-line {
       opacity: 1;
       transform: none;
       transition: none;

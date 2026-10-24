@@ -42,11 +42,5 @@ export function useSiteSettings() {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    document.documentElement.style.setProperty('--brand-primary', settings.brand_primary);
-    document.documentElement.style.setProperty('--brand-hover', settings.brand_hover);
-    document.documentElement.style.setProperty('--brand-accent', settings.brand_accent);
-  }, [settings.brand_primary, settings.brand_hover, settings.brand_accent]);
-
   return { settings, loading };
 }

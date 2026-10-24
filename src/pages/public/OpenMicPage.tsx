@@ -265,7 +265,7 @@ export function OpenMicPage({ router }: { router: Router }) {
       ) : (
       <div className="container-app space-y-8 py-8">
         <section data-scroll-reveal className="scroll-reveal is-visible">
-          <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-blue-400" /><h2 className={`text-xl font-extrabold ${isMemberPage ? 'text-slate-900' : 'text-white'}`}>Mendatang</h2><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">{upcoming.length}</span></div>
+          <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-blue-400" /><h2 className={`text-xl font-extrabold ${isMemberPage ? 'text-slate-900' : 'text-white'}`}>Mendatang</h2><span aria-label={`${upcoming.length} Open Mic mendatang`} className="inline-flex h-10 min-w-10 items-center justify-center rounded-full border-2 border-blue-700 bg-white px-2 text-lg font-black leading-none tabular-nums text-blue-800 shadow-md">{upcoming.length}</span></div>
           <div className="relative mb-4"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="search" value={upcomingSearch} onChange={(event) => setUpcomingSearch(event.target.value)} placeholder="Cari Open Mic mendatang..." className="input-field !pl-11" aria-label="Cari Open Mic mendatang" /></div>
           {loading ? (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"><LoadingSkeleton count={3} /></div>

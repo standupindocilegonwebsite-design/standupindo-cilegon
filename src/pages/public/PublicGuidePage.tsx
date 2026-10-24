@@ -291,19 +291,24 @@ export function PublicGuidePage({ router }: { router: Router }) {
           <div className="mb-3 flex items-end justify-between gap-3 px-1 sm:mb-5">
             <div>
               <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-blue-700">Langkah-langkah</p>
-              <h2 className="mt-0.5 text-lg font-black leading-tight text-slate-950 sm:text-2xl">{section === 'open-mic' ? 'Dari daftar sampai lineup' : 'Dari pilih tiket sampai QR'}</h2>
+              <h2 className="mt-0.5 text-lg font-black leading-tight text-slate-950 sm:text-2xl">{section === 'open-mic' ? 'Pendaftaran Open Mic' : 'Pembelian Tiket'}</h2>
             </div>
             <span className="shrink-0 rounded-full border border-blue-100 bg-white px-2.5 py-1 text-[10px] font-extrabold text-blue-800 sm:px-3 sm:py-1.5 sm:text-xs">{steps.length} langkah</span>
           </div>
 
           <ol className="space-y-2.5 sm:space-y-3.5">
             {steps.map(({ title, description, icon: Icon, status, statusStyle }, index) => (
-              <li key={title} className="relative flex gap-2.5 sm:gap-4">
-                {index < steps.length - 1 && <span aria-hidden="true" className="absolute bottom-[-11px] left-[18px] top-[42px] w-px bg-blue-200 sm:bottom-[-15px] sm:left-[25px] sm:top-[52px]" />}
-                <span className="relative z-10 flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[13px] border border-blue-100 bg-blue-50 text-blue-700 sm:h-[52px] sm:w-[52px] sm:rounded-2xl">
+              <li
+                key={title}
+                data-scroll-reveal
+                className="scroll-reveal guide-step-reveal relative flex gap-2.5 sm:gap-4"
+                style={{ transitionDelay: `${(index % 4) * 140}ms` }}
+              >
+                {index < steps.length - 1 && <span aria-hidden="true" className="guide-step-line absolute bottom-[-11px] left-[18px] top-[42px] w-[2px] rounded-full bg-blue-500 sm:bottom-[-15px] sm:left-[25px] sm:top-[52px]" />}
+                <span className="relative z-10 flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[13px] border-2 border-blue-200 bg-blue-50 text-blue-700 shadow-[0_3px_10px_rgba(37,99,235,0.12)] sm:h-[52px] sm:w-[52px] sm:rounded-2xl">
                   <Icon className="h-[18px] w-[18px] sm:h-6 sm:w-6" />
                 </span>
-                <div className="min-w-0 flex-1 rounded-2xl border border-slate-200 border-l-[3px] border-l-blue-500 bg-white p-3.5 shadow-[0_4px_14px_rgba(15,23,42,0.035)] transition-colors hover:border-blue-200 hover:border-l-blue-500 sm:p-5">
+                <div className="min-w-0 flex-1 rounded-2xl border border-slate-200 border-l-[3px] border-l-blue-500 bg-white p-3.5 shadow-[0_8px_22px_rgba(15,23,42,0.07)] transition-colors hover:border-blue-200 hover:border-l-blue-500 sm:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <h3 className="flex min-w-0 flex-1 gap-2 text-[13px] font-extrabold leading-5 text-slate-950 sm:text-base">
                       <span className="shrink-0 font-black text-blue-700">{String(index + 1).padStart(2, '0')}</span>
