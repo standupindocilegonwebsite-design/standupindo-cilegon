@@ -249,6 +249,9 @@ async function loadCategories(events: EventItem[]) {
 }
 
 function paymentDetails(order: TicketOrder) {
+  if (order.payment_channel === 'midtrans') {
+    return { key: 'midtrans', bank: 'MIDTRANS', account: '—', recipient: 'MIDTRANS', qrisRecipient: '', method: 'MIDTRANS' };
+  }
   const snapshot = order.payment_method_snapshot;
   const bank = typeof snapshot?.bank_name === 'string' && snapshot.bank_name.trim() ? snapshot.bank_name.trim() : '';
   const account = typeof snapshot?.account_number === 'string' && snapshot.account_number.trim() ? snapshot.account_number.trim() : '';

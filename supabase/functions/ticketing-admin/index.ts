@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { accessCodeHash, createAccessCode, encryptSecret, normalizeWhatsapp, randomToken, sha256, decryptSecret, whatsappAccessCodeHash } from '../_shared/ticketing.ts';
+import { paymentConfirmationEmailHtml } from '../_shared/ticket-email.ts';
 import { chunkValues, fetchAllPages } from '../_shared/pagination.ts';
 
 const corsHeaders = {
@@ -53,6 +54,7 @@ type RequestBody = {
     qris_identifier?: string;
     note?: string;
   };
+  payment_mode?: 'manual' | 'midtrans' | 'both';
 };
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -118,181 +120,6 @@ function freePassConfirmationEmailHtml(order: {
   email.subject = `FREE PASS ${safeEventTitle} - TIKET KAMU SUDAH SIAP`;
   email.text = `Halo ${order.full_name},\n\nKamu mendapatkan tiket Free Pass untuk ${event.title}.\n\nDetail Tiket:\nEvent: ${event.title}\nKategori: ${order.ticket_category}\nJumlah tiket: ${order.quantity}\n\nAkses Tiket:\nNomor WhatsApp: ${order.whatsapp}\nKode Akses: ${accessCode}\n\nGunakan Nomor WhatsApp dan Kode Akses tersebut untuk melihat tiket melalui website.\nBuka Tiket Saya: ${ticketPageUrl}\n\nSTANDUPINDO CILEGON`;
   return email;
-}
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (character) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  })[character] ?? character);
-}
-
-function paymentConfirmationEmailHtml(order: {
-  full_name: string;
-  whatsapp: string;
-  ticket_category: string;
-  quantity: number;
-  total_price: number;
-}, event: {
-  title: string;
-  date: string | null;
-  time: string | null;
-  venue: string | null;
-  location: string | null;
-}, accessCode: string, ticketPageUrl: string, isFreePass = false) {
-  const name = escapeHtml(order.full_name);
-  const eventTitle = event.title.replace(/[\r\n]+/g, ' ').trim();
-  const escapedEventTitle = escapeHtml(eventTitle);
-  const category = escapeHtml(order.ticket_category);
-  const whatsapp = escapeHtml(order.whatsapp);
-  const code = escapeHtml(accessCode);
-  const ticketUrl = escapeHtml(ticketPageUrl);
-  const logoUrl = escapeHtml(new URL('/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png', ticketPageUrl).toString());
-  const total = `Rp ${order.total_price.toLocaleString('id-ID')}`;
-  const parsedDate = event.date ? Date.parse(`${event.date}T00:00:00Z`) : Number.NaN;
-  const eventDate = Number.isNaN(parsedDate)
-    ? ''
-    : new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(parsedDate);
-  const eventTime = event.time?.trim() ?? '';
-  const eventLocation = [event.venue?.trim(), event.location?.trim()]
-    .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
-    .join(' · ');
-  const detailRow = (label: string, value: string, last = false, emphasize = false) => `
-    <tr>
-      <td style="padding:${last ? '13px 0 5px' : '9px 0'};color:#64748b;${last ? '' : 'border-bottom:1px solid #edf1f6;'}width:42%">${label}</td>
-      <td style="padding:${last ? '13px 0 5px' : '9px 0'};color:${emphasize ? '#102a56' : '#172033'};font-weight:700;${last ? 'font-size:18px;line-height:24px;' : 'border-bottom:1px solid #edf1f6;'}">${value}</td>
-    </tr>`;
-  const eventRows = [
-    eventDate ? detailRow('Tanggal', escapeHtml(eventDate)) : '',
-    eventTime ? detailRow('Waktu', escapeHtml(eventTime)) : '',
-    eventLocation ? detailRow('Lokasi', escapeHtml(eventLocation)) : '',
-  ].join('');
-  const paymentRow = isFreePass ? '' : detailRow('Total pembayaran', total, true, true);
-  const intro = isFreePass
-    ? `Halo <strong style="color:#172033">${name}</strong>, kamu mendapatkan tiket Free Pass untuk <strong style="color:#172033">${escapedEventTitle}</strong>.`
-    : `Halo <strong style="color:#172033">${name}</strong>, pembayaran tiket kamu sudah dikonfirmasi dan berstatus <strong style="color:#16834a">LUNAS</strong>.`;
-  const statusLabel = isFreePass ? 'FREE PASS' : 'PAYMENT SUCCESS';
-  const heading = isFreePass ? 'Free Pass Berhasil!' : 'Pembayaran Berhasil!';
-  const detailStatus = isFreePass ? '● FREE PASS' : '● TERKONFIRMASI';
-  const preheader = isFreePass
-    ? `Kamu mendapatkan tiket Free Pass untuk ${eventTitle}.`
-    : 'Pembayaran tiket kamu sudah dikonfirmasi dan berstatus lunas.';
-
-  return {
-    subject: `Pembayaran Tiket ${eventTitle} Berhasil — Lunas`,
-    html: `<!doctype html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="x-apple-disable-message-reformatting">
-  <title>${isFreePass ? 'Free Pass' : 'Pembayaran Berhasil'} - Standupindo Cilegon</title>
-</head>
-<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#172033">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(preheader)}</div>
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;margin:0;padding:24px 0">
-    <tr><td align="center" style="padding:0 12px">
-      <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;background-color:#fff;border-radius:18px;overflow:hidden">
-        <tr><td style="padding:24px 28px;background-color:#fff;border-bottom:1px solid #e7edf5">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
-            <td valign="middle" style="width:58px"><img src="${logoUrl}" width="52" height="52" alt="Standupindo Cilegon" style="display:block;width:52px;height:52px;object-fit:contain;border:0"></td>
-            <td valign="middle" style="padding-left:12px"><div style="font-size:17px;line-height:22px;font-weight:800;color:#102a56">STANDUPINDO</div><div style="font-size:11px;line-height:17px;letter-spacing:1.4px;color:#64748b">CILEGON · OFFICIAL TICKETING</div></td>
-            <td align="right" valign="middle"><span style="display:inline-block;padding:8px 10px;border-radius:20px;background-color:${isFreePass ? '#fff7df' : '#e8f8ef'};color:${isFreePass ? '#9a6700' : '#16834a'};font-size:10px;line-height:12px;font-weight:800;letter-spacing:.5px">${statusLabel}</span></td>
-          </tr></table>
-        </td></tr>
-        <tr><td align="center" style="padding:34px 28px 28px">
-          <div style="width:54px;height:54px;line-height:54px;border-radius:50%;background-color:#e7f8ee;color:#169653;font-size:30px;font-weight:700;text-align:center;margin:0 auto 18px">✓</div>
-          <h1 style="margin:0 0 12px;font-size:27px;line-height:34px;color:#102a56">${heading}</h1>
-          <p style="margin:0;max-width:440px;font-size:15px;line-height:24px;color:#526176">${intro}</p>
-        </td></tr>
-        <tr><td style="padding:0 28px 24px">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border:1px solid #e2eaf4;border-radius:14px;overflow:hidden">
-            <tr><td style="padding:18px 20px;background-color:#f8fbff;border-bottom:1px solid #e2eaf4">
-              <div style="font-size:11px;line-height:16px;font-weight:800;letter-spacing:1.2px;color:#64748b;margin-bottom:5px">DETAIL TIKET</div>
-              <div style="font-size:19px;line-height:26px;font-weight:800;color:#102a56">${escapedEventTitle}</div>
-              <div style="margin-top:10px"><span style="display:inline-block;padding:6px 10px;border-radius:20px;background-color:${isFreePass ? '#fff7df' : '#e8f8ef'};color:${isFreePass ? '#9a6700' : '#16834a'};font-size:10px;line-height:12px;font-weight:800;letter-spacing:.5px">${detailStatus}</span></div>
-            </td></tr>
-            <tr><td style="padding:8px 20px 14px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="font-size:13px;line-height:19px">
-              ${detailRow('Nama pemesan', name)}${eventRows}${detailRow('Kategori', category)}${detailRow('Jumlah tiket', String(order.quantity))}${paymentRow}
-            </table></td></tr>
-          </table>
-        </td></tr>
-        <tr><td style="padding:0 28px 24px">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#0c205f;border-radius:14px"><tr><td style="padding:20px">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:6px"><tr>
-              <td valign="middle" style="width:36px;height:36px;border-radius:9px;background-color:#24477f;text-align:center;font-size:17px;line-height:36px">🔑</td>
-              <td valign="middle" style="padding-left:10px;font-size:16px;line-height:22px;color:#fff;font-weight:800">Akses Tiket Digital</td>
-            </tr></table>
-            <div style="font-size:13px;line-height:20px;color:#80c5ff;margin-bottom:16px">Gunakan nomor WhatsApp &amp; kode akses berikut untuk membuka tiket digital kamu di website.</div>
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
-              <td valign="top" width="49%" style="padding:12px;background-color:#020d38;border:1px solid #18336f;border-radius:13px"><div style="font-size:10px;line-height:15px;color:#72bdf6;font-weight:800;letter-spacing:.6px;margin-bottom:4px">NOMOR WHATSAPP</div><div style="font-size:15px;line-height:21px;color:#fff;font-weight:800;letter-spacing:.4px;word-break:break-word">${whatsapp}</div></td>
-              <td width="2%" style="width:2%;font-size:0;line-height:0">&nbsp;</td>
-              <td valign="top" width="49%" style="padding:12px;background-color:#1b4d84;border:1px solid #4d91c3;border-radius:13px"><div style="font-size:10px;line-height:15px;color:#72c5ff;font-weight:800;letter-spacing:.6px;margin-bottom:4px">KODE AKSES TIKET</div><div style="font-size:15px;line-height:21px;color:#ffc229;font-weight:900;letter-spacing:1px;word-break:break-word">${code}</div></td>
-            </tr></table>
-          </td></tr></table>
-        </td></tr>
-        <tr><td align="center" style="padding:0 28px 32px">
-          <p style="margin:0 0 18px;font-size:14px;line-height:22px;color:#526176">Tiket kamu sudah siap. Buka halaman <strong>Tiket Saya</strong> untuk melihat tiket digital.</p>
-          <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td align="center" bgcolor="#1264e8" style="border-radius:9px"><a href="${ticketUrl}" style="display:inline-block;padding:14px 28px;border-radius:9px;background-color:#1264e8;color:#fff;text-decoration:none;font-size:14px;line-height:18px;font-weight:800">Buka Tiket Saya&nbsp; →</a></td></tr></table>
-          <p style="margin:18px 0 0;font-size:11px;line-height:18px;color:#7b8798">Jika tombol tidak dapat dibuka, gunakan tautan berikut:<br><a href="${ticketUrl}" style="color:#1264e8;text-decoration:underline;word-break:break-word">${ticketUrl}</a></p>
-        </td></tr>
-        <tr><td style="padding:20px 28px;background-color:#f8fbff;border-top:1px solid #e7edf5"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
-          <td valign="middle" style="width:44px"><img src="${logoUrl}" width="38" height="38" alt="Standupindo" style="display:block;width:38px;height:38px;object-fit:contain;border:0"></td>
-          <td valign="middle" style="padding-left:10px"><div style="font-size:12px;line-height:18px;color:#64748b">Official Ticketing</div><div style="font-size:13px;line-height:19px;color:#102a56;font-weight:800">Standupindo Cilegon</div></td>
-          <td align="right" valign="middle" style="font-size:10px;line-height:16px;color:#94a3b8">Email otomatis<br>Mohon tidak membalas email ini.</td>
-        </tr></table></td></tr>
-      </table>
-      <div style="max-width:560px;padding:16px 8px 0;font-size:10px;line-height:16px;color:#94a3b8;text-align:center">© Standupindo Cilegon · Official Ticketing</div>
-    </td></tr>
-  </table>
-</body>
-</html>`,
-    text: `Halo ${order.full_name}, pembayaran tiket ${eventTitle} sudah dikonfirmasi dan berstatus lunas.\n\nDetail Tiket:\nEvent: ${eventTitle}\nNama pemesan: ${order.full_name}\n${eventDate ? `Tanggal: ${eventDate}\n` : ''}${eventTime ? `Waktu: ${eventTime}\n` : ''}${eventLocation ? `Lokasi: ${eventLocation}\n` : ''}Kategori: ${order.ticket_category}\nJumlah tiket: ${order.quantity}\nTotal pembayaran: ${total}\n\nAkses Tiket:\nNomor WhatsApp: ${order.whatsapp}\nKode Akses: ${accessCode}\n\nBuka Tiket Saya: ${ticketPageUrl}\n\nSTANDUPINDO CILEGON`,
-  };
-}
-async function resendErrorMessage(response: Response, secrets: string[]) {
-  let detail = '';
-
-  try {
-    const payload: unknown = await response.clone().json();
-    if (typeof payload === 'string') {
-      detail = payload;
-    } else if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-      const record = payload as Record<string, unknown>;
-      const fields = ['message', 'error', 'name', 'type', 'code'] as const;
-      const parts: string[] = [];
-      for (const field of fields) {
-        const value = record[field];
-        if (typeof value === 'string' || typeof value === 'number') {
-          parts.push(`${field}: ${value}`);
-        } else if (field === 'error' && value && typeof value === 'object' && !Array.isArray(value)) {
-          const error = value as Record<string, unknown>;
-          for (const nestedField of ['message', 'name', 'type', 'code'] as const) {
-            const nestedValue = error[nestedField];
-            if (typeof nestedValue === 'string' || typeof nestedValue === 'number') {
-              parts.push(`${nestedField}: ${nestedValue}`);
-            }
-          }
-        }
-      }
-      detail = [...new Set(parts)].join('; ');
-    }
-  } catch {
-    try {
-      detail = await response.text();
-    } catch {
-      detail = '';
-    }
-  }
-
-  for (const secret of secrets) {
-    if (secret) detail = detail.split(secret).join('[redacted]');
-  }
-
-  return `Resend HTTP ${response.status}: ${(detail.trim() || 'No error details returned.').slice(0, 1000)}`.slice(0, 1000);
 }
 
 serve(async (request) => {
@@ -565,6 +392,24 @@ serve(async (request) => {
       return json({ path, token: data.token, signed_url: data.signedUrl });
     }
 
+    if (body.action === 'set-ticket-payment-mode') {
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!isAdmin && !isTicketAdmin) return json({ error: 'Akses pengaturan mode pembayaran ditolak.' }, 403);
+      if (!body.event_id || !uuidPattern.test(body.event_id)
+        || !body.payment_mode || !['manual', 'midtrans', 'both'].includes(body.payment_mode)) {
+        return json({ error: 'Event atau mode pembayaran tidak valid.' }, 400);
+      }
+      if (!await hasEventScope(body.event_id, 'admin_ticket')) return json({ error: 'Event di luar scope Admin Tiket.' }, 403);
+      const { data, error } = await serviceClient.from('events')
+        .update({ ticket_payment_mode: body.payment_mode })
+        .eq('id', body.event_id)
+        .select('id, ticket_payment_mode')
+        .maybeSingle();
+      if (error) return json({ error: 'Mode pembayaran gagal disimpan.' }, 400);
+      if (!data) return json({ error: 'Event tidak ditemukan.' }, 404);
+      return json({ event_id: data.id, payment_mode: data.ticket_payment_mode });
+    }
+
     if (body.action === 'payment-methods') {
       if (!isAdmin && !isTicketAdmin) return json({ error: 'Akses informasi pembayaran ditolak.' }, 403);
       const { data: methods, error: methodError } = await serviceClient.from('event_payment_methods').select('*').order('updated_at', { ascending: false });
@@ -710,6 +555,48 @@ serve(async (request) => {
       const { data, error } = await serviceClient.storage.from(PROOF_BUCKET).createSignedUrl(order.payment_proof_path, 300);
       if (error || !data) return json({ error: 'Bukti pembayaran belum dapat dibuka.' }, 500);
       return json({ signed_url: data.signedUrl, expires_in: 300 });
+    }
+
+    if (body.action === 'midtrans-review-list') {
+      if (!isAdmin && !isTicketAdmin) return json({ error: 'Akses pemeriksaan transaksi ditolak.' }, 403);
+      const { data: reviews, error: reviewError } = await fetchAllPages((from, to) => serviceClient.from('ticket_midtrans_transactions')
+        .select('id, ticket_order_id, provider_order_id, provider_transaction_id, gross_amount, currency, transaction_status, fraud_status, payment_type, allocation_status, review_reason, created_at, updated_at')
+        .eq('allocation_status', 'needs_admin_review')
+        .order('updated_at', { ascending: false })
+        .range(from, to));
+      if (reviewError) return json({ error: 'Daftar transaksi yang perlu diperiksa gagal dimuat.' }, 500);
+      const result = [];
+      for (const review of reviews ?? []) {
+        const { data: order, error: orderError } = await serviceClient.from('ticket_orders')
+          .select('id, order_number, event_id, full_name, email, ticket_category, quantity, total_price, status')
+          .eq('id', review.ticket_order_id).maybeSingle();
+        if (orderError) return json({ error: 'Detail order transaksi gagal dimuat.' }, 500);
+        if (!order || !await hasEventScope(order.event_id, 'admin_ticket')) continue;
+        result.push({ review_kind: 'allocation', ...review, order });
+      }
+      const { data: failedEmails, error: emailError } = await fetchAllPages((from, to) => serviceClient.from('ticket_email_logs')
+        .select('id, order_id, recipient_email, status, error_message, updated_at:created_at')
+        .in('status', ['failed', 'pending'])
+        .range(from, to));
+      if (emailError) return json({ error: 'Daftar email Midtrans yang gagal dimuat.' }, 500);
+      for (const email of failedEmails ?? []) {
+        const { data: order, error: orderError } = await serviceClient.from('ticket_orders')
+          .select('id, order_number, event_id, full_name, email, ticket_category, quantity, total_price, status, payment_channel')
+          .eq('id', email.order_id).maybeSingle();
+        if (orderError) return json({ error: 'Detail order email gagal dimuat.' }, 500);
+        if (!order || order.payment_channel !== 'midtrans' || !await hasEventScope(order.event_id, 'admin_ticket')) continue;
+        result.push({
+          review_kind: 'email',
+          ticket_order_id: order.id,
+          provider_order_id: null,
+          transaction_status: null,
+          allocation_status: email.status === 'pending' ? 'email_pending' : 'email_failed',
+          review_reason: email.error_message,
+          updated_at: email.updated_at,
+          order,
+        });
+      }
+      return json({ reviews: result });
     }
 
     if (body.action === 'resolve-order') {
@@ -1294,6 +1181,81 @@ serve(async (request) => {
         email_status: emailStatus,
         email_message: emailMessage,
       });
+    }
+
+    if (body.action === 'retry-payment-email') {
+      if (!encryptionKey || !body.order_id || (!isAdmin && !isTicketAdmin)) {
+        return json({ error: 'Akses percobaan ulang email ditolak.' }, 403);
+      }
+      const { data: order, error: orderError } = await serviceClient.from('ticket_orders')
+        .select('id, event_id, full_name, email, whatsapp, ticket_category, quantity, total_price, status, payment_channel, access_code_id')
+        .eq('id', body.order_id).maybeSingle();
+      if (orderError || !order) return json({ error: 'Order tidak ditemukan.' }, 404);
+      if (order.status !== 'Lunas' || order.payment_channel !== 'midtrans' || !order.access_code_id) {
+        return json({ error: 'Hanya order Midtrans yang sudah Lunas dapat diproses.' }, 409);
+      }
+      if (!await hasEventScope(order.event_id, 'admin_ticket')) return json({ error: 'Event di luar scope akun ini.' }, 403);
+      const recipientEmail = order.email?.trim().toLowerCase() ?? '';
+      if (!recipientEmail) return json({ error: 'Email pembeli tidak tercatat pada order.' }, 409);
+      const { data: emailLog, error: emailLogError } = await serviceClient.from('ticket_email_logs')
+        .select('id, status').eq('order_id', order.id).maybeSingle();
+      if (emailLogError || !emailLog) return json({ error: 'Log email konfirmasi tidak ditemukan.' }, 404);
+      if (emailLog.status === 'sent') return json({ email_status: 'sent', already_sent: true });
+      const resendApiKey = Deno.env.get('RESEND_API_KEY');
+      if (!resendApiKey) return json({ error: 'Konfigurasi Resend belum tersedia.' }, 503);
+      const [{ data: accessCodeRecord, error: accessCodeError }, { data: event, error: eventError }] = await Promise.all([
+        serviceClient.from('ticket_access_codes').select('access_code_ciphertext, status').eq('id', order.access_code_id).maybeSingle(),
+        serviceClient.from('events').select('title, date, time, venue, location').eq('id', order.event_id).maybeSingle(),
+      ]);
+      if (accessCodeError || !accessCodeRecord || accessCodeRecord.status !== 'active') return json({ error: 'Access Code aktif tidak ditemukan.' }, 404);
+      if (eventError || !event) return json({ error: 'Informasi Event tidak ditemukan.' }, 404);
+      const accessCode = await decryptSecret(accessCodeRecord.access_code_ciphertext, encryptionKey);
+      const emailContent = paymentConfirmationEmailHtml({
+        full_name: order.full_name,
+        whatsapp: order.whatsapp,
+        ticket_category: order.ticket_category,
+        quantity: order.quantity,
+        total_price: order.total_price,
+      }, event, accessCode, 'https://standupindocilegon.id/tiket');
+      const { error: pendingError } = await serviceClient.from('ticket_email_logs')
+        .update({ status: 'pending', error_message: null }).eq('id', emailLog.id);
+      if (pendingError) return json({ error: 'Status percobaan email gagal dicatat.' }, 500);
+      try {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            'Content-Type': 'application/json',
+            'Idempotency-Key': `ticket-payment-confirmation/${order.id}`,
+            'User-Agent': 'standupindo-cilegon-ticketing/1.0',
+          },
+          body: JSON.stringify({
+            from: 'Standupindo Cilegon <noreply@standupindocilegon.id>',
+            to: [recipientEmail],
+            subject: emailContent.subject,
+            html: emailContent.html,
+            text: emailContent.text,
+          }),
+          signal: AbortSignal.timeout(10000),
+        });
+        const resendResult = await response.clone().json().catch(() => null) as { id?: string } | null;
+        if (!response.ok) {
+          const errorMessage = await resendErrorMessage(response, [resendApiKey, accessCode]);
+          await serviceClient.from('ticket_email_logs').update({ status: 'failed', error_message: errorMessage }).eq('id', emailLog.id);
+          return json({ error: 'Email gagal dikirim ulang.' }, 502);
+        }
+        await serviceClient.from('ticket_email_logs').update({
+          status: 'sent',
+          resend_message_id: typeof resendResult?.id === 'string' ? resendResult.id : null,
+          error_message: null,
+          sent_at: new Date().toISOString(),
+        }).eq('id', emailLog.id);
+        return json({ email_status: 'sent' });
+      } catch {
+        await serviceClient.from('ticket_email_logs')
+          .update({ status: 'failed', error_message: 'Koneksi ke layanan email gagal atau melewati batas waktu.' }).eq('id', emailLog.id);
+        return json({ error: 'Koneksi ke layanan email gagal.' }, 502);
+      }
     }
 
     if (body.action === 'resend-access-code') {

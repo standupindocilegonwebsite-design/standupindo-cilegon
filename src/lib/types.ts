@@ -60,6 +60,7 @@ export interface EventItem {
   whatsapp_number: string;
   whatsapp_message: string | null;
   ticket_sales_mode: 'free' | 'paid';
+  ticket_payment_mode: 'manual' | 'midtrans' | 'both';
   ticket_price: number;
   created_at: string;
   updated_at: string;
@@ -151,6 +152,9 @@ export interface TicketOrder {
   payment_submitted_at?: string | null;
   payment_method_id?: string | null;
   payment_method_snapshot?: Record<string, unknown> | null;
+  payment_channel?: 'manual' | 'midtrans' | null;
+  payment_mode_snapshot?: 'manual' | 'midtrans' | 'both' | null;
+  payment_verified_at?: string | null;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
   review_note?: string | null;

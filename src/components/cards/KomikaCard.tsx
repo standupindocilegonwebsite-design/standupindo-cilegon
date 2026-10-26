@@ -3,7 +3,7 @@ import type { Router } from '@/lib/router';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
 import { formatStageName, normalizeSpecialties } from '@/lib/format';
 
-export function KomikaCard({ komika, router }: { komika: Komika; router: Router }) {
+export function KomikaCard({ komika, router }: { komika: Pick<Komika, 'stage_name' | 'slug' | 'photo' | 'photo_card' | 'instagram_url' | 'tiktok_url' | 'youtube_url' | 'specialties'>; router: Router }) {
   const specialties = normalizeSpecialties(komika.specialties);
   const cardPhoto = komika.photo_card || komika.photo;
   const stageName = formatStageName(komika.stage_name);

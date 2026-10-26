@@ -17,6 +17,12 @@ interface Props {
   router: Router;
 }
 
+type HomeOpenMic = Pick<OpenMic, 'id' | 'title' | 'slug' | 'poster' | 'date' | 'time' | 'venue' | 'location' | 'maps_url' | 'capacity' | 'status' | 'registration_status'>;
+type NumberedOpenMic = Pick<OpenMic, 'id' | 'date' | 'created_at' | 'status' | 'time' | 'slug'>;
+type HomeEvent = Pick<EventItem, 'id' | 'title' | 'slug' | 'poster' | 'date' | 'time' | 'venue' | 'location' | 'maps_url' | 'description' | 'status' | 'ticket_sales_mode'>;
+type HomeKomika = Pick<Komika, 'id' | 'stage_name' | 'slug' | 'photo' | 'photo_card' | 'instagram_url' | 'tiktok_url' | 'youtube_url' | 'specialties'>;
+type HomePartner = Pick<Partner, 'id' | 'name' | 'logo_url' | 'category'>;
+
 function AutoSlideRow({ children, className, intervalMs = 5000, highlightActive = false, highlightTone = 'blue', lightLeakSlot, activeLightLeakSlot }: { children: ReactNode[]; className: string; intervalMs?: number; highlightActive?: boolean; highlightTone?: 'blue' | 'amber'; lightLeakSlot?: 'open-mic' | 'event' | 'komika'; activeLightLeakSlot?: 'open-mic' | 'event' | 'komika' | 'event-cta' | null }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const activeIndexRef = useRef(0);
@@ -61,7 +67,7 @@ function AutoSlideRow({ children, className, intervalMs = 5000, highlightActive 
   );
 }
 
-function PartnerMarqueeStrip({ partners, category }: { partners: Partner[]; category: 'sponsor' | 'support' | 'media_partner' }) {
+function PartnerMarqueeStrip({ partners, category }: { partners: HomePartner[]; category: 'sponsor' | 'support' | 'media_partner' }) {
   const shellRef = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
   const labels = { sponsor: 'Sponsor', support: 'Support', media_partner: 'Media Partner' } as const;
@@ -91,7 +97,7 @@ function PartnerMarqueeStrip({ partners, category }: { partners: Partner[]; cate
       <div ref={shellRef} className="partner-marquee-shell home-partner-marquee-shell" onPointerDown={() => setPaused(true)} onPointerUp={() => setPaused(false)} onPointerCancel={() => setPaused(false)}>
         <div className="partner-marquee-track home-partner-marquee-track">
         {leading.map((partner, index) => <div key={`${partner.id}-${category}-${index}`} className={`partner-marquee-item ${sizeMap[category].item}`}>
-          <div className={`partner-marquee-logo ${sizeMap[category].logo}`}>{partner.logo_url ? <img src={partner.logo_url} alt={partner.name} className="h-full w-full object-contain" /> : <span className="text-[10px] font-black text-slate-600 sm:text-xs">{partner.name.slice(0, 2).toUpperCase()}</span>}</div>
+          <div className={`partner-marquee-logo ${sizeMap[category].logo}`}>{partner.logo_url ? <img src={partner.logo_url} alt={partner.name} loading="lazy" className="h-full w-full object-contain" /> : <span className="text-[10px] font-black text-slate-600 sm:text-xs">{partner.name.slice(0, 2).toUpperCase()}</span>}</div>
           <p className={`partner-marquee-name ${sizeMap[category].name}`}>{partner.name}</p>
         </div>)}
         </div>
@@ -119,13 +125,13 @@ export function HomePage({ router }: Props) {
   const [loading, setLoading] = useState(true);
   const revealRootRef = useRef<HTMLDivElement>(null);
   const [activeLightLeakSlot, setActiveLightLeakSlot] = useState<'open-mic' | 'event' | 'komika' | 'event-cta' | null>(null);
-  const [mics, setMics] = useState<OpenMic[]>([]);
-  const [numberedOpenMics, setNumberedOpenMics] = useState<OpenMic[]>([]);
-  const [events, setEvents] = useState<EventItem[]>([]);
-  const [latestCompletedEvent, setLatestCompletedEvent] = useState<EventItem | null>(null);
-  const [komika, setKomika] = useState<Komika[]>([]);
+  const [mics, setMics] = useState<HomeOpenMic[]>([]);
+  const [numberedOpenMics, setNumberedOpenMics] = useState<NumberedOpenMic[]>([]);
+  const [events, setEvents] = useState<HomeEvent[]>([]);
+  const [latestCompletedEvent, setLatestCompletedEvent] = useState<Pick<EventItem, 'slug' | 'status' | 'date'> | null>(null);
+  const [komika, setKomika] = useState<HomeKomika[]>([]);
   const [publishedRecap, setPublishedRecap] = useState<{ year: number } | null>(null);
-  const [partnersByCategory, setPartnersByCategory] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
+  const [partnersByCategory, setPartnersByCategory] = useState<Record<'sponsor' | 'support' | 'media_partner', HomePartner[]>>({ sponsor: [], support: [], media_partner: [] });
   const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
   const [confirmedCounts, setConfirmedCounts] = useState<Record<string, number>>({});
   const openMicNumbers = useMemo(() => getOpenMicNumbers(numberedOpenMics), [numberedOpenMics]);
@@ -181,19 +187,19 @@ export function HomePage({ router }: Props) {
     (async () => {
       const today = new Date().toISOString().slice(0, 10);
       const [{ data: micData }, { data: allMicData }, { data: eventData }, { data: latestCompletedEventData }, { data: komikaData }, { data: ticketData }, { data: partnerData }, { data: recapData }] = await Promise.all([
-        supabase.from('open_mics').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }),
-        supabase.from('open_mics').select('*').eq('published', true),
-        supabase.from('events').select('*').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(5),
-        supabase.from('events').select('*').eq('published', true).or(`status.eq.completed,and(status.eq.upcoming,date.lte.${today})`).order('date', { ascending: false }).order('time', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('komika').select('id, full_name, stage_name, slug, photo, photo_card, bio, instagram_url, tiktok_url, youtube_url, specialties, featured_order, status, published, created_at, updated_at').eq('published', true).eq('status', 'active'),
+        supabase.from('open_mics').select('id, title, slug, poster, date, time, venue, location, maps_url, capacity, status, registration_status').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }),
+        supabase.from('open_mics').select('id, date, created_at, status, time, slug').eq('published', true),
+        supabase.from('events').select('id, title, slug, poster, date, time, venue, location, maps_url, description, status, ticket_sales_mode').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(5),
+        supabase.from('events').select('slug, status, date').eq('published', true).or(`status.eq.completed,and(status.eq.upcoming,date.lte.${today})`).order('date', { ascending: false }).order('time', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('komika').select('id, stage_name, slug, photo, photo_card, instagram_url, tiktok_url, youtube_url, specialties').eq('published', true).eq('status', 'active'),
         supabase.from('event_tickets').select('event_id, price').eq('status', 'active').eq('available_public', true).order('price', { ascending: true }),
-        supabase.from('partners').select('*').eq('is_published', true).order('sort_order', { ascending: true }).order('name', { ascending: true }),
+        supabase.from('partners').select('id, name, logo_url, category').eq('is_published', true).order('sort_order', { ascending: true }).order('name', { ascending: true }),
         supabase.from('annual_recaps').select('year').eq('published', true).order('year', { ascending: false }).limit(1).maybeSingle(),
       ]);
 
-      const micsList = (micData as OpenMic[]) ?? [];
-      const eventsList = (eventData as EventItem[]) ?? [];
-      const komikaList = (komikaData as Komika[]) ?? [];
+      const micsList = (micData as HomeOpenMic[] | null) ?? [];
+      const eventsList = (eventData as HomeEvent[] | null) ?? [];
+      const komikaList = (komikaData as HomeKomika[] | null) ?? [];
       const prices: Record<string, number> = {};
 
       (ticketData as EventTicket[] | null)?.forEach((ticket) => {
@@ -205,15 +211,15 @@ export function HomePage({ router }: Props) {
 
       const randomKomika = shuffleItems(komikaList).slice(0, 15);
 
-      const groupedPartners: Record<'sponsor' | 'support' | 'media_partner', Partner[]> = { sponsor: [], support: [], media_partner: [] };
-      (partnerData as Partner[] | null)?.forEach((partner) => {
+      const groupedPartners: Record<'sponsor' | 'support' | 'media_partner', HomePartner[]> = { sponsor: [], support: [], media_partner: [] };
+      (partnerData as HomePartner[] | null)?.forEach((partner) => {
         groupedPartners[partner.category].push(partner);
       });
 
       setMics(micsList);
-      setNumberedOpenMics((allMicData as OpenMic[]) ?? []);
+      setNumberedOpenMics((allMicData as NumberedOpenMic[] | null) ?? []);
       setEvents(eventsList);
-      const completedEvent = (latestCompletedEventData as EventItem | null) ?? null;
+      const completedEvent = (latestCompletedEventData as Pick<EventItem, 'slug' | 'status' | 'date'> | null) ?? null;
       setLatestCompletedEvent(completedEvent && getEventStatus(completedEvent.status, completedEvent.date) === 'completed' ? completedEvent : null);
       setKomika(randomKomika);
       setPartnersByCategory(groupedPartners);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, Copy, CreditCard, Eye, Landmark, LoaderCircle, QrCode, Ticket, Upload, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, Clock3, Copy, CreditCard, Eye, Landmark, LoaderCircle, QrCode, Ticket, Upload, UserRound } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { LOGO_URL, type EventItem, type EventTicket } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -147,6 +147,8 @@ function PaymentInstructions({ method, totalPrice }: { method: PaymentSnapshot; 
 interface SavedTicketOrder {
   id: string;
   order_number: string;
+  event_id?: string;
+  ticket_id?: string | null;
   full_name?: string;
   email?: string | null;
   total_price: number;
@@ -155,6 +157,7 @@ interface SavedTicketOrder {
   quantity?: number;
   status?: string;
   payment_method_snapshot: PaymentSnapshot | null;
+  payment_channel?: 'manual' | 'midtrans' | null;
   price_breakdown?: PriceBreakdownData;
 }
 
@@ -182,6 +185,7 @@ interface CreatedPricedOrder {
   id: string;
   order_number: string;
   total_price: number;
+  expires_at?: string;
   price_breakdown: PriceBreakdownData;
 }
 
@@ -255,6 +259,7 @@ function isCreatedPricedOrder(value: unknown): value is CreatedPricedOrder {
   return typeof order.id === 'string'
     && typeof order.order_number === 'string'
     && typeof order.total_price === 'number'
+    && (order.expires_at === undefined || typeof order.expires_at === 'string')
     && isPriceBreakdown(order.price_breakdown);
 }
 
@@ -310,6 +315,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
   const [event, setEvent] = useState<EventItem | null>(null);
   const [ticket, setTicket] = useState<EventTicket | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentSnapshot | null>(null);
+  const [selectedPaymentChannel, setSelectedPaymentChannel] = useState<'manual' | 'midtrans'>('manual');
   const [form, setForm] = useState({ full_name: '', email: '', whatsapp: '', quantity: '1' });
   const [buyerFieldsTouched, setBuyerFieldsTouched] = useState<BuyerFieldTouched>({ full_name: false, email: false, whatsapp: false });
   const [buyerValidationSubmitted, setBuyerValidationSubmitted] = useState(false);
@@ -321,6 +327,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
   const [quoteError, setQuoteError] = useState('');
   const [quoteRefresh, setQuoteRefresh] = useState(0);
   const quoteRequestId = useRef(0);
+  const processedMidtransReturnRef = useRef('');
   const [error, setError] = useState('');
   const [paymentMethodError, setPaymentMethodError] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -330,8 +337,26 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreviewUrl, setProofPreviewUrl] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('Draft Pembayaran');
+  const [midtransReviewReason, setMidtransReviewReason] = useState('');
+  const [checkingMidtransStatus, setCheckingMidtransStatus] = useState(false);
+  const [countdownNow, setCountdownNow] = useState(() => Date.now());
+  const [midtransReturnRetry, setMidtransReturnRetry] = useState(0);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
+  const midtransReturnOrderId = router.query.get('midtransOrderId');
+  const midtransExpiryTime = savedOrder?.payment_channel === 'midtrans' && savedOrder.expires_at
+    ? Date.parse(savedOrder.expires_at)
+    : Number.NaN;
+  const midtransSecondsRemaining = Number.isFinite(midtransExpiryTime)
+    ? Math.max(0, Math.ceil((midtransExpiryTime - countdownNow) / 1000))
+    : null;
+  const midtransPaymentExpired = midtransSecondsRemaining === 0;
+
+  useEffect(() => {
+    if (savedOrder?.payment_channel !== 'midtrans' || paymentStatus !== 'Menunggu Pembayaran' || !savedOrder.expires_at) return;
+    const timer = window.setInterval(() => setCountdownNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [savedOrder?.expires_at, savedOrder?.payment_channel, paymentStatus]);
 
   useEffect(() => {
     if (!proofFile) {
@@ -350,22 +375,26 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
       const eventRow = eventData as EventItem | null;
       if (!active) return;
       setEvent(eventRow);
+      if (eventRow?.ticket_payment_mode === 'midtrans') setSelectedPaymentChannel('midtrans');
+      else setSelectedPaymentChannel('manual');
 
       if (eventRow) {
         const { data: ticketData } = await supabase.from('event_tickets').select('*').eq('id', ticketId).eq('event_id', eventRow.id).eq('status', 'active').eq('available_public', true).maybeSingle();
         if (active) setTicket((ticketData as EventTicket) ?? null);
-        const { data: paymentAssignment, error: assignmentError } = await supabase.from('event_payment_method_assignments')
-          .select('payment_method_id')
-          .eq('event_id', eventRow.id).eq('is_active', true).maybeSingle();
-        const { data: paymentData, error: paymentError } = paymentAssignment
-          ? await supabase.from('event_payment_methods')
-            .select('recipient_name, qris_recipient_name, bank_name, account_number, qris_storage_path, note')
-            .eq('id', paymentAssignment.payment_method_id).maybeSingle()
-          : { data: null, error: assignmentError };
-        if (active) {
-          setPaymentMethod((paymentData as PaymentSnapshot | null) ?? null);
-          if (assignmentError || paymentError) setPaymentMethodError('Informasi pembayaran Event gagal dimuat. Muat ulang halaman sebelum mengirim order.');
-          else if (!paymentData) setPaymentMethodError('Informasi pembayaran untuk Event ini belum tersedia.');
+        if ((eventRow.ticket_payment_mode ?? 'manual') !== 'midtrans') {
+          const { data: paymentAssignment, error: assignmentError } = await supabase.from('event_payment_method_assignments')
+            .select('payment_method_id')
+            .eq('event_id', eventRow.id).eq('is_active', true).maybeSingle();
+          const { data: paymentData, error: paymentError } = paymentAssignment
+            ? await supabase.from('event_payment_methods')
+              .select('recipient_name, qris_recipient_name, bank_name, account_number, qris_storage_path, note')
+              .eq('id', paymentAssignment.payment_method_id).maybeSingle()
+            : { data: null, error: assignmentError };
+          if (active) {
+            setPaymentMethod((paymentData as PaymentSnapshot | null) ?? null);
+            if (assignmentError || paymentError) setPaymentMethodError('Informasi pembayaran Event gagal dimuat. Muat ulang halaman sebelum mengirim order.');
+            else if (!paymentData) setPaymentMethodError('Informasi pembayaran untuk Event ini belum tersedia.');
+          }
         }
       }
       if (active) setLoading(false);
@@ -373,10 +402,73 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
     return () => { active = false; };
   }, [slug, ticketId]);
 
+  useEffect(() => {
+    const restoreKey = `${midtransReturnOrderId ?? ''}:${midtransReturnRetry}`;
+    if (!event || !ticket || !midtransReturnOrderId || processedMidtransReturnRef.current === restoreKey) return;
+    processedMidtransReturnRef.current = restoreKey;
+    let active = true;
+    void (async () => {
+      setSubmitted(true);
+      setPaymentStatus('Memeriksa pembayaran Midtrans');
+      let storedWhatsapp = '';
+      try {
+        const stored = sessionStorage.getItem(`midtrans-order:${midtransReturnOrderId}`);
+        if (stored) storedWhatsapp = (JSON.parse(stored) as { whatsapp?: string }).whatsapp ?? '';
+      } catch {
+        storedWhatsapp = '';
+      }
+      if (!storedWhatsapp) {
+        if (active) setError('Checkout selesai. Gunakan email konfirmasi atau hubungi Admin Tiket untuk memeriksa pesanan.');
+        return;
+      }
+      if (active) setCheckingMidtransStatus(true);
+      const { data, error: statusError } = await supabase.functions.invoke<{
+        order?: SavedTicketOrder;
+        transaction?: { allocation_status?: string; review_reason?: string | null } | null;
+        error?: string;
+      }>('ticketing-public', {
+        body: { action: 'midtrans-payment-status', order_id: midtransReturnOrderId, whatsapp: storedWhatsapp },
+      });
+      if (!active) return;
+      setCheckingMidtransStatus(false);
+      if (statusError || data?.error || !data?.order) {
+        setError(statusError?.message ?? data?.error ?? 'Status pembayaran belum dapat dimuat.');
+        return;
+      }
+      if (data.order.event_id !== event.id || data.order.ticket_id !== ticket.id) {
+        setError('Order Midtrans tidak sesuai dengan Event dan kategori tiket ini.');
+        return;
+      }
+      setForm((current) => ({
+        ...current,
+        full_name: data.order?.full_name ?? current.full_name,
+        email: data.order?.email ?? current.email,
+        whatsapp: storedWhatsapp,
+        quantity: String(data.order?.quantity ?? current.quantity),
+      }));
+      setSavedOrder({ ...data.order, payment_channel: 'midtrans' });
+      setPaymentStatus(data.order.status ?? 'Menunggu Pembayaran');
+      setMidtransReviewReason(data.transaction?.allocation_status === 'needs_admin_review'
+        ? data.transaction.review_reason ?? 'Transaksi memerlukan pemeriksaan Admin.'
+        : '');
+      setSubmitted(true);
+      setProofFile(null);
+    })();
+    return () => { active = false; };
+  }, [event, ticket, midtransReturnOrderId, midtransReturnRetry]);
+
   const quantity = Math.max(1, Math.min(10, Number.parseInt(form.quantity, 10) || 1));
   const totalPrice = ticket ? ticket.price * quantity : 0;
   const displayedTotal = priceQuote?.total_price ?? totalPrice;
   const currentStatus = event ? getEventStatus(event.status, event.date) : 'completed';
+  const manualCheckoutAllowed = savedOrder
+    ? (savedOrder.payment_channel ?? 'manual') === 'manual'
+    : selectedPaymentChannel === 'manual'
+      && (event?.ticket_payment_mode ?? 'manual') !== 'midtrans';
+  const midtransCheckoutAllowed = savedOrder
+    ? savedOrder.payment_channel === 'midtrans'
+    : selectedPaymentChannel === 'midtrans'
+      && ['midtrans', 'both'].includes(event?.ticket_payment_mode ?? 'manual');
   const buyerFieldStates = {
     full_name: { error: buyerFieldsTouched.full_name || buyerValidationSubmitted ? getBuyerFieldError('full_name', form.full_name) : '', valid: (buyerFieldsTouched.full_name || buyerValidationSubmitted) && Boolean(form.full_name.trim()) && !getBuyerFieldError('full_name', form.full_name) },
     email: { error: buyerFieldsTouched.email || buyerValidationSubmitted ? getBuyerFieldError('email', form.email) : '', valid: (buyerFieldsTouched.email || buyerValidationSubmitted) && Boolean(form.email.trim()) && !getBuyerFieldError('email', form.email) },
@@ -503,15 +595,19 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
       setError('Setujui Syarat & Ketentuan serta Kebijakan Privasi sebelum melanjutkan.');
       return;
     }
+    if (!manualCheckoutAllowed && !midtransCheckoutAllowed) {
+      setError('Metode pembayaran tidak valid. Muat ulang halaman lalu coba lagi.');
+      return;
+    }
     if (!/^\d+$/.test(form.quantity) || Number(form.quantity) < 1 || Number(form.quantity) > 10) {
       setError('Jumlah tiket harus antara 1 dan 10.');
       return;
     }
-    if (!paymentMethod) {
+    if (manualCheckoutAllowed && !savedOrder && !paymentMethod) {
       setError(paymentMethodError || 'Informasi pembayaran Event belum tersedia.');
       return;
     }
-    if (!proofFile) {
+    if (manualCheckoutAllowed && !proofFile) {
       setError('Upload bukti transfer sebelum mengirim order.');
       return;
     }
@@ -519,14 +615,17 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
       setError('Tekan tombol Pakai untuk memeriksa voucher sebelum mengirim order.');
       return;
     }
-    const proofValidationError = validateImageFile(proofFile);
-    if (proofValidationError) {
-      setError(proofValidationError);
-      return;
+    if (manualCheckoutAllowed && proofFile) {
+      const proofValidationError = validateImageFile(proofFile);
+      if (proofValidationError) {
+        setError(proofValidationError);
+        return;
+      }
     }
     if (savedOrder) {
       setError('');
-      setPaymentConfirmationOpen(true);
+      if (savedOrder.payment_channel === 'midtrans') void startMidtransCheckout(savedOrder);
+      else setPaymentConfirmationOpen(true);
       return;
     }
     setError('');
@@ -647,6 +746,111 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
     setPaymentConfirmationOpen(true);
   }
 
+  async function startMidtransCheckout(order: SavedTicketOrder) {
+    setUploadingProof(true);
+    setError('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke<{ redirect_url?: string; error?: string }>('ticketing-public', {
+        body: { action: 'create-midtrans-transaction', order_id: order.id, whatsapp: form.whatsapp },
+      });
+      if (invokeError || data?.error || !data?.redirect_url) {
+        setError(invokeError?.message ?? data?.error ?? 'Checkout Midtrans belum dapat dibuat. Coba lagi sebelum batas pembayaran berakhir.');
+        return;
+      }
+      const checkoutUrl = new URL(data.redirect_url);
+      if (checkoutUrl.protocol !== 'https:' || checkoutUrl.hostname !== 'app.sandbox.midtrans.com') {
+        setError('Alamat checkout Midtrans tidak valid.');
+        return;
+      }
+      sessionStorage.setItem(`midtrans-order:${order.id}`, JSON.stringify({ whatsapp: form.whatsapp }));
+      window.location.assign(checkoutUrl.toString());
+    } catch (checkoutError) {
+      setError(checkoutError instanceof Error ? checkoutError.message : 'Checkout Midtrans gagal dimulai.');
+    } finally {
+      setUploadingProof(false);
+    }
+  }
+
+  async function refreshMidtransStatus(order: SavedTicketOrder) {
+    let storedWhatsapp = form.whatsapp;
+    try {
+      const stored = sessionStorage.getItem(`midtrans-order:${order.id}`);
+      if (stored) storedWhatsapp = (JSON.parse(stored) as { whatsapp?: string }).whatsapp ?? storedWhatsapp;
+    } catch {
+      storedWhatsapp = form.whatsapp;
+    }
+    setCheckingMidtransStatus(true);
+    setError('');
+    const { data, error: statusError } = await supabase.functions.invoke<{
+      order?: SavedTicketOrder;
+      transaction?: { allocation_status?: string; review_reason?: string | null } | null;
+      error?: string;
+    }>('ticketing-public', {
+      body: { action: 'midtrans-payment-status', order_id: order.id, whatsapp: storedWhatsapp },
+    });
+    setCheckingMidtransStatus(false);
+    if (statusError || data?.error || !data?.order) {
+      setError(statusError?.message ?? data?.error ?? 'Status pembayaran belum dapat dimuat.');
+      return;
+    }
+    if (data.order.event_id !== event?.id || data.order.ticket_id !== ticket?.id) {
+      setError('Order Midtrans tidak sesuai dengan Event dan kategori tiket ini.');
+      return;
+    }
+    setSavedOrder({ ...data.order, payment_channel: 'midtrans' });
+    setPaymentStatus(data.order.status ?? 'Menunggu Pembayaran');
+    setMidtransReviewReason(data.transaction?.allocation_status === 'needs_admin_review'
+      ? data.transaction.review_reason ?? 'Transaksi memerlukan pemeriksaan Admin.'
+      : '');
+  }
+
+  async function confirmMidtransOrder() {
+    if (!event || !ticket || !legalAccepted) return;
+    setUploadingProof(true);
+    setError('');
+    const orderNumber = createOrderNumber(event.title);
+    const orderCreationStartedAt = Date.now();
+    const { data: createdOrder, error: orderError } = await supabase.rpc('create_ticket_order_priced_with_payment', {
+      p_order_number: orderNumber,
+      p_event_id: event.id,
+      p_ticket_id: ticket.id,
+      p_full_name: form.full_name.trim(),
+      p_email: form.email.trim().toLowerCase(),
+      p_whatsapp: form.whatsapp,
+      p_quantity: quantity,
+      p_notes: null,
+      p_voucher_code: appliedVoucherCode || null,
+      p_payment_channel: 'midtrans',
+    });
+    if (orderError || !isCreatedPricedOrder(createdOrder)) {
+      setUploadingProof(false);
+      setError(orderError?.message ?? 'Order belum berhasil dibuat. Periksa kuota, voucher, dan mode pembayaran Event.');
+      return;
+    }
+    const order: SavedTicketOrder = {
+      id: createdOrder.id,
+      order_number: createdOrder.order_number,
+      event_id: event.id,
+      ticket_id: ticket.id,
+      full_name: form.full_name.trim(),
+      email: form.email.trim().toLowerCase(),
+      total_price: createdOrder.total_price,
+      expires_at: createdOrder.expires_at ?? new Date(orderCreationStartedAt + 15 * 60_000).toISOString(),
+      ticket_category: ticket.name,
+      quantity,
+      status: 'Menunggu Pembayaran',
+      payment_method_snapshot: null,
+      payment_channel: 'midtrans',
+      price_breakdown: createdOrder.price_breakdown,
+    };
+    setSavedOrder(order);
+    setPaymentStatus('Menunggu Pembayaran');
+    setPaymentConfirmationOpen(false);
+    setSubmitted(true);
+    setUploadingProof(false);
+    await startMidtransCheckout(order);
+  }
+
   async function confirmPaymentProof() {
     if (!legalAccepted) {
       setError('Setujui Syarat & Ketentuan serta Kebijakan Privasi sebelum mengirim order.');
@@ -700,6 +904,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
         quantity,
         status: 'Menunggu Pembayaran',
         payment_method_snapshot: paymentMethod,
+        payment_channel: 'manual',
         price_breakdown: createdOrder.price_breakdown,
       };
       setPriceQuote({
@@ -761,6 +966,63 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
   }
 
   if (submitted) {
+    if (!savedOrder && midtransReturnOrderId) {
+      return <>
+        <PageHeader router={router} title="Memeriksa Pembayaran" subtitle={event?.title} />
+        <div className="container-app py-8">
+          <div className="mx-auto max-w-xl space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+            <p className="text-sm leading-6 text-slate-700">Status pesanan diverifikasi melalui backend. Jangan membuat pesanan baru selama status transaksi ini belum dipastikan.</p>
+            <p className="break-all font-mono text-xs text-slate-500">Order {midtransReturnOrderId}</p>
+            {checkingMidtransStatus && <p role="status" className="text-sm font-semibold text-blue-800">Memeriksa status pembayaran...</p>}
+            {error && <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{error}</p>}
+            <button type="button" onClick={() => setMidtransReturnRetry((current) => current + 1)} disabled={checkingMidtransStatus} className="btn-primary w-full">
+              {checkingMidtransStatus ? 'Memeriksa...' : 'Periksa status lagi'}
+            </button>
+          </div>
+        </div>
+      </>;
+    }
+    if (savedOrder?.payment_channel === 'midtrans' && paymentStatus === 'Lunas') {
+      return (
+        <div className="animate-fade-in">
+          <PageHeader router={router} title="Pembayaran Berhasil" subtitle={event.title} />
+          <div className="container-app py-8 sm:py-10">
+            <div className="mx-auto max-w-xl">
+              <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-lg">
+                <div className="bg-gradient-to-br from-emerald-50 via-white to-blue-50 px-6 py-8 text-center sm:px-8">
+                  <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                    <CheckCircle2 aria-hidden="true" className="h-9 w-9" />
+                  </span>
+                  <h2 className="mt-4 text-2xl font-black text-slate-900">Pembayaran Berhasil!</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">Pembayaran tiketmu sudah terverifikasi dan order telah lunas.</p>
+                  <p className="mt-4 text-3xl font-black tracking-tight text-slate-900">{formatPrice(savedOrder.total_price)}</p>
+                </div>
+                <div className="space-y-3 border-t border-slate-100 px-5 py-5 sm:px-8">
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="text-slate-500">Nomor Order</span>
+                    <span className="break-all text-right font-mono text-xs font-bold text-slate-800">{savedOrder.order_number}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="text-slate-500">Event</span>
+                    <span className="text-right font-semibold text-slate-800">{event.title}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="text-slate-500">Tiket</span>
+                    <span className="text-right font-semibold text-slate-800">{savedOrder.ticket_category} · {savedOrder.quantity} tiket</span>
+                  </div>
+                </div>
+                <div className="space-y-3 border-t border-slate-100 p-5 sm:px-8 sm:py-6">
+                  <button type="button" onClick={() => router.navigate('/tiket')} className="btn-primary w-full">
+                    <Ticket aria-hidden="true" className="h-4 w-4" /> Buka Tiket Saya
+                  </button>
+                  <button type="button" onClick={() => router.navigate(`/event/${event.slug}`)} className="btn-secondary w-full">Kembali ke Event</button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      );
+    }
     const canContinuePayment = paymentStatus === 'Draft Pembayaran' || paymentStatus === 'Menunggu Pembayaran';
     return (
       <div className="animate-fade-in">
@@ -783,10 +1045,24 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
               </div>
               <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 text-sm font-semibold">
                 <CheckCircle2 className={`h-5 w-5 ${paymentStatus === 'Lunas' ? 'text-emerald-600' : 'text-blue-600'}`} />
-                <span className={paymentStatus === 'Lunas' ? 'text-emerald-700' : 'text-blue-800'}>{paymentStatus === 'Lunas' ? 'Pembayaran terverifikasi' : canContinuePayment ? 'Menunggu bukti pembayaran' : 'Menunggu verifikasi pembayaran'}</span>
+                <span className={paymentStatus === 'Lunas' ? 'text-emerald-700' : 'text-blue-800'}>{paymentStatus === 'Lunas' ? 'Pembayaran terverifikasi' : savedOrder?.payment_channel === 'midtrans' ? 'Menunggu konfirmasi Midtrans' : canContinuePayment ? 'Menunggu bukti pembayaran' : 'Menunggu verifikasi pembayaran'}</span>
               </div>
             </div>
-            {canContinuePayment && <form onSubmit={(e) => void uploadPaymentProof(e)} className="card space-y-4 p-5">
+            {savedOrder?.payment_channel === 'midtrans' && paymentStatus !== 'Lunas' && <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+              <p>Pesanan ini menggunakan Midtrans. Status pembayaran ditentukan oleh notifikasi backend, bukan halaman kembali dari checkout.</p>
+              {canContinuePayment && midtransSecondsRemaining !== null && <div className={`flex items-center gap-3 rounded-xl border p-3 ${midtransPaymentExpired ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-blue-200 bg-white text-blue-900'}`}>
+                <Clock3 aria-hidden="true" className="h-5 w-5 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold">{midtransPaymentExpired ? 'Waktu pembayaran berakhir' : 'Selesaikan pembayaran sebelum waktu habis'}</p>
+                  <p role="timer" aria-live="off" className="font-mono text-lg font-black tabular-nums">{midtransPaymentExpired ? '00:00' : `${String(Math.floor(midtransSecondsRemaining / 60)).padStart(2, '0')}:${String(midtransSecondsRemaining % 60).padStart(2, '0')}`}</p>
+                </div>
+              </div>}
+              {canContinuePayment && <button type="button" onClick={() => void startMidtransCheckout(savedOrder)} disabled={uploadingProof || midtransPaymentExpired} className="btn-primary w-full">{uploadingProof ? 'Menyiapkan checkout...' : midtransPaymentExpired ? 'Waktu pembayaran habis' : 'Lanjutkan pembayaran MIDTRANS'}</button>}
+              <button type="button" onClick={() => void refreshMidtransStatus(savedOrder)} disabled={checkingMidtransStatus} className="btn-secondary w-full">{checkingMidtransStatus ? 'Memeriksa status...' : 'Periksa status pembayaran'}</button>
+              {error && <p role="alert" className="text-sm font-semibold text-red-700">{error}</p>}
+            </div>}
+            {savedOrder?.payment_channel === 'midtrans' && midtransReviewReason && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">Pembayaran sedang diperiksa oleh Admin. Tiket belum diterbitkan.</p>}
+            {canContinuePayment && savedOrder?.payment_channel !== 'midtrans' && <form onSubmit={(e) => void uploadPaymentProof(e)} className="card space-y-4 p-5">
               <h3 className="font-extrabold text-slate-900">Kirim Bukti Pembayaran</h3>
               <div><label className="label-field" htmlFor="ticket-payment-proof">Bukti transfer</label><input id="ticket-payment-proof" type="file" accept="image/jpeg,image/png,image/webp" onChange={(input) => setProofFile(input.target.files?.[0] ?? null)} className="input-field" required /><p className="mt-1 text-xs text-slate-500">JPG, PNG, WEBP · Maks. 5 MB</p></div>
               {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
@@ -936,13 +1212,29 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
             {priceQuote && <PriceBreakdown quote={priceQuote} />}
             {!buyerInfoReady && !priceQuote && <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">Rincian pembayaran akan muncul setelah data pembeli dan jumlah tiket diisi dengan benar.</p>}
             {buyerInfoReady && !quoteLoading && !priceQuote && quoteError && <button type="button" onClick={() => setQuoteRefresh((current) => current + 1)} className="text-sm font-semibold text-blue-700 underline underline-offset-2">Coba muat rincian harga lagi</button>}
-            {paymentMethod && priceQuote && <PaymentInstructions method={paymentMethod} totalPrice={displayedTotal} />}
-            {paymentMethodError && <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{paymentMethodError}</p>}
-            <div>
+            {event.ticket_payment_mode === 'both' && !savedOrder && <div className="space-y-2">
+              <p className="label-field">Pilih metode pembayaran</p>
+              <div className="grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-100 p-1" role="group" aria-label="Pilih metode pembayaran">
+                {([
+                  ['manual', 'Manual'],
+                  ['midtrans', 'Midtrans'],
+                ] as const).map(([channel, label]) => <button
+                  key={channel}
+                  type="button"
+                  aria-pressed={selectedPaymentChannel === channel}
+                  onClick={() => setSelectedPaymentChannel(channel)}
+                  className={`min-h-10 rounded-lg px-3 py-2 text-sm font-bold transition ${selectedPaymentChannel === channel ? 'bg-blue-700 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}
+                >{label}</button>)}
+              </div>
+            </div>}
+            {paymentMethod && priceQuote && manualCheckoutAllowed && <PaymentInstructions method={paymentMethod} totalPrice={displayedTotal} />}
+            {paymentMethodError && manualCheckoutAllowed && <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{paymentMethodError}</p>}
+            {midtransCheckoutAllowed && <p role="status" className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">Pembayaran diproses melalui checkout Midtrans Sandbox untuk uji coba. Tiket diterbitkan setelah backend memverifikasi pembayaran.</p>}
+            {manualCheckoutAllowed ? <div>
               <label className="label-field" htmlFor="ticket-payment-proof">Upload Bukti Transfer</label>
               <input id="ticket-payment-proof" type="file" accept="image/jpeg,image/png,image/webp" onChange={(input) => setProofFile(input.target.files?.[0] ?? null)} className="input-field" required />
               <p className="mt-1 text-xs text-slate-500">JPG, PNG, WEBP · Maks. 5 MB</p>
-            </div>
+            </div> : midtransCheckoutAllowed ? null : <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">Pilih metode pembayaran yang tersedia untuk Event ini.</p>}
             <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
               <input
                 id="ticket-legal-consent"
@@ -960,13 +1252,13 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
               </label>
             </div>
             {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
-            <button type="submit" disabled={uploadingProof || quoteLoading || !paymentMethod || !legalAccepted} className="btn-primary w-full !py-3.5 text-base">
-              {uploadingProof || quoteLoading ? 'Memeriksa harga...' : <><ArrowRight className="h-4 w-4" /> Konfirmasi &amp; Kirim Orderan</>}
-            </button>
+            {(manualCheckoutAllowed || midtransCheckoutAllowed) && <button type="submit" disabled={uploadingProof || quoteLoading || (manualCheckoutAllowed && !paymentMethod) || !legalAccepted} className="btn-primary w-full !py-3.5 text-base">
+              {uploadingProof || quoteLoading ? 'Memeriksa harga...' : <><ArrowRight className="h-4 w-4" /> {midtransCheckoutAllowed ? 'Lanjut ke Midtrans' : 'Konfirmasi & Kirim Orderan'}</>}
+            </button>}
           </form>
           <Modal open={paymentConfirmationOpen} onClose={() => !uploadingProof && setPaymentConfirmationOpen(false)} title="Konfirmasi Order" size="md">
             <div className="space-y-4">
-              <p className="text-sm font-medium text-slate-700">Pastikan seluruh data pesanan dan bukti transfer sudah benar. Order akan dikirim ke Admin setelah bukti berhasil diunggah.</p>
+              <p className="text-sm font-medium text-slate-700">{midtransCheckoutAllowed ? 'Pastikan data pesanan sudah benar. Kamu akan melanjutkan ke checkout Midtrans.' : 'Pastikan seluruh data pesanan dan bukti transfer sudah benar. Order akan dikirim ke Admin setelah bukti berhasil diunggah.'}</p>
               <div className="review-summary">
                 <div className="review-row"><span className="review-label">Nama</span><span className="review-value">{form.full_name}</span></div>
                 <div className="review-row"><span className="review-label">Email</span><span className="review-value">{form.email}</span></div>
@@ -974,13 +1266,13 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
                 <div className="review-row"><span className="review-label">Tiket</span><span className="review-value">{ticket.name}</span></div>
                 <div className="review-row"><span className="review-label">Jumlah Tiket</span><span className="review-value">{quantity}</span></div>
                 <PriceBreakdown quote={priceQuote} />
-                <div className="review-row"><span className="review-label">Bukti transfer</span><span className="review-value">{proofFile?.name}</span></div>
+                {manualCheckoutAllowed && <div className="review-row"><span className="review-label">Bukti transfer</span><span className="review-value">{proofFile?.name}</span></div>}
               </div>
               {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
               <div className="flex flex-col-reverse gap-2 sm:flex-row">
                 <button type="button" onClick={() => setPaymentConfirmationOpen(false)} disabled={uploadingProof} className="btn-secondary flex-1">Periksa Lagi</button>
-                <button type="button" onClick={() => void confirmPaymentProof()} disabled={uploadingProof || !legalAccepted} className="btn-primary flex-1">
-                  {uploadingProof ? 'Mengirim order...' : <><ArrowRight className="h-4 w-4" /> Konfirmasi &amp; Kirim Orderan</>}
+                <button type="button" onClick={() => void (midtransCheckoutAllowed ? confirmMidtransOrder() : confirmPaymentProof())} disabled={uploadingProof || !legalAccepted} className="btn-primary flex-1">
+                  {uploadingProof ? 'Memproses order...' : <><ArrowRight className="h-4 w-4" /> {midtransCheckoutAllowed ? 'Buat Order & Buka Midtrans' : 'Konfirmasi & Kirim Orderan'}</>}
                 </button>
               </div>
             </div>

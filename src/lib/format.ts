@@ -14,7 +14,7 @@ export function isStandupindoCilegonOrganizer(organizer: string | null) {
   return normalized === 'standupindocilegon' || normalized === 'komunitasstandupindocilegon';
 }
 
-export function getOpenMicNumbers(openMics: OpenMic[]): Map<string, number> {
+export function getOpenMicNumbers(openMics: Array<Pick<OpenMic, 'id' | 'date' | 'created_at'>>): Map<string, number> {
   return new Map(
     [...openMics]
       .sort((first, second) => first.date.localeCompare(second.date) || first.created_at.localeCompare(second.created_at) || first.id.localeCompare(second.id))

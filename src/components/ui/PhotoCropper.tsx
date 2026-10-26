@@ -39,7 +39,7 @@ async function uploadPhoto(folder: string, file: Blob, type: string): Promise<st
   const fileName = `${crypto.randomUUID()}.${getImageFileExtension(type)}`;
   const uploadPath = `${folder}/${fileName}`;
   const { error } = await supabase.storage.from('standupindo-media').upload(uploadPath, file, {
-    cacheControl: '3600',
+    cacheControl: '31536000',
     upsert: false,
     contentType: type,
   });

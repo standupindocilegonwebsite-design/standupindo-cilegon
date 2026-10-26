@@ -119,17 +119,17 @@ export function MemberStageJourneySummary({ komikaId, onManage }: { komikaId: st
 
       {expanded && <div className="border-t border-slate-100 px-3 py-3 sm:px-4 sm:py-4">
         <div ref={journeyTabsRef} className="relative isolate mb-3 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Jenis perjalanan panggung">
-          <SlidingTabIndicator trackRef={journeyTabsRef} activeId={activeTab} className="rounded-lg bg-white shadow-sm" />
+          <SlidingTabIndicator trackRef={journeyTabsRef} activeId={activeTab} className="rounded-lg bg-blue-700 shadow-sm" />
           <button
             type="button"
             role="tab"
             data-sliding-tab="internal"
             aria-selected={activeTab === 'internal'}
             onClick={() => setActiveTab('internal')}
-            className={`relative z-10 flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-center text-xs font-bold transition sm:gap-2 sm:px-3 sm:text-sm ${activeTab === 'internal' ? 'bg-transparent text-blue-800 shadow-none' : 'text-slate-600 hover:text-slate-900'}`}
+            className={`relative z-10 flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-center text-xs font-bold transition sm:gap-2 sm:px-3 sm:text-sm ${activeTab === 'internal' ? 'bg-transparent text-white shadow-none' : 'text-slate-600 hover:text-slate-900'}`}
           >
             <span className="truncate">Panggung Internal</span>
-            {loaded && <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${activeTab === 'internal' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'}`}>{official.length}</span>}
+            {loaded && <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${activeTab === 'internal' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'}`}>{official.length}</span>}
           </button>
           <button
             type="button"
@@ -137,10 +137,10 @@ export function MemberStageJourneySummary({ komikaId, onManage }: { komikaId: st
             data-sliding-tab="external"
             aria-selected={activeTab === 'external'}
             onClick={() => setActiveTab('external')}
-            className={`relative z-10 flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-center text-xs font-bold transition sm:gap-2 sm:px-3 sm:text-sm ${activeTab === 'external' ? 'bg-transparent text-blue-800 shadow-none' : 'text-slate-600 hover:text-slate-900'}`}
+            className={`relative z-10 flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-center text-xs font-bold transition sm:gap-2 sm:px-3 sm:text-sm ${activeTab === 'external' ? 'bg-transparent text-white shadow-none' : 'text-slate-600 hover:text-slate-900'}`}
           >
             <span className="truncate">Panggung Eksternal</span>
-            {loaded && <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${activeTab === 'external' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'}`}>{external.length}</span>}
+            {loaded && <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${activeTab === 'external' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'}`}>{external.length}</span>}
           </button>
         </div>
 

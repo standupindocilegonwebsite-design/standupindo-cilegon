@@ -10,7 +10,7 @@ import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
 import { useAuth } from '@/lib/auth-context';
 
 interface Props {
-  mic: OpenMic;
+  mic: Pick<OpenMic, 'id' | 'title' | 'slug' | 'poster' | 'date' | 'time' | 'venue' | 'location' | 'maps_url' | 'capacity' | 'status' | 'registration_status'>;
   openMicNumber?: number;
   confirmedCount: number;
   lineup?: Array<{ stageName: string; slug: string | null }>;

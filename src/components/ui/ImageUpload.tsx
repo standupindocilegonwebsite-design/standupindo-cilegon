@@ -50,7 +50,7 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', o
         const processedFile = await processImageForUpload(file, effectiveProcessingProfile);
         const extension = getImageFileExtension(processedFile.type);
         const uploadPath = `${folder}/${crypto.randomUUID()}.${extension}`;
-        const { error: uploadError } = await supabase.storage.from('standupindo-media').upload(uploadPath, processedFile, { cacheControl: '3600', upsert: false, contentType: processedFile.type });
+        const { error: uploadError } = await supabase.storage.from('standupindo-media').upload(uploadPath, processedFile, { cacheControl: '31536000', upsert: false, contentType: processedFile.type });
         if (uploadError) throw uploadError;
         const { data } = supabase.storage.from('standupindo-media').getPublicUrl(uploadPath);
         onChange(data.publicUrl);

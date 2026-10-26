@@ -183,7 +183,7 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
     try {
       const path = `${selectedYear}/${crypto.randomUUID()}.${extension}`;
       const { error } = await supabase.storage.from('annual-recap-audio').upload(path, file, {
-        cacheControl: '3600',
+        cacheControl: '31536000',
         upsert: false,
         contentType,
       });

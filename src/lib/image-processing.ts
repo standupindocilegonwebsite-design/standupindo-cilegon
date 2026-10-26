@@ -12,14 +12,27 @@ export type ImageProcessingProfile =
 const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 const PROFILE_OPTIONS: Record<ImageProcessingProfile, { maxDimension: number; quality: number; type: string }> = {
-  avatar: { maxDimension: 1280, quality: 0.9, type: 'image/jpeg' },
-  poster: { maxDimension: 2560, quality: 0.92, type: 'image/jpeg' },
+  avatar: { maxDimension: 960, quality: 0.86, type: 'image/webp' },
+  poster: { maxDimension: 1920, quality: 0.84, type: 'image/webp' },
   'payment-proof': { maxDimension: 3000, quality: 0.96, type: 'image/jpeg' },
   'history-proof': { maxDimension: 3000, quality: 0.96, type: 'image/jpeg' },
   qris: { maxDimension: Number.POSITIVE_INFINITY, quality: 1, type: 'image/png' },
-  documentation: { maxDimension: 2048, quality: 0.84, type: 'image/jpeg' },
-  logo: { maxDimension: 1600, quality: 0.92, type: 'image/jpeg' },
+  documentation: { maxDimension: 1600, quality: 0.8, type: 'image/webp' },
+  logo: { maxDimension: 1200, quality: 0.86, type: 'image/webp' },
 };
+
+class ImageProcessingFallbackError extends Error {}
+
+function isAbortError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError';
+}
+
+function isRecoverableImageProcessingError(error: unknown): boolean {
+  if (error instanceof ImageProcessingFallbackError) return true;
+  if (typeof error !== 'object' || error === null || !('name' in error)) return false;
+  return ['EncodingError', 'InvalidStateError', 'NotSupportedError', 'OperationError', 'QuotaExceededError']
+    .includes(String(error.name));
+}
 
 export function validateImageFile(file: File): string | null {
   if (!SUPPORTED_IMAGE_TYPES.has(file.type)) return 'Format file tidak didukung. Gunakan JPG, PNG, atau WEBP.';
@@ -44,7 +57,7 @@ async function loadImage(source: Blob): Promise<{ image: CanvasImageSource; widt
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
       const element = new Image();
       element.onload = () => resolve(element);
-      element.onerror = () => reject(new Error('Gambar tidak dapat dibaca untuk diproses.'));
+      element.onerror = () => reject(new ImageProcessingFallbackError('Gambar tidak dapat dibaca untuk diproses.'));
       element.src = objectUrl;
     });
     return { image, width: image.naturalWidth, height: image.naturalHeight, cleanup: () => URL.revokeObjectURL(objectUrl) };
@@ -63,8 +76,9 @@ export async function processImageForUpload(
   if (validationError) throw new Error(validationError);
 
   const options = PROFILE_OPTIONS[profile];
-  const loaded = await loadImage(source);
+  let loaded: Awaited<ReturnType<typeof loadImage>> | null = null;
   try {
+    loaded = await loadImage(source);
     const scale = Math.min(options.maxDimension / loaded.width, options.maxDimension / loaded.height, 1);
     const width = Math.max(1, Math.round(loaded.width * scale));
     const height = Math.max(1, Math.round(loaded.height * scale));
@@ -72,21 +86,24 @@ export async function processImageForUpload(
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext('2d');
-    if (!context) throw new Error('Browser tidak dapat memproses gambar ini.');
+    if (!context) throw new ImageProcessingFallbackError('Browser tidak dapat memproses gambar ini.');
 
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, width, height);
     context.drawImage(loaded.image, 0, 0, width, height);
     const processed = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
-        (blob) => blob ? resolve(blob) : reject(new Error('Kompresi gambar gagal.')),
+        (blob) => blob ? resolve(blob) : reject(new ImageProcessingFallbackError('Kompresi gambar gagal.')),
         options.type,
         options.quality,
       );
     });
 
     return processed.size < original.size ? processed : original;
+  } catch (error) {
+    if (isAbortError(error) || !isRecoverableImageProcessingError(error)) throw error;
+    return original;
   } finally {
-    loaded.cleanup();
+    loaded?.cleanup();
   }
 }

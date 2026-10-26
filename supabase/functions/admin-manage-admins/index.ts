@@ -59,10 +59,8 @@ serve(async (request) => {
 
     let scopeRows: Array<{ user_id: string; role: string; event_id: string | null; scope_all: boolean; granted_by: string }> = [];
     if (SCOPED_ROLES.includes(body.role as typeof SCOPED_ROLES[number])) {
-      const scopeAll = callerIsEventAdmin || body.scope_all === true;
-      const eventIds = callerIsEventAdmin
-        ? []
-        : [...new Set((body.event_ids ?? []).filter((id) => typeof id === 'string'))];
+      const scopeAll = body.scope_all === true;
+      const eventIds = [...new Set((body.event_ids ?? []).filter((id) => typeof id === 'string'))];
       if (!scopeAll && eventIds.length === 0) return json({ error: 'Pilih minimal satu Event atau pilih semua Event.' }, 400);
       if (scopeAll && eventIds.length > 0) return json({ error: 'Pilih semua Event atau Event tertentu, bukan keduanya.' }, 400);
       if (!scopeAll) {

@@ -57,7 +57,7 @@ export function MultiImageUpload({ label, folder, value, onChange, maxFiles = 15
           const path = `${folder}/${crypto.randomUUID()}.${extension}`;
           const { error: uploadError } = await supabase.storage
             .from('standupindo-media')
-            .upload(path, uploadFile, { cacheControl: '3600', upsert: false, contentType: uploadFile.type });
+            .upload(path, uploadFile, { cacheControl: '31536000', upsert: false, contentType: uploadFile.type });
           if (uploadError) {
             failedFiles.push(`${file.name} (${uploadError.message})`);
             continue;
@@ -94,7 +94,7 @@ export function MultiImageUpload({ label, folder, value, onChange, maxFiles = 15
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {value.map((url, index) => (
             <div key={`${url}-${index}`} className="relative aspect-square overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-200">
-              <img src={url} alt={`Foto dokumentasi ${index + 1}`} className="h-full w-full object-cover" />
+              <img src={url} alt={`Foto dokumentasi ${index + 1}`} loading="lazy" className="h-full w-full object-cover" />
               <button
                 type="button"
                 onClick={() => onChange(value.filter((_, photoIndex) => photoIndex !== index))}

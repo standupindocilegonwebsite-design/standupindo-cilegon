@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, CheckCheck, Eye, Gift, KeyRound, MessageCircle, Printer, Search, ShieldCheck, Ticket as TicketIcon, Trash2, X } from 'lucide-react';
+import { Check, CheckCheck, Eye, Gift, Info, KeyRound, MessageCircle, Printer, RefreshCw, Search, ShieldCheck, Ticket as TicketIcon, Trash2, X } from 'lucide-react';
 import type { EventItem, TicketOrder } from '@/lib/types';
 import { formatPrice, getEventStatus } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -22,6 +22,20 @@ type TicketActionResult = {
   send_count?: number;
   deleted?: boolean;
   warning?: string;
+  email_status?: string;
+  already_sent?: boolean;
+  reviews?: MidtransReview[];
+};
+
+type MidtransReview = {
+  review_kind: 'allocation' | 'email';
+  ticket_order_id: string;
+  provider_order_id?: string | null;
+  transaction_status?: string | null;
+  allocation_status: string;
+  review_reason?: string | null;
+  updated_at: string;
+  order: Pick<TicketOrder, 'id' | 'order_number' | 'event_id' | 'full_name' | 'email' | 'ticket_category' | 'quantity' | 'total_price' | 'status' | 'payment_channel'>;
 };
 
 async function invokeTicketAdmin(body: Record<string, unknown>) {
@@ -47,7 +61,8 @@ function statusTone(status: string) {
   return 'bg-blue-700 text-white';
 }
 
-function paymentSnapshotDetails(snapshot: Record<string, unknown> | null | undefined) {
+function paymentSnapshotDetails(snapshot: Record<string, unknown> | null | undefined, paymentChannel?: TicketOrder['payment_channel']) {
+  if (paymentChannel === 'midtrans') return ['Metode: Midtrans Snap', 'Pembayaran dikonfirmasi otomatis oleh backend.'];
   if (!snapshot) return ['Snapshot informasi pembayaran tidak tersedia.'];
   const recipient = typeof snapshot.recipient_name === 'string' ? snapshot.recipient_name.trim() : '';
   const bank = typeof snapshot.bank_name === 'string' ? snapshot.bank_name.trim() : '';
@@ -79,6 +94,7 @@ function csvCell(value: string | number) {
 
 export function TicketAdminOrdersPage({ orders, events, loading, onReload, initialOrderId }: { orders: TicketOrder[]; events: EventItem[]; loading: boolean; onReload: () => void; initialOrderId?: string | null }) {
   const statusTabsRef = useRef<HTMLDivElement>(null);
+  const handledInitialOrderIdRef = useRef<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('Menunggu Verifikasi');
   const [eventFilter, setEventFilter] = useState('all');
@@ -90,6 +106,9 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload, initi
   const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [accessByOrder, setAccessByOrder] = useState<Record<string, { id: string; code: string; whatsappUrl: string; sentAt?: string; sendCount?: number }>>({});
+  const [midtransReviews, setMidtransReviews] = useState<MidtransReview[]>([]);
+  const [loadingMidtransReviews, setLoadingMidtransReviews] = useState(false);
+  const [showMidtransReviewInfo, setShowMidtransReviewInfo] = useState(false);
 
   const eventById = useMemo(() => new Map(events.map((event) => [event.id, event])), [events]);
   const selectableEvents = useMemo(() => events.filter((event) => getEventStatus(event.status, event.date) !== 'completed'), [events]);
@@ -98,7 +117,9 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload, initi
     return orders.filter((order) => {
       const matchesQuery = !query || [order.order_number ?? '', order.full_name, order.whatsapp, order.ticket_category, eventById.get(order.event_id)?.title ?? ''].join(' ').toLowerCase().includes(query);
       const matchesStatus = statusFilter === 'Menunggu Verifikasi'
-        ? order.status === 'Menunggu Verifikasi' || order.status === 'Sudah Bayar'
+        ? order.payment_channel !== 'midtrans' && (order.status === 'Menunggu Verifikasi' || order.status === 'Sudah Bayar')
+        : statusFilter === 'Pembayaran Online'
+          ? order.payment_channel === 'midtrans' && order.status === 'Menunggu Pembayaran'
         : statusFilter === 'Lunas'
           ? order.status === 'Lunas'
           : order.status === 'Ditolak' || order.status === 'Expired';
@@ -109,12 +130,28 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload, initi
   const detailsOrder = orders.find((order) => order.id === detailsOrderId) ?? null;
   const detailsEvent = detailsOrder ? eventById.get(detailsOrder.event_id) : null;
   const detailsAccess = detailsOrder ? accessByOrder[detailsOrder.id] : null;
+  const detailsPaymentTimestamp = detailsOrder?.payment_channel === 'midtrans'
+    ? detailsOrder.payment_verified_at
+    : detailsOrder?.payment_submitted_at;
   const detailsCanReview = detailsOrder ? detailsOrder.status === 'Menunggu Verifikasi' || detailsOrder.status === 'Sudah Bayar' : false;
   const deleteOrder = orders.find((order) => order.id === deleteOrderId) ?? null;
 
+  async function loadMidtransReviews() {
+    setLoadingMidtransReviews(true);
+    const { data, error: actionError } = await invokeTicketAdmin({ action: 'midtrans-review-list' });
+    setLoadingMidtransReviews(false);
+    if (actionError || !data) {
+      setError(actionError ?? 'Daftar pemeriksaan Midtrans gagal dimuat.');
+      return;
+    }
+    setMidtransReviews(data.reviews ?? []);
+  }
+
   useEffect(() => { setPage(1); }, [eventFilter, search, statusFilter]);
+  useEffect(() => { void loadMidtransReviews(); }, []);
   useEffect(() => {
-    if (!initialOrderId || loading) return;
+    if (!initialOrderId || loading || handledInitialOrderIdRef.current === initialOrderId) return;
+    handledInitialOrderIdRef.current = initialOrderId;
     if (orders.some((order) => order.id === initialOrderId)) {
       setDetailsOrderId(initialOrderId);
     } else {
@@ -142,6 +179,51 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload, initi
     }
     setConfirmingOrderReview(null);
     await onReload();
+  }
+
+  async function refreshOnlinePayment(order: TicketOrder) {
+    setBusyOrder(order.id);
+    setError('');
+    const { data, error: invokeError } = await supabase.functions.invoke<{
+      order?: Pick<TicketOrder, 'status'>;
+      transaction?: { allocation_status?: string; review_reason?: string | null } | null;
+      error?: string;
+    }>('ticketing-public', {
+      body: { action: 'midtrans-payment-status', order_id: order.id, whatsapp: order.whatsapp },
+    });
+    setBusyOrder(null);
+    if (invokeError || data?.error || !data?.order) {
+      const context = (invokeError as (Error & { context?: Response }) | null)?.context;
+      let message = data?.error ?? invokeError?.message ?? 'Status pembayaran Midtrans gagal diperiksa.';
+      if (context && typeof context.json === 'function') {
+        try {
+          const response = await context.json() as { error?: string };
+          message = response.error ?? message;
+        } catch {
+          message = invokeError?.message ?? message;
+        }
+      }
+      setError(message);
+      return;
+    }
+    await onReload();
+    if (data.order.status !== 'Lunas') {
+      setError(data.transaction?.allocation_status === 'needs_admin_review'
+        ? data.transaction.review_reason ?? 'Pembayaran sukses dan perlu diperiksa Admin.'
+        : 'Midtrans belum mengonfirmasi pembayaran Lunas. Status order belum berubah.');
+    }
+  }
+
+  async function retryMidtransEmail(orderId: string) {
+    setBusyOrder(orderId);
+    setError('');
+    const { data, error: actionError } = await invokeTicketAdmin({ action: 'retry-payment-email', order_id: orderId });
+    setBusyOrder(null);
+    if (actionError || !data || data.email_status !== 'sent') {
+      setError(actionError ?? 'Email konfirmasi belum berhasil dikirim.');
+      return;
+    }
+    await loadMidtransReviews();
   }
 
   async function resendAccessCode(order: TicketOrder) {
@@ -206,8 +288,8 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload, initi
 
   function exportCsv() {
     const rows: Array<Array<string | number>> = [
-      ['Order', 'Event', 'Nama', 'WhatsApp', 'Tiket', 'Jumlah', 'Sumber Transaksi', 'Jenis order', 'Alasan Free Pass', 'Total', 'Status', 'Waktu'],
-      ...filteredOrders.map((order) => [order.order_number ?? order.id, eventById.get(order.event_id)?.title ?? '', order.full_name, order.whatsapp, order.ticket_category, order.quantity, order.sale_channel === 'ots' ? 'OTS' : order.order_type === 'free_pass' ? 'Free Pass' : 'Online', order.order_type === 'free_pass' ? 'Free Pass' : 'Berbayar', order.free_pass_reason ?? '', order.order_type === 'free_pass' ? 'Gratis' : order.total_price, order.status, order.created_at]),
+      ['Order', 'Event', 'Nama', 'WhatsApp', 'Tiket', 'Jumlah', 'Sumber Transaksi', 'Metode Pembayaran', 'Jenis order', 'Alasan Free Pass', 'Total', 'Status', 'Waktu'],
+      ...filteredOrders.map((order) => [order.order_number ?? order.id, eventById.get(order.event_id)?.title ?? '', order.full_name, order.whatsapp, order.ticket_category, order.quantity, order.sale_channel === 'ots' ? 'OTS' : order.order_type === 'free_pass' ? 'Free Pass' : 'Online', order.payment_channel === 'midtrans' ? 'Midtrans' : order.payment_channel === 'manual' ? 'Manual' : 'Tidak tercatat', order.order_type === 'free_pass' ? 'Free Pass' : 'Berbayar', order.free_pass_reason ?? '', order.order_type === 'free_pass' ? 'Gratis' : order.total_price, order.status, order.created_at]),
     ];
     const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
@@ -221,16 +303,79 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload, initi
   const waitingReview = filteredOrders.filter((order) => order.status === 'Menunggu Verifikasi' || order.status === 'Sudah Bayar');
   const statusTabs = [
     { value: 'Menunggu Verifikasi', label: 'MENUNGGU VERIFIKASI' },
-    { value: 'Lunas', label: 'Lunas' },
-    { value: 'Ditolak', label: 'Ditolak' },
+    { value: 'Pembayaran Online', label: 'PEMBAYARAN ONLINE' },
+    { value: 'Lunas', label: 'LUNAS' },
+    { value: 'Ditolak', label: 'DITOLAK' },
   ];
 
   return (
     <div className="space-y-5">
       <TicketWorkspaceHeader title="Order" subtitle={`${filteredOrders.length} order sesuai filter · ${waitingReview.length} menunggu verifikasi.`} action={<div className="flex shrink-0 gap-2"><button type="button" onClick={exportCsv} disabled={!filteredOrders.length} className="inline-flex min-h-10 items-center rounded-xl bg-white px-3 py-2 text-xs font-bold text-blue-800 shadow-sm transition hover:bg-blue-50 disabled:opacity-50">Export CSV</button><button type="button" onClick={printOrders} disabled={!filteredOrders.length} className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-800 shadow-sm transition hover:bg-blue-50 disabled:opacity-50" aria-label="Cetak order" title="Cetak order"><Printer className="h-4 w-4" /></button></div>} />
-      <div ref={statusTabsRef} role="tablist" aria-label="Filter status order" className="relative isolate grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-extrabold text-slate-900">Pemeriksaan Midtrans</h2>
+            <p className="mt-0.5 text-xs text-slate-500">Pembayaran sukses tanpa alokasi kuota dan email gagal.</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button type="button" onClick={() => void loadMidtransReviews()} disabled={loadingMidtransReviews} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-wait disabled:opacity-60" aria-label="Refresh pemeriksaan Midtrans" title="Refresh pemeriksaan Midtrans">
+              <RefreshCw className={`h-4 w-4 ${loadingMidtransReviews ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowMidtransReviewInfo(true)}
+              aria-label="Informasi pemeriksaan Midtrans"
+              title="Informasi pemeriksaan Midtrans"
+              className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <Info className="h-[18px] w-[18px]" />
+            </button>
+          </div>
+        </div>
+        {loadingMidtransReviews && !midtransReviews.length
+          ? <div className="h-16 skeleton rounded-xl" />
+          : !midtransReviews.length
+            ? <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">Tidak ada transaksi Midtrans yang perlu diperiksa.</p>
+            : <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+              {midtransReviews.map((review) => <article key={`${review.review_kind}-${review.ticket_order_id}`} className="space-y-2 p-3 sm:p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="break-all font-mono text-xs font-bold text-slate-900">{review.order.order_number ?? review.order.id}</p>
+                    <p className="mt-0.5 font-semibold text-slate-800">{review.order.full_name} · {review.order.ticket_category} × {review.order.quantity}</p>
+                    <p className="text-xs text-slate-500">{eventById.get(review.order.event_id)?.title ?? 'Event'} · {formatPrice(review.order.total_price)}</p>
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase ${review.review_kind === 'email' ? 'bg-amber-100 text-amber-900' : 'bg-red-100 text-red-800'}`}>
+                    {review.review_kind === 'email' ? review.allocation_status === 'email_pending' ? 'Email menunggu' : 'Email gagal' : 'Alokasi perlu review'}
+                  </span>
+                </div>
+                <p className="text-xs leading-5 text-slate-600">{review.review_reason || (review.review_kind === 'email' ? 'Email konfirmasi belum terkirim.' : 'Pembayaran sukses, tetapi tiket belum dialokasikan.')}</p>
+                {review.provider_order_id && <p className="break-all text-[11px] text-slate-500">Midtrans: {review.provider_order_id} · {review.transaction_status ?? 'status tercatat'}</p>}
+                {review.review_kind === 'email' && <button type="button" onClick={() => void retryMidtransEmail(review.ticket_order_id)} disabled={busyOrder === review.ticket_order_id} className="btn-secondary min-h-9 px-3 text-xs">
+                  {busyOrder === review.ticket_order_id ? 'Mengirim...' : 'Coba kirim email lagi'}
+                </button>}
+              </article>)}
+            </div>}
+      </section>
+      {showMidtransReviewInfo && <Modal
+        open
+        onClose={() => setShowMidtransReviewInfo(false)}
+        title="Tentang Pemeriksaan Midtrans"
+        titleEyebrow="Informasi"
+        titleLayout="stacked"
+        size="sm"
+      >
+        <div className="space-y-3 text-sm leading-6 text-slate-700">
+          <p>Bagian ini membantu Admin menangani pembayaran Midtrans yang memerlukan tindak lanjut.</p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li><strong>Pembayaran sukses tanpa alokasi kuota:</strong> pembayaran telah terkonfirmasi, tetapi tiket belum berhasil diterbitkan.</li>
+            <li><strong>Email gagal atau tertunda:</strong> tiket sudah diproses, tetapi email konfirmasi perlu dikirim ulang.</li>
+          </ul>
+          <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2.5 text-xs leading-5 text-blue-900">Tombol reload hanya memuat ulang daftar tindak lanjut ini. Tombol tersebut tidak memeriksa status semua transaksi.</p>
+        </div>
+      </Modal>}
+      <div ref={statusTabsRef} role="tablist" aria-label="Filter status order" className="relative isolate flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
         <SlidingTabIndicator trackRef={statusTabsRef} activeId={statusFilter} className={`rounded-lg shadow-sm ${statusFilter === 'Ditolak' ? 'bg-rose-600' : 'bg-blue-700'}`} />
-        {statusTabs.map((tab) => <button key={tab.value} type="button" role="tab" aria-selected={statusFilter === tab.value} data-sliding-tab={tab.value} onClick={() => setStatusFilter(tab.value)} className={`relative z-10 min-h-10 min-w-0 rounded-lg px-2 py-2 text-[11px] font-bold uppercase transition sm:text-xs ${statusFilter === tab.value ? 'bg-transparent text-white shadow-none' : 'bg-white/70 text-slate-600 hover:bg-white'}`}>{tab.label}</button>)}
+        {statusTabs.map((tab) => <button key={tab.value} type="button" role="tab" aria-selected={statusFilter === tab.value} data-sliding-tab={tab.value} onClick={() => setStatusFilter(tab.value)} className={`relative z-10 min-h-10 shrink-0 rounded-lg px-3 py-2 text-[11px] font-bold uppercase transition sm:text-xs ${statusFilter === tab.value ? 'bg-transparent text-white shadow-none' : 'bg-white/70 text-slate-600 hover:bg-white'}`}>{tab.label}</button>)}
       </div>
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
         <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input className="input-field pl-10" placeholder="Cari order, nama, WhatsApp..." value={search} onChange={(event) => setSearch(event.target.value)} /></div>
@@ -239,28 +384,41 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload, initi
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
       {loading ? <div className="h-28 skeleton rounded-2xl" /> : !filteredOrders.length ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Belum ada order untuk filter ini.</div> : <div className="space-y-2">{pageOrders.map((order) => {
         const event = eventById.get(order.event_id);
-        return <article key={order.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
+        return <article key={order.id} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <h2 className="truncate text-sm font-extrabold text-slate-950">{order.full_name}</h2>
-              <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${statusTone(order.status)}`}>{order.status}</span>
-              {order.sale_channel === 'ots' && <span className="shrink-0 rounded-full bg-violet-100 px-2 py-1 text-[10px] font-extrabold text-violet-800">OTS</span>}
-              {order.order_type === 'free_pass' && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-extrabold text-amber-900"><Gift className="h-3 w-3" />FREE PASS</span>}
+              <p className="mt-1 truncate text-xs text-slate-600">{event?.title ?? 'Event'}</p>
             </div>
-            <p className="mt-1 truncate text-xs text-slate-600">{event?.title ?? 'Event'}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800">
-                <TicketIcon className="h-3.5 w-3.5 shrink-0 text-blue-700" />
-                <span className="truncate">{order.ticket_category.toUpperCase()}</span>
-              </span>
-              <span className="shrink-0 rounded-md bg-blue-700 px-2 py-1 text-[10px] font-extrabold tracking-wide text-white">{order.quantity} TIKET</span>
-            </div>
-            <p className="mt-2 text-sm font-extrabold text-slate-900">{order.order_type === 'free_pass' ? 'GRATIS · FREE PASS' : formatPrice(order.total_price)}</p>
-            {order.order_type === 'free_pass' && order.free_pass_reason && <p className="mt-1 line-clamp-2 text-xs text-amber-800">Alasan: {order.free_pass_reason}</p>}
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${statusTone(order.status)}`}>{order.status}</span>
           </div>
-          <button type="button" onClick={() => setDetailsOrderId(order.id)} aria-label={`Lihat detail order ${order.order_number ?? order.id}`} title="Lihat detail dan aksi" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-white transition hover:bg-blue-800">
-            <Eye className="h-5 w-5" />
-          </button>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {order.payment_channel === 'midtrans' && <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-extrabold uppercase text-indigo-800 ring-1 ring-indigo-100">MIDTRANS</span>}
+            {order.sale_channel === 'ots' && <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-extrabold text-violet-800 ring-1 ring-violet-100">OTS</span>}
+            {order.order_type === 'free_pass' && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-extrabold text-amber-900 ring-1 ring-amber-100"><Gift className="h-3 w-3" />Free Pass</span>}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800">
+              <TicketIcon className="h-3.5 w-3.5 shrink-0 text-blue-700" />
+              <span className="truncate">{order.ticket_category.toUpperCase()}</span>
+            </span>
+            <span className="shrink-0 rounded-md bg-blue-700 px-2 py-1.5 text-[10px] font-extrabold tracking-wide text-white">{order.quantity} TIKET</span>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Total</p>
+              <p className="mt-0.5 truncate text-sm font-extrabold text-slate-900">{order.order_type === 'free_pass' ? 'GRATIS · FREE PASS' : formatPrice(order.total_price)}</p>
+              {order.order_type === 'free_pass' && order.free_pass_reason && <p className="mt-1 line-clamp-2 text-xs text-amber-800">Alasan: {order.free_pass_reason}</p>}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {statusFilter === 'Pembayaran Online' && <button type="button" onClick={() => void refreshOnlinePayment(order)} disabled={busyOrder === order.id} aria-label={`Periksa status Midtrans ${order.order_number ?? order.id}`} title="Periksa status pembayaran Midtrans" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-blue-200 bg-white text-blue-800 transition hover:bg-blue-50 disabled:opacity-50">
+                <RefreshCw className={`h-4 w-4 ${busyOrder === order.id ? 'animate-spin' : ''}`} />
+              </button>}
+              <button type="button" onClick={() => setDetailsOrderId(order.id)} aria-label={`Lihat detail order ${order.order_number ?? order.id}`} title="Lihat detail dan aksi" className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-700 text-white transition hover:bg-blue-800">
+                <Eye className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
         </article>;
       })}</div>}
       <Modal
@@ -357,7 +515,7 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload, initi
             <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Total</span><br /><span className="font-extrabold text-slate-900">{detailsOrder.order_type === 'free_pass' ? 'GRATIS · FREE PASS' : formatPrice(detailsOrder.total_price)}</span></p>
             <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Nominal dibayar</span><br /><span className="font-semibold text-slate-900">{detailsOrder.order_type === 'free_pass' ? 'Tidak ada pembayaran' : detailsOrder.payment_amount == null ? '—' : formatPrice(detailsOrder.payment_amount)}</span></p>
             <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Order dibuat</span><br /><span className="font-semibold text-slate-900">{new Date(detailsOrder.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</span></p>
-            {detailsOrder.payment_submitted_at && <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">Pembayaran dikirim</span><br /><span className="font-semibold text-slate-900">{new Date(detailsOrder.payment_submitted_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</span></p>}
+            {detailsPaymentTimestamp && <p className="rounded-lg border border-slate-200 p-3"><span className="text-[11px] font-medium text-slate-500">{detailsOrder.payment_channel === 'midtrans' ? 'Pembayaran terkonfirmasi' : 'Pembayaran dikirim'}</span><br /><span className="font-semibold text-slate-900">{new Date(detailsPaymentTimestamp).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</span></p>}
           </div>
           {detailsOrder.order_type === 'free_pass' ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
@@ -367,7 +525,7 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload, initi
           ) : (paymentSnapshotDetails(detailsOrder.payment_method_snapshot).length > 0 || detailsOrder.notes) ? (
             <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
               <p className="font-bold text-slate-900">Detail pembayaran</p>
-              {paymentSnapshotDetails(detailsOrder.payment_method_snapshot).map((detail) => <p key={detail} className="mt-1">{detail}</p>)}
+              {paymentSnapshotDetails(detailsOrder.payment_method_snapshot, detailsOrder.payment_channel).map((detail) => <p key={detail} className="mt-1">{detail}</p>)}
               {detailsOrder.notes && <p className="mt-2 border-t border-slate-200 pt-2"><span className="font-semibold">Catatan pembeli:</span> {detailsOrder.notes}</p>}
             </div>
           ) : null}

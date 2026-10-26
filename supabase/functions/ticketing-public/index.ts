@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { accessCodeHash, decryptSecret, normalizeWhatsapp, randomToken, sha256 } from '../_shared/ticketing.ts';
 import { chunkValues, fetchAllPages } from '../_shared/pagination.ts';
+import { MIDTRANS_MERCHANT_ID, MIDTRANS_SNAP_API_URL, MIDTRANS_STATUS_API_BASE_URL } from '../_shared/midtrans.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,6 +23,7 @@ type RequestBody = {
   quantity?: number;
   notes?: string;
   voucher_code?: string;
+  payment_channel?: 'manual' | 'midtrans';
   payment_amount?: number;
   proof_path?: string;
   file_name?: string;
@@ -53,6 +55,11 @@ function constantTimeEquals(left: string, right: string) {
   let difference = 0;
   for (let index = 0; index < left.length; index += 1) difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
   return difference === 0;
+}
+
+async function sha512(value: string) {
+  const digest = await crypto.subtle.digest('SHA-512', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 serve(async (request) => {
@@ -131,7 +138,7 @@ serve(async (request) => {
       if (!body.order_number || !body.event_id || !body.ticket_id || !body.full_name || !body.email || !body.whatsapp || !body.quantity) {
         return json({ error: 'Lengkapi Event, tiket, nama, email, WhatsApp, dan jumlah tiket.' }, 400);
       }
-      const { data, error } = await publicClient.rpc('create_ticket_order_priced', {
+      const { data, error } = await publicClient.rpc('create_ticket_order_priced_with_payment', {
         p_order_number: body.order_number,
         p_event_id: body.event_id,
         p_ticket_id: body.ticket_id,
@@ -141,6 +148,7 @@ serve(async (request) => {
         p_quantity: body.quantity,
         p_notes: body.notes ?? null,
         p_voucher_code: body.voucher_code ?? null,
+        p_payment_channel: body.payment_channel ?? 'manual',
       });
       if (error || !data) return json({ error: error?.message ?? 'Order gagal dibuat.' }, 400);
       return json({
@@ -149,6 +157,251 @@ serve(async (request) => {
         total_price: data.total_price,
         price_breakdown: data.price_breakdown,
       });
+    }
+
+    if (body.action === 'create-midtrans-transaction') {
+      if (!body.order_id || !body.whatsapp) return json({ error: 'Order dan nomor WhatsApp wajib diisi.' }, 400);
+      const serverKey = Deno.env.get('MIDTRANS_SECRET_KEY');
+      if (!serverKey) return json({ error: 'Konfigurasi Midtrans Sandbox belum lengkap.' }, 503);
+
+      const { data: order, error: orderError } = await serviceClient.from('ticket_orders')
+        .select('id, order_number, event_id, ticket_id, full_name, email, whatsapp, ticket_category, quantity, total_price, status, expires_at, payment_channel, payment_mode_snapshot')
+        .eq('id', body.order_id).maybeSingle();
+      if (orderError || !order || normalizeWhatsapp(body.whatsapp) !== order.whatsapp) {
+        return json({ error: 'Order tidak ditemukan untuk nomor tersebut.' }, 404);
+      }
+      if (order.payment_channel !== 'midtrans' || !['midtrans', 'both'].includes(order.payment_mode_snapshot)) {
+        return json({ error: 'Order ini tidak menggunakan pembayaran Midtrans.' }, 409);
+      }
+      if (!Number.isInteger(order.total_price) || order.total_price <= 0) {
+        return json({ error: 'Nominal order tidak dapat diproses melalui Midtrans.' }, 409);
+      }
+      if (order.status !== 'Menunggu Pembayaran' || !order.expires_at || new Date(order.expires_at).getTime() <= Date.now()) {
+        return json({ error: 'Batas pembayaran order sudah berakhir.' }, 410);
+      }
+      const { data: event, error: eventError } = await serviceClient.from('events')
+        .select('slug').eq('id', order.event_id).maybeSingle();
+      if (eventError || !event || !order.ticket_id) return json({ error: 'Event order tidak ditemukan.' }, 404);
+
+      const providerOrderId = `SIC-${order.id.replaceAll('-', '')}`;
+      const { data: existingTransaction, error: transactionLoadError } = await serviceClient.from('ticket_midtrans_transactions')
+        .select('id, provider_order_id, snap_token, redirect_url, transaction_status, allocation_status, expires_at, updated_at')
+        .eq('ticket_order_id', order.id).maybeSingle();
+      if (transactionLoadError) return json({ error: 'Transaksi pembayaran gagal dimuat.' }, 500);
+      if (existingTransaction?.allocation_status === 'issued') return json({ error: 'Pembayaran order sudah berhasil.' }, 409);
+      if (existingTransaction?.allocation_status === 'needs_admin_review') return json({ error: 'Transaksi order sedang diperiksa Admin.' }, 409);
+      if (existingTransaction?.snap_token && existingTransaction.expires_at
+        && new Date(existingTransaction.expires_at).getTime() > Date.now()) {
+        return json({ token: existingTransaction.snap_token, redirect_url: existingTransaction.redirect_url });
+      }
+      if (existingTransaction?.transaction_status === 'creating'
+        && Date.now() - new Date(existingTransaction.updated_at).getTime() < 90_000) {
+        return json({ error: 'Checkout sedang disiapkan. Coba lagi sebentar.' }, 409);
+      }
+
+      if (existingTransaction && !existingTransaction.snap_token) {
+        let priorStatusResponse: Response;
+        try {
+          priorStatusResponse = await fetch(
+            `${MIDTRANS_STATUS_API_BASE_URL}/${encodeURIComponent(providerOrderId)}/status`,
+            { headers: { Authorization: `Basic ${btoa(`${serverKey}:`)}`, Accept: 'application/json' }, signal: AbortSignal.timeout(5000) },
+          );
+        } catch {
+          return json({ error: 'Status transaksi sebelumnya belum dapat dipastikan. Checkout tidak dibuat ulang demi mencegah pembayaran ganda.' }, 503);
+        }
+        if (priorStatusResponse.status !== 404) {
+          if (!priorStatusResponse.ok) return json({ error: 'Status transaksi sebelumnya belum dapat diverifikasi.' }, 503);
+          const priorStatus = await priorStatusResponse.json().catch(() => null) as {
+            order_id?: string;
+            transaction_id?: string;
+            transaction_status?: string;
+            status_code?: string;
+            gross_amount?: string;
+            merchant_id?: string;
+            fraud_status?: string;
+            payment_type?: string;
+          } | null;
+          if (!priorStatus || priorStatus.order_id !== providerOrderId || priorStatus.merchant_id !== MIDTRANS_MERCHANT_ID) {
+            return json({ error: 'Identitas transaksi sebelumnya tidak cocok. Checkout tidak dibuat ulang.' }, 409);
+          }
+          const priorAmount = Number(priorStatus.gross_amount);
+          const priorStatusName = priorStatus.transaction_status?.toLowerCase();
+          const needsReview = !Number.isSafeInteger(priorAmount) || priorAmount !== order.total_price;
+          await serviceClient.from('ticket_midtrans_transactions').update({
+            provider_transaction_id: priorStatus.transaction_id ?? null,
+            transaction_status: priorStatusName && ['creating', 'created', 'pending', 'capture', 'settlement', 'deny', 'cancel', 'expire', 'failure', 'refund', 'partial_refund', 'chargeback', 'partial_chargeback', 'authorize'].includes(priorStatusName) ? priorStatusName : 'failure',
+            fraud_status: priorStatus.fraud_status ?? null,
+            payment_type: priorStatus.payment_type ?? null,
+            ...(needsReview ? { allocation_status: 'needs_admin_review', review_reason: 'Nominal transaksi provider tidak cocok setelah pembuatan checkout ambigu.' } : {}),
+            updated_at: new Date().toISOString(),
+          }).eq('id', existingTransaction.id);
+          if (needsReview) return json({ error: 'Transaksi sebelumnya memiliki nominal tidak cocok dan perlu diperiksa Admin.' }, 409);
+          if (priorStatus.status_code && priorStatus.gross_amount) {
+            const signatureKey = await sha512(`${providerOrderId}${priorStatus.status_code}${priorStatus.gross_amount}${serverKey}`);
+            await serviceClient.functions.invoke('midtrans-notification', {
+              body: {
+                order_id: providerOrderId,
+                status_code: priorStatus.status_code,
+                gross_amount: priorStatus.gross_amount,
+                merchant_id: priorStatus.merchant_id,
+                signature_key: signatureKey,
+              },
+            });
+          }
+          return json({ error: 'Transaksi sebelumnya sudah tercatat di Midtrans. Periksa status pesanan atau hubungi Admin sebelum mencoba pembayaran lagi.' }, 409);
+        }
+      }
+
+      if (existingTransaction) {
+        const { data, error } = await serviceClient.from('ticket_midtrans_transactions')
+          .update({ transaction_status: 'creating', snap_token: null, redirect_url: null, updated_at: new Date().toISOString() })
+          .eq('id', existingTransaction.id)
+          .eq('provider_order_id', providerOrderId)
+          .eq('transaction_status', existingTransaction.transaction_status)
+          .eq('updated_at', existingTransaction.updated_at)
+          .select('id').maybeSingle();
+        if (error || !data) return json({ error: 'Checkout sedang diproses oleh permintaan lain.' }, 409);
+      } else {
+        const { error } = await serviceClient.from('ticket_midtrans_transactions').insert({
+          ticket_order_id: order.id,
+          provider_order_id: providerOrderId,
+          gross_amount: order.total_price,
+          currency: 'IDR',
+          transaction_status: 'creating',
+          expires_at: order.expires_at,
+        });
+        if (error) {
+          if (error.code === '23505') return json({ error: 'Checkout sedang diproses oleh permintaan lain.' }, 409);
+          return json({ error: 'Checkout Midtrans gagal disiapkan.' }, 500);
+        }
+      }
+
+      const firstName = order.full_name.trim().split(/\s+/)[0] || order.full_name;
+      const lastName = order.full_name.trim().split(/\s+/).slice(1).join(' ');
+      const expiresAt = new Date();
+      const startTime = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+      }).format(expiresAt).replace('T', ' ');
+      const remainingMinutes = Math.max(1, Math.floor((new Date(order.expires_at).getTime() - Date.now()) / 60_000));
+      const requestBody = {
+        transaction_details: { order_id: providerOrderId, gross_amount: order.total_price },
+        item_details: [{ id: order.id, price: order.total_price, quantity: 1, name: `Tiket ${order.ticket_category} (${order.quantity})` }],
+        customer_details: {
+          first_name: firstName,
+          ...(lastName ? { last_name: lastName } : {}),
+          email: order.email,
+          phone: order.whatsapp,
+        },
+        callbacks: {
+          finish: `https://standupindocilegon.id/event/${encodeURIComponent(event.slug)}/tiket/${encodeURIComponent(order.ticket_id)}?midtransOrderId=${encodeURIComponent(order.id)}`,
+        },
+        expiry: { start_time: `${startTime} +0700`, unit: 'minute', duration: remainingMinutes },
+        page_expiry: { duration: 15, unit: 'minutes' },
+      };
+
+      try {
+        const response = await fetch(MIDTRANS_SNAP_API_URL, {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${btoa(`${serverKey}:`)}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+          signal: AbortSignal.timeout(12000),
+        });
+        const result = await response.json().catch(() => null) as { token?: string; redirect_url?: string } | null;
+        if (!response.ok || !result?.token || !result.redirect_url) {
+          await serviceClient.from('ticket_midtrans_transactions')
+            .update({ transaction_status: 'failure', updated_at: new Date().toISOString() })
+            .eq('ticket_order_id', order.id)
+            .eq('transaction_status', 'creating');
+          console.error('Midtrans Snap token request failed', response.status);
+          return json({ error: 'Checkout Midtrans belum dapat dibuat. Coba lagi sebelum batas pembayaran berakhir.' }, 502);
+        }
+        const { error: saveError } = await serviceClient.from('ticket_midtrans_transactions')
+          .update({ snap_token: result.token, redirect_url: result.redirect_url, updated_at: new Date().toISOString() })
+          .eq('ticket_order_id', order.id);
+        if (saveError) return json({ error: 'Checkout dibuat tetapi gagal disimpan. Silakan coba lagi.' }, 500);
+        return json({ token: result.token, redirect_url: result.redirect_url });
+      } catch (error) {
+        await serviceClient.from('ticket_midtrans_transactions')
+          .update({ transaction_status: 'failure', updated_at: new Date().toISOString() })
+          .eq('ticket_order_id', order.id)
+          .eq('transaction_status', 'creating');
+        console.error('Midtrans Snap request failed', error instanceof Error ? error.message : 'Unknown error');
+        return json({ error: 'Layanan pembayaran belum dapat dijangkau.' }, 502);
+      }
+    }
+
+    if (body.action === 'midtrans-payment-status') {
+      if (!body.order_id || !body.whatsapp) return json({ error: 'Order dan nomor WhatsApp wajib diisi.' }, 400);
+      const { data: order, error: orderError } = await serviceClient.from('ticket_orders')
+        .select('id, order_number, event_id, ticket_id, full_name, email, whatsapp, ticket_category, quantity, total_price, status, expires_at, payment_method_snapshot, payment_channel')
+        .eq('id', body.order_id).maybeSingle();
+      if (orderError || !order || normalizeWhatsapp(body.whatsapp) !== order.whatsapp) {
+        return json({ error: 'Order tidak ditemukan untuk nomor tersebut.' }, 404);
+      }
+      if (order.payment_channel !== 'midtrans') return json({ error: 'Order ini bukan pembayaran Midtrans.' }, 409);
+      const { data: transaction, error: transactionError } = await serviceClient.from('ticket_midtrans_transactions')
+        .select('provider_order_id, gross_amount, transaction_status, allocation_status, review_reason, expires_at')
+        .eq('ticket_order_id', order.id).maybeSingle();
+      if (transactionError) return json({ error: 'Status transaksi gagal dimuat.' }, 500);
+      if (transaction && ['pending', 'issued'].includes(transaction.allocation_status)) {
+        const serverKey = Deno.env.get('MIDTRANS_SECRET_KEY');
+        if (!serverKey) return json({ error: 'Kunci server Midtrans belum dikonfigurasi.' }, 503);
+        let statusResponse: Response;
+        try {
+          statusResponse = await fetch(
+            `${MIDTRANS_STATUS_API_BASE_URL}/${encodeURIComponent(transaction.provider_order_id)}/status`,
+            { headers: { Authorization: `Basic ${btoa(`${serverKey}:`)}`, Accept: 'application/json' }, signal: AbortSignal.timeout(5000) },
+          );
+        } catch {
+          return json({ error: 'Status pembayaran Midtrans tidak dapat dijangkau. Coba periksa lagi.' }, 503);
+        }
+        if (statusResponse.status === 401) {
+          return json({ error: 'Kredensial Midtrans ditolak. Periksa Server Key dan mode Sandbox/Production di pengaturan Supabase.' }, 503);
+        }
+        if (statusResponse.status !== 404 && !statusResponse.ok) {
+          return json({ error: 'Status API Midtrans gagal memverifikasi pembayaran.' }, 503);
+        }
+        if (statusResponse.ok) {
+          const status = await statusResponse.json().catch(() => null) as {
+            order_id?: string;
+            status_code?: string;
+            gross_amount?: string;
+            merchant_id?: string;
+          } | null;
+          if (!status || status.order_id !== transaction.provider_order_id
+            || status.merchant_id !== MIDTRANS_MERCHANT_ID || !status.status_code || !status.gross_amount) {
+            return json({ error: 'Identitas transaksi dari Midtrans tidak cocok dengan order.' }, 502);
+          }
+          const signatureKey = await sha512(`${status.order_id}${status.status_code}${status.gross_amount}${serverKey}`);
+          const { error: reconcileError } = await serviceClient.functions.invoke('midtrans-notification', {
+            body: {
+              order_id: status.order_id,
+              status_code: status.status_code,
+              gross_amount: status.gross_amount,
+              merchant_id: status.merchant_id,
+              signature_key: signatureKey,
+            },
+          });
+          if (reconcileError) {
+            console.error('Midtrans status reconciliation failed');
+            return json({ error: 'Status Midtrans ditemukan, tetapi order belum berhasil disinkronkan. Coba lagi atau hubungi Admin.' }, 503);
+          }
+        }
+      }
+      const [{ data: refreshedOrder }, { data: refreshedTransaction }] = await Promise.all([
+        serviceClient.from('ticket_orders')
+          .select('id, order_number, event_id, ticket_id, full_name, email, whatsapp, ticket_category, quantity, total_price, status, expires_at, payment_method_snapshot, payment_channel')
+          .eq('id', order.id).maybeSingle(),
+        serviceClient.from('ticket_midtrans_transactions')
+          .select('transaction_status, allocation_status, review_reason, expires_at')
+          .eq('ticket_order_id', order.id).maybeSingle(),
+      ]);
+      return json({ order: refreshedOrder ?? order, transaction: refreshedTransaction ?? transaction ?? null });
     }
 
     if (body.action === 'order-payment') {

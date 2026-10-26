@@ -9,7 +9,7 @@ import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
 import { EventPosterFallback } from '@/components/cards/EventPosterFallback';
 
-export function EventCard({ event, router, price }: { event: EventItem; router: Router; price?: number | null }) {
+export function EventCard({ event, router, price }: { event: Pick<EventItem, 'id' | 'title' | 'slug' | 'poster' | 'date' | 'time' | 'venue' | 'location' | 'maps_url' | 'description' | 'status' | 'ticket_sales_mode'>; router: Router; price?: number | null }) {
   const [lightbox, setLightbox] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   const currentStatus = getEventStatus(event.status, event.date);
