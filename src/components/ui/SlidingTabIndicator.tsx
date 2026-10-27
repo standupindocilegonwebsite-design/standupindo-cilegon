@@ -47,6 +47,10 @@ function boundsChanged(first: IndicatorBounds | null, second: IndicatorBounds) {
     || Math.abs(first.height - second.height) > 0.5;
 }
 
+function hasUsableBounds(bounds: IndicatorBounds) {
+  return bounds.width > 0 && bounds.height > 0;
+}
+
 export function SlidingTabIndicator({ activeId, className, trackRef }: SlidingTabIndicatorProps) {
   const indicatorRef = useRef<HTMLSpanElement>(null);
   const activeIdRef = useRef(activeId);
@@ -62,6 +66,12 @@ export function SlidingTabIndicator({ activeId, className, trackRef }: SlidingTa
     if (!track || !indicator || !selectedTab) return;
 
     const bounds = measureBounds(track, selectedTab);
+    if (!hasUsableBounds(bounds)) {
+      track.removeAttribute('data-sliding-indicator-ready');
+      return;
+    }
+
+    track.setAttribute('data-sliding-indicator-ready', 'true');
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (transitionFrameRef.current !== null) {
       window.cancelAnimationFrame(transitionFrameRef.current);
@@ -106,6 +116,12 @@ export function SlidingTabIndicator({ activeId, className, trackRef }: SlidingTa
       if (!selectedTab) return;
 
       const bounds = measureBounds(track, selectedTab);
+      if (!hasUsableBounds(bounds)) {
+        track.removeAttribute('data-sliding-indicator-ready');
+        return;
+      }
+
+      track.setAttribute('data-sliding-indicator-ready', 'true');
       if (!boundsChanged(lastBoundsRef.current, bounds)) return;
 
       if (transitionFrameRef.current !== null) {
@@ -126,6 +142,7 @@ export function SlidingTabIndicator({ activeId, className, trackRef }: SlidingTa
     return () => {
       observer?.disconnect();
       window.removeEventListener('resize', syncPosition);
+      track.removeAttribute('data-sliding-indicator-ready');
       if (transitionFrameRef.current !== null) {
         window.cancelAnimationFrame(transitionFrameRef.current);
       }

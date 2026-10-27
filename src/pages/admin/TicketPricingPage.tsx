@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BadgePercent, CalendarClock, Check, ChevronDown, Clock3, Pencil, Plus, RefreshCw, Save, Ticket, Trash2, X } from 'lucide-react';
+import { AlertTriangle, BadgePercent, CalendarClock, Check, ChevronDown, Clock3, Pencil, Plus, RefreshCw, Save, Ticket, Trash2 } from 'lucide-react';
 import type { EventItem, EventTicket } from '@/lib/types';
 import { formatPrice, getEventStatus } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -98,6 +98,16 @@ function toLocalDateTime(value: string | null) {
   const date = value ? new Date(value) : new Date();
   const offset = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function formatRupiahInput(value: string | number) {
+  const digits = String(value).replace(/\D/g, '');
+  return digits ? Number(digits).toLocaleString('id-ID') : '';
+}
+
+function parseRupiahInput(value: string) {
+  const digits = value.replace(/\D/g, '');
+  return digits ? Number(digits) : null;
 }
 
 function newVoucherForm(): VoucherForm {
@@ -260,7 +270,9 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
       p_event_id: eventId,
       p_is_enabled: feeForm.is_enabled,
       p_calculation_type: feeForm.calculation_type,
-      p_calculation_value: Number(feeForm.calculation_value),
+      p_calculation_value: feeForm.calculation_type === 'fixed'
+        ? parseRupiahInput(feeForm.calculation_value)
+        : Number(feeForm.calculation_value),
       p_label: feeForm.label,
       p_calculation_basis: feeForm.calculation_basis,
       p_charge_unit: feeForm.charge_unit,
@@ -299,9 +311,9 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
         internalName: voucher.internal_name ?? '',
         audience: voucher.audience,
         discountType: voucher.discount_type,
-        discountValue: String(voucher.discount_value),
-        maximumDiscount: voucher.maximum_discount === null ? '' : String(voucher.maximum_discount),
-        minimumPurchase: voucher.minimum_purchase === null ? '' : String(voucher.minimum_purchase),
+        discountValue: voucher.discount_type === 'fixed' ? formatRupiahInput(voucher.discount_value) : String(voucher.discount_value),
+        maximumDiscount: voucher.maximum_discount === null ? '' : formatRupiahInput(voucher.maximum_discount),
+        minimumPurchase: voucher.minimum_purchase === null ? '' : formatRupiahInput(voucher.minimum_purchase),
         startsAt: toLocalDateTime(voucher.starts_at),
         endsAt: toLocalDateTime(voucher.ends_at),
         totalQuota: voucher.total_quota === null ? '' : String(voucher.total_quota),
@@ -321,8 +333,10 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
   async function saveVoucher(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!eventId) return;
-    const value = Number(voucherForm.discountValue);
-    if (!Number.isFinite(value) || value <= 0) {
+    const value = voucherForm.discountType === 'fixed'
+      ? parseRupiahInput(voucherForm.discountValue)
+      : Number(voucherForm.discountValue);
+    if (value === null || !Number.isFinite(value) || value <= 0) {
       setError('Nilai diskon harus lebih besar dari nol.');
       return;
     }
@@ -346,8 +360,8 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
       p_audience: voucherForm.audience,
       p_discount_type: voucherForm.discountType,
       p_discount_value: value,
-      p_maximum_discount: voucherForm.discountType === 'percentage' && voucherForm.maximumDiscount !== '' ? Number(voucherForm.maximumDiscount) : null,
-      p_minimum_purchase: voucherForm.minimumPurchase !== '' ? Number(voucherForm.minimumPurchase) : null,
+      p_maximum_discount: voucherForm.discountType === 'percentage' ? parseRupiahInput(voucherForm.maximumDiscount) : null,
+      p_minimum_purchase: parseRupiahInput(voucherForm.minimumPurchase),
       p_starts_at: new Date(voucherForm.startsAt).toISOString(),
       p_ends_at: new Date(voucherForm.endsAt).toISOString(),
       p_total_quota: voucherForm.totalQuota !== '' ? Number(voucherForm.totalQuota) : null,
@@ -478,7 +492,9 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
     setFeeForm(feeSetting ? {
       is_enabled: feeSetting.is_enabled,
       calculation_type: feeSetting.calculation_type,
-      calculation_value: String(feeSetting.calculation_value),
+      calculation_value: feeSetting.calculation_type === 'fixed'
+        ? formatRupiahInput(feeSetting.calculation_value)
+        : String(feeSetting.calculation_value),
       label: feeSetting.label,
       calculation_basis: feeSetting.calculation_basis,
       charge_unit: feeSetting.charge_unit,
@@ -497,10 +513,10 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
         action={<button type="button" onClick={() => void load()} disabled={loading} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 disabled:cursor-wait disabled:opacity-60" aria-label="Muat ulang pengaturan" title="Muat ulang pengaturan"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /></button>}
       />
 
-      <div ref={tabsRef} className="relative isolate grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5 sm:inline-grid sm:min-w-[24rem]">
+      <div ref={tabsRef} data-sliding-indicator-theme={tab === 'fees' ? 'blue-600' : 'violet-600'} role="tablist" aria-label="Pengaturan tiket" className="relative isolate grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5 sm:inline-grid sm:min-w-[24rem]">
         <SlidingTabIndicator trackRef={tabsRef} activeId={tab} className={`rounded-xl shadow-sm ${tab === 'fees' ? 'bg-blue-600' : 'bg-violet-600'}`} />
-        <button type="button" data-sliding-tab="fees" onClick={() => setTab('fees')} className={`relative z-10 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition ${tab === 'fees' ? 'bg-transparent text-white shadow-none' : 'text-slate-600 hover:bg-white/70'}`}><Ticket className="h-4 w-4" /> Biaya</button>
-        <button type="button" data-sliding-tab="vouchers" onClick={() => setTab('vouchers')} className={`relative z-10 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition ${tab === 'vouchers' ? 'bg-transparent text-white shadow-none' : 'text-slate-600 hover:bg-white/70'}`}><BadgePercent className="h-4 w-4" /> Voucher</button>
+        <button type="button" role="tab" aria-selected={tab === 'fees'} data-sliding-tab="fees" onClick={() => setTab('fees')} className={`relative z-10 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition ${tab === 'fees' ? 'bg-transparent text-white shadow-none' : 'text-slate-600 hover:bg-white/70'}`}><Ticket className="h-4 w-4" /> Biaya</button>
+        <button type="button" role="tab" aria-selected={tab === 'vouchers'} data-sliding-tab="vouchers" onClick={() => setTab('vouchers')} className={`relative z-10 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-3 text-sm font-bold transition ${tab === 'vouchers' ? 'bg-transparent text-white shadow-none' : 'text-slate-600 hover:bg-white/70'}`}><BadgePercent className="h-4 w-4" /> Voucher</button>
       </div>
 
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -569,24 +585,15 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
           </div>
         </section>
 
-        {feeModalOpen && <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="fee-form-title"
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/50 sm:items-center sm:p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !saving) setFeeModalOpen(false);
-          }}
+        {feeModalOpen && <Modal
+          open
+          onClose={() => !saving && setFeeModalOpen(false)}
+          title={feeEditingId ? 'Edit Biaya Tambahan' : 'Tambah Biaya Tambahan'}
+          titleEyebrow="Admin Tiket · Biaya"
+          headerContent={<p className="text-sm text-blue-100">{selectedEvent.title}</p>}
+          size="lg"
         >
-          <form onSubmit={(event) => void saveFee(event)} className="max-h-[92dvh] w-full space-y-5 overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-4 shadow-2xl sm:max-w-xl sm:rounded-2xl sm:p-6">
-            <div className="-mx-4 -mt-4 flex items-start gap-3 bg-gradient-to-br from-blue-700 via-blue-800 to-blue-900 px-4 pb-3 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pb-4 sm:pt-5">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white"><Ticket className="h-5 w-5" /></span>
-              <div className="min-w-0 flex-1">
-                <h2 id="fee-form-title" className="text-base font-extrabold text-white">{feeEditingId ? 'Edit Biaya Tambahan' : 'Tambah Biaya Tambahan'}</h2>
-                <p className="mt-1 text-sm text-blue-100">{selectedEvent.title}</p>
-              </div>
-              <button type="button" onClick={() => setFeeModalOpen(false)} disabled={saving} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 disabled:opacity-50" aria-label="Tutup pengaturan biaya"><X className="h-5 w-5" /></button>
-            </div>
+          <form onSubmit={(event) => void saveFee(event)} className="space-y-5">
             {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
             <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 px-4">
               <span className="text-sm font-bold text-slate-700">Kenakan biaya saat checkout</span>
@@ -596,8 +603,24 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
               </span>
             </label>
             <div className="grid gap-4 sm:grid-cols-2">
-              <label><span className="label-field">Jenis Biaya</span><select value={feeForm.calculation_type} onChange={(event) => setFeeForm({ ...feeForm, calculation_type: event.target.value as FeeSetting['calculation_type'] })} className="input-field"><option value="percentage">Persentase (%)</option><option value="fixed">Nominal Tetap (Rp)</option></select></label>
-              <label><span className="label-field">Besar Biaya</span><div className="relative"><input required min="0" max={feeForm.calculation_type === 'percentage' ? 100 : undefined} step={feeForm.calculation_type === 'percentage' ? '0.01' : '1'} type="number" value={feeForm.calculation_value} onChange={(event) => setFeeForm({ ...feeForm, calculation_value: event.target.value })} className="input-field pr-14" /><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">{feeForm.calculation_type === 'percentage' ? '%' : 'Rp'}</span></div></label>
+              <label><span className="label-field">Jenis Biaya</span><select value={feeForm.calculation_type} onChange={(event) => {
+                const calculationType = event.target.value as FeeSetting['calculation_type'];
+                setFeeForm({
+                  ...feeForm,
+                  calculation_type: calculationType,
+                  calculation_value: calculationType === 'fixed'
+                    ? ''
+                    : String(parseRupiahInput(feeForm.calculation_value) ?? ''),
+                });
+              }} className="input-field"><option value="percentage">Persentase (%)</option><option value="fixed">Nominal Tetap (Rp)</option></select></label>
+              <label>
+                <span className="label-field">Besar Biaya</span>
+                <div className="relative">
+                  {feeForm.calculation_type === 'fixed'
+                    ? <><span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">Rp</span><input required type="text" inputMode="numeric" value={feeForm.calculation_value} onChange={(event) => setFeeForm({ ...feeForm, calculation_value: formatRupiahInput(event.target.value) })} className="input-field !pl-12" placeholder="Contoh: 5.000.000" /></>
+                    : <><input required min="0" max="100" step="0.01" type="number" value={feeForm.calculation_value} onChange={(event) => setFeeForm({ ...feeForm, calculation_value: event.target.value })} className="input-field pr-10" /><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">%</span></>}
+                </div>
+              </label>
               <label className="sm:col-span-2"><span className="label-field">Nama Biaya Di Checkout</span><input required maxLength={60} value={feeForm.label} onChange={(event) => setFeeForm({ ...feeForm, label: event.target.value })} className="input-field" placeholder="Contoh: Pajak atau Biaya Layanan" /></label>
             </div>
             <details className="group rounded-xl border border-slate-200 bg-slate-50">
@@ -610,38 +633,37 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
               </div>
             </details>
             <div className="flex items-start gap-2.5 rounded-xl bg-blue-50 p-3.5 text-sm leading-5 text-blue-800"><Check className="mt-0.5 h-4 w-4 shrink-0" /><p>Biaya berlaku untuk tiket online berbayar. OTS dan Free Pass tidak terpengaruh.</p></div>
-            <div className="sticky bottom-0 -mx-4 -mb-4 flex gap-2 border-t border-slate-100 bg-white/95 p-4 backdrop-blur sm:-mx-6 sm:-mb-6 sm:p-6">
+            <div className="sticky bottom-[-1.25rem] -mx-3 -mb-5 flex gap-2 border-t border-slate-100 bg-white/95 px-3 py-3 backdrop-blur sm:bottom-[-1.5rem] sm:-mx-6 sm:-mb-6 sm:px-6 sm:py-4">
               <button type="button" onClick={() => setFeeModalOpen(false)} disabled={saving} className="btn-secondary min-h-12 flex-1 sm:flex-none">Batal</button>
               <button type="submit" disabled={saving || loading} className="btn-primary min-h-12 flex-1 sm:flex-none"><Save className="h-4 w-4" /> {saving ? 'Menyimpan...' : feeEditingId ? 'Simpan Perubahan' : 'Tambah Biaya'}</button>
             </div>
           </form>
-        </div>}
+        </Modal>}
       </>}
 
       {tab === 'vouchers' && selectedEvent && <>
-        {voucherModalOpen && <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="voucher-form-title"
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/50 sm:items-center sm:p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !saving) setVoucherModalOpen(false);
-          }}
+        {voucherModalOpen && <Modal
+          open
+          onClose={() => !saving && setVoucherModalOpen(false)}
+          title={voucherForm.id ? 'Edit Voucher' : 'Buat Voucher Baru'}
+          titleEyebrow="Admin Tiket · Voucher"
+          headerContent={<p className="text-sm text-blue-100">{selectedEvent.title}</p>}
+          size="lg"
         >
-        <form onSubmit={(event) => void saveVoucher(event)} className="max-h-[92dvh] w-full space-y-5 overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-4 shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:p-6">
-          <div className="-mx-4 -mt-4 flex items-start gap-3 bg-gradient-to-br from-blue-700 via-blue-800 to-blue-900 px-4 pb-3 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pb-4 sm:pt-5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white"><BadgePercent className="h-5 w-5" /></span>
-            <div className="min-w-0 flex-1">
-              <h2 id="voucher-form-title" className="text-base font-extrabold text-white">{voucherForm.id ? 'Edit Voucher' : 'Buat Voucher Baru'}</h2>
-              <p className="mt-1 text-sm text-blue-100">{selectedEvent.title}</p>
-            </div>
-            <button type="button" onClick={() => setVoucherModalOpen(false)} disabled={saving} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 disabled:opacity-50" aria-label="Tutup form voucher"><X className="h-5 w-5" /></button>
-          </div>
+          <form onSubmit={(event) => void saveVoucher(event)} className="space-y-5">
           {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="sm:col-span-2"><span className="label-field">Kode Voucher</span><input required maxLength={40} value={voucherForm.code} onChange={(event) => setVoucherForm({ ...voucherForm, code: event.target.value.toUpperCase().replace(/\s/g, '') })} className="input-field font-mono font-bold uppercase tracking-wider" placeholder="Contoh: HEMAT10" /><span className="mt-1 block text-xs text-slate-500">Kode ini dibagikan kepada pembeli.</span></label>
             <label><span className="label-field">Jenis Diskon</span><select value={voucherForm.discountType} onChange={(event) => setVoucherForm({ ...voucherForm, discountType: event.target.value as VoucherForm['discountType'], maximumDiscount: event.target.value === 'fixed' ? '' : voucherForm.maximumDiscount })} className="input-field"><option value="percentage">Persentase (%)</option><option value="fixed">Nominal Tetap (Rp)</option></select></label>
-            <label><span className="label-field">Besar Diskon</span><div className="relative"><input required min="0.01" max={voucherForm.discountType === 'percentage' ? 100 : undefined} step={voucherForm.discountType === 'percentage' ? '0.01' : '1'} type="number" value={voucherForm.discountValue} onChange={(event) => setVoucherForm({ ...voucherForm, discountValue: event.target.value })} className="input-field pr-14" placeholder={voucherForm.discountType === 'percentage' ? 'Contoh: 10' : 'Contoh: 20000'} /><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">{voucherForm.discountType === 'percentage' ? '%' : 'Rp'}</span></div></label>
+            <label>
+              <span className="label-field">{voucherForm.discountType === 'percentage' ? 'Persentase Diskon' : 'Potongan per Pesanan'}</span>
+              <div className="relative">
+                {voucherForm.discountType === 'percentage'
+                  ? <><input required min="0.01" max="100" step="0.01" type="number" value={voucherForm.discountValue} onChange={(event) => setVoucherForm({ ...voucherForm, discountValue: event.target.value })} className="input-field pr-10" placeholder="Contoh: 10" /><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">%</span></>
+                  : <><span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">Rp</span><input required type="text" inputMode="numeric" value={voucherForm.discountValue} onChange={(event) => setVoucherForm({ ...voucherForm, discountValue: formatRupiahInput(event.target.value) })} className="input-field !pl-12" placeholder="Contoh: 30.000" /></>}
+              </div>
+              <span className="mt-1 block text-xs leading-5 text-slate-500">{voucherForm.discountType === 'percentage' ? 'Persentase dihitung dari subtotal tiket. Contoh: 10 berarti diskon 10%.' : 'Potongan nominal ini dikenakan satu kali untuk seluruh pesanan, bukan untuk setiap tiket.'}</span>
+            </label>
             <fieldset className="sm:col-span-2">
               <legend className="label-field">Siapa Yang Bisa Menggunakan?</legend>
               <div className="grid grid-cols-2 gap-2">
@@ -716,13 +738,33 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
             </summary>
             <div className="space-y-5 border-t border-slate-200 p-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="sm:col-span-2"><span className="label-field">Nama Internal (Opsional)</span><input value={voucherForm.internalName} onChange={(event) => setVoucherForm({ ...voucherForm, internalName: event.target.value })} className="input-field" placeholder="Contoh: Promo Early Bird" /></label>
-                {voucherForm.discountType === 'percentage' && <label><span className="label-field">Maksimal Potongan (Opsional)</span><input min="1" step="1" type="number" value={voucherForm.maximumDiscount} onChange={(event) => setVoucherForm({ ...voucherForm, maximumDiscount: event.target.value })} className="input-field" placeholder="Tanpa batas" /></label>}
-                <label><span className="label-field">Minimum Pembelian (Opsional)</span><input min="0" step="1" type="number" value={voucherForm.minimumPurchase} onChange={(event) => setVoucherForm({ ...voucherForm, minimumPurchase: event.target.value })} className="input-field" placeholder="Tanpa minimum" /></label>
+                <label className="sm:col-span-2">
+                  <span className="label-field">Nama Voucher untuk Admin (Opsional)</span>
+                  <input value={voucherForm.internalName} onChange={(event) => setVoucherForm({ ...voucherForm, internalName: event.target.value })} className="input-field" placeholder="Contoh: Promo Early Bird" />
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">Nama penanda internal; pembeli menggunakan Kode Voucher.</span>
+                </label>
+                {voucherForm.discountType === 'percentage' && <label>
+                  <span className="label-field">Batas Diskon per Pesanan (Opsional)</span>
+                  <div className="relative"><span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">Rp</span><input type="text" inputMode="numeric" value={voucherForm.maximumDiscount} onChange={(event) => setVoucherForm({ ...voucherForm, maximumDiscount: formatRupiahInput(event.target.value) })} className="input-field !pl-12" placeholder="Contoh: 30.000" /></div>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">Membatasi total potongan untuk satu pesanan, bukan per tiket.</span>
+                </label>}
+                <label>
+                  <span className="label-field">Minimal Subtotal Tiket (Opsional)</span>
+                  <div className="relative"><span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">Rp</span><input type="text" inputMode="numeric" value={voucherForm.minimumPurchase} onChange={(event) => setVoucherForm({ ...voucherForm, minimumPurchase: formatRupiahInput(event.target.value) })} className="input-field !pl-12" placeholder="Contoh: 200.000" /></div>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">Voucher berlaku jika total harga tiket sebelum diskon mencapai nominal ini. Biaya tambahan tidak dihitung.</span>
+                </label>
                 <label><span className="label-field">Mulai Berlaku</span><input required type="datetime-local" value={voucherForm.startsAt} onChange={(event) => setVoucherForm({ ...voucherForm, startsAt: event.target.value })} className="input-field" /></label>
                 <label><span className="label-field">Berakhir</span><input required type="datetime-local" value={voucherForm.endsAt} onChange={(event) => setVoucherForm({ ...voucherForm, endsAt: event.target.value })} className="input-field" /></label>
-                <label><span className="label-field">Kuota Voucher (Opsional)</span><input min="1" step="1" type="number" value={voucherForm.totalQuota} onChange={(event) => setVoucherForm({ ...voucherForm, totalQuota: event.target.value })} className="input-field" placeholder="Tanpa batas" /></label>
-                <label><span className="label-field">Maksimal Per Pembeli</span><input min="1" step="1" type="number" value={voucherForm.perBuyerLimit} onChange={(event) => setVoucherForm({ ...voucherForm, perBuyerLimit: event.target.value })} className="input-field" placeholder="Tanpa batas" /></label>
+                <label>
+                  <span className="label-field">Batas Total Penggunaan Voucher (Opsional)</span>
+                  <input min="1" step="1" type="number" value={voucherForm.totalQuota} onChange={(event) => setVoucherForm({ ...voucherForm, totalQuota: event.target.value })} className="input-field" placeholder="Contoh: 100" />
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">Menghitung jumlah pesanan yang memakai voucher, bukan jumlah tiket.</span>
+                </label>
+                <label>
+                  <span className="label-field">Batas Penggunaan per Pembeli (Opsional)</span>
+                  <input min="1" step="1" type="number" value={voucherForm.perBuyerLimit} onChange={(event) => setVoucherForm({ ...voucherForm, perBuyerLimit: event.target.value })} className="input-field" placeholder="Contoh: 1" />
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">Dihitung per nomor WhatsApp, berdasarkan jumlah pesanan.</span>
+                </label>
               </div>
               <fieldset className="space-y-3">
                 <legend className="label-field">Berlaku Untuk Kategori</legend>
@@ -740,12 +782,12 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
               </fieldset>
             </div>
           </details>
-          <div className="sticky bottom-0 -mx-4 -mb-4 flex gap-2 border-t border-slate-100 bg-white/95 p-4 backdrop-blur sm:-mx-6 sm:-mb-6 sm:p-6">
+          <div className="sticky bottom-[-1.25rem] -mx-3 -mb-5 flex gap-2 border-t border-slate-100 bg-white/95 px-3 py-3 backdrop-blur sm:bottom-[-1.5rem] sm:-mx-6 sm:-mb-6 sm:px-6 sm:py-4">
             <button type="button" onClick={() => setVoucherModalOpen(false)} disabled={saving} className="btn-secondary min-h-12 flex-1 sm:flex-none">Batal</button>
             <button type="submit" disabled={saving || loading} className="btn-primary min-h-12 flex-1 sm:flex-none"><Save className="h-4 w-4" /> {saving ? 'Menyimpan...' : voucherForm.id ? 'Simpan Perubahan' : 'Buat Voucher'}</button>
           </div>
-        </form>
-        </div>}
+          </form>
+        </Modal>}
 
         <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex items-center justify-between gap-3">
@@ -774,13 +816,13 @@ export function TicketPricingPage({ events, initialTab, onBack }: {
                       <code className="font-mono font-black tracking-wide text-blue-800">{voucher.code}</code>
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${voucher.deleted_at ? 'bg-slate-100 text-slate-600' : voucher.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{voucher.deleted_at ? 'Diarsipkan' : voucher.is_active ? 'Aktif' : 'Nonaktif'}</span>
                     </span>
-                    <span className="mt-1 block truncate text-xs text-slate-600">{voucher.discount_type === 'percentage' ? `Diskon ${voucher.discount_value}%` : `Diskon ${formatPrice(voucher.discount_value)}`} · Terpakai {counts.redeemed}</span>
+                    <span className="mt-1 block truncate text-xs text-slate-600">{voucher.discount_type === 'percentage' ? `Diskon ${voucher.discount_value}%` : `Potongan ${formatPrice(voucher.discount_value)} per pesanan`} · Terpakai {counts.redeemed}</span>
                   </span>
                   <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition ${expanded ? 'rotate-180' : ''}`} />
                 </button>
                 {expanded && <div className="space-y-4 border-t border-slate-100 p-4 sm:p-5">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">{voucher.discount_type === 'percentage' ? `Diskon ${voucher.discount_value}%` : `Diskon ${formatPrice(voucher.discount_value)}`}{voucher.maximum_discount ? ` · Maks. ${formatPrice(voucher.maximum_discount)}` : ''}</p>
+                  <p className="text-sm font-semibold text-slate-800">{voucher.discount_type === 'percentage' ? `Diskon ${voucher.discount_value}%` : `Potongan ${formatPrice(voucher.discount_value)} per pesanan`}{voucher.maximum_discount ? ` · Batas ${formatPrice(voucher.maximum_discount)} per pesanan` : ''}</p>
                   <p className="mt-1 text-xs text-slate-500">{voucher.internal_name || (voucher.audience === 'public' ? 'Untuk Semua Pembeli' : 'Untuk Pembeli Tertentu')}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

@@ -439,7 +439,7 @@ export function EventDetailPage({ router, slug }: Props) {
 
         <section data-scroll-reveal className="scroll-reveal !mt-3">
           <div className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-            <div ref={infoTabsRef} className="relative isolate flex gap-1 bg-slate-100 p-1" role="tablist" aria-label="Informasi event">
+            <div ref={infoTabsRef} data-sliding-indicator-theme="blue-600" className="relative isolate flex gap-1 bg-slate-100 p-1" role="tablist" aria-label="Informasi event">
             <SlidingTabIndicator trackRef={infoTabsRef} activeId={infoTab} className="rounded-xl bg-blue-600 shadow-[0_6px_14px_rgba(37,99,235,0.24)]" />
             <button
               type="button"

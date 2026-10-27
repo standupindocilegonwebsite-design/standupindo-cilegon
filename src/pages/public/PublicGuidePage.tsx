@@ -104,13 +104,12 @@ const OPEN_MIC_STEPS: GuideStep[] = [
   {
     title: 'Periksa Riwayat Penampilan di Open Mic Selesai',
     description: (
-      <>
-        Setelah Open Mic selesai, Koordinator akan mencatat siapa saja yang hadir dan tampil. Jika kamu ditandai tampil, namamu akan masuk ke DAFTAR LINEUP. Ikon <CheckCircle2 aria-hidden="true" className="inline-block h-4 w-4 align-[-3px] text-green-600" /> pada kolom Status menandakan bahwa kamu telah tampil. Jumlah KOMIKA PERFORM mengikuti data acara.
-        <br /><br />
-        Cari berdasarkan nama panggung, komunitas, tempat, tanggal atau tahun, judul Open Mic, maupun akun Instagram di bagian Open Mic Selesai.
-        <br /><br />
-        Pilih hasil komika untuk melihat jumlah penampilan dan rincian riwayatnya.
-      </>
+      <div className="space-y-2.5">
+        <p>Setelah Open Mic selesai, Koordinator akan mencatat siapa saja yang hadir dan tampil. Jika kamu ditandai tampil, namamu akan masuk ke DAFTAR LINEUP.</p>
+        <p>Ikon <CheckCircle2 aria-hidden="true" className="inline-block h-4 w-4 align-[-3px] text-green-600" /> pada kolom Status menandakan bahwa kamu telah tampil. Jumlah KOMIKA PERFORM mengikuti data acara.</p>
+        <p>Cari berdasarkan nama panggung, komunitas, tempat, tanggal atau tahun, judul Open Mic, maupun akun Instagram di bagian Open Mic Selesai.</p>
+        <p>Pilih hasil komika untuk melihat jumlah penampilan dan rincian riwayatnya.</p>
+      </div>
     ),
     icon: CheckCircle2,
     status: 'Tampil',
@@ -265,7 +264,7 @@ export function PublicGuidePage({ router }: { router: Router }) {
             </div>
           </div>
 
-          <div ref={guideTabsRef} className="relative isolate mt-4 grid grid-cols-2 gap-1.5 rounded-2xl bg-slate-100 p-1.5 sm:mt-5 sm:gap-2" role="group" aria-label="Pilih panduan">
+          <div ref={guideTabsRef} data-sliding-indicator-theme="blue-700" className="relative isolate mt-4 grid grid-cols-2 gap-1.5 rounded-2xl bg-slate-100 p-1.5 sm:mt-5 sm:gap-2" role="group" aria-label="Pilih panduan">
             <SlidingTabIndicator trackRef={guideTabsRef} activeId={section} className="rounded-xl bg-blue-700 shadow-[0_4px_10px_rgba(29,78,216,0.2)]" />
             <button
               id="guide-tab-open-mic"
@@ -321,7 +320,7 @@ export function PublicGuidePage({ router }: { router: Router }) {
                     </h3>
                     {status && <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-extrabold sm:px-2.5 sm:py-1 sm:text-[10px] ${statusStyle}`}>{status}</span>}
                   </div>
-                  <p className="mt-1.5 text-xs leading-[1.65] text-slate-600 sm:mt-2 sm:text-sm sm:leading-6">{description}</p>
+                  <div className="mt-1.5 text-xs leading-[1.65] text-slate-600 sm:mt-2 sm:text-sm sm:leading-6">{description}</div>
                 </div>
               </li>
             ))}

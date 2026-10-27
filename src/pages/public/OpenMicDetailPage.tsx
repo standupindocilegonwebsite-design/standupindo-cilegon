@@ -10,8 +10,10 @@ import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { LocationMapPanel } from '@/components/ui/LocationMapPanel';
+import { LocationLink } from '@/components/ui/LocationLink';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
+import { Modal } from '@/components/ui/Modal';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
 import { ShareLineupModal } from '@/components/open-mic/ShareLineupModal';
 import { useSiteSettings } from '@/lib/useSiteSettings';
@@ -43,6 +45,7 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
   const [posterShareFile, setPosterShareFile] = useState<{ posterUrl: string; slug: string; file: File } | null>(null);
   const posterShareFileRequest = useRef<{ posterUrl: string; slug: string; promise: Promise<File | null>; controller: AbortController } | null>(null);
   const [shareLineupOpen, setShareLineupOpen] = useState(false);
+  const [lineupInfoOpen, setLineupInfoOpen] = useState(false);
   const [stageInfoExpanded, setStageInfoExpanded] = useState(false);
   const [lineupSearch, setLineupSearch] = useState('');
   const notificationRegistrationId = router.query.get('notificationRegistrationId');
@@ -349,11 +352,13 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
                   image={mic.poster}
                 />
               </div>
-              <div className="space-y-2 text-sm text-slate-600">
-                <div className="flex items-center gap-2.5 font-bold text-slate-800"><Drama className="h-4 w-4 text-blue-600" /> {filled} Komika Open Mic</div>
-                <div className="flex items-center gap-2.5"><Calendar className="h-4 w-4 text-blue-600" /> {formatDate(mic.date)}</div>
-                <div className="flex items-center gap-2.5"><Clock className="h-4 w-4 text-blue-600" /> {mic.time} WIB</div>
-                <LocationMapPanel venue={mic.venue} location={mic.location} mapsUrl={mic.maps_url} title={mic.title} completed={currentStatus === 'completed'} locationClassName="items-center gap-2.5" />
+              <div className="min-w-0 space-y-2 text-sm text-slate-600">
+                <div className="flex min-w-0 items-center gap-2.5 font-bold text-slate-800"><Drama className="h-4 w-4 shrink-0 text-blue-600" /><span className="min-w-0 break-words">{filled} Komika Open Mic</span></div>
+                <div className="flex min-w-0 items-center gap-2.5"><Calendar className="h-4 w-4 shrink-0 text-blue-600" /><span className="min-w-0 break-words">{formatDate(mic.date)}</span></div>
+                <div className="flex min-w-0 items-center gap-2.5"><Clock className="h-4 w-4 shrink-0 text-blue-600" /><span className="min-w-0 break-words">{mic.time} WIB</span></div>
+                {currentStatus === 'completed'
+                  ? <LocationLink venue={mic.venue} location={mic.location} mapsUrl={mic.maps_url} className="!items-start !gap-2.5 !rounded-none !border-0 !bg-transparent !px-0 !py-0 !shadow-none" />
+                  : <LocationMapPanel venue={mic.venue} location={mic.location} mapsUrl={mic.maps_url} title={mic.title} completed={false} locationClassName="items-center gap-2.5" />}
               </div>
 
               {currentStatus !== 'completed' && <NoSmokeAreaNotice detail context="open-mic" />}
@@ -427,7 +432,18 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
         <section id="lineup" data-scroll-reveal className="scroll-reveal is-visible scroll-mt-24">
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <h2 className={`text-lg font-bold sm:text-xl ${isMemberArea ? 'text-slate-900' : 'text-white'}`}>{currentStatus === 'completed' ? 'DAFTAR LINEUP' : 'LINEUP SEMENTARA'}</h2>
+              <div className="flex items-center gap-1.5">
+                <h2 className={`text-lg font-bold sm:text-xl ${isMemberArea ? 'text-slate-900' : 'text-white'}`}>{currentStatus === 'completed' ? 'DAFTAR LINEUP' : 'LINEUP SEMENTARA'}</h2>
+                <button
+                  type="button"
+                  onClick={() => setLineupInfoOpen(true)}
+                  className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 ${isMemberArea ? 'text-blue-700 hover:bg-blue-100 focus-visible:ring-blue-500' : 'text-blue-100 hover:bg-white/15 hover:text-white focus-visible:ring-white'}`}
+                  aria-label="Informasi lineup"
+                  title="Informasi lineup"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </div>
               <p className={`mt-1 text-sm font-semibold ${isMemberArea ? 'text-slate-600' : 'text-slate-300'}`}>{currentStatus === 'completed' ? `${confirmed.length} KOMIKA PERFORM` : `${confirmed.length} KOMIKA TERDAFTAR`}</p>
             </div>
             <button onClick={() => currentStatus === 'completed' ? setShareLineupOpen(true) : void shareLineup()} onPointerEnter={() => void preparePosterShareFile()} onFocus={() => void preparePosterShareFile()} aria-label={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} title={copied ? 'Link lineup berhasil disalin' : 'Bagikan lineup'} className={`inline-flex h-11 w-11 shrink-0 items-center justify-center transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 ${isMemberArea ? 'text-blue-700 focus-visible:ring-blue-500/70' : 'text-white focus-visible:ring-white/70'}`}>
@@ -508,6 +524,60 @@ export function OpenMicDetailPage({ router, slug, showFloatingRegister = false, 
 
       </div>
 
+      <Modal
+        open={lineupInfoOpen}
+        onClose={() => setLineupInfoOpen(false)}
+        title={currentStatus === 'completed' ? 'Informasi Daftar Lineup' : 'Informasi Lineup Sementara'}
+        titleEyebrow="Panduan Open Mic"
+        size="lg"
+        headerClassName="!bg-gradient-to-br !from-blue-700 !via-blue-800 !to-blue-900 !px-4 !pb-3 !pt-3 sm:!px-6 sm:!pb-4 sm:!pt-4"
+        titleClassName="!text-lg !font-black !text-white sm:!text-xl"
+        titleEyebrowClassName="!mb-1 !text-blue-200"
+        closeButtonClassName="!bg-white/15 !text-white hover:!bg-white/25 hover:!text-white"
+        panelClassName="!max-w-xl"
+      >
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-slate-600">
+            {currentStatus === 'completed'
+              ? 'Daftar ini adalah arsip komika yang hadir dan sudah tampil di Open Mic ini.'
+              : 'Lineup sementara berisi komika yang sudah dikonfirmasi admin dan belum ditandai hadir. MC dapat melihat daftar ini sebagai acuan antrean.'}
+          </p>
+
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 bg-slate-50 px-3.5 py-3">
+              <h3 className="text-sm font-extrabold text-slate-900">Arti ikon status</h3>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {currentStatus === 'completed' ? (
+                <div className="flex items-start gap-3 p-3.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-white"><CheckCircle2 className="h-5 w-5" /></span>
+                  <div><p className="text-sm font-bold text-slate-900">Hadir dan tampil</p><p className="mt-0.5 text-xs leading-5 text-slate-600">Centang hijau menandakan komika tercatat hadir dan sudah tampil. Hanya peserta dengan status ini yang masuk ke arsip lineup selesai.</p></div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-3 p-3.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-white"><Ticket className="h-5 w-5" /></span>
+                  <div><p className="text-sm font-bold text-slate-900">Terkonfirmasi</p><p className="mt-0.5 text-xs leading-5 text-slate-600">Ikon tiket biru menandakan komika telah dikonfirmasi admin dan tercantum di lineup. Setelah ditandai hadir, namanya keluar dari lineup sementara agar tidak dipanggil kembali. Peserta yang tidak hadir juga tidak ditampilkan.</p></div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-3.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-white"><Send className="h-4 w-4" /></span>
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-900">Tombol Bagikan</h3>
+              <p className="mt-0.5 text-xs leading-5 text-slate-600">
+                {currentStatus === 'completed'
+                  ? 'Membuka preview gambar ringkasan lineup. Dari popup, gambar dapat diunduh atau dibagikan lewat menu berbagi perangkat. Jika perangkat tidak mendukung berbagi gambar, gambar akan diunduh agar dapat dibagikan dari aplikasi pilihanmu.'
+                  : 'Membuka menu berbagi perangkat untuk mengirim ringkasan lineup dan tautan Open Mic. Jika menu berbagi tidak tersedia, tautan halaman akan disalin agar bisa dibagikan manual.'}
+              </p>
+            </div>
+          </section>
+
+          <button type="button" onClick={() => setLineupInfoOpen(false)} className="btn-primary min-h-11 w-full justify-center">Mengerti</button>
+        </div>
+      </Modal>
+
       {mic.poster && (
         <ImageLightbox src={mic.poster} alt={`${mic.title} poster`} open={lightbox} onClose={() => setLightbox(false)} />
       )}
@@ -532,7 +602,7 @@ function publicLineupQuery(openMicId: string, onlyAttended: boolean) {
     .eq('open_mic_id', openMicId)
     .eq('status', 'confirmed')
     .order('created_at', { ascending: true });
-  return onlyAttended ? query.eq('attendance_status', 'attended') : query.neq('attendance_status', 'absent');
+  return onlyAttended ? query.eq('attendance_status', 'attended') : query.eq('attendance_status', 'unmarked');
 }
 
 function normalizeInstagram(value: string | null): { label: string; url: string } | null {

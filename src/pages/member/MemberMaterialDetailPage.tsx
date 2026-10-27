@@ -481,10 +481,10 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
             </form>
           ) : (
             <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
-              <div ref={versionTabsRef} className="relative isolate mb-4 flex gap-2 rounded-xl bg-slate-100 p-1">
+              <div ref={versionTabsRef} data-sliding-indicator-theme="blue-700" className="relative isolate mb-4 flex gap-2 rounded-xl bg-slate-100 p-1">
                 <SlidingTabIndicator trackRef={versionTabsRef} activeId={tab} className="rounded-lg bg-blue-700 shadow-sm" />
-                <button type="button" data-sliding-tab="current" onClick={() => setTab('current')} className={`relative z-10 flex-1 rounded-lg px-3 py-2 text-sm font-bold ${tab === 'current' ? 'bg-transparent text-white shadow-none' : 'text-slate-500'}`}>Versi Sekarang</button>
-                <button type="button" data-sliding-tab="previous" disabled={!material.previous_content} onClick={() => setTab('previous')} className={`relative z-10 flex-1 rounded-lg px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40 ${tab === 'previous' ? 'bg-transparent text-white shadow-none' : 'text-slate-500'}`}>Versi Sebelumnya</button>
+                <button type="button" role="tab" aria-selected={tab === 'current'} data-sliding-tab="current" onClick={() => setTab('current')} className={`relative z-10 flex-1 rounded-lg px-3 py-2 text-sm font-bold ${tab === 'current' ? 'bg-transparent text-white shadow-none' : 'text-slate-500'}`}>Versi Sekarang</button>
+                <button type="button" role="tab" aria-selected={tab === 'previous'} data-sliding-tab="previous" disabled={!material.previous_content} onClick={() => setTab('previous')} className={`relative z-10 flex-1 rounded-lg px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40 ${tab === 'previous' ? 'bg-transparent text-white shadow-none' : 'text-slate-500'}`}>Versi Sebelumnya</button>
               </div>
               <div className="mb-2 flex items-center justify-between gap-3">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{tab === 'current' ? 'Versi Sekarang' : 'Versi Sebelumnya'}</p>

@@ -411,7 +411,7 @@ export function TicketPaymentMethodsPage({ events, onBack }: { events: EventOpti
     <div className="space-y-5">
       <TicketWorkspaceHeader title="Informasi Pembayaran" subtitle="Atur transfer manual dan Midtrans untuk setiap Event." onBack={onBack} action={activeTab === 'manual' ? <button type="button" onClick={openNew} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-3 text-blue-800 shadow-sm transition hover:bg-blue-50" aria-label="Tambah informasi pembayaran" title="Tambah informasi pembayaran"><Plus className="h-5 w-5" /><span className="hidden text-sm font-bold sm:inline">Tambah</span></button> : undefined} />
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
-      <div ref={paymentTabsRef} className="relative isolate grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:inline-grid sm:min-w-[24rem]" role="tablist" aria-label="Jenis pengaturan pembayaran">
+      <div ref={paymentTabsRef} data-sliding-indicator-theme="blue-700" className="relative isolate grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:inline-grid sm:min-w-[24rem]" role="tablist" aria-label="Jenis pengaturan pembayaran">
         <SlidingTabIndicator trackRef={paymentTabsRef} activeId={activeTab} className="rounded-lg bg-blue-700 shadow-sm" />
         {([
           ['manual', 'Transfer Manual', methods.length],

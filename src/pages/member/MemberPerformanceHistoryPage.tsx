@@ -537,7 +537,7 @@ export function MemberPerformanceHistoryPage({ router, embedded = false }: { rou
       {!embedded && <PageHeader router={router} title="Riwayat Pengalamanku" subtitle="Catatan penampilan Open Mic dan pengalaman MC kamu." />}
       <div className={`container-app rounded-2xl py-6 transition-colors sm:py-8 ${historyCategory === 'mc' ? 'bg-violet-50/50' : 'bg-blue-50/50'}`}>
         {error && <div role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
-        <div ref={historyTabsRef} className="relative isolate mb-4 grid grid-cols-2 rounded-xl border border-slate-300 bg-white p-1" aria-label="Kategori riwayat pengalaman">
+        <div ref={historyTabsRef} data-sliding-indicator-theme={historyCategory === 'mc' ? 'violet-600' : 'blue-600'} className="relative isolate mb-4 grid grid-cols-2 rounded-xl border border-slate-300 bg-white p-1" aria-label="Kategori riwayat pengalaman">
           <SlidingTabIndicator trackRef={historyTabsRef} activeId={historyCategory} className={`rounded-lg shadow-sm ${historyCategory === 'mc' ? 'bg-violet-600' : 'bg-blue-600'}`} />
           {([
             ['open-mic', 'OPEN MIC'],

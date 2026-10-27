@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { ArrowRight, History, Plus, Search } from 'lucide-react';
+import { ArrowRight, History, Info, Plus, Search } from 'lucide-react';
 import { useHistoryEntryState, useRestoreScrollPosition, type Router } from '@/lib/router';
 import type { OpenMic } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { MemberPerformanceHistoryPage } from '@/pages/member/MemberPerformanceHistoryPage';
+import { Modal } from '@/components/ui/Modal';
 
 type PerformerSummary = {
   id: string;
@@ -48,6 +49,15 @@ function normalizePerformerValue(value: string | null): string {
   return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+function formatInstagramHandle(value: string): string {
+  const username = value.trim()
+    .replace(/^(?:https?:\/\/)?(?:www\.)?instagram\.com\//i, '')
+    .replace(/^@+/, '')
+    .split(/[/?#]/, 1)[0]
+    .trim();
+  return username ? `@${username}` : value.trim();
+}
+
 export function OpenMicPage({ router }: { router: Router }) {
   const isMemberPage = router.path === '/member/open-mic';
   const [memberTab, setMemberTab] = useState<MemberOpenMicTab>('upcoming');
@@ -60,6 +70,7 @@ export function OpenMicPage({ router }: { router: Router }) {
   const [selectedPerformerId, setSelectedPerformerId] = useState<string | null>(null);
   const [upcomingSearch, setUpcomingSearch] = useHistoryEntryState('open-mic-upcoming-search', '');
   const [completedSearch, setCompletedSearch] = useHistoryEntryState('open-mic-completed-search', '');
+  const [completedSearchInfoOpen, setCompletedSearchInfoOpen] = useState(false);
   const [notificationTargetError, setNotificationTargetError] = useState('');
   const handledNotificationRegistrationId = useRef<string | null>(null);
   const navigateRef = useRef(router.navigate);
@@ -228,7 +239,7 @@ export function OpenMicPage({ router }: { router: Router }) {
       {isMemberPage && (
         <div className="container-app pt-5">
           <div className="flex items-center gap-3">
-            <div ref={memberTabsRef} className="relative isolate grid min-w-0 flex-1 grid-cols-2 gap-1.5 rounded-2xl border border-slate-200 bg-slate-100 p-1.5" role="tablist" aria-label="Menu Open Mic Member">
+            <div ref={memberTabsRef} data-sliding-indicator-theme="blue-600" className="relative isolate grid min-w-0 flex-1 grid-cols-2 gap-1.5 rounded-2xl border border-slate-200 bg-slate-100 p-1.5" role="tablist" aria-label="Menu Open Mic Member">
               <SlidingTabIndicator trackRef={memberTabsRef} activeId={memberTab} className="rounded-xl border border-blue-600 bg-blue-600 shadow-md shadow-blue-600/20" />
               <button
                 type="button"
@@ -298,14 +309,57 @@ export function OpenMicPage({ router }: { router: Router }) {
 
         <section data-scroll-reveal className={`scroll-reveal is-visible border-t ${isMemberPage ? 'border-slate-200' : 'border-white/20'} pt-6 sm:pt-8`}>
           <div className="mb-4 flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-slate-400" /><h2 className={`text-xl font-extrabold uppercase ${isMemberPage ? 'text-slate-900' : 'text-white'}`}>Open Mic Selesai</h2><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{completed.length}</span></div>
-          <div className="relative mb-4"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="search" value={completedSearch} onChange={(event) => setCompletedSearch(event.target.value)} placeholder="Cari judul, nama panggung, komunitas, tempat, tanggal/tahun, atau Instagram..." className="input-field !pl-11" aria-label="Cari Open Mic selesai berdasarkan judul, nama panggung, komunitas, tempat, tanggal atau tahun, atau Instagram" /></div>
+          <div className="relative mb-4 min-w-0">
+            <button
+              type="button"
+              onClick={() => setCompletedSearchInfoOpen(true)}
+              className="absolute left-2 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              aria-label="Informasi pencarian Open Mic selesai"
+              title="Informasi pencarian"
+            >
+              <Info className="h-4 w-4" />
+            </button>
+            <Search className="pointer-events-none absolute left-11 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input type="search" value={completedSearch} onChange={(event) => setCompletedSearch(event.target.value)} placeholder="Cari judul, nama panggung, komunitas, tempat, tanggal/tahun, atau Instagram..." className="input-field !pl-16" aria-label="Cari Open Mic selesai dan riwayat komika" />
+          </div>
+          <Modal
+            open={completedSearchInfoOpen}
+            onClose={() => setCompletedSearchInfoOpen(false)}
+            title="Apa yang Bisa Dicari?"
+            titleEyebrow="Pencarian Open Mic Selesai"
+            size="lg"
+            headerClassName="!bg-gradient-to-br !from-blue-700 !via-blue-800 !to-blue-900 !px-4 !pb-3 !pt-3 sm:!px-6 sm:!pb-4 sm:!pt-4"
+            titleClassName="!text-lg !font-black !text-white sm:!text-xl"
+            titleEyebrowClassName="!mb-1 !text-blue-200"
+            closeButtonClassName="!bg-white/15 !text-white hover:!bg-white/25 hover:!text-white"
+            panelClassName="!max-w-xl"
+          >
+            <div className="space-y-4">
+              <p className="text-sm leading-6 text-slate-600">Satu pencarian akan memfilter kartu Open Mic selesai sekaligus mencari komika yang pernah tampil.</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <div className="border-b border-slate-200 bg-slate-50 px-3.5 py-3"><h3 className="text-sm font-extrabold text-slate-900">Kartu Open Mic</h3></div>
+                  <div className="p-3.5"><p className="text-xs leading-5 text-slate-600">Cari berdasarkan:</p><ul className="mt-2 space-y-1.5 text-xs font-semibold text-slate-700"><li>• Judul Open Mic</li><li>• Venue atau lokasi</li><li>• Tanggal, termasuk format tanggal atau tahun</li></ul><p className="mt-2 text-xs leading-5 text-slate-500">Contoh: <span className="font-bold text-slate-700">Warkopmoto</span>, <span className="font-bold text-slate-700">September</span>, atau <span className="font-bold text-slate-700">2026</span>.</p></div>
+                </section>
+                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <div className="border-b border-slate-200 bg-slate-50 px-3.5 py-3"><h3 className="text-sm font-extrabold text-slate-900">Komika yang Pernah Tampil</h3></div>
+                  <div className="p-3.5"><p className="text-xs leading-5 text-slate-600">Cari berdasarkan:</p><ul className="mt-2 space-y-1.5 text-xs font-semibold text-slate-700"><li>• Nama lengkap atau nama panggung</li><li>• Instagram</li><li>• Komunitas</li><li>• Judul, tempat, atau tanggal penampilan</li></ul><p className="mt-2 text-xs leading-5 text-slate-500">Hasil komika dapat dibuka untuk melihat riwayat penampilannya.</p></div>
+                </section>
+              </div>
+              <section className="rounded-2xl border border-slate-200 bg-white p-3.5">
+                <h3 className="text-sm font-extrabold text-slate-900">Cara pencarian bekerja</h3>
+                <ul className="mt-2 space-y-1.5 text-xs leading-5 text-slate-600"><li>• Tidak membedakan huruf besar dan kecil.</li><li>• Cukup masukkan sebagian kata, tidak harus mengetik nama lengkap.</li><li>• Hapus kata pencarian untuk menampilkan kembali daftar awal.</li><li>• Saat kolom kosong, hanya lima Open Mic selesai terbaru yang ditampilkan. Setelah mencari, semua hasil Open Mic yang cocok ditampilkan.</li></ul>
+              </section>
+              <button type="button" onClick={() => setCompletedSearchInfoOpen(false)} className="btn-primary min-h-11 w-full justify-center">Mengerti</button>
+            </div>
+          </Modal>
           {matchingPerformers.length > 0 && <div className="mb-5 space-y-2.5">
               <div className="flex items-center justify-between gap-3"><h3 className={`text-sm font-extrabold uppercase tracking-[0.12em] ${isMemberPage ? 'text-slate-700' : 'text-slate-200'}`}>Komika yang pernah tampil</h3><span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-extrabold text-slate-700">{matchingPerformers.length} hasil</span></div>
             <div className="grid gap-2.5 sm:grid-cols-2">
               {matchingPerformers.map((performer) => <div key={performer.id} className="space-y-2">
                   <button type="button" onClick={() => setSelectedPerformerId((current) => current === performer.id ? null : performer.id)} aria-expanded={selectedPerformerId === performer.id} className={`w-full rounded-xl border px-3.5 py-3 text-left shadow-sm transition ${selectedPerformerId === performer.id ? 'border-blue-500 bg-[#EFF6FF] ring-2 ring-blue-200' : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-slate-50'}`}>
                     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-base font-extrabold leading-tight text-slate-950">{performer.fullName}</p><div className="mt-1 flex items-baseline gap-2"><span className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.1em] text-slate-500">Nama Panggung</span><span className="truncate text-sm font-bold text-slate-700">{performer.stageName}</span></div></div><span className="shrink-0 rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.05em] text-white">{performer.totalAppearances} X TAMPIL</span></div>
-                    <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-semibold text-slate-600"><span>{performer.community ?? 'Komunitas belum dicatat'}</span>{performer.instagram && <><span className="text-slate-300">·</span><span>{performer.instagram}</span></>}</div>
+                    <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-semibold text-slate-600"><span>{performer.community ?? 'Komunitas belum dicatat'}</span>{performer.instagram && <><span className="text-slate-300">·</span><span>{formatInstagramHandle(performer.instagram)}</span></>}</div>
                 </button>
                   {selectedPerformerId === performer.id && <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-2.5">
                     <div className="mb-2 flex items-center justify-between gap-2"><p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-600">Riwayat tampil</p><span className="text-xs font-black uppercase tracking-[0.08em] text-blue-700">{performer.totalAppearances} OPEN MIC</span></div>

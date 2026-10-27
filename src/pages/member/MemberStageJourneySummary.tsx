@@ -118,7 +118,7 @@ export function MemberStageJourneySummary({ komikaId, onManage }: { komikaId: st
       </div>
 
       {expanded && <div className="border-t border-slate-100 px-3 py-3 sm:px-4 sm:py-4">
-        <div ref={journeyTabsRef} className="relative isolate mb-3 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Jenis perjalanan panggung">
+        <div ref={journeyTabsRef} data-sliding-indicator-theme="blue-700" className="relative isolate mb-3 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Jenis perjalanan panggung">
           <SlidingTabIndicator trackRef={journeyTabsRef} activeId={activeTab} className="rounded-lg bg-blue-700 shadow-sm" />
           <button
             type="button"
@@ -151,8 +151,9 @@ export function MemberStageJourneySummary({ komikaId, onManage }: { komikaId: st
           </div>
             : activeTab === 'internal'
               ? official.length === 0 ? <p className="rounded-xl border border-dashed border-blue-200 bg-blue-50/50 px-3 py-5 text-center text-sm text-slate-500">Belum ada panggung internal yang selesai.</p>
-                : <ul className="space-y-2.5">
-                  {official.map((entry, index) => <li key={entry.id} className={`flex items-center gap-3 rounded-xl border border-blue-100 p-2.5 ${index % 2 === 0 ? 'bg-white' : 'bg-blue-50/70'}`}>
+                : <div className="max-h-[32rem] overflow-y-auto overscroll-contain pr-1">
+                  <ul className="space-y-2.5">
+                    {official.map((entry, index) => <li key={entry.id} className={`flex items-center gap-3 rounded-xl border border-blue-100 p-2.5 ${index % 2 === 0 ? 'bg-white' : 'bg-blue-50/70'}`}>
                     <button type="button" onClick={() => { setEventAboutExpanded(false); setSelectedEvent(entry); }} className="flex h-[4.5rem] w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-blue-100 bg-white shadow-sm" aria-label={`Lihat detail Event ${entry.event.title}`}>
                       {entry.event.poster
                         ? <img src={entry.event.poster} alt={`Poster ${entry.event.title}`} loading="lazy" className="h-full w-full object-cover" />
@@ -163,28 +164,31 @@ export function MemberStageJourneySummary({ komikaId, onManage }: { komikaId: st
                       <button type="button" onClick={() => { setEventAboutExpanded(false); setSelectedEvent(entry); }} className="line-clamp-2 block text-left text-sm font-bold leading-snug text-slate-900 hover:text-blue-800">{entry.event.title}</button>
                       <p className="mt-0.5 text-xs text-slate-600">{roleLabel(entry)}</p>
                     </div>
-                  </li>)}
-                </ul>
+                    </li>)}
+                  </ul>
+                </div>
               : external.length === 0 ? <p className="rounded-xl border border-dashed border-blue-200 bg-blue-50/50 px-3 py-5 text-center text-sm text-slate-500">Belum ada panggung eksternal tersimpan.</p>
-                : <ul className="space-y-2.5">
-                  {external.map((entry, index) => {
-                    const url = safeExternalUrl(entry.external_url);
-                    return <li key={entry.id} className={`flex items-start gap-2.5 rounded-xl border border-blue-100 p-3 ${index % 2 === 0 ? 'bg-white' : 'bg-blue-50/70'}`}>
-                      <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-medium text-slate-500">{formatDate(entry.event_date)}</p>
-                        {url
-                          ? <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 text-sm font-bold leading-snug text-slate-900 hover:text-blue-800">
-                            <span className="truncate">{entry.event_name}</span><ExternalLink className="h-3 w-3 shrink-0" />
-                          </a>
-                          : <p className="text-sm font-bold leading-snug text-slate-900">{entry.event_name}</p>}
-                        {entry.event_type && <p className="text-xs text-slate-600">{entry.event_type}</p>}
-                        <p className="text-xs text-slate-600">{entry.role === 'Lainnya' ? entry.custom_role : stageExperienceRoleLabel(entry.role)}</p>
-                        {(entry.organizer || entry.city) && <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-slate-500"><MapPin className="h-3 w-3 text-blue-600" />{[entry.organizer, entry.city].filter(Boolean).join(' · ')}</p>}
-                      </div>
-                    </li>;
-                  })}
-                </ul>
+                : <div className="max-h-[32rem] overflow-y-auto overscroll-contain pr-1">
+                  <ul className="space-y-2.5">
+                    {external.map((entry, index) => {
+                      const url = safeExternalUrl(entry.external_url);
+                      return <li key={entry.id} className={`flex items-start gap-2.5 rounded-xl border border-blue-100 p-3 ${index % 2 === 0 ? 'bg-white' : 'bg-blue-50/70'}`}>
+                        <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-medium text-slate-500">{formatDate(entry.event_date)}</p>
+                          {url
+                            ? <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 text-sm font-bold leading-snug text-slate-900 hover:text-blue-800">
+                              <span className="truncate">{entry.event_name}</span><ExternalLink className="h-3 w-3 shrink-0" />
+                            </a>
+                            : <p className="text-sm font-bold leading-snug text-slate-900">{entry.event_name}</p>}
+                          {entry.event_type && <p className="text-xs text-slate-600">{entry.event_type}</p>}
+                          <p className="text-xs text-slate-600">{entry.role === 'Lainnya' ? entry.custom_role : stageExperienceRoleLabel(entry.role)}</p>
+                          {(entry.organizer || entry.city) && <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-slate-500"><MapPin className="h-3 w-3 text-blue-600" />{[entry.organizer, entry.city].filter(Boolean).join(' · ')}</p>}
+                        </div>
+                      </li>;
+                    })}
+                  </ul>
+                </div>
         }
       </div>}
       {selectedEvent && (

@@ -2,6 +2,60 @@
 @tailwind components;
 @tailwind utilities;
 
+[data-sliding-indicator-theme="blue-700"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-selected="true"],
+[data-sliding-indicator-theme="blue-700"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-pressed="true"] {
+  background-color: #1d4ed8 !important;
+  color: #fff !important;
+}
+
+[data-sliding-indicator-theme="blue-600"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-selected="true"],
+[data-sliding-indicator-theme="blue-600"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-pressed="true"] {
+  background-color: #2563eb !important;
+  color: #fff !important;
+}
+
+[data-sliding-indicator-theme="violet-600"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-selected="true"],
+[data-sliding-indicator-theme="violet-600"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-pressed="true"] {
+  background-color: #7c3aed !important;
+  color: #fff !important;
+}
+
+[data-sliding-indicator-theme="violet-700"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-selected="true"],
+[data-sliding-indicator-theme="violet-700"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-pressed="true"] {
+  background-color: #6d28d9 !important;
+  color: #fff !important;
+}
+
+[data-sliding-indicator-theme="rose-600"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-selected="true"],
+[data-sliding-indicator-theme="rose-600"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-pressed="true"] {
+  background-color: #e11d48 !important;
+  color: #fff !important;
+}
+
+[data-sliding-indicator-theme="blue-100"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-selected="true"],
+[data-sliding-indicator-theme="blue-100"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-pressed="true"] {
+  background-color: #dbeafe !important;
+  color: #1d4ed8 !important;
+}
+
+[data-sliding-indicator-theme="notification-blue-100"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-selected="true"],
+[data-sliding-indicator-theme="notification-blue-100"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-pressed="true"] {
+  background-color: #dbeafe !important;
+  color: #1e3a8a !important;
+}
+
+[data-sliding-indicator-theme="blue-50"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-selected="true"],
+[data-sliding-indicator-theme="blue-50"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-pressed="true"] {
+  background-color: #eff6ff !important;
+  color: #1e3a8a !important;
+}
+
+[data-sliding-indicator-theme="amber-50"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-selected="true"],
+[data-sliding-indicator-theme="amber-50"]:not([data-sliding-indicator-ready="true"]) [data-sliding-tab][aria-pressed="true"] {
+  background-color: #fffbeb !important;
+  color: #78350f !important;
+}
+
 @property --active-position {
   syntax: "<percentage>";
   inherits: true;

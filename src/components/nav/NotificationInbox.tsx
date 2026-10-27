@@ -240,7 +240,7 @@ export function NotificationInbox({
               ? <button type="button" onClick={() => setDeleteConfirmation({ type: 'read' })} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50 sm:text-sm"><Trash2 className="h-4 w-4" />Hapus Dibaca</button>
               : items.length > 0 && <button type="button" onClick={() => setDeleteConfirmation({ type: 'all' })} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50 sm:text-sm"><Trash2 className="h-4 w-4" />Hapus Semua</button>)}
           </div>
-          <div ref={filterTabsRef} role="tablist" aria-label="Filter notifikasi" className="relative isolate mt-4 grid w-full grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+          <div ref={filterTabsRef} data-sliding-indicator-theme="notification-blue-100" role="tablist" aria-label="Filter notifikasi" className="relative isolate mt-4 grid w-full grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
               <SlidingTabIndicator trackRef={filterTabsRef} activeId={filter} className="rounded-lg bg-blue-100 shadow-sm" />
               {([
                 { id: 'all', label: 'Semua' },

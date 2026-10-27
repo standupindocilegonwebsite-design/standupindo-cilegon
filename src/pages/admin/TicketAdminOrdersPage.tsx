@@ -373,7 +373,7 @@ export function TicketAdminOrdersPage({ orders, events, loading, onReload, initi
           <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2.5 text-xs leading-5 text-blue-900">Tombol reload hanya memuat ulang daftar tindak lanjut ini. Tombol tersebut tidak memeriksa status semua transaksi.</p>
         </div>
       </Modal>}
-      <div ref={statusTabsRef} role="tablist" aria-label="Filter status order" className="relative isolate flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
+      <div ref={statusTabsRef} data-sliding-indicator-theme={statusFilter === 'Ditolak' ? 'rose-600' : 'blue-700'} role="tablist" aria-label="Filter status order" className="relative isolate flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
         <SlidingTabIndicator trackRef={statusTabsRef} activeId={statusFilter} className={`rounded-lg shadow-sm ${statusFilter === 'Ditolak' ? 'bg-rose-600' : 'bg-blue-700'}`} />
         {statusTabs.map((tab) => <button key={tab.value} type="button" role="tab" aria-selected={statusFilter === tab.value} data-sliding-tab={tab.value} onClick={() => setStatusFilter(tab.value)} className={`relative z-10 min-h-10 shrink-0 rounded-lg px-3 py-2 text-[11px] font-bold uppercase transition sm:text-xs ${statusFilter === tab.value ? 'bg-transparent text-white shadow-none' : 'bg-white/70 text-slate-600 hover:bg-white'}`}>{tab.label}</button>)}
       </div>

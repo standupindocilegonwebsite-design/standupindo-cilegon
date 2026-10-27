@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, MapPin, Search } from 'lucide-react';
+import { ArrowRight, Info, MapPin, Search } from 'lucide-react';
 import { useHistoryEntryState, useRestoreScrollPosition, type Router } from '@/lib/router';
 import type { EventItem, EventLineupEntry, EventTicket } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { AnimatedCount } from '@/components/ui/AnimatedCount';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Modal } from '@/components/ui/Modal';
 import { formatDate, getEventStatus } from '@/lib/format';
 
 type EventSearchLineupEntry = Pick<EventLineupEntry, 'event_id' | 'performer_name' | 'role_category' | 'role_title'> & {
@@ -23,6 +24,8 @@ export function EventPage({ router }: { router: Router }) {
   const [ticketPrices, setTicketPrices] = useState<Record<string, number>>({});
   const [upcomingSearch, setUpcomingSearch] = useHistoryEntryState('event-upcoming-search', '');
   const [completedSearch, setCompletedSearch] = useHistoryEntryState('event-completed-search', '');
+  const [upcomingSearchInfoOpen, setUpcomingSearchInfoOpen] = useState(false);
+  const [completedSearchInfoOpen, setCompletedSearchInfoOpen] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [notificationTargetError, setNotificationTargetError] = useState('');
   const handledNotificationParticipantId = useRef<string | null>(null);
@@ -196,10 +199,64 @@ export function EventPage({ router }: { router: Router }) {
         {notificationParticipantId && notificationTargetError && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">{notificationTargetError}</p>}
         <section data-scroll-reveal className="scroll-reveal">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-xl font-bold text-white">Mendatang</h2>
+            <div className="flex items-center gap-1">
+              <h2 className="text-xl font-bold text-white">Mendatang</h2>
+              <button
+                type="button"
+                onClick={() => setUpcomingSearchInfoOpen(true)}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-blue-200 transition hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                aria-label="Informasi pencarian event mendatang"
+                title="Informasi pencarian event mendatang"
+              >
+                <Info className="h-4 w-4" />
+              </button>
+            </div>
             <span aria-label={`${upcoming.length} event mendatang`} className="inline-flex h-10 min-w-10 items-center justify-center rounded-full border-2 border-blue-700 bg-white px-2 text-lg font-black leading-none tabular-nums text-blue-800 shadow-md">{upcoming.length}</span>
           </div>
           <div className="relative mb-4"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="search" value={upcomingSearch} onChange={(event) => setUpcomingSearch(event.target.value)} placeholder="Cari event mendatang..." className="input-field !pl-11" aria-label="Cari event mendatang" /></div>
+          <Modal
+            open={upcomingSearchInfoOpen}
+            onClose={() => setUpcomingSearchInfoOpen(false)}
+            title="Apa yang Bisa Dicari?"
+            titleEyebrow="Pencarian Event Mendatang"
+            size="lg"
+            headerClassName="!bg-gradient-to-br !from-blue-700 !via-blue-800 !to-blue-900 !px-4 !pb-3 !pt-3 sm:!px-6 sm:!pb-4 sm:!pt-4"
+            titleClassName="!text-lg !font-black !text-white sm:!text-xl"
+            titleEyebrowClassName="!mb-1 !text-blue-200"
+            closeButtonClassName="!bg-white/15 !text-white hover:!bg-white/25 hover:!text-white"
+            panelClassName="!max-w-xl"
+          >
+            <div className="space-y-4">
+              <p className="text-sm leading-6 text-slate-600">Cari event mendatang berdasarkan informasi event maupun nama pengisi acara. Hasil yang cocok akan ditampilkan sebagai kartu event.</p>
+              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <div className="border-b border-slate-200 bg-slate-50 px-3.5 py-3"><h3 className="text-sm font-extrabold text-slate-900">Yang bisa dicari</h3></div>
+                <div className="grid gap-3 p-3.5 sm:grid-cols-2">
+                  <ul className="space-y-1.5 text-xs font-semibold leading-5 text-slate-700">
+                    <li>• Judul atau nama event</li>
+                    <li>• Venue atau lokasi</li>
+                    <li>• Tanggal, bulan, atau tahun</li>
+                    <li>• Jam acara</li>
+                  </ul>
+                  <ul className="space-y-1.5 text-xs font-semibold leading-5 text-slate-700">
+                    <li>• Nama pengisi acara / komika</li>
+                    <li>• Nama panggung komika</li>
+                    <li>• Peran pengisi acara</li>
+                    <li>• Kategori peran</li>
+                  </ul>
+                </div>
+              </section>
+              <section className="rounded-2xl border border-slate-200 bg-white p-3.5">
+                <h3 className="text-sm font-extrabold text-slate-900">Cara pencarian bekerja</h3>
+                <ul className="mt-2 space-y-1.5 text-xs leading-5 text-slate-600">
+                  <li>• Tidak membedakan huruf besar dan kecil.</li>
+                  <li>• Bisa memakai sebagian kata, tidak harus mengetik lengkap.</li>
+                  <li>• Pencarian tanggal mendukung format tanggal yang ditampilkan dan tahun, misalnya <span className="font-bold text-slate-700">7 Nov 2026</span> atau <span className="font-bold text-slate-700">2026</span>.</li>
+                  <li>• Hapus kata pencarian untuk menampilkan kembali semua event mendatang.</li>
+                </ul>
+              </section>
+              <button type="button" onClick={() => setUpcomingSearchInfoOpen(false)} className="btn-primary min-h-11 w-full justify-center">Mengerti</button>
+            </div>
+          </Modal>
           {lineupSearchError && <p role="alert" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Data pengisi acara belum dapat dimuat, sehingga pencarian nama komika mungkin tidak lengkap.</p>}
           {loading ? (
             <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory lg:grid lg:grid-cols-3 lg:overflow-visible lg:pb-0">
@@ -249,9 +306,61 @@ export function EventPage({ router }: { router: Router }) {
               <p className="pl-4 text-sm text-slate-300">Kenangan dari panggung yang pernah kita ramaikan.</p>
             </div>
             <div className="relative mb-5 max-w-xl">
-              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input type="search" value={completedSearch} onChange={(event) => setCompletedSearch(event.target.value)} placeholder="Cari riwayat event..." className="input-field !pl-11" aria-label="Cari riwayat event" />
+              <button
+                type="button"
+                onClick={() => setCompletedSearchInfoOpen(true)}
+                className="absolute left-2 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Informasi pencarian Event Selesai"
+                title="Informasi pencarian"
+              >
+                <Info className="h-4 w-4" />
+              </button>
+              <Search className="pointer-events-none absolute left-11 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input type="search" value={completedSearch} onChange={(event) => setCompletedSearch(event.target.value)} placeholder="Cari riwayat event..." className="input-field !pl-16" aria-label="Cari riwayat event" />
             </div>
+            <Modal
+              open={completedSearchInfoOpen}
+              onClose={() => setCompletedSearchInfoOpen(false)}
+              title="Apa yang Bisa Dicari?"
+              titleEyebrow="Pencarian Event Selesai"
+              size="lg"
+              headerClassName="!bg-gradient-to-br !from-blue-700 !via-blue-800 !to-blue-900 !px-4 !pb-3 !pt-3 sm:!px-6 sm:!pb-4 sm:!pt-4"
+              titleClassName="!text-lg !font-black !text-white sm:!text-xl"
+              titleEyebrowClassName="!mb-1 !text-blue-200"
+              closeButtonClassName="!bg-white/15 !text-white hover:!bg-white/25 hover:!text-white"
+              panelClassName="!max-w-xl"
+            >
+              <div className="space-y-4">
+                <p className="text-sm leading-6 text-slate-600">Cari event berdasarkan informasi event maupun nama pengisi acara. Hasil yang cocok akan ditampilkan sebagai kartu Event Selesai.</p>
+                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <div className="border-b border-slate-200 bg-slate-50 px-3.5 py-3"><h3 className="text-sm font-extrabold text-slate-900">Yang bisa dicari</h3></div>
+                  <div className="grid gap-3 p-3.5 sm:grid-cols-2">
+                    <ul className="space-y-1.5 text-xs font-semibold leading-5 text-slate-700">
+                      <li>• Judul atau nama event</li>
+                      <li>• Venue atau lokasi</li>
+                      <li>• Tanggal, bulan, atau tahun</li>
+                      <li>• Jam acara</li>
+                    </ul>
+                    <ul className="space-y-1.5 text-xs font-semibold leading-5 text-slate-700">
+                      <li>• Nama pengisi acara / komika</li>
+                      <li>• Nama panggung komika</li>
+                      <li>• Peran pengisi acara</li>
+                      <li>• Kategori peran</li>
+                    </ul>
+                  </div>
+                </section>
+                <section className="rounded-2xl border border-slate-200 bg-white p-3.5">
+                  <h3 className="text-sm font-extrabold text-slate-900">Cara pencarian bekerja</h3>
+                  <ul className="mt-2 space-y-1.5 text-xs leading-5 text-slate-600">
+                    <li>• Tidak membedakan huruf besar dan kecil.</li>
+                    <li>• Bisa memakai sebagian kata, tidak harus mengetik lengkap.</li>
+                    <li>• Pencarian tanggal mendukung format tanggal yang ditampilkan dan tahun, misalnya <span className="font-bold text-slate-700">24 Oct 2026</span> atau <span className="font-bold text-slate-700">2026</span>.</li>
+                    <li>• Hapus kata pencarian untuk menampilkan kembali semua event selesai.</li>
+                  </ul>
+                </section>
+                <button type="button" onClick={() => setCompletedSearchInfoOpen(false)} className="btn-primary min-h-11 w-full justify-center">Mengerti</button>
+              </div>
+            </Modal>
             {completed.length === 0 ? <EmptyState title="Riwayat event tidak ditemukan." /> : (
               <div className="grid min-w-0 grid-cols-2 items-start gap-x-3 gap-y-6 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-8 lg:grid-cols-4 xl:grid-cols-5">
                 {completed.map((event, index) => (

@@ -45,13 +45,17 @@ serve(async (request) => {
   if (!callerIsAdmin && !callerIsEventAdmin) return json({ error: 'Hanya Admin Penuh atau Admin Event yang dapat mengelola akun ini.' }, 403);
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
-  let body: { action?: 'list' | 'create' | 'toggle' | 'delete'; user_id?: string; email?: string; password?: string; role?: string; active?: boolean; scope_all?: boolean; event_ids?: string[] };
+  let body: { action?: 'list' | 'create' | 'update-profile' | 'toggle' | 'delete'; user_id?: string; email?: string; password?: string; full_name?: string; whatsapp?: string; role?: string; active?: boolean; scope_all?: boolean; event_ids?: string[] };
   try { body = await request.json(); } catch { return json({ error: 'Data permintaan tidak valid.' }, 400); }
 
   if (body.action === 'create') {
     const email = body.email?.trim().toLowerCase();
+    const fullName = body.full_name?.trim();
+    const whatsapp = body.whatsapp?.trim();
     if (!email || !email.includes('@')) return json({ error: 'Email admin tidak valid.' }, 400);
     if (!body.password || body.password.length < 6) return json({ error: 'Password minimal 6 karakter.' }, 400);
+    if (!fullName || fullName.length > 160) return json({ error: 'Nama lengkap wajib diisi maksimal 160 karakter.' }, 400);
+    if (!whatsapp || whatsapp.length > 30) return json({ error: 'Nomor handphone wajib diisi maksimal 30 karakter.' }, 400);
     if (!isManagedRole(body.role)) return json({ error: 'Role admin operasional tidak valid.' }, 400);
     if (callerIsEventAdmin && !SCOPED_ROLES.includes(body.role as typeof SCOPED_ROLES[number])) {
       return json({ error: 'Admin Event hanya dapat membuat Admin Tiket atau Admin QR Scanner.' }, 403);
@@ -77,6 +81,7 @@ serve(async (request) => {
       password: body.password,
       email_confirm: true,
       app_metadata: { role: body.role, roles: [body.role] },
+      user_metadata: { full_name: fullName, whatsapp },
     });
     if (error || !data.user) {
       const message = error?.message ?? 'Akun admin gagal dibuat.';
@@ -106,7 +111,7 @@ serve(async (request) => {
     return json({ user: { id: data.user.id, email: data.user.email, role: body.role, active: true } });
   }
 
-  if (body.action === 'toggle' || body.action === 'delete') {
+  if (body.action === 'update-profile' || body.action === 'toggle' || body.action === 'delete') {
     if (!body.user_id) return json({ error: 'Akun admin tidak dipilih.' }, 400);
     const { data: target, error: targetError } = await adminClient.auth.admin.getUserById(body.user_id);
     if (targetError || !target.user) return json({ error: 'Akun admin tidak ditemukan.' }, 404);
@@ -116,6 +121,29 @@ serve(async (request) => {
       if (!SCOPED_ROLES.includes((target.user.app_metadata as Record<string, unknown>).role as typeof SCOPED_ROLES[number])) return json({ error: 'Admin Event hanya dapat mengelola akun Admin Tiket atau Admin QR Scanner.' }, 403);
       const { data: ownGrant, error: grantError } = await adminClient.from('admin_event_scopes').select('id').eq('user_id', body.user_id).eq('granted_by', authData.user.id).limit(1).maybeSingle();
       if (grantError || !ownGrant) return json({ error: 'Akun ini tidak berada dalam kewenangan Anda.' }, 403);
+    }
+
+    if (body.action === 'update-profile') {
+      const fullName = body.full_name?.trim();
+      const whatsapp = body.whatsapp?.trim();
+      if (!fullName || fullName.length > 160) return json({ error: 'Nama lengkap wajib diisi maksimal 160 karakter.' }, 400);
+      if (!whatsapp || whatsapp.length > 30) return json({ error: 'Nomor handphone wajib diisi maksimal 30 karakter.' }, 400);
+      if (body.password !== undefined && (typeof body.password !== 'string' || body.password.length < 6)) {
+        return json({ error: 'Password baru minimal 6 karakter.' }, 400);
+      }
+      const currentMetadata = target.user.user_metadata ?? {};
+      const { data, error } = await adminClient.auth.admin.updateUserById(body.user_id, {
+        user_metadata: { ...currentMetadata, full_name: fullName, whatsapp },
+        ...(body.password ? { password: body.password } : {}),
+      });
+      if (error || !data.user) return json({ error: error?.message ?? 'Profil akun gagal diperbarui.' }, 400);
+      return json({
+        user: {
+          id: data.user.id,
+          full_name: data.user.user_metadata?.full_name ?? fullName,
+          whatsapp: data.user.user_metadata?.whatsapp ?? whatsapp,
+        },
+      });
     }
 
     if (body.action === 'delete') {
@@ -130,12 +158,19 @@ serve(async (request) => {
     return json({ user: { id: data.user.id, email: data.user.email, active: !data.user.banned_until || new Date(data.user.banned_until) <= new Date() } });
   }
 
-  const users: Array<{ id: string; email?: string; created_at: string; banned_until?: string | null; app_metadata?: Record<string, unknown> }> = [];
+  const users: Array<{ id: string; email?: string; created_at: string; banned_until?: string | null; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> }> = [];
   let page = 1;
   while (true) {
     const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
     if (error) return json({ error: error.message }, 400);
-    users.push(...data.users.map((user) => ({ id: user.id, email: user.email, created_at: user.created_at, banned_until: user.banned_until, app_metadata: user.app_metadata as Record<string, unknown> })));
+    users.push(...data.users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      created_at: user.created_at,
+      banned_until: user.banned_until,
+      app_metadata: user.app_metadata as Record<string, unknown>,
+      user_metadata: user.user_metadata as Record<string, unknown>,
+    })));
     if (data.users.length < 1000) break;
     page += 1;
   }
@@ -157,6 +192,8 @@ serve(async (request) => {
   return json({ admins: managedUsers.map((user) => ({
     id: user.id,
     email: user.email,
+    full_name: typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : '',
+    whatsapp: typeof user.user_metadata?.whatsapp === 'string' ? user.user_metadata.whatsapp : '',
     created_at: user.created_at,
     role: user.app_metadata?.role,
     active: !user.banned_until || new Date(user.banned_until) <= new Date(),
