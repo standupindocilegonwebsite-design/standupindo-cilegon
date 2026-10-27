@@ -421,7 +421,7 @@ async function createLineupImages(
     context.fillStyle = '#08245c';
     context.font = '800 30px Arial, sans-serif';
     context.textAlign = 'left';
-    context.fillText(`LINEUP KOMIKA PERFORM · ${pageIndex + 1}/${pages.length}`, 132, 541);
+    context.fillText(`LIST LINEUP KOMIKA OPEN MIC · ${pageIndex + 1}/${pages.length}`, 132, 541);
     const countLabel = `TOTAL ${prepared.length} KOMIKA`;
     context.font = '800 18px Arial, sans-serif';
     const badgeWidth = Math.max(168, context.measureText(countLabel).width + 38);
