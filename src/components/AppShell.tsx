@@ -85,8 +85,8 @@ export function AppShell({ router, settings, children }: AppShellProps) {
 
       {/* Footer (desktop + mobile compact) */}
       {!isTicketAccessPage && !isEventDocumentationPage && <footer className="border-t border-slate-200 bg-white pb-safe-nav md:pb-0">
-        <div className="container-app pb-0 pt-10 md:py-10">
-          <div className="grid gap-8 md:grid-cols-4">
+        <div className="container-app pb-0 pt-6 md:py-6">
+          <div className="grid gap-5 md:grid-cols-4 md:gap-6">
             <div className="md:col-span-2">
               <div className="flex items-center gap-2.5">
                 <span className="relative flex shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-0.5 shadow-[0_5px_14px_rgba(29,94,219,0.1)]">
@@ -99,8 +99,8 @@ export function AppShell({ router, settings, children }: AppShellProps) {
                   <span className="text-blue-600">CILEGON</span>
                 </span>
               </div>
-              <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-slate-700">Menjadi ruang bertemunya komika, penikmat komedi, dan insan kreatif untuk berbagi tawa, mengembangkan potensi, serta membangun ekosistem stand up comedy di Cilegon.</p>
-              <div className="mt-4 flex flex-wrap items-center gap-2">
+              <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-slate-700">Menjadi ruang bertemunya komika, penikmat komedi, dan insan kreatif untuk berbagi tawa, mengembangkan potensi, serta membangun ekosistem stand up comedy di Cilegon.</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 {settings.instagram_url && (
                   <a href={settings.instagram_url} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-blue-600 hover:text-white">
                     <Instagram className="h-4 w-4" />
@@ -132,7 +132,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
 
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Navigasi</h4>
-              <ul className="mt-3 space-y-2">
+              <ul className="mt-2 space-y-1">
                 {NAV.map((n) => (
                   <li key={n.to}>
                     <button onClick={() => router.navigate(n.to)} className="text-sm text-slate-600 transition hover:text-blue-700">
@@ -145,7 +145,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
 
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Kontak</h4>
-              <ul className="mt-3 space-y-2 text-sm text-slate-600">
+              <ul className="mt-2 space-y-1 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                   <span>{settings.address}</span>
@@ -154,10 +154,10 @@ export function AppShell({ router, settings, children }: AppShellProps) {
             </div>
           </div>
 
-          <div className="mt-8 border-t border-slate-100 pt-5 text-center text-xs text-slate-400">
+          <div className="mt-5 border-t border-slate-100 pt-3 text-center text-xs text-slate-400">
             &copy; {year} {settings.site_name}.
           </div>
-          <AppCredit className="mt-3" />
+          <AppCredit className="mt-2" />
         </div>
       </footer>}
 
