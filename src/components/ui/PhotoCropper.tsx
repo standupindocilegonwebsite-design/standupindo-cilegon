@@ -17,7 +17,7 @@ function loadCropImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-async function createCardPhoto(src: string, area: CropArea): Promise<Blob> {
+async function createCroppedPhoto(src: string, area: CropArea): Promise<Blob> {
   const image = await loadCropImage(src);
   const scale = Math.min(1280 / area.width, 1280 / area.height, 1);
   const canvas = document.createElement('canvas');
@@ -55,19 +55,19 @@ async function createAdjustedLogo(src: string, zoom: number, position: { x: numb
   });
 }
 
-async function uploadPhoto(folder: string, file: Blob, type: string): Promise<string> {
+async function uploadPhoto(folder: string, file: Blob, type: string, bucket: string): Promise<string> {
   const fileName = `${crypto.randomUUID()}.${getImageFileExtension(type)}`;
   const uploadPath = `${folder}/${fileName}`;
-  const { error } = await supabase.storage.from('standupindo-media').upload(uploadPath, file, {
+  const { error } = await supabase.storage.from(bucket).upload(uploadPath, file, {
     cacheControl: '31536000',
     upsert: false,
     contentType: type,
   });
   if (error) throw error;
-  return supabase.storage.from('standupindo-media').getPublicUrl(uploadPath).data.publicUrl;
+  return supabase.storage.from(bucket).getPublicUrl(uploadPath).data.publicUrl;
 }
 
-export function PhotoCropper({ src, originalFile, folder, processingProfile, cropToFrame = false, adjustLogo = false, onSave, onCancel }: { src: string; originalFile: File; folder: string; processingProfile: ImageProcessingProfile; cropToFrame?: boolean; adjustLogo?: boolean; onSave: (url: string, cardUrl?: string) => void | Promise<void>; onCancel: () => void }) {
+export function PhotoCropper({ src, originalFile, folder, bucket = 'standupindo-media', processingProfile, cropAspect, cropToFrame = false, adjustLogo = false, onSave, onCancel }: { src: string; originalFile: File; folder: string; bucket?: string; processingProfile: ImageProcessingProfile; cropAspect?: number; cropToFrame?: boolean; adjustLogo?: boolean; onSave: (url: string, cardUrl?: string) => void | Promise<void>; onCancel: () => void }) {
   const [saving, setSaving] = useState(false);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -86,31 +86,40 @@ export function PhotoCropper({ src, originalFile, folder, processingProfile, cro
         const cropSize = Math.min(width * 0.92, height * 0.92);
         setCropSize({ width: cropSize, height: cropSize });
       } else {
-        const cropWidth = Math.min(width * 0.94, height * 0.94 * (3 / 5));
-        setCropSize({ width: cropWidth, height: cropWidth * (5 / 3) });
+        const aspect = cropAspect ?? 3 / 5;
+        const cropWidth = Math.min(width * 0.94, height * 0.94 * aspect);
+        setCropSize({ width: cropWidth, height: cropWidth / aspect });
       }
     });
     resizeObserver.observe(viewport);
     return () => resizeObserver.disconnect();
-  }, [adjustLogo]);
+  }, [adjustLogo, cropAspect]);
 
   async function handleSave() {
     setSaving(true);
     try {
       if (adjustLogo) {
         const logo = await createAdjustedLogo(src, zoom, logoPosition);
-        const logoUrl = await uploadPhoto(folder, logo, 'image/png');
+        const logoUrl = await uploadPhoto(folder, logo, 'image/png', bucket);
         await onSave(logoUrl);
         return;
       }
 
-      const processedFile = await processImageForUpload(originalFile, processingProfile);
-      const photoUrl = await uploadPhoto(folder, processedFile, processedFile.type);
+      let croppedImage: Blob | null = null;
+      if (cropAspect && !cropToFrame) {
+        if (!croppedArea) throw new Error('Tunggu sampai pratinjau foto siap, lalu coba simpan lagi.');
+        croppedImage = await createCroppedPhoto(src, croppedArea);
+      }
+      const fileToProcess = croppedImage
+        ? new File([croppedImage], `banner.${getImageFileExtension(croppedImage.type)}`, { type: croppedImage.type })
+        : originalFile;
+      const processedFile = await processImageForUpload(fileToProcess, processingProfile, croppedImage ?? originalFile);
+      const photoUrl = await uploadPhoto(folder, processedFile, processedFile.type, bucket);
       let cardUrl: string | undefined;
       if (cropToFrame) {
         if (!croppedArea) throw new Error('Tunggu sampai pratinjau foto siap, lalu coba simpan lagi.');
-        const cardPhoto = await createCardPhoto(src, croppedArea);
-        cardUrl = await uploadPhoto(folder, cardPhoto, cardPhoto.type);
+        const cardPhoto = await createCroppedPhoto(src, croppedArea);
+        cardUrl = await uploadPhoto(folder, cardPhoto, cardPhoto.type, bucket);
       }
       await onSave(photoUrl, cardUrl);
     } catch (error) {
@@ -128,8 +137,8 @@ export function PhotoCropper({ src, originalFile, folder, processingProfile, cro
       <div className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.3)] md:h-auto md:max-h-[min(94dvh,900px)] md:max-w-3xl md:rounded-[28px] md:border">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-5 md:pt-3">
           <div>
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">{adjustLogo ? 'Logo Partner' : 'Foto Profil'}</p>
-            <h3 className="mt-0.5 text-base font-black text-slate-900 sm:text-lg">{adjustLogo ? 'Sesuaikan tampilan logo' : cropToFrame ? 'Atur foto Komika' : 'Atur foto'}</h3>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">{adjustLogo ? 'Logo Partner' : cropAspect ? 'Gambar Banner' : 'Foto Profil'}</p>
+            <h3 className="mt-0.5 text-base font-black text-slate-900 sm:text-lg">{adjustLogo ? 'Sesuaikan tampilan logo' : cropAspect ? 'Atur Posisi Foto Banner' : cropToFrame ? 'Atur foto Komika' : 'Atur foto'}</h3>
           </div>
           <button type="button" onClick={onCancel} disabled={saving} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95 disabled:opacity-50" aria-label="Tutup crop foto">
             <X className="h-5 w-5" />
@@ -203,15 +212,17 @@ export function PhotoCropper({ src, originalFile, folder, processingProfile, cro
                 <p id="partner-logo-adjustment-hint" className="text-xs leading-relaxed text-slate-500">Geser logo untuk mengatur posisinya. Rasio logo tetap terjaga.</p>
               </div>
             </>
-          ) : cropToFrame ? (
+          ) : cropToFrame || cropAspect ? (
             <>
               <div ref={cropViewportRef} className="relative min-h-0 w-full max-w-[520px] flex-1 overflow-hidden rounded-[22px] bg-slate-950 shadow-lg md:max-h-[min(76dvh,720px)]">
                 {cropSize && <Cropper
                   image={src}
                   crop={crop}
                   zoom={zoom}
-                  aspect={3 / 5}
+                  aspect={cropAspect ?? 3 / 5}
                   cropSize={cropSize}
+                  minZoom={cropAspect ? 0.25 : 1}
+                  maxZoom={cropAspect ? 3 : undefined}
                   objectFit="contain"
                   onCropChange={setCrop}
                   onZoomChange={setZoom}
@@ -222,6 +233,25 @@ export function PhotoCropper({ src, originalFile, folder, processingProfile, cro
                 />}
               </div>
               <p className="shrink-0 text-center text-xs text-slate-600">Geser untuk mengatur posisi · Scroll atau cubit untuk zoom</p>
+              {cropAspect && (
+                <div className="w-full max-w-sm shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <label htmlFor="banner-photo-zoom" className="text-xs font-bold text-slate-700">Ukuran Foto</label>
+                    <span className="min-w-12 rounded-lg bg-blue-50 px-2 py-1 text-center text-xs font-extrabold text-blue-700">{Math.round(zoom * 100)}%</span>
+                  </div>
+                  <input
+                    id="banner-photo-zoom"
+                    type="range"
+                    min="25"
+                    max="300"
+                    step="1"
+                    value={Math.round(zoom * 100)}
+                    onChange={(event) => setZoom(Number(event.target.value) / 100)}
+                    className="mt-1 h-8 w-full touch-pan-y accent-blue-600"
+                    aria-label="Atur ukuran foto banner"
+                  />
+                </div>
+              )}
             </>
           ) : (
             <div className="flex h-[min(52dvh,460px)] w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">

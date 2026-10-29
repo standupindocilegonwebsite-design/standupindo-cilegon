@@ -4,6 +4,7 @@ import type { EventItem, EventLineupEntry, EventLineupRole, Komika } from '@/lib
 import { supabase } from '@/lib/supabase';
 import { AdminModal as Modal } from '@/components/admin/AdminModal';
 import { ImageUpload } from '@/components/ui/ImageUpload';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 import { formatDate, safeExternalUrl } from '@/lib/format';
 
 const ROLE_OPTIONS: { value: EventLineupRole; label: string }[] = [
@@ -215,7 +216,7 @@ export function EventLineupManagementModal({ event, onClose }: { event: EventIte
     >
       <div className="space-y-5">
         {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
-        {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">{notice}</p>}
+        {notice && <StatusBanner message={notice} variant="success" onDismiss={() => setNotice('')} />}
 
         <form onSubmit={(submit) => void saveEntry(submit)} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
           <h4 className="font-extrabold text-slate-900">{editingId ? 'Edit Pengisi Acara' : 'Tambah Pengisi Acara'}</h4>

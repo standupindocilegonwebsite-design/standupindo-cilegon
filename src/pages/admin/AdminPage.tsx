@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Building2, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, Crown, DoorOpen, Eye, EyeOff, FolderOpen, Handshake, History, ImagePlus, Instagram, Info, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Phone, Plus, Power, Printer, RefreshCw, Search, Settings, Share2, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, UserRound, Users, X, ArrowLeft, ExternalLink, Youtube } from 'lucide-react';
+import { BarChart3, Building2, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, Crown, DoorOpen, Eye, EyeOff, FolderOpen, Handshake, History, ImagePlus, Instagram, Info, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Phone, Plus, Power, Printer, RefreshCw, Search, Settings, Share2, ShieldPlus, Store, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, UserRound, Users, X, ArrowLeft, ExternalLink, Youtube } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, MemberOpenMicHistoryStatus, MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -17,6 +17,7 @@ import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { MultiImageUpload } from '@/components/ui/MultiImageUpload';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
 import { NotificationInbox } from '@/components/nav/NotificationInbox';
+import { StatusBanner, type StatusBannerVariant } from '@/components/ui/StatusBanner';
 import { LOGO_URL } from '@/lib/types';
 import { useNotifications } from '@/lib/notification-context';
 import type { NotificationRecord } from '@/lib/notification-context';
@@ -41,9 +42,12 @@ import { AnimatedBottomNav } from '@/components/nav/AnimatedBottomNav';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
 import { AnnualRecapAdminPage } from '@/pages/admin/AnnualRecapAdminPage';
 import { CcsScheduleAdminPage } from '@/pages/admin/CcsScheduleAdminPage';
+import { MerchAdminPage } from '@/pages/admin/MerchAdminPage';
 
-interface Props { router: Router; settings: SiteSettings; }
-type Section = 'dashboard' | 'account-management' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'annual-recap' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'ticket-gates' | 'ticket-fees' | 'ticket-vouchers' | 'check-in-report' | 'maintenance' | 'ccs-schedule' | 'more';
+interface Props { router: Router; settings: SiteSettings; onSettingsUpdated: () => Promise<void>; }
+type AdminNoticeHandler = (message: string, variant: StatusBannerVariant) => void;
+
+type Section = 'dashboard' | 'account-management' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'annual-recap' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'ticket-gates' | 'ticket-fees' | 'ticket-vouchers' | 'check-in-report' | 'maintenance' | 'ccs-schedule' | 'merch' | 'more';
 type RecapOfficialLineupQuery = Omit<RecapOfficialLineup, 'event'> & { event: RecapOfficialLineup['event'] | NonNullable<RecapOfficialLineup['event']>[] };
 
 function getErrorMessage(error: unknown): string {
@@ -158,6 +162,7 @@ function getSection(path: string): Section {
   if (parts[1] === 'maintenance') return 'maintenance';
   if (parts[1] === 'annual-recap') return 'annual-recap';
   if (parts[1] === 'ccs-schedule') return 'ccs-schedule';
+  if (parts[1] === 'merch') return 'merch';
   if (parts[1] === 'profile-settings') return 'profile-settings';
   if (parts[1] === 'applications') return 'applications';
   if (parts[1] === 'account-management') return 'account-management';
@@ -278,7 +283,7 @@ function getWorkspaceBottomNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEven
 
 function isMoreNavigationActive(section: Section, isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean, isTicketAdmin: boolean, isQrScanner: boolean) {
   return section === 'more'
-    || (isAdmin && ['settings', 'annual-recap', 'applications', 'profile-settings', 'ccs-schedule'].includes(section))
+    || (isAdmin && ['settings', 'annual-recap', 'applications', 'profile-settings', 'ccs-schedule', 'merch'].includes(section))
     || (isOpenMicAdmin && ['ccs-schedule', 'member-accounts', 'evaluator'].includes(section))
     || (isEventAdmin && section === 'admin-accounts')
     || section === 'profile-settings'
@@ -790,7 +795,7 @@ function AttendanceBadge({ status }: { status?: AttendanceStatus }) {
   return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${style}`}>{label}</span>;
 }
 
-export function AdminPage({ router, settings }: Props) {
+export function AdminPage({ router, settings, onSettingsUpdated }: Props) {
   const { user, signOut, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner } = useAuth();
   const { unreadCount, notifications, counts: notificationCounts, revision, resync: resyncNotifications, error: notificationError, markAsRead, markAllAsRead, clearAll: clearNotifications, deleteReadNotification, clearRead } = useNotifications();
   const requestedSection = getSection(router.path);
@@ -817,8 +822,8 @@ export function AdminPage({ router, settings }: Props) {
   const [modal, setModal] = useState<'open-mic' | 'event' | 'komika' | 'partner' | null>(null);
   const [editing, setEditing] = useState<OpenMic | EventItem | Komika | Partner | null>(null);
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState('');
-  const isErrorNotice = /gagal|tidak berhasil|tidak dapat/i.test(notice);
+  const [notice, setNotice] = useState<{ message: string; variant: StatusBannerVariant } | null>(null);
+  const notify = (message: string, variant: StatusBannerVariant) => setNotice({ message, variant });
   const [deleteTarget, setDeleteTarget] = useState<{ table: 'open_mics' | 'events' | 'komika' | 'partners'; id: string } | null>(null);
   const [ticketDeleteTarget, setTicketDeleteTarget] = useState<string | null>(null);
   const [ticketEvent, setTicketEvent] = useState<EventItem | null>(null);
@@ -863,7 +868,7 @@ export function AdminPage({ router, settings }: Props) {
     setPartners((pt.data as Partner[]) ?? []);
     setEventPartnerships((ep.data as EventPartnership[]) ?? []);
     setCommunityApplications((a.data as CommunityApplication[]) ?? []);
-    if (to.error) setNotice('Data order tiket gagal dimuat lengkap.');
+    if (to.error) notify('Data order tiket gagal dimuat lengkap.', 'warning');
     setTicketOrdersUnavailable(Boolean(to.error));
     setTicketOrders(to.data ?? []);
     setEvaluatorAssignments((ea.data as EvaluatorAssignment[]) ?? []);
@@ -884,12 +889,12 @@ export function AdminPage({ router, settings }: Props) {
     try {
       const { error } = await supabase.from(table).update(payload).eq('id', id);
       if (error) throw error;
-      setNotice(!current ? 'Konten dipublikasikan.' : 'Konten disembunyikan.');
+      notify(!current ? 'Konten dipublikasikan.' : 'Konten disembunyikan.', 'success');
       await load();
     } catch (publishError) {
       const detail = getErrorMessage(publishError);
       console.error('Status publish gagal diperbarui.', publishError);
-      setNotice(`Gagal mengubah status publish: ${detail}`);
+      notify(`Gagal mengubah status publish: ${detail}`, 'error');
     }
   }
 
@@ -902,8 +907,8 @@ export function AdminPage({ router, settings }: Props) {
     const target = deleteTarget;
     setDeleteTarget(null);
     const { error } = await supabase.from(target.table).delete().eq('id', target.id);
-    if (error) { setNotice('Gagal menghapus data.'); return; }
-    setNotice('Data berhasil dihapus.');
+    if (error) { notify('Gagal menghapus data.', 'error'); return; }
+    notify('Data berhasil dihapus.', 'success');
     await load();
   }
 
@@ -925,10 +930,10 @@ export function AdminPage({ router, settings }: Props) {
   async function updateTicketOrderStatus(id: string, status: TicketOrderStatus) {
     const { error } = await supabase.from('ticket_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
     if (error) {
-      setNotice('Status pemesanan gagal diperbarui.');
+      notify('Status pemesanan gagal diperbarui.', 'error');
       return;
     }
-    setNotice('Status pemesanan berhasil diperbarui.');
+    notify('Status pemesanan berhasil diperbarui.', 'success');
     await resyncNotifications();
     await load();
   }
@@ -943,10 +948,10 @@ export function AdminPage({ router, settings }: Props) {
     setTicketDeleteTarget(null);
     const { error } = await supabase.from('ticket_orders').delete().eq('id', id);
     if (error) {
-      setNotice('Data pemesanan gagal dihapus.');
+      notify('Data pemesanan gagal dihapus.', 'error');
       return;
     }
-    setNotice('Data pemesanan berhasil dihapus.');
+    notify('Data pemesanan berhasil dihapus.', 'success');
     await resyncNotifications();
     await load();
   }
@@ -1071,15 +1076,12 @@ export function AdminPage({ router, settings }: Props) {
 
         {/* Main Content */}
         <main className="min-w-0 flex-1 p-4 lg:p-8">
+          {notice && (
+            <StatusBanner message={notice.message} variant={notice.variant} onDismiss={() => setNotice(null)} className="mb-5" />
+          )}
           {section !== 'dashboard' && !sectionHasOwnBackButton && <button type="button" onClick={section === 'profile-settings' ? () => navigateSection('more') : returnToPreviousAdminMenu} className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 text-sm font-bold text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50">
             <ArrowLeft className="h-4 w-4" /> Kembali
           </button>}
-          {notice && (
-            <div className={`mb-5 flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold ring-1 ${isErrorNotice ? 'bg-red-50 text-red-700 ring-red-200' : 'bg-green-50 text-green-700 ring-green-200'}`}>
-              <span>{notice}</span>
-              <button onClick={() => setNotice('')} aria-label="Tutup pesan" className={isErrorNotice ? 'text-red-600 hover:text-red-800' : 'text-green-600 hover:text-green-800'}><X className="h-4 w-4" /></button>
-            </div>
-          )}
 
           {section === 'dashboard' && (isAdmin ? <Dashboard openMics={openMics} events={events} komika={komika} registrations={registrations} memberHistory={memberHistory} ticketOrders={ticketOrders} ticketOrdersUnavailable={ticketOrdersUnavailable} loading={loading} adminName={typeof user?.user_metadata?.full_name === 'string' && user.user_metadata.full_name.trim() ? user.user_metadata.full_name.trim() : user?.email?.split('@')[0] || 'Admin Penuh'} adminPhoto={typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : ''} onNavigate={navigateSection} /> : isTicketAdmin ? <TicketAdminDashboard orders={ticketOrders} events={events} loading={loading} onNavigate={navigateSection} /> : isQrScanner ? <QrScannerDashboard events={events} onNavigate={navigateSection} /> : <OperationalDashboard kind={isOpenMicAdmin ? 'open-mic' : 'event'} openMics={openMics} registrations={registrations} events={events} eventPendingCounts={eventPendingCounts} ticketOrders={ticketOrders} loading={loading} onNavigate={navigateSection} />)}
           {section === 'account-management' && isAdmin && <AccountManagementLanding onNavigate={navigateSection} />}
@@ -1092,14 +1094,14 @@ export function AdminPage({ router, settings }: Props) {
           {section === 'events' && (isAdmin || isEventAdmin
             ? <EventManagement rows={events} loading={loading} pendingCounts={eventPendingCounts} canManageTickets={isAdmin} initialStatus={router.query.get('status') === 'completed' ? 'completed' : 'upcoming'} onAdd={() => { setEditing(null); setModal('event'); }} onEdit={(row) => { setEditing(row); setModal('event'); }} onManagePhotos={setDocumentationEvent} onDelete={(id) => deleteRow('events', id)} onTogglePublish={(id, val) => togglePublish('events', id, val)} onManageTickets={(row) => setTicketEvent(row)} onManagePartnerships={(row) => setPartnershipEvent(row)} onManageLineup={setLineupEvent} onViewParticipants={(row) => router.navigate(`/admin/event-pendaftar/${row.id}`)} />
             : <ScopedEventList events={events} loading={loading} onManageTickets={isTicketAdmin ? setTicketEvent : undefined} />)}
-          {section === 'applications' && <ApplicationsView community={communityApplications} loading={loading} onNotice={setNotice} onReload={load} initialApplicationId={router.query.get('notificationApplicationId')} />}
-          {section === 'open-mic-history' && <MemberOpenMicHistoryReview rows={memberHistory} komika={komika} onNotice={setNotice} onReload={load} />}
-          {section === 'komika' && <KomikaManagement rows={komika} attendanceCounts={komikaAttendanceCounts} externalOpenMicCounts={komikaExternalOpenMicCounts} loading={loading} onReload={load} onNotice={setNotice} onAdd={() => { setEditing(null); setModal('komika'); }} onEdit={(row) => { setEditing(row); setModal('komika'); }} onDelete={(id) => deleteRow('komika', id)} />}
-          {section === 'member-accounts' && <MemberAccountsPage komika={komika} onNotice={setNotice} />}
-          {section === 'admin-accounts' && (isAdmin || isEventAdmin) && <AdminAccountsPage onNotice={setNotice} creatorRole={isAdmin ? 'admin' : 'event_admin'} />}
-          {section === 'profile-settings' && <AdminProfileSettingsPage onNotice={setNotice} />}
+          {section === 'applications' && <ApplicationsView community={communityApplications} loading={loading} onNotice={notify} onReload={load} initialApplicationId={router.query.get('notificationApplicationId')} />}
+          {section === 'open-mic-history' && <MemberOpenMicHistoryReview rows={memberHistory} komika={komika} onNotice={notify} onReload={load} />}
+          {section === 'komika' && <KomikaManagement rows={komika} attendanceCounts={komikaAttendanceCounts} externalOpenMicCounts={komikaExternalOpenMicCounts} loading={loading} onReload={load} onNotice={notify} onAdd={() => { setEditing(null); setModal('komika'); }} onEdit={(row) => { setEditing(row); setModal('komika'); }} onDelete={(id) => deleteRow('komika', id)} />}
+          {section === 'member-accounts' && <MemberAccountsPage komika={komika} onNotice={notify} />}
+          {section === 'admin-accounts' && (isAdmin || isEventAdmin) && <AdminAccountsPage onNotice={notify} creatorRole={isAdmin ? 'admin' : 'event_admin'} />}
+          {section === 'profile-settings' && <AdminProfileSettingsPage onNotice={notify} />}
           {section === 'partners' && <PartnerManagement rows={partners} events={events} partnerships={eventPartnerships} loading={loading} onAdd={() => { setEditing(null); setModal('partner'); }} onEdit={(row) => { setEditing(row); setModal('partner'); }} onDelete={(id) => deleteRow('partners', id)} />}
-          {section === 'evaluator' && <EvaluatorAssignmentView openMics={openMics} komika={komika} assignments={evaluatorAssignments} currentUserId={user?.id ?? null} onReload={load} onNotice={setNotice} />}
+          {section === 'evaluator' && <EvaluatorAssignmentView openMics={openMics} komika={komika} assignments={evaluatorAssignments} currentUserId={user?.id ?? null} onReload={load} onNotice={notify} />}
           {section === 'ticket-orders' && isEventAdmin && <TicketAudiencePage events={events} />}
           {section === 'ticket-orders' && (isAdmin || isTicketAdmin
             ? <TicketAdminOrdersPage orders={ticketOrders} events={events} loading={loading} onReload={load} initialOrderId={router.query.get('notificationOrderId')} />
@@ -1113,8 +1115,9 @@ export function AdminPage({ router, settings }: Props) {
           {section === 'ticket-report' && isTicketAdmin && <TicketSalesReportPage events={events} orders={ticketOrders} onBack={() => navigateSection('more')} onReload={load} />}
           {section === 'check-in-report' && isQrScanner && <TicketCheckInReportPage onBack={() => navigateSection('more')} />}
           {section === 'maintenance' && (isAdmin || isEventAdmin) && <TicketMaintenancePage events={events} />}
-          {section === 'annual-recap' && isAdmin && <AnnualRecapAdminPage onNotice={setNotice} />}
-          {section === 'settings' && <SettingsPanel settings={settings} onSaved={load} onNotice={setNotice} />}
+          {section === 'annual-recap' && isAdmin && <AnnualRecapAdminPage onNotice={notify} />}
+          {section === 'merch' && isAdmin && <MerchAdminPage settings={settings} onSaved={onSettingsUpdated} />}
+          {section === 'settings' && <SettingsPanel settings={settings} onSaved={load} onNotice={notify} />}
           {section === 'more' && <MorePage onNavigate={navigateSection} onSignOut={async () => { await signOut(); router.navigate('/admin/login'); }} ticketOrderUnreadCount={notificationCounts['ticket-orders']} applicationUnreadCount={notificationCounts.applications} isAdmin={isAdmin} isOpenMicAdmin={isOpenMicAdmin} isEventAdmin={isEventAdmin} isTicketAdmin={isTicketAdmin} isQrScanner={isQrScanner} />}
         </main>
       </div>
@@ -1173,19 +1176,19 @@ export function AdminPage({ router, settings }: Props) {
       />
 
       {/* Ticket Management Modal */}
-      <TicketManagementModal event={ticketEvent} onClose={() => setTicketEvent(null)} onNotice={setNotice} />
-      <EventPartnershipManagementModal event={partnershipEvent} partners={partners} partnerships={eventPartnerships} onClose={() => setPartnershipEvent(null)} onNotice={setNotice} onReload={load} />
+      <TicketManagementModal event={ticketEvent} onClose={() => setTicketEvent(null)} onNotice={notify} />
+      <EventPartnershipManagementModal event={partnershipEvent} partners={partners} partnerships={eventPartnerships} onClose={() => setPartnershipEvent(null)} onNotice={notify} onReload={load} />
       <EventLineupManagementModal event={lineupEvent} onClose={() => setLineupEvent(null)} />
 
       {/* Form Modal */}
-      <EventDocumentationPhotosModal event={documentationEvent} onClose={() => setDocumentationEvent(null)} onNotice={setNotice} onSaved={async () => { setDocumentationEvent(null); await load(); }} />
-      <AdminFormModal kind={modal} editing={editing} venueHistory={openMics} eventVenueHistory={events} saving={saving} onClose={() => setModal(null)} onSaving={setSaving} onNotice={setNotice} onPhotoSaved={load} onSaved={async () => { setModal(null); await load(); setNotice('Perubahan berhasil disimpan.'); }} />
+      <EventDocumentationPhotosModal event={documentationEvent} onClose={() => setDocumentationEvent(null)} onNotice={notify} onSaved={async () => { setDocumentationEvent(null); await load(); }} />
+      <AdminFormModal kind={modal} editing={editing} venueHistory={openMics} eventVenueHistory={events} saving={saving} onClose={() => setModal(null)} onSaving={setSaving} onNotice={notify} onPhotoSaved={load} onSaved={async () => { setModal(null); await load(); notify('Perubahan berhasil disimpan.', 'success'); }} />
 
     </div>
   );
 }
 
-function MemberOpenMicHistoryReview({ rows, komika, onNotice, onReload }: { rows: MemberOpenMicHistorySubmission[]; komika: Komika[]; onNotice: (message: string) => void; onReload: () => Promise<void> }) {
+function MemberOpenMicHistoryReview({ rows, komika, onNotice, onReload }: { rows: MemberOpenMicHistorySubmission[]; komika: Komika[]; onNotice: AdminNoticeHandler; onReload: () => Promise<void> }) {
   const [category, setCategory] = useState<'performance' | 'mc'>('performance');
   const categoryTabsRef = useRef<HTMLDivElement>(null);
   const [folder, setFolder] = useState<MemberOpenMicHistoryStatus>('pending');
@@ -1238,9 +1241,9 @@ function MemberOpenMicHistoryReview({ rows, komika, onNotice, onReload }: { rows
       updated_at: new Date().toISOString(),
     }).eq('id', selected.id);
     setSaving(false);
-    if (error) { onNotice('Status riwayat gagal diperbarui.'); return; }
+    if (error) { onNotice('Status riwayat gagal diperbarui.', 'error'); return; }
     setSelected(null);
-    onNotice(status === 'approved' ? 'Riwayat disetujui.' : 'Riwayat ditolak.');
+    onNotice(status === 'approved' ? 'Riwayat disetujui.' : 'Riwayat ditolak.', 'success');
     await onReload();
   }
 
@@ -1300,7 +1303,7 @@ function MemberOpenMicHistoryReview({ rows, komika, onNotice, onReload }: { rows
   );
 }
 
-function ApplicationsView({ community, loading, onNotice, onReload, initialApplicationId }: { community: CommunityApplication[]; loading: boolean; onNotice: (message: string) => void; onReload: () => Promise<void>; initialApplicationId?: string | null }) {
+function ApplicationsView({ community, loading, onNotice, onReload, initialApplicationId }: { community: CommunityApplication[]; loading: boolean; onNotice: AdminNoticeHandler; onReload: () => Promise<void>; initialApplicationId?: string | null }) {
   const [folder, setFolder] = useState<ApplicationStatus>('pending');
   const [viewApplication, setViewApplication] = useState<CommunityApplication | null>(null);
   const [handledApplicationId, setHandledApplicationId] = useState<string | null>(null);
@@ -1310,7 +1313,7 @@ function ApplicationsView({ community, loading, onNotice, onReload, initialAppli
     setHandledApplicationId(initialApplicationId);
     const application = community.find((row) => row.id === initialApplicationId);
     if (!application) {
-      onNotice('Pendaftar komunitas dari notifikasi sudah tidak tersedia atau tidak dapat diakses.');
+      onNotice('Pendaftar komunitas dari notifikasi sudah tidak tersedia atau tidak dapat diakses.', 'warning');
       return;
     }
     setFolder(application.status);
@@ -1319,9 +1322,9 @@ function ApplicationsView({ community, loading, onNotice, onReload, initialAppli
 
   async function updateStatus(id: string, status: ApplicationStatus) {
     const { error } = await supabase.from('community_applications').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
-    if (error) { onNotice('Gagal mengubah status pendaftar.'); return; }
+    if (error) { onNotice('Gagal mengubah status pendaftar.', 'error'); return; }
     setViewApplication((current) => current?.id === id ? { ...current, status } : current);
-    onNotice('Status pendaftar diperbarui.');
+    onNotice('Status pendaftar diperbarui.', 'success');
     await onReload();
     setViewApplication((current) => current?.id === id ? { ...current, status } : current);
   }
@@ -1329,10 +1332,10 @@ function ApplicationsView({ community, loading, onNotice, onReload, initialAppli
   async function deleteApplication(application: CommunityApplication) {
     if (!window.confirm(`Hapus pendaftar ${application.full_name}? Data ini tidak dapat dikembalikan.`)) return;
     const { error } = await supabase.from('community_applications').delete().eq('id', application.id);
-    if (error) { onNotice('Pendaftar gagal dihapus.'); return; }
+    if (error) { onNotice('Pendaftar gagal dihapus.', 'error'); return; }
     setViewApplication(null);
     setViewApplication(null);
-    onNotice('Pendaftar berhasil dihapus.');
+    onNotice('Pendaftar berhasil dihapus.', 'success');
     await onReload();
   }
 
@@ -1943,7 +1946,8 @@ function PolishedOpenMicRosterView({ mode, openMics, registrations, komika, load
   const [createMode, setCreateMode] = useState<'general' | 'member'>('general');
   const [komikaSearch, setKomikaSearch] = useState('');
   const [komikaSearchFocused, setKomikaSearchFocused] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState<{ message: string; variant: StatusBannerVariant } | null>(null);
+  const notify = (message: string, variant: StatusBannerVariant) => setNotice({ message, variant });
   const [pendingAction, setPendingAction] = useState<{ row: OpenMicRegistration; type: 'confirm' | 'reject' | 'attend' | 'delete' } | null>(null);
   const isPerformerView = mode === 'performers';
   const today = new Date().toISOString().slice(0, 10);
@@ -1984,7 +1988,7 @@ function PolishedOpenMicRosterView({ mode, openMics, registrations, komika, load
     const { data: sequence } = await supabase.rpc('next_open_mic_reg_seq');
     const number = createTarget.title.match(/#?(\d+)/)?.[1] ?? '00';
     const { error } = await supabase.from('open_mic_registrations').insert({ registration_id: `OM${number}-${String((sequence as number) ?? 1).padStart(4, '0')}`, open_mic_id: createTarget.id, komika_id: createForm.komika_id || null, full_name: createForm.full_name.trim(), stage_name: createForm.stage_name.trim(), community: createForm.community.trim() || null, instagram: createForm.instagram.trim() || null, whatsapp: createForm.whatsapp.trim() || null, notes: createForm.notes.trim() || null, status: createMode === 'member' ? 'confirmed' : 'pending', attendance_status: 'unmarked' });
-    if (error) { setSaving(false); setNotice(error.message.includes('duplicate') ? 'Anggota tersebut sudah terdaftar di Open Mic ini.' : 'Pendaftar gagal ditambahkan.'); return; }
+    if (error) { setSaving(false); notify(error.message.includes('duplicate') ? 'Anggota tersebut sudah terdaftar di Open Mic ini.' : 'Pendaftar gagal ditambahkan.', error.message.includes('duplicate') ? 'warning' : 'error'); return; }
     setSaving(false);
     setCreateForm({ komika_id: '', full_name: '', stage_name: '', community: '', instagram: '', whatsapp: '', notes: '' });
     setCreateMode('general');
@@ -2001,7 +2005,7 @@ function PolishedOpenMicRosterView({ mode, openMics, registrations, komika, load
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-500">Langkah {isPerformerView ? '2' : '1'}</p><h2 className="text-sm font-extrabold text-slate-900">{isPerformerView ? 'Pilih periode performer' : 'Pilih Open Mic mendatang'}</h2></div>{isPerformerView && <div ref={periodTabsRef} data-sliding-indicator-theme="blue-700" className="relative isolate grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1" role="tablist" aria-label="Periode performer"><SlidingTabIndicator trackRef={periodTabsRef} activeId={folder} className="rounded-xl bg-blue-700 shadow-sm" /><button type="button" role="tab" aria-selected={folder === 'upcoming'} data-sliding-tab="upcoming" onClick={() => setFolder('upcoming')} className={`relative z-10 rounded-xl px-3 py-2.5 text-sm font-bold ${folder === 'upcoming' ? 'bg-transparent text-white shadow-none' : 'text-slate-500'}`}>Saat Ini</button><button type="button" role="tab" aria-selected={folder === 'completed'} data-sliding-tab="completed" onClick={() => setFolder('completed')} className={`relative z-10 rounded-xl px-3 py-2.5 text-sm font-bold ${folder === 'completed' ? 'bg-transparent text-white shadow-none' : 'text-slate-500'}`}>Selesai</button></div>}<div><label className="mb-1.5 block text-xs font-bold text-slate-600" htmlFor="open-mic-filter">Open Mic</label><OpenMicFilterDropdown openMics={filterOpenMics} value={selectedOpenMicId} onChange={setSelectedOpenMicId} allLabel={isPerformerView ? 'Semua Open Mic' : 'Semua Open Mic Mendatang'} /></div><div><label className="mb-1.5 block text-xs font-bold text-slate-600" htmlFor="registrant-search">{isPerformerView ? 'Cari performer' : 'Cari pendaftar'}</label><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input id="registrant-search" value={search} onChange={(event) => setSearch(event.target.value)} className="input-field pl-10" placeholder={isPerformerView ? 'Cari performer...' : 'Cari pendaftar...'} /></div></div></section>
       {loading ? <div className="space-y-2">{[1, 2].map((item) => <div key={item} className="h-24 animate-pulse rounded-2xl bg-slate-100" />)}</div> : groups.length === 0 ? <AdminEmptyState title={isPerformerView ? 'Belum ada performer.' : 'Belum ada pendaftar.'} /> : <div className="space-y-3">{groups.map(({ openMic, allRows, rows }) => { const isCollapsed = collapsed.has(openMic.id); const canAdd = !isPerformerView && openMic.date >= today; const pendingCount = allRows.filter((row) => row.status === 'pending').length; const confirmedCount = allRows.filter((row) => row.status === 'confirmed' && row.attendance_status !== 'attended').length; const attendedCount = allRows.filter((row) => row.attendance_status === 'attended').length; return <section key={openMic.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="flex items-center gap-3 bg-slate-50/80 p-3.5 sm:p-4"><button type="button" onClick={() => setCollapsed((current) => { const next = new Set(current); if (next.has(openMic.id)) next.delete(openMic.id); else next.add(openMic.id); return next; })} className="flex min-w-0 flex-1 items-center gap-3 text-left"><span className="flex h-11 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-blue-50 text-blue-700 ring-1 ring-slate-200">{openMic.poster ? <img src={openMic.poster} alt="" className="h-full w-full object-cover" /> : <Mic className="h-5 w-5" />}</span><span className="min-w-0"><span className="block text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Open Mic #{openMicNumbers.get(openMic.id)}</span><span className="block truncate text-base font-extrabold text-slate-900">{openMic.title}</span><span className="mt-0.5 block truncate text-xs text-slate-500">{formatDate(openMic.date)} · {openMic.venue}</span><span className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold"><span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">{rows.length} aktif</span>{pendingCount > 0 && <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-700">{pendingCount} menunggu</span>}{confirmedCount > 0 && <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">{confirmedCount} terkonfirmasi</span>}{attendedCount > 0 && <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">{attendedCount} performer</span>}</span></span><ChevronRight className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} /></button>{canAdd && <button type="button" onClick={() => setCreateTarget(openMic)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white" title="Tambah pendaftar" aria-label="Tambah pendaftar"><Plus className="h-4 w-4" /></button>}</div>{!isCollapsed && <div className="divide-y divide-slate-100">{rows.length === 0 ? <div className="p-5 text-center text-sm text-slate-500">Belum ada pendaftar aktif.</div> : rows.map((row) => { const isConfirmed = row.status === 'confirmed'; const appearanceNumber = isPerformerView && folder === 'completed' ? getPerformerAppearanceNumber(row, openMic, registrations, openMics) : null; return <div key={row.id} className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${row.attendance_status === 'attended' ? 'bg-emerald-50 text-emerald-700' : row.status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}><UserCheck className="h-4 w-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-900">{row.stage_name || row.full_name}</p>{isPerformerView && folder === 'completed' && row.community && <span className="mt-0.5 inline-flex max-w-full truncate rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold leading-4 text-slate-600 ring-1 ring-slate-200">{row.community}</span>}<p className="truncate text-xs text-slate-500">{row.full_name} · {row.registration_id}</p></div>{isPerformerView && folder === 'completed' && <span className="flex h-10 min-w-[3.25rem] shrink-0 flex-col items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 px-2 text-emerald-800" title={`Penampilan ke-${appearanceNumber} di Standupindo Cilegon`}><span className="text-sm font-extrabold leading-none">{appearanceNumber}</span><span className="mt-0.5 text-[9px] font-bold uppercase tracking-wide">Kali</span></span>}{isPerformerView && folder === 'completed' && row.whatsapp && <a href={waLink(row.whatsapp, buildPerformerThankYouMessage(row, openMic, nextOpenMic, appearanceNumber ?? getPerformerAppearanceNumber(row, openMic, registrations, openMics)))} target="_blank" rel="noopener noreferrer" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#25D366] text-white shadow-sm transition hover:bg-[#20bd5a] active:scale-95" aria-label={`Kirim ucapan terima kasih kepada ${row.stage_name || row.full_name} via WhatsApp`} title="Kirim ucapan terima kasih via WhatsApp"><MessageCircle className="h-5 w-5" /></a>}{!isPerformerView && <div className="flex shrink-0 items-center gap-1"><button type="button" onClick={() => setPendingAction({ row, type: isConfirmed ? 'reject' : 'confirm' })} className={`flex h-9 w-9 items-center justify-center rounded-lg ${isConfirmed ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`} title={isConfirmed ? 'Tolak pendaftar' : 'Konfirmasi pendaftar'} aria-label={isConfirmed ? 'Tolak pendaftar' : 'Konfirmasi pendaftar'}>{isConfirmed ? <X className="h-4 w-4" /> : <Check className="h-4 w-4" />}</button>{isConfirmed && <button type="button" onClick={() => setPendingAction({ row, type: 'attend' })} className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700" title="Tandai hadir" aria-label="Tandai hadir"><UserCheck className="h-4 w-4" /></button>}<button type="button" onClick={() => setPendingAction({ row, type: 'delete' })} className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-700" title="Hapus pendaftar" aria-label="Hapus pendaftar"><Trash2 className="h-4 w-4" /></button></div>}</div>; })}</div>}</section>; })}</div>}
       {createTarget && <Modal open={Boolean(createTarget)} onClose={() => setCreateTarget(null)} title={`Tambah Pendaftar · ${createTarget.title}`} size="md"><form onSubmit={createManual} className="space-y-4"><p className="text-sm text-slate-500">Pilih anggota Komika bila pendaftar memiliki profil resmi. Pilih umum untuk pendaftar tanpa profil member.</p><div className="grid grid-cols-2 gap-2"><button type="button" onClick={() => { setCreateMode('general'); setCreateForm({ komika_id: '', full_name: '', stage_name: '', community: '', instagram: '', whatsapp: '', notes: '' }); setKomikaSearch(''); }} className={`rounded-xl border px-3 py-3 text-sm font-bold ${createMode === 'general' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-100' : 'border-slate-200 text-slate-600'}`}>Pendaftar Umum</button><button type="button" onClick={() => setCreateMode('member')} className={`rounded-xl border px-3 py-3 text-sm font-bold ${createMode === 'member' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-100' : 'border-slate-200 text-slate-600'}`}>Anggota Komika</button></div>{createMode === 'member' && <div className="relative"><label className="label-field" htmlFor="p-komika-search">Cari Anggota Komika</label><Search className="absolute left-3 top-[2.65rem] h-4 w-4 text-slate-400" /><input id="p-komika-search" value={komikaSearch} onFocus={() => setKomikaSearchFocused(true)} onBlur={() => setTimeout(() => setKomikaSearchFocused(false), 150)} onChange={(event) => { setKomikaSearch(event.target.value); setCreateForm({ ...createForm, komika_id: '' }); }} className="input-field pl-10" placeholder="Ketik nama atau stage name" autoComplete="off" />{komikaSearchFocused && <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">{komika.filter((item) => `${item.full_name} ${item.stage_name}`.toLowerCase().includes(komikaSearch.trim().toLowerCase())).map((item) => <button key={item.id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setCreateForm({ komika_id: item.id, full_name: item.full_name, stage_name: item.stage_name, community: 'Standupindo Cilegon', instagram: formatInstagramHandle(item.instagram_url ?? ''), whatsapp: item.whatsapp ?? '', notes: '' }); setKomikaSearch(''); setKomikaSearchFocused(false); }} className="flex min-h-12 w-full flex-col items-start justify-center rounded-lg px-3 py-2 text-left hover:bg-blue-50"><span className="text-sm font-bold text-slate-900">{item.full_name}</span><span className="text-xs text-slate-500">{item.stage_name}</span></button>)}</div>}{createForm.komika_id && <p className="mt-1 text-xs font-semibold text-green-700">Terpilih: {createForm.full_name} — {createForm.stage_name}</p>}</div>}<div className="grid gap-4 sm:grid-cols-2"><div><label className="label-field" htmlFor="p-full-name">Nama lengkap</label><input id="p-full-name" required value={createForm.full_name} onChange={(event) => setCreateForm({ ...createForm, full_name: event.target.value })} className="input-field" /></div><div><label className="label-field" htmlFor="p-stage-name">Nama panggung</label><input id="p-stage-name" required value={createForm.stage_name} onChange={(event) => setCreateForm({ ...createForm, stage_name: event.target.value })} className="input-field" /></div><div><label className="label-field" htmlFor="p-community">Komunitas</label><input id="p-community" value={createForm.community} onChange={(event) => setCreateForm({ ...createForm, community: event.target.value })} className="input-field" /></div><div><label className="label-field" htmlFor="p-whatsapp">WhatsApp</label><input id="p-whatsapp" value={createForm.whatsapp} onChange={(event) => setCreateForm({ ...createForm, whatsapp: event.target.value })} className="input-field" /></div></div><div><label className="label-field" htmlFor="p-notes">Catatan</label><textarea id="p-notes" value={createForm.notes} onChange={(event) => setCreateForm({ ...createForm, notes: event.target.value })} className="input-field min-h-24" /></div><div className="flex gap-2"><button type="button" onClick={() => setCreateTarget(null)} className="btn-secondary flex-1">Batal</button><button type="submit" disabled={saving || (createMode === 'member' && !createForm.komika_id)} className="btn-primary flex-1">{saving ? 'Menyimpan...' : 'Simpan Pendaftar'}</button></div></form></Modal>}
-      {notice && <Modal open={Boolean(notice)} onClose={() => setNotice('')} title="Pendaftar" size="sm"><div className="space-y-4"><div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold leading-6 text-amber-800">{notice}</div><button type="button" onClick={() => setNotice('')} className="btn-primary w-full">Mengerti</button></div></Modal>}
+      {notice && <Modal open={Boolean(notice)} onClose={() => setNotice(null)} title="Pendaftar" size="sm"><div className="space-y-4"><div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold leading-6 text-amber-800">{notice.message}</div><button type="button" onClick={() => setNotice(null)} className="btn-primary w-full">Mengerti</button></div></Modal>}
       {pendingAction && <Modal open={Boolean(pendingAction)} onClose={() => setPendingAction(null)} title={pendingAction.type === 'delete' ? 'Hapus Pendaftar?' : 'Konfirmasi Aksi'} size="sm"><div className="space-y-4"><div className={`rounded-2xl border p-4 ${pendingAction.type === 'delete' ? 'border-red-200 bg-red-50' : pendingAction.type === 'reject' ? 'border-red-200 bg-red-50' : pendingAction.type === 'attend' ? 'border-emerald-200 bg-emerald-50' : 'border-blue-200 bg-blue-50'}`}><p className={`font-extrabold ${pendingAction.type === 'delete' || pendingAction.type === 'reject' ? 'text-red-800' : pendingAction.type === 'attend' ? 'text-emerald-800' : 'text-blue-800'}`}>{pendingAction.type === 'delete' ? 'Hapus Pendaftar' : pendingAction.type === 'reject' ? 'Pendaftar Tidak Hadir' : pendingAction.type === 'attend' ? 'Tandai Hadir' : 'Konfirmasi Pendaftar'}</p><p className={`mt-1 text-xs ${pendingAction.type === 'delete' || pendingAction.type === 'reject' ? 'text-red-700' : pendingAction.type === 'attend' ? 'text-emerald-700' : 'text-blue-700'}`}>Periksa kembali data sebelum melanjutkan aksi.</p></div><div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="grid gap-3 text-sm"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Nama Lengkap</p><p className="mt-1 font-bold text-slate-900">{pendingAction.row.full_name || '—'}</p></div><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Nama Panggung</p><p className="mt-1 font-semibold text-slate-800">{pendingAction.row.stage_name || '—'}</p></div><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Komunitas</p><p className={`mt-1 ${pendingAction.row.community ? 'font-semibold text-slate-800' : 'text-slate-400'}`}>{pendingAction.row.community || 'Belum diisi'}</p></div><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Catatan</p><p className={`mt-1 whitespace-pre-line leading-6 ${pendingAction.row.notes ? 'text-slate-800' : 'text-slate-400'}`}>{pendingAction.row.notes || 'Tidak ada catatan.'}</p></div></div><div className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-t border-slate-200 pt-3 text-xs"><span className="text-slate-500">Registration ID</span><strong className="text-right font-mono text-slate-800">{pendingAction.row.registration_id}</strong><span className="text-slate-500">Status</span><strong className="text-right text-slate-800">{pendingAction.row.status === 'pending' ? 'Menunggu' : pendingAction.row.status === 'confirmed' ? 'Terkonfirmasi' : 'Ditolak'}</strong><span className="text-slate-500">Kehadiran</span><strong className="text-right text-slate-800">{pendingAction.row.attendance_status === 'attended' ? 'Hadir' : 'Belum hadir'}</strong></div></div>{pendingAction.type !== 'delete' && pendingAction.row.whatsapp && <a href={buildWhatsAppLink(pendingAction.row.whatsapp, pendingAction.row.full_name, pendingOpenMic?.title ?? '', pendingOpenMic?.venue ?? '')} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-green-50 px-4 py-3 text-sm font-bold text-green-700 ring-1 ring-green-200"><MessageCircle className="h-4 w-4" /> Hubungi via WhatsApp</a>}<p className={`text-sm ${pendingAction.type === 'delete' || pendingAction.type === 'reject' ? 'font-semibold text-red-700' : pendingAction.type === 'attend' ? 'font-semibold text-emerald-700' : 'text-slate-600'}`}>{pendingAction.type === 'delete' ? 'Data pendaftar akan dihapus dan tidak dapat dikembalikan.' : `Yakin ingin ${pendingAction.type === 'confirm' ? 'mengonfirmasi' : pendingAction.type === 'reject' ? 'menolak' : 'menandai hadir'} pendaftar ini?`}</p><div className="flex gap-2"><button type="button" onClick={() => setPendingAction(null)} className="btn-secondary flex-1">Batal</button><button type="button" onClick={() => void performAction()} className={`flex-1 rounded-xl px-4 py-3 text-sm font-extrabold text-white ${pendingAction.type === 'delete' || pendingAction.type === 'reject' ? 'bg-red-600 hover:bg-red-700' : pendingAction.type === 'attend' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}>{pendingAction.type === 'delete' ? 'Ya, Hapus Pendaftar' : 'Ya, lanjutkan'}</button></div></div></Modal>}
     </div>
   );
@@ -2066,7 +2070,8 @@ function RegistrantsView({ openMicId, komika, onBack, initialRegistrationId }: {
   const [search, setSearch] = useState('');
   const [viewReg, setViewReg] = useState<OpenMicRegistration | null>(null);
   const [confirmReg, setConfirmReg] = useState<{ reg: OpenMicRegistration; action: 'confirmed' | 'rejected' } | null>(null);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState<{ message: string; variant: StatusBannerVariant } | null>(null);
+  const notify = (message: string, variant: StatusBannerVariant) => setNotice({ message, variant });
   const [attendanceSaving, setAttendanceSaving] = useState(false);
   const [manualMode, setManualMode] = useState<'general' | 'member'>('general');
   const [komikaSearch, setKomikaSearch] = useState('');
@@ -2084,7 +2089,7 @@ function RegistrantsView({ openMicId, komika, onBack, initialRegistrationId }: {
     if (initialRegistrationId) {
       const target = registrations.find((row) => row.id === initialRegistrationId);
       if (target) setViewReg(target);
-      else setNotice('Pendaftar Open Mic dari notifikasi sudah tidak tersedia atau tidak dapat diakses.');
+      else notify('Pendaftar Open Mic dari notifikasi sudah tidak tersedia atau tidak dapat diakses.', 'warning');
     }
     setLoading(false);
   }, [initialRegistrationId, openMicId]);
@@ -2100,19 +2105,19 @@ function RegistrantsView({ openMicId, komika, onBack, initialRegistrationId }: {
   }, [openMicId, load]);
 
   async function updateRegistration(id: string, status: 'confirmed' | 'rejected') {
-    setNotice('');
+    setNotice(null);
     const { error } = await supabase.from('open_mic_registrations').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
-    if (error) { setNotice('Perubahan gagal disimpan.'); return; }
+    if (error) { notify('Perubahan gagal disimpan.', 'error'); return; }
     setRows((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
-    setNotice(status === 'confirmed' ? 'Pendaftar dikonfirmasi.' : 'Pendaftar ditolak.');
+    notify(status === 'confirmed' ? 'Pendaftar dikonfirmasi.' : 'Pendaftar ditolak.', 'success');
   }
 
   async function updateAttendance(id: string, attendance_status: AttendanceStatus) {
     const { error } = await supabase.from('open_mic_registrations').update({ attendance_status, updated_at: new Date().toISOString() }).eq('id', id);
-    if (error) { setNotice('Status kehadiran gagal disimpan.'); return; }
+    if (error) { notify('Status kehadiran gagal disimpan.', 'error'); return; }
     setRows((prev) => prev.map((r) => r.id === id ? { ...r, attendance_status } : r));
     setViewReg((prev) => prev?.id === id ? { ...prev, attendance_status } : prev);
-    setNotice(attendance_status === 'attended' ? 'Pendaftar ditandai hadir.' : 'Pendaftar ditandai tidak hadir.');
+    notify(attendance_status === 'attended' ? 'Pendaftar ditandai hadir.' : 'Pendaftar ditandai tidak hadir.', 'success');
   }
 
   async function toggleAllAttendance() {
@@ -2123,10 +2128,10 @@ function RegistrantsView({ openMicId, komika, onBack, initialRegistrationId }: {
     setAttendanceSaving(true);
     const { error } = await supabase.from('open_mic_registrations').update({ attendance_status, updated_at: new Date().toISOString() }).eq('open_mic_id', openMicId).eq('status', 'confirmed');
     setAttendanceSaving(false);
-    if (error) { setNotice('Status kehadiran gagal diperbarui.'); return; }
+    if (error) { notify('Status kehadiran gagal diperbarui.', 'error'); return; }
     setRows((prev) => prev.map((row) => row.status === 'confirmed' ? { ...row, attendance_status } : row));
     setViewReg((prev) => prev && prev.status === 'confirmed' ? { ...prev, attendance_status } : prev);
-    setNotice(allAttended ? 'Tanda hadir semua dibatalkan.' : 'Semua pendaftar terkonfirmasi ditandai hadir.');
+    notify(allAttended ? 'Tanda hadir semua dibatalkan.' : 'Semua pendaftar terkonfirmasi ditandai hadir.', 'success');
   }
 
   async function addManualRegistration(event: React.FormEvent) {
@@ -2151,21 +2156,21 @@ function RegistrantsView({ openMicId, komika, onBack, initialRegistrationId }: {
       attendance_status: 'unmarked',
     });
     setManualSaving(false);
-    if (error) { setNotice('Pendaftar manual gagal ditambahkan.'); return; }
+    if (error) { notify('Pendaftar manual gagal ditambahkan.', 'error'); return; }
     setManualForm({ komika_id: '', full_name: '', stage_name: '', community: '', instagram: '', whatsapp: '', notes: '' });
     setManualMode('general');
     setKomikaSearch('');
     setKomikaSearchFocused(false);
     setManualOpen(false);
-    setNotice('Pendaftar manual berhasil ditambahkan.');
+    notify('Pendaftar manual berhasil ditambahkan.', 'success');
     await load();
   }
 
   async function deleteRegistration(id: string) {
     if (!window.confirm('Hapus pendaftar ini? Data pendaftar akan dihapus.')) return;
     const { error } = await supabase.from('open_mic_registrations').delete().eq('id', id);
-    if (error) { setNotice('Gagal menghapus pendaftar.'); return; }
-    setNotice('Pendaftar dihapus.');
+    if (error) { notify('Gagal menghapus pendaftar.', 'error'); return; }
+    notify('Pendaftar dihapus.', 'success');
     setViewReg(null);
     await load();
   }
@@ -2235,10 +2240,7 @@ function RegistrantsView({ openMicId, komika, onBack, initialRegistrationId }: {
       )}
 
       {notice && (
-        <div className="flex items-center justify-between rounded-xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 ring-1 ring-green-200">
-          <span>{notice}</span>
-          <button onClick={() => setNotice('')} className="text-green-600 hover:text-green-800"><X className="h-4 w-4" /></button>
-        </div>
+        <StatusBanner message={notice.message} variant={notice.variant} onDismiss={() => setNotice(null)} className="mb-4" />
       )}
 
       <div className="relative">
@@ -2622,7 +2624,8 @@ function EventParticipantsView({ eventId, onBack, initialParticipantId }: { even
   const [filter, setFilter] = useState<'all' | ApplicationStatus>('all');
   const [search, setSearch] = useState('');
   const [viewParticipant, setViewParticipant] = useState<EventParticipant | null>(null);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState<{ message: string; variant: StatusBannerVariant } | null>(null);
+  const notify = (message: string, variant: StatusBannerVariant) => setNotice({ message, variant });
   const [presented, setPresented] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
@@ -2637,7 +2640,7 @@ function EventParticipantsView({ eventId, onBack, initialParticipantId }: { even
     if (initialParticipantId) {
       const target = participants.find((row) => row.id === initialParticipantId);
       if (target) setViewParticipant(target);
-      else setNotice('Peserta event dari notifikasi sudah tidak tersedia atau tidak dapat diakses.');
+      else notify('Peserta event dari notifikasi sudah tidak tersedia atau tidak dapat diakses.', 'warning');
     }
     setLoading(false);
   }, [eventId, initialParticipantId]);
@@ -2646,19 +2649,19 @@ function EventParticipantsView({ eventId, onBack, initialParticipantId }: { even
 
   async function updateStatus(id: string, status: ApplicationStatus) {
     const { error } = await supabase.from('event_participants').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
-    if (error) { setNotice('Status pendaftar gagal diperbarui.'); return; }
+    if (error) { notify('Status pendaftar gagal diperbarui.', 'error'); return; }
     setRows((current) => current.map((row) => row.id === id ? { ...row, status } : row));
     setViewParticipant((current) => current?.id === id ? { ...current, status } : current);
-    setNotice(status === 'approved' ? 'Pendaftar disetujui.' : status === 'rejected' ? 'Pendaftar ditolak.' : 'Status dikembalikan ke pending.');
+    notify(status === 'approved' ? 'Pendaftar disetujui.' : status === 'rejected' ? 'Pendaftar ditolak.' : 'Status dikembalikan ke pending.', 'success');
   }
 
   async function deleteParticipant(participant: EventParticipant) {
     if (!window.confirm(`Hapus pendaftar ${participant.full_name}? Data ini tidak dapat dikembalikan.`)) return;
     const { error } = await supabase.from('event_participants').delete().eq('id', participant.id);
-    if (error) { setNotice('Pendaftar gagal dihapus.'); return; }
+    if (error) { notify('Pendaftar gagal dihapus.', 'error'); return; }
     setRows((current) => current.filter((row) => row.id !== participant.id));
     setViewParticipant(null);
-    setNotice('Pendaftar berhasil dihapus.');
+    notify('Pendaftar berhasil dihapus.', 'success');
   }
 
   const filtered = rows.filter((row) => filter === 'all' || row.status === filter).filter((row) => {
@@ -2680,7 +2683,7 @@ function EventParticipantsView({ eventId, onBack, initialParticipantId }: { even
         <div className="mt-4 flex justify-end"><button onClick={() => window.print()} className="btn-secondary !rounded-xl !px-3 !py-2.5 text-xs sm:text-sm"><Printer className="h-4 w-4" /> Print</button></div>
         <div className="mt-3 flex flex-wrap gap-4 text-sm"><span className="font-semibold text-slate-700">{counts.all} Peserta</span>{counts.pending > 0 && <span className="font-semibold text-amber-600">{counts.pending} Menunggu</span>}{counts.approved > 0 && <span className="font-semibold text-green-600">{counts.approved} Disetujui</span>}{counts.rejected > 0 && <span className="font-semibold text-red-600">{counts.rejected} Ditolak</span>}</div>
       </div>
-      {notice && <div className="flex items-center justify-between rounded-xl bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 ring-1 ring-green-200"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Tutup pesan"><X className="h-4 w-4" /></button></div>}
+      {notice && <StatusBanner message={notice.message} variant={notice.variant} onDismiss={() => setNotice(null)} className="mb-4" />}
       <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pl-10" placeholder="Cari nama atau nama panggung..." /></div>
       <div className="flex gap-2 overflow-x-auto pb-1">{tabs.map((tab) => <button key={tab.key} onClick={() => setFilter(tab.key)} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ${filter === tab.key ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{tab.label} <span className="ml-1 opacity-70">{counts[tab.key]}</span></button>)}</div>
       {loading && <div className="space-y-3">{[1, 2].map((item) => <div key={item} className="h-24 skeleton" />)}</div>}
@@ -3218,7 +3221,7 @@ function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit,
   );
 }
 
-function KomikaManagement({ rows, attendanceCounts, externalOpenMicCounts, loading, onReload, onNotice, onAdd, onEdit, onDelete }: { rows: Komika[]; attendanceCounts: Record<string, number>; externalOpenMicCounts: Record<string, number>; loading: boolean; onReload: () => Promise<void>; onNotice: (message: string) => void; onAdd: () => void; onEdit: (row: Komika) => void; onDelete: (id: string) => void }) {
+function KomikaManagement({ rows, attendanceCounts, externalOpenMicCounts, loading, onReload, onNotice, onAdd, onEdit, onDelete }: { rows: Komika[]; attendanceCounts: Record<string, number>; externalOpenMicCounts: Record<string, number>; loading: boolean; onReload: () => Promise<void>; onNotice: AdminNoticeHandler; onAdd: () => void; onEdit: (row: Komika) => void; onDelete: (id: string) => void }) {
   const [viewKomika, setViewKomika] = useState<Komika | null>(null);
   const [accountAction, setAccountAction] = useState<{ mode: 'create' | 'manage'; komika: Komika } | null>(null);
   const [accountEmail, setAccountEmail] = useState('');
@@ -3312,7 +3315,7 @@ function KomikaManagement({ rows, attendanceCounts, externalOpenMicCounts, loadi
     if (!accountAction) return;
     const { mode, komika } = accountAction;
     if (mode !== 'create' && !komika.user_id) {
-      onNotice('Profil Komika belum memiliki akun login.');
+      onNotice('Profil Komika belum memiliki akun login.', 'warning');
       return;
     }
 
@@ -3322,16 +3325,16 @@ function KomikaManagement({ rows, attendanceCounts, externalOpenMicCounts, loadi
         ? await supabase.functions.invoke('admin-create-member', { body: { email: accountEmail.trim(), password: accountPassword, komika_id: komika.id } })
         : await supabase.functions.invoke('admin-manage-members', { body: { action: 'reset-password', user_id: komika.user_id, password: accountPassword } });
       if (result.error || result.data?.error) {
-        onNotice(result.data?.error ?? (result.error ? await getFunctionErrorMessage(result.error, 'Aksi akun login gagal.') : 'Aksi akun login gagal.'));
+        onNotice(result.data?.error ?? (result.error ? await getFunctionErrorMessage(result.error, 'Aksi akun login gagal.') : 'Aksi akun login gagal.'), 'error');
         return;
       }
       setAccountAction(null);
       setAccountEmail('');
       setAccountPassword('');
       await onReload();
-      onNotice(mode === 'create' ? 'Akun login berhasil dibuat dan ditautkan ke Komika.' : 'Password akun login berhasil direset.');
+      onNotice(mode === 'create' ? 'Akun login berhasil dibuat dan ditautkan ke Komika.' : 'Password akun login berhasil direset.', 'success');
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : 'Aksi akun login gagal.');
+      onNotice(error instanceof Error ? error.message : 'Aksi akun login gagal.', 'error');
     } finally {
       setAccountActionSaving(false);
     }
@@ -3344,14 +3347,14 @@ function KomikaManagement({ rows, attendanceCounts, externalOpenMicCounts, loadi
     try {
       const { data, error } = await supabase.functions.invoke('admin-manage-members', { body: { action: 'delete', user_id: komika.user_id } });
       if (error || data?.error) {
-        onNotice(error?.message ?? data?.error ?? 'Akun login gagal dihapus.');
+        onNotice(error?.message ?? data?.error ?? 'Akun login gagal dihapus.', 'error');
         return;
       }
       setAccountAction(null);
       await onReload();
-      onNotice(`Akun login ${komika.stage_name} dihapus. Profil Komika tetap tersimpan.`);
+      onNotice(`Akun login ${komika.stage_name} dihapus. Profil Komika tetap tersimpan.`, 'success');
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : 'Akun login gagal dihapus.');
+      onNotice(error instanceof Error ? error.message : 'Akun login gagal dihapus.', 'error');
     } finally {
       setAccountActionSaving(false);
     }
@@ -3937,7 +3940,7 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete, a
   );
 }
 
-function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId, onReload, onNotice }: { openMics: OpenMic[]; komika: Komika[]; assignments: EvaluatorAssignment[]; currentUserId: string | null; onReload: () => Promise<void>; onNotice: (message: string) => void }) {
+function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId, onReload, onNotice }: { openMics: OpenMic[]; komika: Komika[]; assignments: EvaluatorAssignment[]; currentUserId: string | null; onReload: () => Promise<void>; onNotice: AdminNoticeHandler }) {
   const [openMicId, setOpenMicId] = useState<string>('');
   const [scope, setScope] = useState<'all' | 'selected'>('all');
   const [openMicSearch, setOpenMicSearch] = useState('');
@@ -3947,6 +3950,7 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
   const [evaluatorPickerOpen, setEvaluatorPickerOpen] = useState(false);
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [deleteAssignment, setDeleteAssignment] = useState<EvaluatorAssignment | null>(null);
   const [assignmentSearch, setAssignmentSearch] = useState('');
@@ -3970,8 +3974,9 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setFormError('');
     if ((scope === 'selected' && !openMicId.trim()) || !evaluatorUserId.trim()) {
-      onNotice(`${scope === 'selected' ? 'Pilih Open Mic dan ' : ''}nama evaluator.`);
+      setFormError(`${scope === 'selected' ? 'Pilih Open Mic dan ' : ''}nama evaluator.`);
       return;
     }
 
@@ -3985,7 +3990,7 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
     setSaving(false);
 
     if (error) {
-      onNotice('Gagal menambah assignment evaluator: ' + error.message);
+      onNotice('Gagal menambah assignment evaluator: ' + error.message, 'error');
       return;
     }
 
@@ -4002,18 +4007,18 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
     setEvaluatorPickerOpen(false);
     setStatus('active');
     setCreateModalOpen(false);
-    onNotice(roleError || roleData?.error ? 'Assignment tersimpan, tetapi role akun belum berubah. Coba ubah role dari menu Akun Member.' : 'Assignment evaluator berhasil disimpan dan akun ditetapkan sebagai Evaluator.');
+    onNotice(roleError || roleData?.error ? 'Assignment tersimpan, tetapi role akun belum berubah. Coba ubah role dari menu Akun Member.' : 'Assignment evaluator berhasil disimpan dan akun ditetapkan sebagai Evaluator.', roleError || roleData?.error ? 'warning' : 'success');
     await onReload();
   }
 
   async function handleDelete(id: string) {
     const { error } = await supabase.from('evaluator_assignments').delete().eq('id', id);
     if (error) {
-      onNotice('Gagal menghapus assignment evaluator.');
+      onNotice('Gagal menghapus assignment evaluator.', 'error');
       return;
     }
     setDeleteAssignment(null);
-    onNotice('Assignment evaluator berhasil dihapus.');
+    onNotice('Assignment evaluator berhasil dihapus.', 'success');
     await onReload();
   }
 
@@ -4021,10 +4026,10 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
     const nextStatus = assignment.status === 'active' ? 'inactive' : 'active';
     const { error } = await supabase.from('evaluator_assignments').update({ status: nextStatus, updated_at: new Date().toISOString() }).eq('id', assignment.id);
     if (error) {
-      onNotice('Gagal mengubah status assignment evaluator: ' + error.message);
+      onNotice('Gagal mengubah status assignment evaluator: ' + error.message, 'error');
       return;
     }
-    onNotice(`Assignment evaluator ${nextStatus === 'active' ? 'diaktifkan' : 'dinonaktifkan'}.`);
+    onNotice(`Assignment evaluator ${nextStatus === 'active' ? 'diaktifkan' : 'dinonaktifkan'}.`, 'success');
     await onReload();
   }
 
@@ -4034,6 +4039,7 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
 
       <Modal open={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Tambah Assignment Evaluator" titleEyebrow="Kelola Evaluator" size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
+        {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p>}
         <div className="grid gap-4 md:grid-cols-3">
           <div className="md:col-span-1">
             <span className="label-field">Cakupan assignment</span>
@@ -4272,6 +4278,7 @@ function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUn
       label: 'Pengaturan',
       items: [
         { label: 'Pengaturan Profil', icon: Settings, section: 'profile-settings' },
+        { label: 'Merch', icon: Store, section: 'merch' },
         { label: 'Settings', icon: Settings, section: 'settings' },
       ],
     },
@@ -4355,7 +4362,7 @@ function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUn
   );
 }
 
-function EventDocumentationPhotosModal({ event, onClose, onNotice, onSaved }: { event: EventItem | null; onClose: () => void; onNotice: (message: string) => void; onSaved: () => Promise<void> }) {
+function EventDocumentationPhotosModal({ event, onClose, onNotice, onSaved }: { event: EventItem | null; onClose: () => void; onNotice: AdminNoticeHandler; onSaved: () => Promise<void> }) {
   const [photos, setPhotos] = useState<string[]>(event?.documentation_photos ?? []);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -4376,14 +4383,14 @@ function EventDocumentationPhotosModal({ event, onClose, onNotice, onSaved }: { 
         updated_at: new Date().toISOString(),
       }).eq('id', event.id);
       if (error) throw error;
-      onNotice('Foto dokumentasi berhasil disimpan.');
+      onNotice('Foto dokumentasi berhasil disimpan.', 'success');
       await onSaved();
     } catch (saveError) {
       const detail = getErrorMessage(saveError);
       console.error('Foto dokumentasi event gagal disimpan.', saveError);
       const message = `Foto dokumentasi gagal disimpan: ${detail}`;
       setErrorMessage(message);
-      onNotice(message);
+      onNotice(message, 'error');
     } finally {
       setSaving(false);
     }
@@ -4428,7 +4435,7 @@ Peserta dan penonton wajib mengikuti ketentuan pendaftaran, tiket, dan akses mas
 8. Sanksi dan Keputusan Penyelenggara
 Pelanggaran terhadap peraturan dapat dikenai teguran atau tindakan lain yang sesuai dengan tingkat pelanggaran. Penyelenggara berwenang mengambil tindakan yang diperlukan demi kelancaran dan keselamatan acara.`;
 
-function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving, onClose, onSaving, onNotice, onPhotoSaved, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; venueHistory: OpenMic[]; eventVenueHistory: EventItem[]; saving: boolean; onClose: () => void; onSaving: (v: boolean) => void; onNotice: (message: string) => void; onPhotoSaved: () => Promise<void>; onSaved: () => void }) {
+function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving, onClose, onSaving, onNotice, onPhotoSaved, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; venueHistory: OpenMic[]; eventVenueHistory: EventItem[]; saving: boolean; onClose: () => void; onSaving: (v: boolean) => void; onNotice: AdminNoticeHandler; onPhotoSaved: () => Promise<void>; onSaved: () => void }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -4494,7 +4501,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
     closingForm.current = true;
     const cleanupFailures = kind === 'event' ? await cleanupStagedEventPosters() : [];
     if (cleanupFailures.length > 0) {
-      onNotice('Form ditutup, tetapi file poster sementara gagal dibersihkan. Periksa log admin untuk detailnya.');
+      onNotice('Form ditutup, tetapi file poster sementara gagal dibersihkan. Periksa log admin untuk detailnya.', 'warning');
     }
     onClose();
   }
@@ -4504,7 +4511,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
       const { error } = await supabase.from('komika').update({ photo: photoUrl, photo_card: cardPhotoUrl, updated_at: new Date().toISOString() }).eq('id', editing.id);
       if (error) throw error;
       await onPhotoSaved();
-      onNotice(photoUrl ? 'Foto Komika berhasil diperbarui.' : 'Foto Komika berhasil dihapus.');
+      onNotice(photoUrl ? 'Foto Komika berhasil diperbarui.' : 'Foto Komika berhasil dihapus.', 'success');
     }
     setForm((current) => ({ ...current, photo: photoUrl ?? '', photo_card: cardPhotoUrl ?? '' }));
   }
@@ -4617,7 +4624,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
       onSaving(false);
       await onSaved();
       if (posterCleanupWarning) {
-        onNotice('Event berhasil disimpan, tetapi ada file poster lama atau sementara yang gagal dibersihkan. Periksa log admin untuk detailnya.');
+        onNotice('Event berhasil disimpan, tetapi ada file poster lama atau sementara yang gagal dibersihkan. Periksa log admin untuk detailnya.', 'warning');
       }
     } catch (saveError) {
       onSaving(false);
@@ -4625,7 +4632,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
         console.error('Event berhasil disimpan, tetapi tampilan admin gagal diperbarui.', saveError);
         const message = 'Event berhasil disimpan, tetapi daftar Event gagal diperbarui. Muat ulang halaman untuk memeriksa hasilnya.';
         setErrorMessage(message);
-        onNotice(message);
+        onNotice(message, 'error');
         return;
       }
       let cleanupWarning = false;
@@ -4639,7 +4646,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
       console.error(`${isEdit ? 'Perubahan' : 'Event'} gagal disimpan.`, saveError);
       const message = `Event gagal disimpan: ${detail}${posterActivationUncertain ? ' File poster sementara dipertahankan karena status penyimpanan belum dapat dipastikan.' : cleanupWarning ? ' File poster sementara gagal dibersihkan; poster lama tetap dipertahankan.' : ''}`;
       setErrorMessage(message);
-      onNotice(message);
+      onNotice(message, eventRecordSaved ? 'warning' : 'error');
     } finally {
       submitInProgress.current = false;
     }
@@ -4845,7 +4852,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
   );
 }
 
-function EventPartnershipManagementModal({ event, partners, partnerships, onClose, onNotice, onReload }: { event: EventItem | null; partners: Partner[]; partnerships: EventPartnership[]; onClose: () => void; onNotice: (msg: string) => void; onReload: () => Promise<void> }) {
+function EventPartnershipManagementModal({ event, partners, partnerships, onClose, onNotice, onReload }: { event: EventItem | null; partners: Partner[]; partnerships: EventPartnership[]; onClose: () => void; onNotice: AdminNoticeHandler; onReload: () => Promise<void> }) {
   const [selectedPartnerId, setSelectedPartnerId] = useState('');
   const [role, setRole] = useState<'sponsor' | 'support' | 'media_partner'>('sponsor');
   const [notes, setNotes] = useState('');
@@ -4907,7 +4914,7 @@ function EventPartnershipManagementModal({ event, partners, partnerships, onClos
 
     setSaving(false);
     if (error) {
-      onNotice('Gagal menambahkan partner ke event.');
+      onNotice('Gagal menambahkan partner ke event.', 'error');
       return;
     }
     setSelectedPartnerId('');
@@ -4921,7 +4928,7 @@ function EventPartnershipManagementModal({ event, partners, partnerships, onClos
     setSupportItems([]);
     setSortOrder('0');
     await onReload();
-    onNotice('Partner event berhasil ditambahkan.');
+    onNotice('Partner event berhasil ditambahkan.', 'success');
   }
 
   function requestDeletePartnership(id: string) {
@@ -4934,13 +4941,13 @@ function EventPartnershipManagementModal({ event, partners, partnerships, onClos
     if (!deleteEntry) return;
     const { error } = await supabase.from('event_partnerships').delete().eq('id', deleteEntry.id);
     if (error) {
-      onNotice('Gagal menghapus hubungan partner.');
+      onNotice('Gagal menghapus hubungan partner.', 'error');
       setDeleteEntry(null);
       return;
     }
     await onReload();
     setDeleteEntry(null);
-    onNotice('Hubungan partner dihapus.');
+    onNotice('Hubungan partner dihapus.', 'success');
   }
 
   const availablePartners = partners.filter((partner) => partner.is_active && !currentPartnerships.some((relationship) => relationship.partner_id === partner.id));
@@ -5151,7 +5158,7 @@ function EventPartnershipManagementModal({ event, partners, partnerships, onClos
   );
 }
 
-function TicketManagementModal({ event, onClose, onNotice }: { event: EventItem | null; onClose: () => void; onNotice: (msg: string) => void }) {
+function TicketManagementModal({ event, onClose, onNotice }: { event: EventItem | null; onClose: () => void; onNotice: AdminNoticeHandler }) {
   const [tickets, setTickets] = useState<EventTicket[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingTicket, setEditingTicket] = useState<EventTicket | null>(null);
@@ -5171,15 +5178,15 @@ function TicketManagementModal({ event, onClose, onNotice }: { event: EventItem 
   async function deleteTicket(id: string) {
     if (!window.confirm('Hapus tiket ini?')) return;
     const { error } = await supabase.from('event_tickets').delete().eq('id', id);
-    if (error) { onNotice('Gagal menghapus tiket.'); return; }
-    onNotice('Tiket dihapus.');
+    if (error) { onNotice('Gagal menghapus tiket.', 'error'); return; }
+    onNotice('Tiket dihapus.', 'success');
     await load();
   }
 
   async function toggleTicketStatus(t: EventTicket) {
     const next = t.status === 'active' ? 'inactive' : 'active';
     const { error } = await supabase.from('event_tickets').update({ status: next, updated_at: new Date().toISOString() }).eq('id', t.id);
-    if (error) { onNotice('Gagal mengubah status tiket.'); return; }
+    if (error) { onNotice('Gagal mengubah status tiket.', 'error'); return; }
     await load();
   }
 
@@ -5236,7 +5243,7 @@ function TicketManagementModal({ event, onClose, onNotice }: { event: EventItem 
           event={event}
           ticket={editingTicket}
           onClose={() => { setShowForm(false); setEditingTicket(null); }}
-          onSaved={async () => { setShowForm(false); setEditingTicket(null); await load(); onNotice('Tiket berhasil disimpan.'); }}
+          onSaved={async () => { setShowForm(false); setEditingTicket(null); await load(); onNotice('Tiket berhasil disimpan.', 'success'); }}
         />
       )}
     </>
@@ -5385,7 +5392,11 @@ function TikTokSettingsIcon({ className }: { className?: string }) {
   );
 }
 
-function SettingsPanel({ settings, onSaved, onNotice }: { settings: SiteSettings; onSaved: () => void; onNotice: (msg: string) => void }) {
+function SettingsPanel({ settings, onSaved, onNotice }: { settings: SiteSettings; onSaved: () => void; onNotice: AdminNoticeHandler }) {
+  type SettingsFieldKey = Exclude<
+    keyof SiteSettings,
+    'id' | 'merch_banner_image_url' | 'merch_banner_title' | 'merch_banner_description' | 'merch_shop_url' | 'merch_banner_enabled'
+  >;
   const [form, setForm] = useState<SiteSettings>(settings);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -5396,15 +5407,21 @@ function SettingsPanel({ settings, onSaved, onNotice }: { settings: SiteSettings
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    const { error } = await supabase.from('site_settings').update(form).eq('id', 1);
+    const settingsForm: Partial<SiteSettings> = { ...form };
+    delete settingsForm.merch_banner_image_url;
+    delete settingsForm.merch_banner_title;
+    delete settingsForm.merch_banner_description;
+    delete settingsForm.merch_shop_url;
+    delete settingsForm.merch_banner_enabled;
+    const { error } = await supabase.from('site_settings').update(settingsForm).eq('id', 1);
     setSaving(false);
-    if (error) { onNotice('Gagal menyimpan pengaturan.'); return; }
+    if (error) { onNotice('Gagal menyimpan pengaturan.', 'error'); return; }
     setEditing(false);
-    onNotice('Pengaturan berhasil disimpan.');
+    onNotice('Pengaturan berhasil disimpan.', 'success');
     onSaved();
   }
 
-  const renderField = ([key, label, type]: readonly [keyof SiteSettings, string, 'text' | 'textarea' | 'digits'], icon?: React.ReactNode) => (
+  const renderField = ([key, label, type]: readonly [SettingsFieldKey, string, 'text' | 'textarea' | 'digits'], icon?: React.ReactNode) => (
     <div key={key}>
       <label className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold leading-5 text-slate-700" htmlFor={`settings-${key}`}>{icon && <span className="text-slate-500">{icon}</span>}{label}</label>
       {editing ? (

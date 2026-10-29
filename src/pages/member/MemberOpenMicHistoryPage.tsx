@@ -10,6 +10,7 @@ import { CommunityCombobox } from '@/components/ui/CommunityCombobox';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { MemberModal } from '@/components/member/MemberModal';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 
 type FormState = { title: string; organizer_name: string; event_date: string; event_time: string; venue: string; city: string; notes: string; proof_url: string };
 type PageMode = 'overview' | 'choices' | 'mc-kind' | 'internal-mics' | 'performance-form' | 'mc-external-form';
@@ -59,7 +60,7 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [operationNotice, setOperationNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   function navigateMode(nextMode: PageMode) {
@@ -126,7 +127,7 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
     }
     setSaving(true);
     setError('');
-    setSuccess('');
+    setOperationNotice(null);
     const submissionBase = {
       user_id: user.id,
       komika_id: komikaId,
@@ -149,14 +150,17 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
     const { error: saveError } = await supabase.from('member_open_mic_history_submissions').insert(submissionsToCreate);
     setSaving(false);
     if (saveError) {
-      setError(saveError.code === '23505' ? 'Riwayat dengan judul, tanggal, dan venue yang sama sudah pernah dikirim.' : 'Riwayat gagal dikirim. Coba lagi beberapa saat.');
+      setOperationNotice({
+        type: 'error',
+        message: saveError.code === '23505' ? 'Riwayat dengan judul, tanggal, dan venue yang sama sudah pernah dikirim.' : 'Riwayat gagal dikirim. Coba lagi beberapa saat.',
+      });
       return;
     }
     setForm(emptyForm);
     setMcExternalAlsoPerformed(false);
     setModeHistory([]);
     setMode('overview');
-    setSuccess(addPerformanceToExistingMc
+    setOperationNotice({ type: 'success', message: addPerformanceToExistingMc
       ? 'Riwayat tampil Open Mic berhasil ditambahkan dan menunggu review admin.'
       : creatingBothRoles
         ? 'Riwayat MC dan tampil berhasil dikirim untuk verifikasi masing-masing.'
@@ -164,7 +168,7 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
           ? 'Riwayat MC berhasil dikirim; riwayat tampil untuk acara ini sudah tercatat.'
         : activityType === 'mc_external'
           ? 'Riwayat MC berhasil dikirim dan menunggu verifikasi admin.'
-          : 'Riwayat berhasil dikirim dan menunggu review admin.');
+          : 'Riwayat berhasil dikirim dan menunggu review admin.' });
     await loadHistory();
   }
 
@@ -179,7 +183,7 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
     }
     setSaving(true);
     setError('');
-    setSuccess('');
+    setOperationNotice(null);
     const { error: saveError } = await supabase.from('member_open_mic_history_submissions').insert({
       user_id: user.id,
       komika_id: komikaId,
@@ -195,12 +199,15 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
     });
     setSaving(false);
     if (saveError) {
-      setError(saveError.code === '23505' ? 'Pengajuan MC untuk Open Mic ini sudah pernah dikirim.' : 'Pengajuan MC gagal dikirim. Coba lagi beberapa saat.');
+      setOperationNotice({
+        type: 'error',
+        message: saveError.code === '23505' ? 'Pengajuan MC untuk Open Mic ini sudah pernah dikirim.' : 'Pengajuan MC gagal dikirim. Coba lagi beberapa saat.',
+      });
       return;
     }
     setModeHistory([]);
     setMode('overview');
-    setSuccess('Riwayat MC berhasil dikirim dan menunggu verifikasi admin.');
+    setOperationNotice({ type: 'success', message: 'Riwayat MC berhasil dikirim dan menunggu verifikasi admin.' });
     await loadHistory();
   }
 
@@ -208,14 +215,14 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
     if (item.status !== 'rejected' || !window.confirm(`Hapus pengajuan "${item.title}"?`)) return;
     setDeletingId(item.id);
     setError('');
-    setSuccess('');
+    setOperationNotice(null);
     const { error: deleteError } = await supabase.from('member_open_mic_history_submissions').delete().eq('id', item.id).eq('user_id', user?.id ?? '');
     setDeletingId(null);
     if (deleteError) {
-      setError('Pengajuan gagal dihapus. Coba lagi beberapa saat.');
+      setOperationNotice({ type: 'error', message: 'Pengajuan gagal dihapus. Coba lagi beberapa saat.' });
       return;
     }
-    setSuccess('Pengajuan ditolak berhasil dihapus.');
+    setOperationNotice({ type: 'success', message: 'Pengajuan ditolak berhasil dihapus.' });
     await loadHistory();
   }
 
@@ -224,7 +231,7 @@ export function MemberOpenMicHistoryPage({ router }: { router: Router }) {
       <PageHeader router={router} title="Riwayat Open Mic" subtitle="Catat pengalaman tampil Open Mic dan pengalaman menjadi MC." />
       <div className="container-app py-6 sm:py-8">
         {error && <div role="alert" className="mb-4 flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
-        {success && <div role="status" className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{success}</div>}
+        {operationNotice && <StatusBanner message={operationNotice.message} variant={operationNotice.type} onDismiss={() => setOperationNotice(null)} className="mb-4" />}
         <div className="mx-auto max-w-2xl space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div><h2 className="text-lg font-extrabold text-slate-900">Aktivitas Open Mic</h2><p className="mt-0.5 text-xs text-slate-500">Riwayat tampil dan pengalaman MC tercatat terpisah.</p></div>

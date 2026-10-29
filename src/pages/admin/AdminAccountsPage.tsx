@@ -3,6 +3,7 @@ import { CalendarDays, Check, ChevronDown, Eye, EyeOff, KeyRound, Mail, Pencil, 
 import { supabase } from '@/lib/supabase';
 import { AdminModal as Modal } from '@/components/admin/AdminModal';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
+import type { StatusBannerVariant } from '@/components/ui/StatusBanner';
 
 type AdminRole = 'open_mic_admin' | 'event_admin' | 'admin_ticket' | 'admin_qr';
 interface AdminAccount { id: string; email?: string; full_name: string; whatsapp: string; created_at: string; active: boolean; role: AdminRole; scopes?: Array<{ event_id: string | null; scope_all: boolean }>; }
@@ -23,7 +24,7 @@ async function getFunctionErrorMessage(error: { message: string; context?: unkno
   return error.message || fallback;
 }
 
-export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotice: (message: string) => void; creatorRole?: 'admin' | 'event_admin' }) {
+export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotice: (message: string, variant: StatusBannerVariant) => void; creatorRole?: 'admin' | 'event_admin' }) {
   const [accounts, setAccounts] = useState<AdminAccount[]>([]);
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [email, setEmail] = useState('');
@@ -36,6 +37,7 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
   const [editWhatsapp, setEditWhatsapp] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editPasswordConfirm, setEditPasswordConfirm] = useState('');
+  const [passwordValidationError, setPasswordValidationError] = useState('');
   const [passwordChangeOpen, setPasswordChangeOpen] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [showEditPasswordConfirm, setShowEditPasswordConfirm] = useState(false);
@@ -69,7 +71,7 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
     setLoading(true);
     const { data, error } = await supabase.functions.invoke('admin-manage-admins', { body: { action: 'list' } });
     setLoading(false);
-    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Daftar akun admin gagal dimuat.'); return; }
+    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Daftar akun admin gagal dimuat.', 'error'); return; }
     setAccounts((data?.admins as AdminAccount[]) ?? []);
   }, [onNotice]);
 
@@ -128,8 +130,8 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
       } : {}),
     } });
     setSaving(false);
-    if (error) { onNotice(await getFunctionErrorMessage(error, 'Akun admin gagal dibuat.')); return; }
-    if (data?.error) { onNotice(data.error); return; }
+    if (error) { onNotice(await getFunctionErrorMessage(error, 'Akun admin gagal dibuat.'), 'error'); return; }
+    if (data?.error) { onNotice(data.error, 'error'); return; }
     setEmail('');
     setPassword('');
     setFullName('');
@@ -140,19 +142,20 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
     setEventDropdownOpen(false);
     setEventSearch('');
     setCreateModalOpen(false);
-    onNotice('Akun admin operasional berhasil dibuat.');
+    onNotice('Akun admin operasional berhasil dibuat.', 'success');
     await loadAccounts();
   }
 
   async function updateAccountProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editTarget) return;
+    setPasswordValidationError('');
     if (editPassword && editPassword.length < 6) {
-      onNotice('Password baru minimal 6 karakter.');
+      setPasswordValidationError('Password baru minimal 6 karakter.');
       return;
     }
     if (editPassword !== editPasswordConfirm) {
-      onNotice('Konfirmasi password baru tidak sama.');
+      setPasswordValidationError('Konfirmasi password baru tidak sama.');
       return;
     }
     setProfileSaving(true);
@@ -164,7 +167,7 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
       ...(editPassword ? { password: editPassword } : {}),
     } });
     setProfileSaving(false);
-    if (error || data?.error) { onNotice(error ? await getFunctionErrorMessage(error, 'Profil akun gagal diperbarui.') : data?.error); return; }
+    if (error || data?.error) { onNotice(error ? await getFunctionErrorMessage(error, 'Profil akun gagal diperbarui.') : data?.error, 'error'); return; }
     setAccounts((current) => current.map((account) => account.id === editTarget.id
       ? { ...account, full_name: data.user.full_name, whatsapp: data.user.whatsapp }
       : account));
@@ -174,14 +177,14 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
     setPasswordChangeOpen(false);
     setShowEditPassword(false);
     setShowEditPasswordConfirm(false);
-    onNotice(editPassword ? 'Profil dan password admin berhasil diperbarui.' : 'Nama dan nomor handphone admin berhasil diperbarui.');
+    onNotice(editPassword ? 'Profil dan password admin berhasil diperbarui.' : 'Nama dan nomor handphone admin berhasil diperbarui.', 'success');
   }
 
   async function toggleAccount(account: AdminAccount) {
     setBusyId(account.id);
     const { data, error } = await supabase.functions.invoke('admin-manage-admins', { body: { action: 'toggle', user_id: account.id, active: !account.active } });
     setBusyId(null);
-    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Status akun gagal diubah.'); return; }
+    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Status akun gagal diubah.', 'error'); return; }
     setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, active: Boolean(data?.user?.active) } : item));
   }
 
@@ -189,10 +192,10 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
     setBusyId(account.id);
     const { data, error } = await supabase.functions.invoke('admin-manage-admins', { body: { action: 'delete', user_id: account.id } });
     setBusyId(null);
-    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Akun admin gagal dihapus.'); return; }
+    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Akun admin gagal dihapus.', 'error'); return; }
     setAccounts((current) => current.filter((item) => item.id !== account.id));
     setDeleteTarget(null);
-    onNotice('Akun admin berhasil dihapus.');
+    onNotice('Akun admin berhasil dihapus.', 'success');
   }
 
   return (
@@ -333,6 +336,7 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><KeyRound className="h-4 w-4" /></span>
               <div><h4 className="text-sm font-extrabold text-slate-900">Ganti Password <span className="font-semibold text-slate-500">(Opsional)</span></h4><p className="mt-0.5 text-xs leading-5 text-slate-500">Isi hanya jika ingin membuat password baru. Minimal 6 karakter.</p></div>
             </div>
+            {passwordValidationError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{passwordValidationError}</p>}
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="label-field" htmlFor="edit-admin-password">Password Baru</label>

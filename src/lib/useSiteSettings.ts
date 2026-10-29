@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SiteSettings } from './types';
 import { supabase } from './supabase';
 
@@ -26,21 +26,31 @@ const FALLBACK_SETTINGS: SiteSettings = {
   affiliation_name: 'Standupindo',
   affiliation_website: 'https://standupindo.id/',
   affiliation_logo_url: '/assets/images/image.png',
+  merch_banner_image_url: null,
+  merch_banner_title: '',
+  merch_banner_description: '',
+  merch_shop_url: '',
+  merch_banner_enabled: false,
 };
 
 export function useSiteSettings() {
   const [settings, setSettings] = useState<SiteSettings>(FALLBACK_SETTINGS);
   const [loading, setLoading] = useState(true);
+  const mounted = useRef(false);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      const { data } = await supabase.from('site_settings').select('*').eq('id', 1).maybeSingle();
-      if (active && data) setSettings({ ...FALLBACK_SETTINGS, ...(data as Partial<SiteSettings>) });
-      if (active) setLoading(false);
-    })();
-    return () => { active = false; };
+    mounted.current = true;
+    return () => { mounted.current = false; };
   }, []);
 
-  return { settings, loading };
+  const refreshSettings = useCallback(async () => {
+    const { data, error } = await supabase.from('site_settings').select('*').eq('id', 1).maybeSingle();
+    if (error) console.error('Gagal memuat pengaturan website.', error);
+    if (mounted.current && data) setSettings({ ...FALLBACK_SETTINGS, ...(data as Partial<SiteSettings>) });
+    if (mounted.current) setLoading(false);
+  }, []);
+
+  useEffect(() => { void refreshSettings(); }, [refreshSettings]);
+
+  return { settings, loading, refreshSettings };
 }

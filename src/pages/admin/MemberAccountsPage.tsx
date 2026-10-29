@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { getFunctionErrorMessage } from '@/lib/function-errors';
 import { AdminModal as Modal } from '@/components/admin/AdminModal';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
+import type { StatusBannerVariant } from '@/components/ui/StatusBanner';
 
 interface MemberAccount {
   id: string;
@@ -16,7 +17,7 @@ interface MemberAccount {
   profile?: { stage_name: string; full_name: string; photo: string | null; status: string } | null;
 }
 
-export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onNotice: (message: string) => void }) {
+export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onNotice: (message: string, variant: StatusBannerVariant) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -36,6 +37,7 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
   const [editTarget, setEditTarget] = useState<MemberAccount | null>(null);
   const [resetPassword, setResetPassword] = useState('');
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState('');
+  const [resetPasswordError, setResetPasswordError] = useState('');
   const [passwordChangeOpen, setPasswordChangeOpen] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showResetPasswordConfirm, setShowResetPasswordConfirm] = useState(false);
@@ -52,7 +54,7 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
     setAccountsLoading(true);
     const { data, error } = await supabase.functions.invoke('admin-manage-members', { body: { action: 'list' } });
     setAccountsLoading(false);
-    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Daftar akun member gagal dimuat.'); return; }
+    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Daftar akun member gagal dimuat.', 'error'); return; }
     setAccounts((data?.members as MemberAccount[]) ?? []);
   }, [onNotice]);
 
@@ -60,9 +62,9 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
     setTogglingId(account.id);
     const { data, error } = await supabase.functions.invoke('admin-manage-members', { body: { action: 'toggle', user_id: account.id, active: !account.active } });
     setTogglingId(null);
-    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Status akun gagal diubah.'); return; }
+    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Status akun gagal diubah.', 'error'); return; }
     setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, active: Boolean(data?.user?.active) } : item));
-    onNotice(`Akun ${account.email ?? 'member'} sekarang ${data?.user?.active ? 'aktif' : 'nonaktif'}.`);
+    onNotice(`Akun ${account.email ?? 'member'} sekarang ${data?.user?.active ? 'aktif' : 'nonaktif'}.`, 'success');
   }
 
   async function deleteAccount(account: MemberAccount) {
@@ -70,10 +72,10 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
     setTogglingId(account.id);
     const { data, error } = await supabase.functions.invoke('admin-manage-members', { body: { action: 'delete', user_id: account.id } });
     setTogglingId(null);
-    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Akun member gagal dihapus.'); return; }
+    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Akun member gagal dihapus.', 'error'); return; }
     setAccounts((current) => current.filter((item) => item.id !== account.id));
     setDeleteTarget(null);
-    onNotice(`Akun ${label} berhasil dihapus.`);
+    onNotice(`Akun ${label} berhasil dihapus.`, 'success');
   }
 
   async function updateRole(account: MemberAccount, role: 'member' | 'evaluator') {
@@ -81,30 +83,31 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
     setRoleUpdatingId(account.id);
     const { data, error } = await supabase.functions.invoke('admin-manage-members', { body: { action: 'update-role', user_id: account.id, role } });
     setRoleUpdatingId(null);
-    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Peran akun gagal diubah.'); return; }
+    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Peran akun gagal diubah.', 'error'); return; }
     const updatedRole = data?.user?.role === 'evaluator' ? 'evaluator' : 'member';
     setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, role: updatedRole, evaluator_enabled: updatedRole === 'evaluator' } : item));
     setEditTarget((current) => current?.id === account.id ? { ...current, role: updatedRole, evaluator_enabled: updatedRole === 'evaluator' } : current);
     setRoleDraft(updatedRole);
-    onNotice(`${account.email ?? 'Akun member'} sekarang memiliki role ${role === 'evaluator' ? 'Member + Evaluator' : 'Member'}.`);
+    onNotice(`${account.email ?? 'Akun member'} sekarang memiliki role ${role === 'evaluator' ? 'Member + Evaluator' : 'Member'}.`, 'success');
   }
 
   async function resetAccountPassword() {
     if (!editTarget || resetPassword.length < 6) return;
+    setResetPasswordError('');
     if (resetPassword !== resetPasswordConfirm) {
-      onNotice('Konfirmasi password baru tidak sama.');
+      setResetPasswordError('Konfirmasi password baru tidak sama.');
       return;
     }
     setResetSaving(true);
     const { data, error } = await supabase.functions.invoke('admin-manage-members', { body: { action: 'reset-password', user_id: editTarget.id, password: resetPassword } });
     setResetSaving(false);
-    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Password akun gagal direset.'); return; }
+    if (error || data?.error) { onNotice(error?.message ?? data?.error ?? 'Password akun gagal direset.', 'error'); return; }
     setResetPassword('');
     setResetPasswordConfirm('');
     setPasswordChangeOpen(false);
     setShowResetPassword(false);
     setShowResetPasswordConfirm(false);
-    onNotice(`Password ${editTarget.email ?? 'akun member'} berhasil diperbarui.`);
+    onNotice(`Password ${editTarget.email ?? 'akun member'} berhasil diperbarui.`, 'success');
   }
 
   function openEditAccount(account: MemberAccount) {
@@ -141,7 +144,7 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
 
     setSaving(false);
     if (error || data?.error) {
-      onNotice(data?.error ?? (error ? await getFunctionErrorMessage(error, 'Akun member gagal dibuat.') : 'Akun member gagal dibuat.'));
+      onNotice(data?.error ?? (error ? await getFunctionErrorMessage(error, 'Akun member gagal dibuat.') : 'Akun member gagal dibuat.'), 'error');
       return;
     }
 
@@ -152,7 +155,7 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
     setKomikaSearch('');
     setKomikaPickerOpen(false);
     setCreateModalOpen(false);
-    onNotice('Akun member berhasil dibuat dan siap digunakan.');
+    onNotice('Akun member berhasil dibuat dan siap digunakan.', 'success');
     await loadAccounts();
   }
 
@@ -304,6 +307,7 @@ export function MemberAccountsPage({ komika, onNotice }: { komika: Komika[]; onN
               <div><label className="label-field" htmlFor="member-reset-password">Password Baru</label><div className="relative"><input id="member-reset-password" type={showResetPassword ? 'text' : 'password'} value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} className="input-field !pr-12" placeholder="Minimal 6 karakter" minLength={6} autoComplete="new-password" /><button type="button" onClick={() => setShowResetPassword((visible) => !visible)} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-blue-700" aria-label={showResetPassword ? 'Sembunyikan password baru' : 'Tampilkan password baru'}>{showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
               <div><label className="label-field" htmlFor="member-reset-password-confirm">Konfirmasi Password Baru</label><div className="relative"><input id="member-reset-password-confirm" type={showResetPasswordConfirm ? 'text' : 'password'} value={resetPasswordConfirm} onChange={(event) => setResetPasswordConfirm(event.target.value)} className="input-field !pr-12" placeholder="Ulangi password baru" minLength={6} autoComplete="new-password" /><button type="button" onClick={() => setShowResetPasswordConfirm((visible) => !visible)} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-blue-700" aria-label={showResetPasswordConfirm ? 'Sembunyikan konfirmasi password' : 'Tampilkan konfirmasi password'}>{showResetPasswordConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
             </div>
+            {resetPasswordError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{resetPasswordError}</p>}
             <button type="button" onClick={() => void resetAccountPassword()} disabled={resetPassword.length < 6 || resetPassword !== resetPasswordConfirm || resetSaving} className="btn-primary min-h-11 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50">{resetSaving ? 'Menyimpan...' : 'Simpan Password Baru'}</button>
           </section>}
           <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-600">Role mengatur akses Evaluator. Profil Komika dan riwayat pendaftaran tidak berubah dari menu ini.</p>

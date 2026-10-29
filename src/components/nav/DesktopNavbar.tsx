@@ -1,6 +1,7 @@
-import { Home, Mic, CalendarDays, Drama, CircleHelp, Menu } from 'lucide-react';
+import { Home, Mic, CalendarDays, Drama, CircleHelp, Menu, Store } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { SiteSettings } from '@/lib/types';
+import { getPublicMerchConfig } from '@/lib/merch';
 
 const LINKS = [
   { to: '/', label: 'Home', icon: Home },
@@ -13,6 +14,8 @@ const LINKS = [
 export function DesktopNavbar({ router, settings }: { router: Router; settings: SiteSettings }) {
   const isActive = (to: string) =>
     to === '/' ? router.path === '/' : router.path.startsWith(to);
+  const isGuideActive = router.path === '/panduan';
+  const merchConfig = getPublicMerchConfig(settings);
 
   return (
     <header className="relative sticky top-0 z-40 overflow-hidden border-b border-blue-900/40 bg-blue-700/95 text-white shadow-[0_4px_20px_rgba(15,23,42,0.16)] backdrop-blur-md before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-gradient-to-r before:from-sky-300 before:via-white before:to-yellow-300">
@@ -53,14 +56,30 @@ export function DesktopNavbar({ router, settings }: { router: Router; settings: 
           <Mic className="h-4 w-4" /> Daftar Open Mic
         </button>
 
-        <button
-          onClick={() => router.navigate('/panduan')}
-          className="flex h-10 w-10 shrink-0 items-center justify-center text-white transition hover:text-blue-100 focus-visible:rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 md:hidden"
-          aria-label="Panduan dan FAQ"
-          title="Panduan dan FAQ"
-        >
-          <CircleHelp className="h-6 w-6" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          {merchConfig && (
+            <a
+              href={merchConfig.shopUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-merch-store-trigger
+              className="flex h-10 w-10 items-center justify-center rounded-full text-white transition hover:bg-white/15 hover:text-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+              aria-label="Buka toko Merch Standupindo Cilegon"
+              title="Toko Merch Standupindo Cilegon"
+            >
+              <Store className="h-5 w-5" />
+            </a>
+          )}
+          <button
+            onClick={() => router.navigate('/panduan')}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${isGuideActive ? 'bg-white text-blue-700 shadow-[0_2px_10px_rgba(15,23,42,0.22)] ring-2 ring-blue-200/80' : 'text-white hover:bg-white/15 hover:text-blue-100'}`}
+            aria-label="Panduan dan FAQ"
+            title="Panduan dan FAQ"
+            aria-current={isGuideActive ? 'page' : undefined}
+          >
+            <CircleHelp className={`h-6 w-6 transition-transform duration-200 ${isGuideActive ? 'scale-110' : ''}`} />
+          </button>
+        </div>
       </div>
     </header>
   );

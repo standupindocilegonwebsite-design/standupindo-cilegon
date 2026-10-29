@@ -6,6 +6,7 @@ import { ImageUpload } from '@/components/ui/ImageUpload';
 import { PasswordChangeConfirmationModal } from '@/components/ui/PasswordChangeConfirmationModal';
 import { PushNotificationSettings } from '@/components/PushNotificationSettings';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
+import type { StatusBannerVariant } from '@/components/ui/StatusBanner';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin Penuh / Superadmin',
@@ -20,7 +21,7 @@ function getAdminRoleLabels(roles: string[]) {
   return labels.length ? labels : ['Admin'];
 }
 
-export function AdminProfileSettingsPage({ onNotice, onBack }: { onNotice: (message: string) => void; onBack?: () => void }) {
+export function AdminProfileSettingsPage({ onNotice, onBack }: { onNotice: (message: string, variant: StatusBannerVariant) => void; onBack?: () => void }) {
   const { user, roles } = useAuth();
   const [name, setName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
@@ -29,6 +30,8 @@ export function AdminProfileSettingsPage({ onNotice, onBack }: { onNotice: (mess
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [profileFormError, setProfileFormError] = useState('');
+  const [passwordFormError, setPasswordFormError] = useState('');
   const [profileEditing, setProfileEditing] = useState(false);
   const [passwordEditing, setPasswordEditing] = useState(false);
   const [passwordConfirmationOpen, setPasswordConfirmationOpen] = useState(false);
@@ -51,8 +54,9 @@ export function AdminProfileSettingsPage({ onNotice, onBack }: { onNotice: (mess
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setProfileFormError('');
     if (!name.trim()) {
-      onNotice('Nama lengkap wajib diisi.');
+      setProfileFormError('Nama lengkap wajib diisi.');
       return;
     }
     setSavingProfile(true);
@@ -65,21 +69,22 @@ export function AdminProfileSettingsPage({ onNotice, onBack }: { onNotice: (mess
     });
     setSavingProfile(false);
     if (error) {
-      onNotice(`Profil gagal disimpan: ${error.message}`);
+      onNotice(`Profil gagal disimpan: ${error.message}`, 'error');
       return;
     }
     setProfileEditing(false);
-    onNotice('Profil admin berhasil diperbarui.');
+    onNotice('Profil admin berhasil diperbarui.', 'success');
   }
 
   function requestPasswordChange(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setPasswordFormError('');
     if (nextPassword.length < 6) {
-      onNotice('Password baru minimal 6 karakter.');
+      setPasswordFormError('Password baru minimal 6 karakter.');
       return;
     }
     if (nextPassword !== confirmPassword) {
-      onNotice('Konfirmasi password belum sama.');
+      setPasswordFormError('Konfirmasi password belum sama.');
       return;
     }
     setPasswordConfirmationOpen(true);
@@ -91,13 +96,13 @@ export function AdminProfileSettingsPage({ onNotice, onBack }: { onNotice: (mess
     setSavingPassword(false);
     setPasswordConfirmationOpen(false);
     if (error) {
-      onNotice(`Password gagal diubah: ${error.message}`);
+      onNotice(`Password gagal diubah: ${error.message}`, 'error');
       return;
     }
     setNextPassword('');
     setConfirmPassword('');
     setPasswordEditing(false);
-    onNotice('Password admin berhasil diubah.');
+    onNotice('Password admin berhasil diubah.', 'success');
   }
 
   return (
@@ -172,6 +177,7 @@ export function AdminProfileSettingsPage({ onNotice, onBack }: { onNotice: (mess
               </div>
             </div>
           </div>
+          {profileEditing && profileFormError && <p role="alert" className="mx-4 mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 sm:mx-5">{profileFormError}</p>}
           {profileEditing && <div className="flex flex-col gap-2 px-4 pb-4 sm:flex-row sm:justify-end sm:px-5 sm:pb-5">
             <button type="button" onClick={cancelProfileEdit} disabled={savingProfile} className="btn-secondary min-h-11 w-full sm:w-auto">Batal</button>
             <button type="submit" disabled={savingProfile} className="btn-primary min-h-11 w-full sm:w-auto"><Save className="h-4 w-4" />{savingProfile ? 'Menyimpan...' : 'Simpan Profil'}</button>
@@ -189,6 +195,7 @@ export function AdminProfileSettingsPage({ onNotice, onBack }: { onNotice: (mess
           </div>
           {passwordEditing && <form onSubmit={requestPasswordChange} className="mt-4 space-y-3 border-t border-slate-200 pt-4">
             <p className="text-xs text-slate-600">Masukkan password baru minimal 6 karakter. Pembaruan menggunakan sesi login akun yang sedang aktif.</p>
+            {passwordFormError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{passwordFormError}</p>}
             <div className="grid gap-3 sm:grid-cols-2">
               {([
                 { id: 'admin-next-password', label: 'Password Baru', field: 'next' as const, value: nextPassword, setValue: setNextPassword, autoComplete: 'new-password' },

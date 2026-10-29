@@ -115,7 +115,7 @@ function RouteLoading() {
   return <div className="flex min-h-48 items-center justify-center text-sm text-slate-500" role="status">Memuat halaman...</div>;
 }
 
-function ProtectedAdmin({ router, settings }: { router: Router; settings: ReturnType<typeof useSiteSettings>['settings'] }) {
+function ProtectedAdmin({ router, settings, onSettingsUpdated }: { router: Router; settings: ReturnType<typeof useSiteSettings>['settings']; onSettingsUpdated: () => Promise<void> }) {
   const { session, loading, isAdminApp, deviceSwitchPending } = useAuth();
   const [authWaitExpired, setAuthWaitExpired] = useState(false);
 
@@ -139,7 +139,7 @@ function ProtectedAdmin({ router, settings }: { router: Router; settings: Return
   if (!session || !isAdminApp) {
     return <Suspense fallback={<RouteLoading />}><AdminLoginPage router={router} /></Suspense>;
   }
-  return <Suspense fallback={<RouteLoading />}><AdminPage router={router} settings={settings} /></Suspense>;
+  return <Suspense fallback={<RouteLoading />}><AdminPage router={router} settings={settings} onSettingsUpdated={onSettingsUpdated} /></Suspense>;
 }
 
 function ProtectedMember({ router }: { router: Router }) {
@@ -228,11 +228,11 @@ function ProtectedEvaluator({ router }: { router: Router }) {
 
 function RoutedApp() {
   const router = useRouter();
-  const { settings } = useSiteSettings();
+  const { settings, refreshSettings } = useSiteSettings();
   const { session, loading, isMember } = useAuth();
   useEffect(() => { updateSeo(router.path, settings.site_name); }, [router.path, settings.site_name]);
 
-  if (router.path.startsWith('/admin')) return <ProtectedAdmin router={router} settings={settings} />;
+  if (router.path.startsWith('/admin')) return <ProtectedAdmin router={router} settings={settings} onSettingsUpdated={refreshSettings} />;
   if (router.path === '/member/login' || router.path.startsWith('/member')) {
     const memberContent = router.path === '/member/login'
       ? (loading

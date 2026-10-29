@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, ChevronRight, Save, Search, Sparkles, UserRound, X } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Save, Search, Sparkles, UserRound } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import type { Evaluation, OpenMic, OpenMicRegistration } from '@/lib/types';
@@ -110,12 +111,6 @@ export function EvaluatorEvaluationPage({ router, openMicId }: { router: Router;
       if (row) setForm({ material_score: row.material_score?.toString() ?? '', punchline_score: row.punchline_score?.toString() ?? '', delivery_score: row.delivery_score?.toString() ?? '', timing_score: row.timing_score?.toString() ?? '', stage_presence_score: row.stage_presence_score?.toString() ?? '', crowd_interaction_score: row.crowd_interaction_score?.toString() ?? '', strengths: row.strengths ?? '', improvements: row.improvements ?? '', notes: row.notes ?? '' });
     })();
   }, [openMicId, selectedPerformerId, user?.id]);
-
-  useEffect(() => {
-    if (!notice) return undefined;
-    const timeout = window.setTimeout(() => setNotice(null), 4200);
-    return () => window.clearTimeout(timeout);
-  }, [notice]);
 
   const selectedPerformer = useMemo(() => performers.find((performer) => performer.id === selectedPerformerId) ?? performers[0] ?? null, [performers, selectedPerformerId]);
   const filteredPerformers = useMemo(() => performers.filter((performer) => `${performer.stage_name} ${performer.full_name} ${performer.community ?? ''}`.toLowerCase().includes(performerSearch.trim().toLowerCase())), [performers, performerSearch]);
@@ -312,15 +307,7 @@ export function EvaluatorEvaluationPage({ router, openMicId }: { router: Router;
           )}
         </div>
       </div>
-      {notice && (
-        <div className="fixed inset-x-4 bottom-4 z-[220] sm:left-auto sm:right-5 sm:max-w-md" role="status" aria-live="polite">
-          <div className={`flex items-start gap-3 rounded-2xl border px-4 py-3.5 shadow-[0_16px_36px_rgba(15,23,42,0.18)] backdrop-blur-md ${notice.type === 'success' ? 'border-emerald-200 bg-emerald-600 text-white' : 'border-red-200 bg-red-600 text-white'}`}>
-            {notice.type === 'success' ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /> : <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />}
-            <p className="min-w-0 flex-1 text-sm font-semibold leading-5">{notice.message}</p>
-            <button type="button" onClick={() => setNotice(null)} className="rounded-lg p-1 text-white/80 transition hover:bg-white/15 hover:text-white" aria-label="Tutup notifikasi"><X className="h-4 w-4" /></button>
-          </div>
-        </div>
-      )}
+      {notice && <StatusBanner message={notice.message} variant={notice.type} onDismiss={() => setNotice(null)} className="fixed inset-x-4 bottom-4 z-[220] sm:left-auto sm:right-5 sm:max-w-md" />}
     </div>
   );
 }

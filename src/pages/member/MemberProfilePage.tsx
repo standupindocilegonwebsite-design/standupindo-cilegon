@@ -8,6 +8,7 @@ import type { Komika } from '@/lib/types';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { SocialIconButton } from '@/components/ui/SocialIconButton';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 import { safeExternalUrl } from '@/lib/format';
 import { MemberStageExperienceModal } from '@/pages/member/MemberStageExperienceModal';
 import { MemberStageJourneySummary } from '@/pages/member/MemberStageJourneySummary';
@@ -27,7 +28,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
-  const [profileNotice, setProfileNotice] = useState('');
+  const [profileNotice, setProfileNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState(false);
   const [stageExperienceOpen, setStageExperienceOpen] = useState(false);
   const [journeyRefresh, setJourneyRefresh] = useState(0);
@@ -126,9 +127,9 @@ export function MemberProfilePage({ router }: { router: Router }) {
     if (!error) {
       setProfile((current) => current ? { ...current, specialties: payload.specialties } : current);
       setEditingProfile(false);
-      setProfileNotice('Profil berhasil disimpan.');
+      setProfileNotice({ type: 'success', message: 'Profil berhasil disimpan.' });
     } else {
-      window.alert('Gagal menyimpan profil: ' + error.message);
+      setProfileNotice({ type: 'error', message: `Gagal menyimpan profil: ${error.message}` });
     }
   }
 
@@ -146,7 +147,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
 
     setForm((current) => ({ ...current, photo: photoUrl ?? '' }));
     setProfile((current) => current ? { ...current, photo: photoUrl, photo_card: cardPhotoUrl } : current);
-    setProfileNotice(photoUrl ? 'Foto profil berhasil disimpan.' : 'Foto profil berhasil dihapus.');
+    setProfileNotice({ type: 'success', message: photoUrl ? 'Foto profil berhasil disimpan.' : 'Foto profil berhasil dihapus.' });
   }
 
   function cancelEditing() {
@@ -229,7 +230,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
                       <X className="h-4 w-4" /> Batal
                     </button>
                   ) : (
-                    <button type="button" onClick={() => { setProfileNotice(''); setEditingProfile(true); }} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 transition hover:bg-blue-50 active:scale-95" aria-label="Edit profil" title="Edit profil">
+                    <button type="button" onClick={() => { setProfileNotice(null); setEditingProfile(true); }} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 transition hover:bg-blue-50 active:scale-95" aria-label="Edit profil" title="Edit profil">
                       <Pencil className="h-4 w-4" />
                     </button>
                   )}
@@ -243,7 +244,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
             </div>
           </div>
 
-          {profileNotice && <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{profileNotice}</div>}
+          {profileNotice && <StatusBanner message={profileNotice.message} variant={profileNotice.type} onDismiss={() => setProfileNotice(null)} />}
 
           {!editingProfile && <MemberStageJourneySummary
             key={journeyRefresh}

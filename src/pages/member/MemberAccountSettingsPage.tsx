@@ -4,6 +4,7 @@ import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
 import { PasswordChangeConfirmationModal } from '@/components/ui/PasswordChangeConfirmationModal';
 import { PushNotificationSettings } from '@/components/PushNotificationSettings';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
@@ -11,15 +12,17 @@ export function MemberAccountSettingsPage({ router }: { router: Router }) {
   const { user, signIn } = useAuth();
   const [form, setForm] = useState({ current: '', next: '', confirm: '' });
   const [visible, setVisible] = useState({ current: false, next: false, confirm: false });
-  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const [formError, setFormError] = useState('');
+  const [operationNotice, setOperationNotice] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [passwordConfirmationOpen, setPasswordConfirmationOpen] = useState(false);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage(null);
-    if (form.next.length < 6) { setMessage({ type: 'error', text: 'Password baru minimal 6 karakter.' }); return; }
-    if (form.next !== form.confirm) { setMessage({ type: 'error', text: 'Konfirmasi password baru belum sama.' }); return; }
+    setFormError('');
+    setOperationNotice(null);
+    if (form.next.length < 6) { setFormError('Password baru minimal 6 karakter.'); return; }
+    if (form.next !== form.confirm) { setFormError('Konfirmasi password baru belum sama.'); return; }
     if (!user?.email) return;
 
     setPasswordConfirmationOpen(true);
@@ -36,7 +39,7 @@ export function MemberAccountSettingsPage({ router }: { router: Router }) {
     if (verified.error) {
       setSaving(false);
       setPasswordConfirmationOpen(false);
-      setMessage({ type: 'error', text: 'Password lama tidak benar.' });
+      setFormError('Password lama tidak benar.');
       return;
     }
 
@@ -44,11 +47,11 @@ export function MemberAccountSettingsPage({ router }: { router: Router }) {
     setSaving(false);
     setPasswordConfirmationOpen(false);
     if (error) {
-      setMessage({ type: 'error', text: 'Password belum berhasil diubah. Silakan coba lagi.' });
+      setOperationNotice({ type: 'error', message: 'Password belum berhasil diubah. Silakan coba lagi.' });
       return;
     }
     setForm({ current: '', next: '', confirm: '' });
-    setMessage({ type: 'success', text: 'Password berhasil diubah. Gunakan password baru pada login berikutnya.' });
+    setOperationNotice({ type: 'success', message: 'Password berhasil diubah. Gunakan password baru pada login berikutnya.' });
   }
 
   function passwordField(key: 'current' | 'next' | 'confirm', label: string, placeholder: string) {
@@ -77,7 +80,8 @@ export function MemberAccountSettingsPage({ router }: { router: Router }) {
         <form onSubmit={handleSubmit} className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-6">
           <div className="mb-5"><p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">Keamanan akun</p><h2 className="mt-1 text-xl font-black text-slate-900">Ganti Password</h2><p className="mt-1 text-sm text-slate-500">Pastikan password baru mudah diingat dan tidak dibagikan kepada siapa pun.</p></div>
           <div className="space-y-4">{passwordField('current', 'Password saat ini', 'Masukkan password saat ini')}{passwordField('next', 'Password baru', 'Minimal 6 karakter')}{passwordField('confirm', 'Konfirmasi password baru', 'Ulangi password baru')}</div>
-          {message && <div className={`mt-4 rounded-xl px-4 py-3 text-sm ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-red-50 text-red-700 ring-1 ring-red-200'}`}>{message.text}</div>}
+          {formError && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{formError}</p>}
+          {operationNotice && <StatusBanner message={operationNotice.message} variant={operationNotice.type} onDismiss={() => setOperationNotice(null)} className="mt-4" />}
           <button type="submit" disabled={saving} className="btn-primary mt-5 w-full !py-3.5"><Save className="h-4 w-4" />{saving ? 'Menyimpan...' : 'Simpan Password Baru'}</button>
         </form>
       </div></div>

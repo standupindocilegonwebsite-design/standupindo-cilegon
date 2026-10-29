@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Router } from '@/lib/router';
 import { DesktopNavbar } from './nav/DesktopNavbar';
 import { MobileBottomNav } from './nav/MobileBottomNav';
@@ -8,6 +8,8 @@ import { waLink } from '@/lib/format';
 import { AppCredit } from './AppCredit';
 import { FollowInstagramPopup } from './FollowInstagramPopup';
 import { UpcomingEventPopup } from './UpcomingEventPopup';
+import { MerchBanner } from './MerchBanner';
+import { getMerchBannerSignature, getPublicMerchConfig } from '@/lib/merch';
 
 function TikTokIcon({ className }: { className?: string }) {
   return (
@@ -31,14 +33,55 @@ const NAV = [
   { to: '/more', label: 'More' },
 ];
 
+const MERCH_DISMISSED_STORAGE_KEY = 'standupindo-merch-banner-dismissed';
+const MERCH_BANNER_DELAY_MS = 17_000;
+const MERCH_BANNER_VISIBLE_MS = 7_000;
+
+function readDismissedMerchSignature(): string {
+  try {
+    return window.localStorage.getItem(MERCH_DISMISSED_STORAGE_KEY) ?? '';
+  } catch (error) {
+    console.warn('Preferensi banner Merch tidak dapat dibaca dari browser.', error);
+    return '';
+  }
+}
+
 export function AppShell({ router, settings, children }: AppShellProps) {
   const shellRef = useRef<HTMLDivElement>(null);
+  const [dismissedMerchSignature, setDismissedMerchSignature] = useState(readDismissedMerchSignature);
+  const [readyMerchSignature, setReadyMerchSignature] = useState('');
+  const [timedOutMerchSignature, setTimedOutMerchSignature] = useState('');
   const year = new Date().getFullYear();
   const isTicketAccessPage = router.path === '/tiket';
   const isEventDocumentationPage = /^\/event\/[^/]+\/dokumentasi$/.test(router.path);
   const isPublicMainPage = ['/', '/open-mic', '/event', '/komika', '/more'].includes(router.path);
   const isPublicDetailPage = /^\/(open-mic|event|komika)\/[^/]+$/.test(router.path);
   const isPublicNavyPage = isPublicMainPage || isPublicDetailPage;
+  const merchBannerEligible = !isTicketAccessPage && !isEventDocumentationPage;
+  const merchConfig = getPublicMerchConfig(settings);
+  const merchSignature = merchConfig ? getMerchBannerSignature(merchConfig) : '';
+  const showMerchBanner = Boolean(
+    merchBannerEligible
+    && merchConfig
+    && dismissedMerchSignature !== merchSignature
+    && readyMerchSignature === merchSignature
+    && timedOutMerchSignature !== merchSignature,
+  );
+
+  useEffect(() => {
+    if (!merchSignature || !merchBannerEligible || dismissedMerchSignature === merchSignature || timedOutMerchSignature === merchSignature) return;
+    const timer = window.setTimeout(() => setReadyMerchSignature(merchSignature), MERCH_BANNER_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [dismissedMerchSignature, merchBannerEligible, merchSignature, timedOutMerchSignature]);
+
+  function dismissMerchBanner() {
+    try {
+      window.localStorage.setItem(MERCH_DISMISSED_STORAGE_KEY, merchSignature);
+    } catch (error) {
+      console.warn('Preferensi banner Merch tidak dapat disimpan di browser.', error);
+    }
+    setDismissedMerchSignature(merchSignature);
+  }
 
   useEffect(() => {
     const root = shellRef.current;
@@ -80,6 +123,18 @@ export function AppShell({ router, settings, children }: AppShellProps) {
   return (
     <div ref={shellRef} className={`flex min-h-screen flex-col ${isTicketAccessPage ? 'bg-slate-200' : isEventDocumentationPage ? 'bg-[#030712]' : isPublicNavyPage ? 'bg-[#0B1F44]' : 'bg-slate-50'}`}>
       {!isTicketAccessPage && !isEventDocumentationPage && <DesktopNavbar router={router} settings={settings} />}
+      {showMerchBanner && merchConfig && (
+        <div className="pointer-events-none fixed inset-x-0 top-16 z-[35] md:top-[4.5rem]">
+          <div className="container-app pointer-events-auto pt-2 sm:pt-3">
+            <MerchBanner
+              {...merchConfig}
+              autoDismissAfterMs={MERCH_BANNER_VISIBLE_MS}
+              onDismiss={dismissMerchBanner}
+              onAutoDismiss={() => setTimedOutMerchSignature(merchSignature)}
+            />
+          </div>
+        </div>
+      )}
 
       <main className={`flex-1 ${isPublicNavyPage ? 'text-slate-100' : ''}`}>{children}</main>
 

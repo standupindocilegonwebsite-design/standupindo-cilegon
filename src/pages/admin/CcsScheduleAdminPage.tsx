@@ -3,6 +3,7 @@ import { CalendarDays, Check, ChevronDown, Clock3, Pencil, Plus, Trash2 } from '
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { AdminModal as Modal } from '@/components/admin/AdminModal';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { formatCcsDate, formatCcsTime, getCcsOccurrenceDate, getCcsRecurrenceLabel, getNextCcsWednesdayDate } from '@/lib/ccs';
@@ -263,8 +264,8 @@ export function CcsScheduleAdminPage() {
     <div className="space-y-5">
       <WorkspacePageHeader eyebrow="Menu Lainnya" title="Jadwal Cilegon Comedy Sharing (CCS)" subtitle="Atur jadwal Cilegon Comedy Sharing yang ditampilkan di halaman Home." />
 
-      {message && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{message}</p>}
-      {errorMessage && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{errorMessage}</p>}
+      {message && <StatusBanner message={message} variant="success" onDismiss={() => setMessage('')} />}
+      {errorMessage && <StatusBanner message={errorMessage} variant="error" onDismiss={() => setErrorMessage('')} />}
 
       {loading && <div className="h-56 skeleton rounded-2xl" />}
 

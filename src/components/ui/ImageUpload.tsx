@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Upload, X, ImageIcon, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { PhotoCropper } from '@/components/ui/PhotoCropper';
@@ -7,6 +7,7 @@ import { getImageFileExtension, processImageForUpload, validateImageFile, type I
 interface ImageUploadProps {
   label: string;
   folder: string;
+  bucket?: string;
   value: string;
   onChange: (url: string) => void;
   aspect?: 'square' | 'portrait' | 'landscape' | 'auto';
@@ -17,14 +18,18 @@ interface ImageUploadProps {
   avatar?: boolean;
   onPreview?: () => void;
   skipCrop?: boolean;
+  cropAspect?: number;
   processingProfile?: ImageProcessingProfile;
   cropToFrame?: boolean;
   adjustLogo?: boolean;
   onSaveImmediately?: (photoUrl: string | null, cardPhotoUrl: string | null) => Promise<void>;
+  cleanupOnUnmount?: boolean;
+  seamlessPreview?: boolean;
 }
 
-export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', objectFit = 'cover', required = false, onUploadingChange, compact = false, avatar = false, onPreview, skipCrop = false, processingProfile, cropToFrame = false, adjustLogo = false, onSaveImmediately }: ImageUploadProps) {
+export function ImageUpload({ label, folder, bucket = 'standupindo-media', value, onChange, aspect = 'auto', objectFit = 'cover', required = false, onUploadingChange, compact = false, avatar = false, onPreview, skipCrop = false, cropAspect, processingProfile, cropToFrame = false, adjustLogo = false, onSaveImmediately, cleanupOnUnmount = false, seamlessPreview = false }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const mounted = useRef(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -32,6 +37,11 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', o
   const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
   const effectiveProcessingProfile = processingProfile
     ?? (avatar ? 'avatar' : folder.toLowerCase().includes('history') ? 'history-proof' : folder === 'partners' ? 'logo' : 'poster');
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const aspectClass = aspect === 'square' ? 'aspect-square' : aspect === 'portrait' ? 'aspect-[3/4]' : aspect === 'landscape' ? 'aspect-video' : 'aspect-[4/3]';
   const objectFitClass = objectFit === 'contain' ? 'object-contain' : 'object-cover';
@@ -51,14 +61,19 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', o
         const processedFile = await processImageForUpload(file, effectiveProcessingProfile);
         const extension = getImageFileExtension(processedFile.type);
         const uploadPath = `${folder}/${crypto.randomUUID()}.${extension}`;
-        const { error: uploadError } = await supabase.storage.from('standupindo-media').upload(uploadPath, processedFile, { cacheControl: '31536000', upsert: false, contentType: processedFile.type });
+        const { error: uploadError } = await supabase.storage.from(bucket).upload(uploadPath, processedFile, { cacheControl: '31536000', upsert: false, contentType: processedFile.type });
         if (uploadError) throw uploadError;
-        const { data } = supabase.storage.from('standupindo-media').getPublicUrl(uploadPath);
+        if (cleanupOnUnmount && !mounted.current) {
+          const { error: cleanupError } = await supabase.storage.from(bucket).remove([uploadPath]);
+          if (cleanupError) console.error(`${label} yang selesai diupload setelah form ditutup gagal dibersihkan.`, { uploadPath, cleanupError });
+          return;
+        }
+        const { data } = supabase.storage.from(bucket).getPublicUrl(uploadPath);
         onChange(data.publicUrl);
       } catch (uploadFailure) {
         const detail = uploadFailure instanceof Error ? uploadFailure.message : 'Kesalahan tidak diketahui.';
         console.error(`${label} gagal diupload.`, uploadFailure);
-        setError(`Foto gagal diupload: ${detail}`);
+        if (mounted.current || !cleanupOnUnmount) setError(`Foto gagal diupload: ${detail}`);
       } finally {
         setUploading(false);
         onUploadingChange?.(false);
@@ -135,7 +150,7 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', o
         </div>
       ) : value ? (
         <div className="space-y-3">
-          <div className={`relative overflow-hidden rounded-xl ring-1 ring-slate-200 ${aspectClass} bg-slate-50`}>
+          <div className={`relative overflow-hidden ${seamlessPreview ? '' : 'rounded-xl ring-1 ring-slate-200 bg-slate-50'} ${aspectClass}`}>
             <img src={value} alt="Preview" className={`h-full w-full ${objectFitClass}`} />
           </div>
           <div className="flex gap-2">
@@ -187,7 +202,9 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', o
           src={pendingCropSrc}
           originalFile={pendingCropFile}
           folder={folder}
+          bucket={bucket}
           processingProfile={effectiveProcessingProfile}
+          cropAspect={cropAspect}
           cropToFrame={cropToFrame}
           adjustLogo={adjustLogo}
           onSave={async (url, cardUrl) => {

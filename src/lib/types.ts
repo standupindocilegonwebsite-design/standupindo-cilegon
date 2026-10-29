@@ -428,6 +428,11 @@ export interface SiteSettings {
   affiliation_name?: string | null;
   affiliation_website?: string | null;
   affiliation_logo_url?: string | null;
+  merch_banner_image_url?: string | null;
+  merch_banner_title?: string;
+  merch_banner_description?: string;
+  merch_shop_url?: string;
+  merch_banner_enabled?: boolean;
 }
 
 export const LOGO_URL = '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png';

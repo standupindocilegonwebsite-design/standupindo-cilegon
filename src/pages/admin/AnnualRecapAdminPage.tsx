@@ -4,6 +4,7 @@ import { AnnualRecapStory } from '@/pages/public/AnnualRecapStoryView';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
 import { DEFAULT_RECAP_CLOSING, loadAnnualRecapStats, loadHistoricalArchiveYears, type AnnualRecapRecord, type AnnualRecapStats } from '@/lib/annual-recap';
 import { supabase } from '@/lib/supabase';
+import type { StatusBannerVariant } from '@/components/ui/StatusBanner';
 
 const AUDIO_CONTENT_TYPES: Record<string, string> = {
   mp3: 'audio/mpeg',
@@ -14,7 +15,7 @@ const AUDIO_CONTENT_TYPES: Record<string, string> = {
   webm: 'audio/webm',
 };
 
-export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string) => void }) {
+export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string, variant: StatusBannerVariant) => void }) {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [yearInput, setYearInput] = useState(String(currentYear));
@@ -34,6 +35,7 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
   const [publishing, setPublishing] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [musicUploading, setMusicUploading] = useState(false);
+  const [musicError, setMusicError] = useState('');
   const musicInputRef = useRef<HTMLInputElement>(null);
 
   const validYearInput = /^\d{4}$/.test(yearInput)
@@ -50,7 +52,7 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
       const { data, error } = await supabase.from('annual_recaps').select('*').order('year', { ascending: false });
       if (!active) return;
       if (error) {
-        onNotice('Daftar Annual Recap gagal dimuat. Pastikan database Annual Recap sudah disiapkan.');
+        onNotice('Daftar Annual Recap gagal dimuat. Pastikan database Annual Recap sudah disiapkan.', 'error');
       } else {
         setRecords((data as AnnualRecapRecord[]) ?? []);
       }
@@ -135,13 +137,13 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
       const { data, error } = await supabase.from('annual_recaps').update(payload).eq('id', record.id).select('*').single();
       setSaving(false);
       if (error) {
-        onNotice('Gagal menyimpan Annual Recap.');
+        onNotice('Gagal menyimpan Annual Recap.', 'error');
         return;
       }
       const savedRecord = data as AnnualRecapRecord;
       setRecord(savedRecord);
       updateRecordList(savedRecord);
-      onNotice(nextPublished ? 'Annual Recap berhasil dipublikasikan.' : 'Perubahan Annual Recap berhasil disimpan.');
+      onNotice(nextPublished ? 'Annual Recap berhasil dipublikasikan.' : 'Perubahan Annual Recap berhasil disimpan.', 'success');
       return;
     }
 
@@ -153,29 +155,30 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
     }).select('*').single();
     setSaving(false);
     if (error) {
-      onNotice('Gagal menambahkan Annual Recap.');
+      onNotice('Gagal menambahkan Annual Recap.', 'error');
       return;
     }
 
     const createdRecord = data as AnnualRecapRecord;
     setRecord(createdRecord);
     updateRecordList(createdRecord);
-    onNotice(nextPublished ? 'Annual Recap berhasil dibuat dan dipublikasikan.' : 'Draft Annual Recap berhasil dibuat.');
+    onNotice(nextPublished ? 'Annual Recap berhasil dibuat dan dipublikasikan.' : 'Draft Annual Recap berhasil dibuat.', 'success');
   }
 
   async function handleMusicUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    setMusicError('');
 
     const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
     const contentType = AUDIO_CONTENT_TYPES[extension];
     if (!contentType) {
-      onNotice('Format musik harus MP3, M4A, AAC, OGG, WAV, atau WebM.');
+      setMusicError('Format musik harus MP3, M4A, AAC, OGG, WAV, atau WebM.');
       return;
     }
     if (file.size > 25 * 1024 * 1024) {
-      onNotice('Ukuran musik maksimal 25 MB.');
+      setMusicError('Ukuran musik maksimal 25 MB.');
       return;
     }
 
@@ -189,9 +192,9 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
       });
       if (error) throw error;
       setMusicUrl(supabase.storage.from('annual-recap-audio').getPublicUrl(path).data.publicUrl);
-      onNotice('Musik berhasil diunggah. Simpan perubahan untuk menerapkannya.');
+      onNotice('Musik berhasil diunggah. Simpan perubahan untuk menerapkannya.', 'info');
     } catch {
-      onNotice('Musik gagal diunggah. Pastikan bucket audio Annual Recap sudah disiapkan.');
+      onNotice('Musik gagal diunggah. Pastikan bucket audio Annual Recap sudah disiapkan.', 'error');
     } finally {
       setMusicUploading(false);
     }
@@ -199,7 +202,7 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
 
   async function handlePublish() {
     if (statsError) {
-      onNotice('Data Annual Recap belum dapat diverifikasi. Coba lagi sebelum publish.');
+      onNotice('Data Annual Recap belum dapat diverifikasi. Coba lagi sebelum publish.', 'warning');
       return;
     }
     setPublishing(true);
@@ -211,21 +214,21 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
     setPublishing(true);
     if (!record?.id) {
       setPublishing(false);
-      onNotice('Recap belum dibuat untuk tahun ini.');
+      onNotice('Recap belum dibuat untuk tahun ini.', 'info');
       return;
     }
 
     const { error } = await supabase.from('annual_recaps').update({ published: false, updated_at: new Date().toISOString() }).eq('id', record.id);
     setPublishing(false);
     if (error) {
-      onNotice('Gagal membatalkan publikasi Annual Recap.');
+      onNotice('Gagal membatalkan publikasi Annual Recap.', 'error');
       return;
     }
 
     const updatedRecord = { ...record, published: false, updated_at: new Date().toISOString() };
     setRecord(updatedRecord);
     updateRecordList(updatedRecord);
-    onNotice('Publikasi Annual Recap dibatalkan.');
+    onNotice('Publikasi Annual Recap dibatalkan.', 'success');
   }
 
   function openSelectedYear() {
@@ -311,8 +314,9 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string)
             <input ref={musicInputRef} type="file" accept=".mp3,.m4a,.aac,.ogg,.wav,.webm,audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/wav,audio/webm" onChange={(event) => void handleMusicUpload(event)} className="hidden" />
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <button type="button" onClick={() => musicInputRef.current?.click()} disabled={loading || musicUploading} className="btn-secondary w-full justify-center sm:w-auto"><Upload className="h-4 w-4" />{musicUploading ? 'Mengunggah musik...' : musicUrl ? 'Ganti musik' : 'Upload musik'}</button>
-              {musicUrl && <button type="button" onClick={() => { setMusicUrl(''); onNotice('Musik dihapus dari perubahan. Simpan untuk menerapkan.'); }} disabled={musicUploading} className="btn-secondary w-full justify-center sm:w-auto"><Trash2 className="h-4 w-4" />Hapus musik</button>}
+              {musicUrl && <button type="button" onClick={() => { setMusicUrl(''); onNotice('Musik dihapus dari perubahan. Simpan untuk menerapkan.', 'info'); }} disabled={musicUploading} className="btn-secondary w-full justify-center sm:w-auto"><Trash2 className="h-4 w-4" />Hapus musik</button>}
             </div>
+            {musicError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{musicError}</p>}
             {musicUrl && <audio controls preload="metadata" src={musicUrl} className="h-10 w-full" />}
           </div>
         </details>
