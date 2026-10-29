@@ -1,7 +1,7 @@
 import { cloneElement, isValidElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Mic, CalendarDays, ArrowRight, Sparkles, Handshake, Drama } from 'lucide-react';
 import { useRestoreScrollPosition, type Router } from '@/lib/router';
-import type { OpenMic, EventItem, Komika, EventTicket, Partner } from '@/lib/types';
+import type { OpenMic, EventItem, Komika, EventTicket, PublicPartnerLogo } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { LOGO_URL } from '@/lib/types';
 import { OpenMicCard } from '@/components/cards/OpenMicCard';
@@ -10,6 +10,7 @@ import { KomikaCard } from '@/components/cards/KomikaCard';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { PartnerMarqueeCollection } from '@/components/ui/PartnerMarquee';
 import { getEventStatus, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { CcsScheduleHighlights } from '@/components/CcsScheduleHighlights';
 
@@ -21,7 +22,7 @@ type HomeOpenMic = Pick<OpenMic, 'id' | 'title' | 'slug' | 'poster' | 'date' | '
 type NumberedOpenMic = Pick<OpenMic, 'id' | 'date' | 'created_at' | 'status' | 'time' | 'slug'>;
 type HomeEvent = Pick<EventItem, 'id' | 'title' | 'slug' | 'poster' | 'date' | 'time' | 'venue' | 'location' | 'maps_url' | 'description' | 'status' | 'ticket_sales_mode'>;
 type HomeKomika = Pick<Komika, 'id' | 'stage_name' | 'slug' | 'photo' | 'photo_card' | 'instagram_url' | 'tiktok_url' | 'youtube_url' | 'specialties'>;
-type HomePartner = Pick<Partner, 'id' | 'name' | 'logo_url' | 'category'>;
+type HomePartner = PublicPartnerLogo;
 
 function AutoSlideRow({ children, className, intervalMs = 5000, highlightActive = false, highlightTone = 'blue', lightLeakSlot, activeLightLeakSlot }: { children: ReactNode[]; className: string; intervalMs?: number; highlightActive?: boolean; highlightTone?: 'blue' | 'amber'; lightLeakSlot?: 'open-mic' | 'event' | 'komika'; activeLightLeakSlot?: 'open-mic' | 'event' | 'komika' | 'event-cta' | null }) {
   const rowRef = useRef<HTMLDivElement>(null);
@@ -63,45 +64,6 @@ function AutoSlideRow({ children, className, intervalMs = 5000, highlightActive 
           'data-carousel-highlight': activeHighlight ? highlightTone : undefined,
         });
       })}
-    </div>
-  );
-}
-
-function PartnerMarqueeStrip({ partners, category }: { partners: HomePartner[]; category: 'sponsor' | 'support' | 'media_partner' }) {
-  const shellRef = useRef<HTMLDivElement>(null);
-  const [paused, setPaused] = useState(false);
-  const labels = { sponsor: 'Sponsor', support: 'Support', media_partner: 'Media Partner' } as const;
-  const sizeMap = {
-    sponsor: { logo: 'h-20 w-20 sm:h-24 sm:w-24', item: 'min-w-[170px] sm:min-w-[210px]', name: 'text-base' },
-    support: { logo: 'h-14 w-14 sm:h-16 sm:w-16', item: 'min-w-[140px] sm:min-w-[170px]', name: 'text-sm' },
-    media_partner: { logo: 'h-12 w-12 sm:h-14 sm:w-14', item: 'min-w-[130px] sm:min-w-[150px]', name: 'text-xs' },
-  } as const;
-  const leading = partners.length > 1 ? [...partners, ...partners] : partners;
-
-  useEffect(() => {
-    const shell = shellRef.current;
-    if (!shell || leading.length < 2) return undefined;
-    const timer = window.setInterval(() => {
-      if (paused) return;
-      shell.scrollLeft += 0.5;
-      if (shell.scrollLeft >= shell.scrollWidth / 2) shell.scrollLeft = 0;
-    }, 30);
-    return () => window.clearInterval(timer);
-  }, [leading.length, paused]);
-
-  if (partners.length === 0) return null;
-
-  return (
-    <div className="rounded-[28px] border border-white/80 bg-white/95 p-3 shadow-[0_12px_28px_rgba(2,12,32,0.2)] sm:p-4">
-      <div className="mb-3 flex items-center justify-center"><span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800 sm:text-[11px]">{labels[category]}</span></div>
-      <div ref={shellRef} className="partner-marquee-shell home-partner-marquee-shell" onPointerDown={() => setPaused(true)} onPointerUp={() => setPaused(false)} onPointerCancel={() => setPaused(false)}>
-        <div className="partner-marquee-track home-partner-marquee-track">
-        {leading.map((partner, index) => <div key={`${partner.id}-${category}-${index}`} className={`partner-marquee-item ${sizeMap[category].item}`}>
-          <div className={`partner-marquee-logo ${sizeMap[category].logo}`}>{partner.logo_url ? <img src={partner.logo_url} alt={partner.name} loading="lazy" className="h-full w-full object-contain" /> : <span className="text-[10px] font-black text-slate-600 sm:text-xs">{partner.name.slice(0, 2).toUpperCase()}</span>}</div>
-          <p className={`partner-marquee-name ${sizeMap[category].name}`}>{partner.name}</p>
-        </div>)}
-        </div>
-      </div>
     </div>
   );
 }
@@ -186,14 +148,14 @@ export function HomePage({ router }: Props) {
   useEffect(() => {
     (async () => {
       const today = new Date().toISOString().slice(0, 10);
-      const [{ data: micData }, { data: allMicData }, { data: eventData }, { data: latestCompletedEventData }, { data: komikaData }, { data: ticketData }, { data: partnerData }, { data: recapData }] = await Promise.all([
+      const [{ data: micData }, { data: allMicData }, { data: eventData }, { data: latestCompletedEventData }, { data: komikaData }, { data: ticketData }, { data: partnerData, error: partnerError }, { data: recapData }] = await Promise.all([
         supabase.from('open_mics').select('id, title, slug, poster, date, time, venue, location, maps_url, capacity, status, registration_status').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }),
         supabase.from('open_mics').select('id, date, created_at, status, time, slug').eq('published', true),
         supabase.from('events').select('id, title, slug, poster, date, time, venue, location, maps_url, description, status, ticket_sales_mode').eq('published', true).eq('status', 'upcoming').gte('date', today).order('date', { ascending: true }).limit(5),
         supabase.from('events').select('slug, status, date').eq('published', true).or(`status.eq.completed,and(status.eq.upcoming,date.lte.${today})`).order('date', { ascending: false }).order('time', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('komika').select('id, stage_name, slug, photo, photo_card, instagram_url, tiktok_url, youtube_url, specialties').eq('published', true).eq('status', 'active'),
         supabase.from('event_tickets').select('event_id, price').eq('status', 'active').eq('available_public', true).order('price', { ascending: true }),
-        supabase.from('partners').select('id, name, logo_url, category').eq('is_published', true).order('sort_order', { ascending: true }).order('name', { ascending: true }),
+        supabase.from('partner_home_public').select('id, name, logo_url, category, sort_order').order('sort_order', { ascending: true }).order('name', { ascending: true }),
         supabase.from('annual_recaps').select('year').eq('published', true).order('year', { ascending: false }).limit(1).maybeSingle(),
       ]);
 
@@ -212,9 +174,13 @@ export function HomePage({ router }: Props) {
       const randomKomika = shuffleItems(komikaList).slice(0, 15);
 
       const groupedPartners: Record<'sponsor' | 'support' | 'media_partner', HomePartner[]> = { sponsor: [], support: [], media_partner: [] };
-      (partnerData as HomePartner[] | null)?.forEach((partner) => {
-        groupedPartners[partner.category].push(partner);
-      });
+      if (partnerError) {
+        console.error('Gagal memuat partner Home.', partnerError);
+      } else {
+        (partnerData as HomePartner[] | null)?.forEach((partner) => {
+          groupedPartners[partner.category].push(partner);
+        });
+      }
 
       setMics(micsList);
       setNumberedOpenMics((allMicData as NumberedOpenMic[] | null) ?? []);
@@ -437,10 +403,8 @@ export function HomePage({ router }: Props) {
               </button>
             </div>
 
-            <div className="mx-auto mt-6 max-w-5xl space-y-4">
-              {(['sponsor', 'support', 'media_partner'] as const).map((category) => (
-                <PartnerMarqueeStrip key={category} partners={partnersByCategory[category]} category={category} />
-              ))}
+            <div className="mx-auto mt-6 max-w-5xl">
+              <PartnerMarqueeCollection partnersByCategory={partnersByCategory} />
             </div>
           </section>
         )}

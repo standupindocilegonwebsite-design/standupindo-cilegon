@@ -1,3 +1,5 @@
+import { isStandupindoCilegonOrganizer } from '@/lib/format';
+
 export interface RecapOpenMic {
   id: string;
   title: string;
@@ -27,6 +29,7 @@ export interface RecapHistorySubmission {
 
 export interface RecapOfficialLineup {
   id: string;
+  komika_id?: string;
   event_id: string;
   role_category: string;
   role_title: string | null;
@@ -43,8 +46,10 @@ export interface RecapOfficialLineup {
 
 export interface RecapStageExperience {
   id: string;
+  komika_id?: string;
   event_date: string;
   event_name: string;
+  organizer: string | null;
   role: string;
   custom_role: string | null;
   city: string;
@@ -78,6 +83,16 @@ export interface KomikaYearRecap {
   totalStages: number;
   recentStages: RecapStage[];
   missingOpenMicDetails: number;
+}
+
+export interface KomikaLifetimeActivity {
+  openMicTotal: number;
+  openMicInternal: number;
+  openMicExternal: number;
+  journeyTotal: number;
+  journeyInternal: number;
+  journeyExternal: number;
+  totalUniqueActivities: number;
 }
 
 export function normalizeRecapText(value: string | null | undefined) {
@@ -217,6 +232,7 @@ export function buildKomikaYearRecap(sources: RecapSources, year: number, today:
   const officialKeys = new Set([...officialById.values()].map((item) => eventKey(item.date, item.title, item.location || item.venue)));
   const externalExperienceByKey = new Map<string, RecapStageExperience>();
   for (const item of yearExperiences) {
+    if (isStandupindoCilegonOrganizer(item.organizer)) continue;
     const key = eventKey(item.event_date, item.event_name, item.city);
     const matchingOfficialEvents = [...officialById.entries()]
       .filter(([, event]) => matchesOfficialExperience(item, event));
@@ -335,4 +351,54 @@ export function buildKomikaYearRecap(sources: RecapSources, year: number, today:
     recentStages,
     missingOpenMicDetails: getEligibleOpenMics(sources, today).missingDetails,
   };
+}
+
+function leaderboardActivitySources(sources: RecapSources): RecapSources {
+  return {
+    ...sources,
+    history: sources.history.filter((item) => historyType(item) === 'performance'),
+    experiences: sources.experiences.filter((item) => !isStandupindoCilegonOrganizer(item.organizer)),
+  };
+}
+
+function activityFromYearRecap(recap: KomikaYearRecap): KomikaLifetimeActivity {
+  return {
+    openMicTotal: recap.openMicTotal,
+    openMicInternal: recap.openMicInternal,
+    openMicExternal: recap.openMicExternal,
+    journeyTotal: recap.journeyTotal,
+    journeyInternal: recap.journeyInternal,
+    journeyExternal: recap.journeyExternal,
+    totalUniqueActivities: recap.totalStages,
+  };
+}
+
+export function buildKomikaYearActivity(sources: RecapSources, year: number, today: string): KomikaLifetimeActivity {
+  return activityFromYearRecap(buildKomikaYearRecap(leaderboardActivitySources(sources), year, today));
+}
+
+export function buildKomikaLifetimeActivity(sources: RecapSources, today: string): KomikaLifetimeActivity {
+  const activitySources = leaderboardActivitySources(sources);
+  const years = getKomikaRecapYears(activitySources, Number(today.slice(0, 4)), today);
+
+  return years.reduce<KomikaLifetimeActivity>((total, year) => {
+    const recap = activityFromYearRecap(buildKomikaYearRecap(activitySources, year, today));
+    return {
+      openMicTotal: total.openMicTotal + recap.openMicTotal,
+      openMicInternal: total.openMicInternal + recap.openMicInternal,
+      openMicExternal: total.openMicExternal + recap.openMicExternal,
+      journeyTotal: total.journeyTotal + recap.journeyTotal,
+      journeyInternal: total.journeyInternal + recap.journeyInternal,
+      journeyExternal: total.journeyExternal + recap.journeyExternal,
+      totalUniqueActivities: total.totalUniqueActivities + recap.totalUniqueActivities,
+    };
+  }, {
+    openMicTotal: 0,
+    openMicInternal: 0,
+    openMicExternal: 0,
+    journeyTotal: 0,
+    journeyInternal: 0,
+    journeyExternal: 0,
+    totalUniqueActivities: 0,
+  });
 }

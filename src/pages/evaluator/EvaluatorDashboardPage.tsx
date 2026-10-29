@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CheckCheck, CheckCircle2, ClipboardList, Clock3, Mic, Search, Users, X } from 'lucide-react';
+import { ArrowRight, CheckCheck, CheckCircle2, ClipboardList, Clock3, Info, Mic, Search, Users, X } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { PageHeader } from '@/components/PageHeader';
+import { MemberModal } from '@/components/member/MemberModal';
 import { formatDate } from '@/lib/format';
 import type { OpenMic } from '@/lib/types';
 
@@ -17,6 +18,7 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
   const [progressByMic, setProgressByMic] = useState<Record<string, { evaluated: number; total: number }>>({});
   const [emptyReasonByMic, setEmptyReasonByMic] = useState<Record<string, 'no-attendee' | 'only-evaluator'>>({});
   const [loading, setLoading] = useState(true);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   useEffect(() => {
     if (!user?.id) {
@@ -133,7 +135,21 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader router={router} title="Evaluator Area" subtitle="Open Mic yang ditugaskan kepada kamu." />
+      <PageHeader
+        router={router}
+        title="Evaluator Area"
+        subtitle="Open Mic yang ditugaskan kepada kamu."
+        headerAction={<button type="button" onClick={() => setInfoOpen(true)} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-700" aria-label="Informasi Evaluator" title="Informasi Evaluator"><Info className="h-4 w-4" /></button>}
+      />
+      <MemberModal open={infoOpen} onClose={() => setInfoOpen(false)} title="Panduan Evaluator" titleEyebrow="INFORMASI" size="md">
+        <div className="space-y-3 text-sm leading-6 text-slate-600">
+          <p>Halaman Evaluator menampilkan Open Mic yang ditugaskan kepada akun Anda. Daftar utama berisi Open Mic yang telah selesai agar evaluasi didasarkan pada penampilan yang benar-benar berlangsung.</p>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Ringkasan Tugas</h4><p className="mt-0.5">Assigned menunjukkan jumlah Open Mic yang ditugaskan. Upcoming menunjukkan jumlah tugas dengan tanggal mendatang. Progress menunjukkan bahwa terdapat tugas aktif pada akun Anda.</p></div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Pencarian dan Filter</h4><p className="mt-0.5">Cari berdasarkan judul Open Mic, tanggal, lokasi, status, atau nama komika. Gunakan filter Semua, Belum selesai, atau Sudah selesai untuk menyaring progres evaluasi.</p></div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Memulai atau Melanjutkan Evaluasi</h4><p className="mt-0.5">Pilih kartu Open Mic untuk melihat peserta yang hadir dan progres evaluasinya. Evaluasi hanya tersedia untuk komika Standupindo Cilegon yang tercatat hadir, kecuali akun evaluator sendiri.</p></div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Menyimpan Evaluasi</h4><p className="mt-0.5">Isi skor dan masukan untuk penampilan. Simpan sebagai draf jika evaluasi belum selesai, atau kirim setelah siap. Evaluasi yang telah dikirim hanya dapat dilihat sebagai pratinjau.</p></div>
+        </div>
+      </MemberModal>
 
       <div className="container-app py-6 sm:py-8">
         <div className="grid grid-cols-3 gap-2.5 sm:gap-4">

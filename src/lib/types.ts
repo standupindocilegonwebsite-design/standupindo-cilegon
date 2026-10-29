@@ -90,9 +90,29 @@ export interface Partner {
   notes: string | null;
   category: 'sponsor' | 'support' | 'media_partner';
   is_published: boolean;
+  is_active: boolean;
+  show_on_home: boolean;
+  show_on_partnership_page: boolean;
   sort_order: number;
   created_at: string;
   updated_at: string;
+}
+
+export type PartnerCategory = Partner['category'];
+
+export interface PublicPartnerLogo {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  category: PartnerCategory;
+  sort_order: number;
+}
+
+export interface PublicEventPartner extends PublicPartnerLogo {
+  event_partnership_id: string;
+  event_id: string;
+  role: PartnerCategory;
+  created_at: string;
 }
 
 export interface EventPartnership {

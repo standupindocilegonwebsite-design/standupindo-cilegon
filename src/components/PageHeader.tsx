@@ -1,4 +1,5 @@
 import { ArrowLeft } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { Router } from '@/lib/router';
 
 interface Props {
@@ -7,9 +8,10 @@ interface Props {
   subtitle?: string;
   showBack?: boolean;
   backTo?: string;
+  headerAction?: ReactNode;
 }
 
-export function PageHeader({ router, title, subtitle, showBack = true, backTo }: Props) {
+export function PageHeader({ router, title, subtitle, showBack = true, backTo, headerAction }: Props) {
   const isMember = router.path.startsWith('/member');
   const isEvaluator = router.path.startsWith('/evaluator');
   const isTicketBuyer = router.path === '/tiket';
@@ -40,8 +42,13 @@ export function PageHeader({ router, title, subtitle, showBack = true, backTo }:
             <ArrowLeft className="h-4 w-4" /> Kembali
           </button>}
         {isEvaluator && title && <p className="!text-blue-100 mb-1 text-[10px] font-extrabold uppercase tracking-[0.16em]">Evaluator Area</p>}
-        {title && <h1 className={`text-2xl font-extrabold tracking-tight sm:text-3xl ${isRoleArea ? 'text-white' : 'text-slate-900'}`}>{title}</h1>}
-        {subtitle && <p className={`mt-1.5 text-sm font-medium sm:text-base ${isRoleArea ? 'text-blue-50' : 'text-slate-600'}`}>{subtitle}</p>}
+        {(title || headerAction) && <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            {title && <h1 className={`text-2xl font-extrabold tracking-tight sm:text-3xl ${isRoleArea ? 'text-white' : 'text-slate-900'}`}>{title}</h1>}
+            {subtitle && <p className={`mt-1.5 text-sm font-medium sm:text-base ${isRoleArea ? 'text-blue-50' : 'text-slate-600'}`}>{subtitle}</p>}
+          </div>
+          {headerAction && <div className="shrink-0">{headerAction}</div>}
+        </div>}
         </div>
       </div>
     </div>

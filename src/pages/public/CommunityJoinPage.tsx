@@ -79,7 +79,7 @@ export function CommunityJoinPage({ router }: { router: Router }) {
                 <div><h2 className="font-bold text-slate-900">Kenalan dengan kami</h2><p className="text-xs text-slate-500 sm:text-sm">Isi data singkat untuk bergabung.</p></div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div><label className="label-field" htmlFor="join-name">Nama lengkap</label><input id="join-name" required value={form.full_name} onChange={(e) => setForm({ ...form, full_name: capitalizeName(e.target.value) })} className="input-field" placeholder="Contoh: Budi Santoso" /></div>
+                <div><label className="label-field" htmlFor="join-name">Nama Lengkap</label><input id="join-name" required value={form.full_name} onChange={(e) => setForm({ ...form, full_name: capitalizeName(e.target.value) })} className="input-field" placeholder="Contoh: Budi Santoso" /></div>
                 <div><label className="label-field" htmlFor="join-whatsapp">WhatsApp</label><input id="join-whatsapp" required type="tel" inputMode="numeric" pattern="[0-9]+" value={form.whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="input-field" placeholder="Contoh: 082212345678" /></div>
                 <div><label className="label-field" htmlFor="join-instagram">Instagram</label><input id="join-instagram" required value={form.instagram} onChange={(e) => setInstagram(e.target.value)} className="input-field" placeholder="Contoh: @budisantoso" /></div>
                 <div><label className="label-field" htmlFor="join-city">Komunitas / Domisili</label><CommunityCombobox id="join-city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} required placeholder="Pilih atau ketik komunitas" /></div>

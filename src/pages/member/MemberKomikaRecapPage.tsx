@@ -244,7 +244,7 @@ export function MemberKomikaRecapPage({ router }: { router: Router }) {
             .order('event_id')
             .range(from, to)),
           getAllRows((from, to) => supabase.from('member_stage_experiences')
-            .select('id, event_date, event_name, role, custom_role, city')
+            .select('id, event_date, event_name, organizer, role, custom_role, city')
             .eq('komika_id', profileData.id)
             .order('event_date')
             .order('id')

@@ -11,6 +11,7 @@ import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { MemberPerformanceHistoryPage } from '@/pages/member/MemberPerformanceHistoryPage';
 import { Modal } from '@/components/ui/Modal';
+import { MemberModal } from '@/components/member/MemberModal';
 
 type PerformerSummary = {
   id: string;
@@ -71,6 +72,7 @@ export function OpenMicPage({ router }: { router: Router }) {
   const [upcomingSearch, setUpcomingSearch] = useHistoryEntryState('open-mic-upcoming-search', '');
   const [completedSearch, setCompletedSearch] = useHistoryEntryState('open-mic-completed-search', '');
   const [completedSearchInfoOpen, setCompletedSearchInfoOpen] = useState(false);
+  const [memberOpenMicInfoOpen, setMemberOpenMicInfoOpen] = useState(false);
   const [notificationTargetError, setNotificationTargetError] = useState('');
   const handledNotificationRegistrationId = useRef<string | null>(null);
   const navigateRef = useRef(router.navigate);
@@ -233,7 +235,39 @@ export function OpenMicPage({ router }: { router: Router }) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader router={router} title="Open Mic" subtitle="Temukan panggungmu." />
+      <PageHeader
+        router={router}
+        title="Open Mic"
+        subtitle="Temukan panggungmu."
+        headerAction={isMemberPage && <button type="button" onClick={() => setMemberOpenMicInfoOpen(true)} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-700" aria-label="Informasi Open Mic Member" title="Informasi Open Mic Member"><Info className="h-4 w-4" /></button>}
+      />
+      {isMemberPage && <MemberModal open={memberOpenMicInfoOpen} onClose={() => setMemberOpenMicInfoOpen(false)} title="Panduan Open Mic Member" titleEyebrow="INFORMASI" size="lg">
+        <div className="space-y-3 text-sm leading-6 text-slate-600">
+          <p>Gunakan halaman ini untuk mencari Open Mic mendatang, melihat acara yang telah selesai, dan membuka riwayat penampilan serta pengalaman sebagai MC.</p>
+          <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <h4 className="font-extrabold text-slate-900">Open Mic Mendatang</h4>
+            <p className="mt-0.5">Jelajahi acara yang akan datang, gunakan kolom pencarian untuk menemukan acara, lalu buka kartu Open Mic untuk melihat informasi, lineup, dan pilihan pendaftaran yang tersedia. Pendaftaran hanya dapat dilakukan jika masih dibuka.</p>
+          </section>
+          <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <h4 className="font-extrabold text-slate-900">Open Mic Selesai</h4>
+            <p className="mt-0.5">Lihat acara yang telah berlangsung dan gunakan pencarian untuk menemukan acara atau komika yang pernah tampil. Pilih hasil komika untuk melihat riwayat penampilannya. Saat kolom pencarian kosong, daftar menampilkan hingga lima acara terbaru.</p>
+          </section>
+          <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <h4 className="font-extrabold text-slate-900">Riwayat Pengalamanku</h4>
+            <p className="mt-0.5">Pilih tab ini untuk melihat pengalaman Open Mic dan MC. Penampilan Open Mic internal tercatat dari kehadiran yang dikonfirmasi, sedangkan pengajuan Open Mic eksternal dan pengalaman MC ditampilkan setelah disetujui Admin.</p>
+            <ul className="mt-2 space-y-1.5">
+              <li><strong className="text-slate-800">Open Mic Internal:</strong> penampilan di acara Standupindo Cilegon tercatat berdasarkan pendaftaran yang kehadirannya dikonfirmasi sebagai hadir.</li>
+              <li><strong className="text-slate-800">Open Mic Eksternal:</strong> kirim riwayat acara komunitas atau penyelenggara lain beserta bukti penampilan. Setelah disetujui Admin, riwayat masuk ke kategori eksternal. Data ini tidak masuk ke Evaluator, skor, atau peringkat.</li>
+              <li><strong className="text-slate-800">MC Internal:</strong> ajukan pengalaman MC dengan memilih Open Mic internal yang telah selesai. Riwayat MC dicatat terpisah dari penampilan sebagai komika.</li>
+              <li><strong className="text-slate-800">MC Eksternal:</strong> isi detail acara dan unggah bukti dokumentasi untuk diajukan kepada Admin. Jika Anda juga tampil sebagai komika, centang pilihan tersebut agar riwayat penampilan diajukan secara terpisah.</li>
+            </ul>
+          </section>
+          <section className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-blue-900">
+            <h4 className="font-extrabold">Ringkasan dan Filter Riwayat</h4>
+            <p className="mt-0.5">Di halaman Riwayat Pengalamanku, ringkasan Open Mic dan MC memisahkan jumlah pengalaman internal dan eksternal. Gunakan filter sumber dan pencarian untuk menemukan riwayat berdasarkan judul acara, tempat, atau kota.</p>
+          </section>
+        </div>
+      </MemberModal>}
 
       {notificationRegistrationId && notificationTargetError && <div className="container-app pt-4"><p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">{notificationTargetError}</p></div>}
       {isMemberPage && (

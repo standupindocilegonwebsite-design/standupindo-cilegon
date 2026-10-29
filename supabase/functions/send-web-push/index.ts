@@ -87,14 +87,18 @@ function locationLabel(record: Record<string, unknown>): string {
   return location && location !== venue ? `${venue}, ${location}` : venue;
 }
 
-async function listUsersByRoles(adminClient: ReturnType<typeof createClient>, roles: string[]): Promise<string[]> {
+async function listUsersByRoles(
+  adminClient: ReturnType<typeof createClient>,
+  roles: string[],
+  excludedRoles: string[] = [],
+): Promise<string[]> {
   const result: string[] = [];
   for (let page = 1; page <= 20; page += 1) {
     const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
     if (error) throw error;
     const users = data.users ?? [];
     users.forEach((user) => {
-      if (hasRole(user, roles)) result.push(user.id);
+      if (hasRole(user, roles) && !hasRole(user, excludedRoles)) result.push(user.id);
     });
     if (users.length < 1000) break;
   }
@@ -259,7 +263,7 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
   if (!record || type === 'DELETE') return { sent: 0, removed: 0, failed: 0 };
 
   if (table === 'events' && type === 'INSERT' && record.is_historical_archive !== true) {
-    const adminIds = await listUsersByRoles(adminClient, ['admin', 'event_admin']);
+    const adminIds = await listUsersByRoles(adminClient, ['event_admin'], ['admin']);
     await sendForUsers(adminClient, adminIds, {
       notification_id: `event-admin-created:${record.id}`,
       type: 'admin-notification',
@@ -277,7 +281,7 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
 
   if (table === 'open_mic_registrations') {
     if (type === 'INSERT' && record.status === 'pending') {
-      const userIds = await listUsersByRoles(adminClient, ['admin', 'open_mic_admin']);
+      const userIds = await listUsersByRoles(adminClient, ['open_mic_admin'], ['admin']);
       const details = await getPublicPushItemDetails(adminClient, 'open_mics', record.open_mic_id);
       const name = getNotificationName(record);
       return sendForUsers(adminClient, userIds, {
@@ -312,7 +316,7 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
 
   if (table === 'event_participants') {
     if (type === 'INSERT' && record.status === 'pending') {
-      const userIds = await listUsersByRoles(adminClient, ['admin', 'event_admin']);
+      const userIds = await listUsersByRoles(adminClient, ['event_admin'], ['admin']);
       const details = await getPublicPushItemDetails(adminClient, 'events', record.event_id);
       return sendForUsers(adminClient, userIds, { notification_id: `event-participant:${record.id}:pending`, type: 'admin-notification', title: 'Pendaftar Event Baru', body: 'Ada pendaftar baru untuk Event.', url: `/admin/event-pendaftar/${String(record.event_id ?? '')}`, tag: `event-participant:${record.id}:pending`, ...(details.poster ? { image: details.poster } : {}) }, 'admin');
     }
@@ -343,7 +347,7 @@ async function dispatchWebhook(adminClient: ReturnType<typeof createClient>, web
   const ticketOrderAttentionStatuses = ['Draft Pembayaran', 'Menunggu Pembayaran', 'Menunggu Verifikasi', 'Sudah Bayar'];
   if (table === 'ticket_orders' && ((type === 'INSERT' && ticketOrderAttentionStatuses.includes(String(record.status))) || (type === 'UPDATE' && isStatusTransition(record, oldRecord, ticketOrderAttentionStatuses)))) {
     const newPurchase = type === 'INSERT';
-    const userIds = await listUsersByRoles(adminClient, newPurchase ? ['admin', 'event_admin', 'admin_ticket'] : ['admin']);
+    const userIds = await listUsersByRoles(adminClient, ['event_admin', 'admin_ticket'], ['admin']);
     const details = await getPublicPushItemDetails(adminClient, 'events', record.event_id);
     const name = getNotificationName(record);
     const quantity = typeof record.quantity === 'number' && Number.isInteger(record.quantity) && record.quantity > 0

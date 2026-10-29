@@ -4,7 +4,6 @@ import { useAuth } from './auth-context';
 import { NotificationContext, type NotificationRecord, type NotificationSource } from './notification-context';
 
 const TAB_CHANNEL = 'standupindo-admin-notifications';
-const SOURCES: NotificationSource[] = ['ticket-orders', 'open-mic', 'event-participants', 'applications'];
 const EMPTY_COUNTS: Record<NotificationSource, number> = { 'ticket-orders': 0, 'open-mic': 0, 'event-participants': 0, applications: 0 };
 const READ_STORAGE_KEY = 'standupindo-admin-read-notifications';
 
@@ -59,7 +58,7 @@ function updateAppBadge(count: number) {
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin } = useAuth();
   const activeSources = useMemo<NotificationSource[]>(() => {
-    if (isAdmin) return SOURCES;
+    if (isAdmin) return ['applications'];
     return [
       ...(isTicketAdmin ? ['ticket-orders' as const] : []),
       ...(isOpenMicAdmin ? ['open-mic' as const] : []),

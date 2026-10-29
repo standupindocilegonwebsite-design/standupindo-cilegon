@@ -351,7 +351,7 @@ export function MemberMaterialSetlistsPage({ router }: { router: Router }) {
           const dark = readingTheme === 'dark';
           return (
             <div className="flex items-center justify-between gap-3">
-              <p className={`min-w-0 text-xs font-bold ${dark ? 'text-slate-600' : 'text-slate-500'}`}>Setlist Materi · {items.length} materi · {durationLabel}</p>
+              <p className={`min-w-0 text-xs font-bold ${dark ? 'text-slate-300' : 'text-blue-100'}`}>Setlist Materi · {items.length} materi · {durationLabel}</p>
               <button type="button" onClick={() => setReadingTheme(dark ? 'light' : 'dark')} aria-pressed={dark} className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${dark ? 'bg-slate-800 text-amber-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`} aria-label={dark ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'} title={dark ? 'Mode terang' : 'Mode gelap'}>
                 {dark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
               </button>

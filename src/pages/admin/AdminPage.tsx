@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, BarChart3, Building2, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, DoorOpen, Eye, EyeOff, FolderOpen, Handshake, History, ImagePlus, Instagram, Info, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Phone, Plus, Power, Printer, RefreshCw, Search, Settings, Share2, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, Users, X, ArrowLeft, ExternalLink, Youtube } from 'lucide-react';
+import { BarChart3, Building2, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, Crown, DoorOpen, Eye, EyeOff, FolderOpen, Handshake, History, ImagePlus, Instagram, Info, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, MoreHorizontal, Pencil, Phone, Plus, Power, Printer, RefreshCw, Search, Settings, Share2, ShieldPlus, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, UserRound, Users, X, ArrowLeft, ExternalLink, Youtube } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, MemberOpenMicHistoryStatus, MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { getFunctionErrorMessage } from '@/lib/function-errors';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatPrice, getEventStatus, getOpenMicNumbers, getOpenMicStatus, slugify, waLink } from '@/lib/format';
+import { buildKomikaLifetimeActivity, buildKomikaYearActivity } from '@/lib/komika-recap';
+import type { RecapOfficialLineup, RecapSources, RecapStageExperience } from '@/lib/komika-recap';
 import { generateTicketOrderWhatsAppUrl } from '@/lib/whatsapp';
 import { AdminModal as Modal } from '@/components/admin/AdminModal';
 import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
@@ -41,7 +43,8 @@ import { AnnualRecapAdminPage } from '@/pages/admin/AnnualRecapAdminPage';
 import { CcsScheduleAdminPage } from '@/pages/admin/CcsScheduleAdminPage';
 
 interface Props { router: Router; settings: SiteSettings; }
-type Section = 'dashboard' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'annual-recap' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'ticket-gates' | 'ticket-fees' | 'ticket-vouchers' | 'check-in-report' | 'maintenance' | 'ccs-schedule' | 'more';
+type Section = 'dashboard' | 'account-management' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'annual-recap' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'ticket-gates' | 'ticket-fees' | 'ticket-vouchers' | 'check-in-report' | 'maintenance' | 'ccs-schedule' | 'more';
+type RecapOfficialLineupQuery = Omit<RecapOfficialLineup, 'event'> & { event: RecapOfficialLineup['event'] | NonNullable<RecapOfficialLineup['event']>[] };
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -121,16 +124,17 @@ const NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
 ];
 
 const BOTTOM_NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [
-  { key: 'dashboard', label: 'Home', icon: BarChart3 },
-  { key: 'open-mic', label: 'Open Mic', icon: Mic },
-  { key: 'events', label: 'Event', icon: CalendarDays },
+  { key: 'dashboard', label: 'Ringkasan', icon: BarChart3 },
   { key: 'komika', label: 'Komika', icon: Users },
+  { key: 'account-management', label: 'Manajemen Akun', icon: ShieldPlus },
   { key: 'partners', label: 'Partner', icon: Users },
   { key: 'more', label: 'More', icon: MoreHorizontal },
 ];
 
+const SUPERADMIN_NAV: { key: Section; label: string; icon: typeof BarChart3 }[] = [...BOTTOM_NAV];
+
 const COMPACT_BOTTOM_NAV_LABELS: Partial<Record<Section, string>> = {
-  dashboard: 'Ringkas',
+  'account-management': 'Akun',
   'open-mic-list': 'Daftar',
   'open-mic-performers': 'Perform.',
 };
@@ -156,6 +160,7 @@ function getSection(path: string): Section {
   if (parts[1] === 'ccs-schedule') return 'ccs-schedule';
   if (parts[1] === 'profile-settings') return 'profile-settings';
   if (parts[1] === 'applications') return 'applications';
+  if (parts[1] === 'account-management') return 'account-management';
   const part = parts[1] as Section | undefined;
   if (part === 'more') return 'more';
   if (NAV.some((n) => n.key === part)) return part as Section;
@@ -194,8 +199,23 @@ async function loadAllTicketOrders() {
   return { data: orders, error: null };
 }
 
+async function loadAllAdminRows<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>) {
+  const rows: T[] = [];
+  const pageSize = 500;
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await fetchPage(from, from + pageSize - 1);
+    if (error) return { data: null, error };
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+
+  return { data: rows, error: null };
+}
+
 function getWorkspaceNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean, isTicketAdmin: boolean, isQrScanner: boolean) {
-  if (isAdmin) return NAV;
+  if (isAdmin) return SUPERADMIN_NAV;
   if (isTicketAdmin) return [
     { key: 'dashboard' as Section, label: 'Ringkasan', icon: BarChart3 },
     { key: 'ticket-orders' as Section, label: 'Order', icon: TicketIcon },
@@ -258,7 +278,7 @@ function getWorkspaceBottomNav(isAdmin: boolean, isOpenMicAdmin: boolean, isEven
 
 function isMoreNavigationActive(section: Section, isAdmin: boolean, isOpenMicAdmin: boolean, isEventAdmin: boolean, isTicketAdmin: boolean, isQrScanner: boolean) {
   return section === 'more'
-    || (isAdmin && ['settings', 'annual-recap', 'applications', 'ticket-orders', 'member-accounts', 'admin-accounts', 'evaluator', 'open-mic-history', 'ticket-gates', 'ccs-schedule'].includes(section))
+    || (isAdmin && ['settings', 'annual-recap', 'applications', 'profile-settings', 'ccs-schedule'].includes(section))
     || (isOpenMicAdmin && ['ccs-schedule', 'member-accounts', 'evaluator'].includes(section))
     || (isEventAdmin && section === 'admin-accounts')
     || section === 'profile-settings'
@@ -789,6 +809,7 @@ export function AdminPage({ router, settings }: Props) {
   const [eventPartnerships, setEventPartnerships] = useState<EventPartnership[]>([]);
   const [communityApplications, setCommunityApplications] = useState<CommunityApplication[]>([]);
   const [ticketOrders, setTicketOrders] = useState<TicketOrder[]>([]);
+  const [ticketOrdersUnavailable, setTicketOrdersUnavailable] = useState(false);
   const [evaluatorAssignments, setEvaluatorAssignments] = useState<EvaluatorAssignment[]>([]);
   const [memberHistory, setMemberHistory] = useState<MemberOpenMicHistorySubmission[]>([]);
   const [eventPendingCounts, setEventPendingCounts] = useState<Record<string, number>>({});
@@ -843,6 +864,7 @@ export function AdminPage({ router, settings }: Props) {
     setEventPartnerships((ep.data as EventPartnership[]) ?? []);
     setCommunityApplications((a.data as CommunityApplication[]) ?? []);
     if (to.error) setNotice('Data order tiket gagal dimuat lengkap.');
+    setTicketOrdersUnavailable(Boolean(to.error));
     setTicketOrders(to.data ?? []);
     setEvaluatorAssignments((ea.data as EvaluatorAssignment[]) ?? []);
     setMemberHistory((mh.data as MemberOpenMicHistorySubmission[]) ?? []);
@@ -856,10 +878,8 @@ export function AdminPage({ router, settings }: Props) {
 
   useEffect(() => { void load(); }, [load, revision]);
 
-  async function togglePublish(table: 'open_mics' | 'events' | 'partners', id: string, current: boolean) {
-    const payload = table === 'partners'
-      ? { is_published: !current, updated_at: new Date().toISOString() }
-      : { published: !current, updated_at: new Date().toISOString() };
+  async function togglePublish(table: 'open_mics' | 'events', id: string, current: boolean) {
+    const payload = { published: !current, updated_at: new Date().toISOString() };
 
     try {
       const { error } = await supabase.from(table).update(payload).eq('id', id);
@@ -900,7 +920,7 @@ export function AdminPage({ router, settings }: Props) {
     navigateSection('dashboard');
   }
 
-  const sectionHasOwnBackButton = ['registrants', 'event-participants', 'payment-info', 'ticket-fees', 'ticket-vouchers', 'ticket-report', 'check-in-report', 'profile-settings'].includes(section);
+  const sectionHasOwnBackButton = ['registrants', 'event-participants', 'payment-info', 'ticket-fees', 'ticket-vouchers', 'ticket-report', 'check-in-report'].includes(section);
 
   async function updateTicketOrderStatus(id: string, status: TicketOrderStatus) {
     const { error } = await supabase.from('ticket_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
@@ -937,6 +957,12 @@ export function AdminPage({ router, settings }: Props) {
     if (registration.komika_id && registration.attendance_status === 'attended') counts[registration.komika_id] = (counts[registration.komika_id] ?? 0) + 1;
     return counts;
   }, {}), [registrations]);
+  const komikaExternalOpenMicCounts = useMemo(() => memberHistory.reduce<Record<string, number>>((counts, submission) => {
+    if (submission.komika_id && submission.status === 'approved' && (!submission.activity_type || submission.activity_type === 'performance')) {
+      counts[submission.komika_id] = (counts[submission.komika_id] ?? 0) + 1;
+    }
+    return counts;
+  }, {}), [memberHistory]);
   const registrantOpenMicId = section === 'registrants' ? router.path.split('/').filter(Boolean)[2] ?? '' : '';
 
   return (
@@ -1025,7 +1051,7 @@ export function AdminPage({ router, settings }: Props) {
                       : item.key === 'applications' ? communityPendingCount : 0;
               const showPendingBadge = menuBadgeCount > 0;
               return (
-                <button key={item.key} onClick={() => navigateSection(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${sidebarCollapsed ? 'justify-center px-2' : ''} ${(item.key === 'more' ? isMoreNavigationActive(section, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner) : section === item.key) ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`} title={sidebarCollapsed ? item.label : undefined}>
+                <button key={item.key} onClick={() => navigateSection(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${sidebarCollapsed ? 'justify-center px-2' : ''} ${(item.key === 'more' ? isMoreNavigationActive(section, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner) : item.key === 'account-management' ? ['account-management', 'member-accounts', 'admin-accounts'].includes(section) : section === item.key) ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`} title={sidebarCollapsed ? item.label : undefined}>
                   <Icon className="h-5 w-5" />
                   {!sidebarCollapsed && <span className="flex-1 text-left">{item.label}</span>}
                   {showPendingBadge && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-extrabold leading-none text-white" aria-label="Data menunggu review">{menuBadgeCount > 99 ? '99+' : menuBadgeCount}</span>}
@@ -1045,7 +1071,7 @@ export function AdminPage({ router, settings }: Props) {
 
         {/* Main Content */}
         <main className="min-w-0 flex-1 p-4 lg:p-8">
-          {section !== 'dashboard' && !sectionHasOwnBackButton && <button type="button" onClick={returnToPreviousAdminMenu} className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 text-sm font-bold text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50">
+          {section !== 'dashboard' && !sectionHasOwnBackButton && <button type="button" onClick={section === 'profile-settings' ? () => navigateSection('more') : returnToPreviousAdminMenu} className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 text-sm font-bold text-blue-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50">
             <ArrowLeft className="h-4 w-4" /> Kembali
           </button>}
           {notice && (
@@ -1055,7 +1081,8 @@ export function AdminPage({ router, settings }: Props) {
             </div>
           )}
 
-          {section === 'dashboard' && (isAdmin ? <Dashboard openMics={openMics} registrations={registrations} events={events} komika={komika} loading={loading} onNavigate={navigateSection} /> : isTicketAdmin ? <TicketAdminDashboard orders={ticketOrders} events={events} loading={loading} onNavigate={navigateSection} /> : isQrScanner ? <QrScannerDashboard events={events} onNavigate={navigateSection} /> : <OperationalDashboard kind={isOpenMicAdmin ? 'open-mic' : 'event'} openMics={openMics} registrations={registrations} events={events} eventPendingCounts={eventPendingCounts} ticketOrders={ticketOrders} loading={loading} onNavigate={navigateSection} />)}
+          {section === 'dashboard' && (isAdmin ? <Dashboard openMics={openMics} events={events} komika={komika} registrations={registrations} memberHistory={memberHistory} ticketOrders={ticketOrders} ticketOrdersUnavailable={ticketOrdersUnavailable} loading={loading} adminName={typeof user?.user_metadata?.full_name === 'string' && user.user_metadata.full_name.trim() ? user.user_metadata.full_name.trim() : user?.email?.split('@')[0] || 'Admin Penuh'} adminPhoto={typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : ''} onNavigate={navigateSection} /> : isTicketAdmin ? <TicketAdminDashboard orders={ticketOrders} events={events} loading={loading} onNavigate={navigateSection} /> : isQrScanner ? <QrScannerDashboard events={events} onNavigate={navigateSection} /> : <OperationalDashboard kind={isOpenMicAdmin ? 'open-mic' : 'event'} openMics={openMics} registrations={registrations} events={events} eventPendingCounts={eventPendingCounts} ticketOrders={ticketOrders} loading={loading} onNavigate={navigateSection} />)}
+          {section === 'account-management' && isAdmin && <AccountManagementLanding onNavigate={navigateSection} />}
           {section === 'ccs-schedule' && (isAdmin || isOpenMicAdmin) && <CcsScheduleAdminPage />}
           {section === 'open-mic' && <OpenMicManagement rows={openMics} registrations={registrations} loading={loading} showRegistrants={isAdmin} onAdd={() => { setEditing(null); setModal('open-mic'); }} onEdit={(row) => { setEditing(row); setModal('open-mic'); }} onDelete={(id) => deleteRow('open_mics', id)} onTogglePublish={(id, val) => togglePublish('open_mics', id, val)} onViewRegistrants={(m) => router.navigate(`/admin/pendaftar/${m.id}`)} />}
           {section === 'open-mic-list' && <PolishedOpenMicRosterView mode="registrants" openMics={openMics} registrations={registrations} komika={komika} loading={loading} onReload={load} />}
@@ -1067,11 +1094,11 @@ export function AdminPage({ router, settings }: Props) {
             : <ScopedEventList events={events} loading={loading} onManageTickets={isTicketAdmin ? setTicketEvent : undefined} />)}
           {section === 'applications' && <ApplicationsView community={communityApplications} loading={loading} onNotice={setNotice} onReload={load} initialApplicationId={router.query.get('notificationApplicationId')} />}
           {section === 'open-mic-history' && <MemberOpenMicHistoryReview rows={memberHistory} komika={komika} onNotice={setNotice} onReload={load} />}
-          {section === 'komika' && <KomikaManagement rows={komika} registrations={registrations} openMics={openMics} attendanceCounts={komikaAttendanceCounts} loading={loading} onReload={load} onNotice={setNotice} onAdd={() => { setEditing(null); setModal('komika'); }} onEdit={(row) => { setEditing(row); setModal('komika'); }} onDelete={(id) => deleteRow('komika', id)} />}
+          {section === 'komika' && <KomikaManagement rows={komika} attendanceCounts={komikaAttendanceCounts} externalOpenMicCounts={komikaExternalOpenMicCounts} loading={loading} onReload={load} onNotice={setNotice} onAdd={() => { setEditing(null); setModal('komika'); }} onEdit={(row) => { setEditing(row); setModal('komika'); }} onDelete={(id) => deleteRow('komika', id)} />}
           {section === 'member-accounts' && <MemberAccountsPage komika={komika} onNotice={setNotice} />}
           {section === 'admin-accounts' && (isAdmin || isEventAdmin) && <AdminAccountsPage onNotice={setNotice} creatorRole={isAdmin ? 'admin' : 'event_admin'} />}
-          {section === 'profile-settings' && <AdminProfileSettingsPage onNotice={setNotice} onBack={() => navigateSection('more')} />}
-          {section === 'partners' && <PartnerManagement rows={partners} events={events} partnerships={eventPartnerships} loading={loading} onAdd={() => { setEditing(null); setModal('partner'); }} onEdit={(row) => { setEditing(row); setModal('partner'); }} onDelete={(id) => deleteRow('partners', id)} onTogglePublish={(id, current) => togglePublish('partners', id, current)} />}
+          {section === 'profile-settings' && <AdminProfileSettingsPage onNotice={setNotice} />}
+          {section === 'partners' && <PartnerManagement rows={partners} events={events} partnerships={eventPartnerships} loading={loading} onAdd={() => { setEditing(null); setModal('partner'); }} onEdit={(row) => { setEditing(row); setModal('partner'); }} onDelete={(id) => deleteRow('partners', id)} />}
           {section === 'evaluator' && <EvaluatorAssignmentView openMics={openMics} komika={komika} assignments={evaluatorAssignments} currentUserId={user?.id ?? null} onReload={load} onNotice={setNotice} />}
           {section === 'ticket-orders' && isEventAdmin && <TicketAudiencePage events={events} />}
           {section === 'ticket-orders' && (isAdmin || isTicketAdmin
@@ -1103,7 +1130,7 @@ export function AdminPage({ router, settings }: Props) {
           const pendingEventCount = notificationCounts['event-participants'];
           const communityPendingCount = notificationCounts.applications;
           const moreUnreadCount = isAdmin
-            ? notificationCounts['ticket-orders'] + communityPendingCount
+            ? communityPendingCount
             : 0;
           const menuBadgeCount = item.key === 'ticket-orders'
             ? notificationCounts['ticket-orders']
@@ -1128,9 +1155,11 @@ export function AdminPage({ router, settings }: Props) {
                   ? section === 'komika'
                   : item.key === 'partners'
                     ? section === 'partners'
-                    : item.key === 'more'
-                      ? isMoreNavigationActive(section, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner)
-                      : section === item.key;
+                      : item.key === 'account-management'
+                        ? ['account-management', 'member-accounts', 'admin-accounts'].includes(section)
+                        : item.key === 'more'
+                          ? isMoreNavigationActive(section, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner)
+                          : section === item.key;
           return {
             id: item.key,
             label: item.label,
@@ -1324,86 +1353,373 @@ function ApplicationsView({ community, loading, onNotice, onReload, initialAppli
   );
 }
 
-function Dashboard({ openMics, registrations, events, komika, loading, onNavigate }: { openMics: OpenMic[]; registrations: OpenMicRegistration[]; events: EventItem[]; komika: Komika[]; loading: boolean; onNavigate: (s: Section) => void }) {
-  const pending = registrations.filter((r) => r.status === 'pending');
-  const confirmed = registrations.filter((r) => r.status === 'confirmed');
-  const today = new Date().toISOString().slice(0,10);
-  const upcomingMicCount = openMics.filter((m) => m.status === 'upcoming' && m.date >= today).length;
-  const upcomingEventCount = events.filter((e) => e.status === 'upcoming' && e.date >= today).length;
-  const micTitleMap = useMemo(() => Object.fromEntries(openMics.map((m) => [m.id, m.title])), [openMics]);
-  const openMicNumbers = useMemo(() => getOpenMicNumbers(openMics.filter((m) => m.published)), [openMics]);
-  const recentMics = openMics.slice(0, 3);
-  const recentRegs = registrations.slice(0, 3);
+function SummaryDashboardCard({ title, icon: Icon, onInfo, children }: { title: string; icon: typeof BarChart3; onInfo: () => void; children: React.ReactNode }) {
+  return (
+    <section className="flex min-w-0 flex-col rounded-[18px] border border-blue-800 bg-gradient-to-br from-blue-700 to-blue-800 p-3 text-white shadow-[0_6px_16px_rgba(29,78,216,0.2)] sm:p-3.5">
+      <div className="mb-2 flex min-w-0 items-center gap-2">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/15 text-white shadow-sm"><Icon className="h-4 w-4" /></span>
+        <h2 className="min-w-0 flex-1 text-[15px] font-extrabold leading-tight text-white sm:text-base">{title}</h2>
+        <button
+          type="button"
+          onClick={onInfo}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-blue-100 transition hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          aria-label={`Informasi ${title}`}
+          title={`Informasi ${title}`}
+        >
+          <Info className="h-4 w-4" />
+        </button>
+      </div>
+      {children}
+    </section>
+  );
+}
 
-  if (loading) return <DashboardSkeleton />;
+function getTicketOrderFeeAmount(order: TicketOrder): number {
+  if (typeof order.additional_fee_amount === 'number' && Number.isFinite(order.additional_fee_amount)) {
+    return Math.max(0, order.additional_fee_amount);
+  }
+  const breakdown = order.price_breakdown;
+  const recordedAmount = breakdown?.additional_fee_amount;
+  if (typeof recordedAmount === 'number' && Number.isFinite(recordedAmount)) return Math.max(0, recordedAmount);
+  if (!Array.isArray(breakdown?.fees)) return 0;
+  return breakdown.fees.reduce((total, fee) => {
+    if (!fee || typeof fee !== 'object') return total;
+    const amount = (fee as Record<string, unknown>).amount;
+    return typeof amount === 'number' && Number.isFinite(amount) && amount > 0 ? total + amount : total;
+  }, 0);
+}
+
+function Dashboard({ openMics, events, komika, registrations, memberHistory, ticketOrders, ticketOrdersUnavailable, loading, adminName, adminPhoto, onNavigate }: { openMics: OpenMic[]; events: EventItem[]; komika: Komika[]; registrations: OpenMicRegistration[]; memberHistory: MemberOpenMicHistorySubmission[]; ticketOrders: TicketOrder[]; ticketOrdersUnavailable: boolean; loading: boolean; adminName: string; adminPhoto: string; onNavigate: (section: Section) => void }) {
+  type ExternalActivityRow = { name: string; count: number; communities?: string[]; instagramHandles?: string[] };
+  const [info, setInfo] = useState<{ title: string; description: string[] } | null>(null);
+  const openMicStatuses = openMics.map((item) => getOpenMicStatus(item.status, item.date));
+  const eventStatuses = events.map((item) => getEventStatus(item.status, item.date));
+  const countStatus = (statuses: Array<'upcoming' | 'completed' | 'cancelled'>, status: 'upcoming' | 'completed' | 'cancelled') => statuses.filter((item) => item === status).length;
+  const activeKomikaCount = komika.filter((item) => item.status === 'active').length;
+  const inactiveKomikaCount = komika.filter((item) => item.status === 'archived').length;
+  const activeMemberOpenMicCounts = komika
+    .filter((member) => member.status === 'active')
+    .map((member) => {
+      const internalCount = registrations.filter((registration) => registration.komika_id === member.id && registration.attendance_status === 'attended').length;
+      const externalCount = memberHistory.filter((submission) => submission.komika_id === member.id
+        && submission.status === 'approved'
+        && (!submission.activity_type || submission.activity_type === 'performance')).length;
+      return { member, count: internalCount + externalCount };
+    });
+  const mostActiveMembers = [...activeMemberOpenMicCounts]
+    .sort((first, second) => second.count - first.count || first.member.stage_name.localeCompare(second.member.stage_name, 'id', { sensitivity: 'base' }))
+    .slice(0, 5);
+  const leastActiveMembers = [...activeMemberOpenMicCounts]
+    .sort((first, second) => first.count - second.count || first.member.stage_name.localeCompare(second.member.stage_name, 'id', { sensitivity: 'base' }))
+    .slice(0, 5);
+  const attendedRegistrations = registrations.filter((registration) => registration.status === 'confirmed' && registration.attendance_status === 'attended');
+  const topExternalCommunities: ExternalActivityRow[] = Object.values(attendedRegistrations.reduce<Record<string, ExternalActivityRow>>((counts, registration) => {
+    const name = registration.community?.trim();
+    if (!name || name.toLocaleLowerCase('id') === 'standupindo cilegon') return counts;
+    const key = name.toLocaleLowerCase('id');
+    counts[key] = { name: counts[key]?.name ?? name, count: (counts[key]?.count ?? 0) + 1 };
+    return counts;
+  }, {}))
+    .sort((first, second) => second.count - first.count || first.name.localeCompare(second.name, 'id', { sensitivity: 'base' }))
+    .slice(0, 3);
+  const topExternalComedians: ExternalActivityRow[] = Object.values(attendedRegistrations
+    .filter((registration) => !registration.komika_id)
+    .reduce<Record<string, ExternalActivityRow>>((counts, registration) => {
+      const name = registration.stage_name.trim();
+      if (!name) return counts;
+      const key = name.toLocaleLowerCase('id');
+      const current = counts[key] ?? { name, count: 0, communities: [], instagramHandles: [] };
+      current.communities ??= [];
+      current.instagramHandles ??= [];
+      const community = registration.community?.trim();
+      if (community && !current.communities.some((item) => item.toLocaleLowerCase('id') === community.toLocaleLowerCase('id'))) {
+        current.communities.push(community);
+      }
+      const instagramHandle = formatInstagramHandle(registration.instagram ?? '');
+      if (/^@[a-z0-9._]{1,30}$/i.test(instagramHandle)
+        && !current.instagramHandles.some((item) => item.toLocaleLowerCase('id') === instagramHandle.toLocaleLowerCase('id'))) {
+        current.instagramHandles.push(instagramHandle);
+      }
+      current.count += 1;
+      counts[key] = current;
+      return counts;
+    }, {}))
+    .sort((first, second) => second.count - first.count || first.name.localeCompare(second.name, 'id', { sensitivity: 'base' }))
+    .slice(0, 3);
+  const recognizedTicketOrders = ticketOrders.filter((order) => order.status === 'Lunas'
+    && order.order_type !== 'free_pass'
+    && order.sale_channel !== 'free_pass'
+    && (order.sale_channel !== 'ots' || order.ots_payment_status !== 'pending'));
+  const soldTicketCount = recognizedTicketOrders.reduce((total, order) => total + order.quantity, 0);
+  const netTicketRevenue = recognizedTicketOrders.reduce((total, order) => total
+    + Math.max(0, order.total_price - getTicketOrderFeeAmount(order)), 0);
+  const externalRankingSections: Array<{ title: string; subtitle: string; rows: ExternalActivityRow[]; icon: React.ReactNode; color: 'indigo' | 'blue' }> = [
+    { title: 'Komunitas Teraktif', subtitle: 'Komunitas lain paling sering tampil', rows: topExternalCommunities, icon: <Building2 className="h-4 w-4" />, color: 'indigo' },
+    { title: 'Komika Non-member', subtitle: 'Komika luar paling sering tampil', rows: topExternalComedians, icon: <UserRound className="h-4 w-4" />, color: 'blue' },
+  ];
 
   return (
-    <div className="space-y-5 lg:space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-900 lg:text-[28px]">Dashboard</h1>
-        <p className="mt-1 text-[13px] text-slate-500 lg:text-sm">Ringkasan aktivitas komunitas kamu.</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
-        <StatCard label="Open Mic" value={upcomingMicCount} icon={Mic} tone="bg-blue-50 text-blue-600" onClick={() => onNavigate('open-mic')} />
-        <StatCard label="Registrasi Pending" value={pending.length} icon={Clock3} tone="bg-amber-50 text-amber-600" onClick={() => onNavigate('open-mic')} />
-        <StatCard label="Registrasi Dikonfirmasi" value={confirmed.length} icon={Check} tone="bg-green-50 text-green-600" onClick={() => onNavigate('open-mic')} />
-        <StatCard label="Event Mendatang" value={upcomingEventCount} icon={CalendarDays} tone="bg-indigo-50 text-indigo-600" onClick={() => onNavigate('events')} />
-      </div>
-
-      <div className="space-y-2.5">
-        <h2 className="text-[17px] font-bold text-slate-900 lg:text-lg">Menu Cepat</h2>
-        <button onClick={() => onNavigate('open-mic')} className="flex w-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 text-left shadow-sm transition hover:border-blue-200 hover:shadow-md active:scale-[0.99]">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Mic className="h-5 w-5" /></span>
-          <span className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-900">Kelola Open Mic</p><p className="text-xs text-slate-500">Tambah, edit, dan lihat pendaftar</p></span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-        </button>
-        <button onClick={() => onNavigate('events')} className="flex w-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 text-left shadow-sm transition hover:border-blue-200 hover:shadow-md active:scale-[0.99]">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><CalendarDays className="h-5 w-5" /></span>
-          <span className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-900">Kelola Event</p><p className="text-xs text-slate-500">Tambah dan kelola event</p></span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-        </button>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-2 xl:gap-5">
-        <div>
-          <div className="mb-2.5 flex items-center justify-between">
-            <h2 className="text-[17px] font-bold text-slate-900 lg:text-lg">Open Mic Terbaru</h2>
-            <button onClick={() => onNavigate('open-mic')} className="text-xs font-semibold text-blue-700 hover:text-blue-900 lg:text-sm">Lihat Semua</button>
-          </div>
-          <div className="space-y-2">
-            {recentMics.map((m) => (
-              <div key={m.id} className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900"><span className="mr-1.5 text-blue-700">#{openMicNumbers.get(m.id)}</span>{m.title}</p><p className="mt-0.5 truncate text-xs text-slate-500">{formatDate(m.date)} · {m.venue}</p></div>
-                  <StatusBadge status={m.published ? 'published' : 'draft'} />
-                </div>
-              </div>
-            ))}
-            {recentMics.length === 0 && <div className="rounded-xl border border-slate-200/60 bg-white p-6 text-center text-sm text-slate-400">Belum ada Open Mic.</div>}
+    <div className="space-y-4 sm:space-y-5">
+      <section className="relative isolate min-h-[132px] overflow-hidden rounded-2xl border border-[#5278bd] bg-gradient-to-r from-[#23447f] via-[#315b9b] to-[#477fc0] text-white shadow-[0_10px_26px_rgba(35,68,127,0.2)] sm:min-h-[152px]">
+        {adminPhoto
+          ? <img src={adminPhoto} alt={`Foto profil ${adminName}`} className="absolute right-0 top-[8%] h-[84%] w-[38%] object-cover object-top [mask-image:linear-gradient(90deg,transparent_0%,black_32%,black_100%),linear-gradient(180deg,transparent_0%,black_12%,black_88%,transparent_100%)] [mask-composite:intersect] [-webkit-mask-image:linear-gradient(90deg,transparent_0%,black_32%,black_100%),linear-gradient(180deg,transparent_0%,black_12%,black_88%,transparent_100%)] [-webkit-mask-composite:source-in] sm:inset-y-0 sm:top-0 sm:h-full sm:w-[40%] sm:[mask-image:linear-gradient(90deg,transparent_0%,black_28%,black_100%)] sm:[-webkit-mask-image:linear-gradient(90deg,transparent_0%,black_28%,black_100%)]" />
+          : <div className="absolute inset-y-0 right-0 flex w-[34%] items-center justify-center text-blue-100/35 sm:w-[40%]"><UserRound className="h-20 w-20 sm:h-24 sm:w-24" /></div>}
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,#23447f_0%,rgba(49,91,155,0.97)_48%,rgba(49,91,155,0.78)_68%,rgba(49,91,155,0.24)_86%,transparent_100%)]" />
+        {adminPhoto && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-[1] w-[38%] bg-[linear-gradient(180deg,rgba(35,68,127,0.52)_0%,rgba(35,68,127,0.12)_24%,transparent_50%,rgba(35,68,127,0.64)_100%)] sm:w-[40%]" />}
+        <div className="relative z-10 flex max-w-[74%] flex-col justify-center p-4 sm:max-w-[66%] sm:p-5">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-100 sm:text-xs">Admin Penuh / Superadmin</p>
+          <h2 className="mt-1 truncate text-xl font-black leading-tight sm:text-2xl"><span aria-hidden="true">👑</span>{adminName}</h2>
+          <p className="mt-0.5 text-[10px] font-semibold text-blue-50 sm:text-xs">Standupindo Cilegon</p>
+          <div className="mt-3 border-t border-white/25 pt-2.5">
+            <p className="text-xs font-extrabold leading-snug text-white sm:text-sm">Selamat datang kembali, Yang Mulia!</p>
+            <p className="mt-1.5 text-[10px] font-medium leading-relaxed text-blue-50 sm:text-xs">
+              Sang Pemegang Kendali Tertinggi Standupindo Cilegon, Maharaja Agung Dunia Komedi, Penguasa Mutlak Dasbor Organisasi, serta Pemegang Hak Istimewa atas segala keputusan penting.
+            </p>
+            <p className="mt-1.5 text-[10px] font-bold text-white sm:text-xs">Seluruh sistem siap menerima titah Anda.</p>
           </div>
         </div>
-
-        <div>
-          <div className="mb-2.5 flex items-center justify-between">
-            <h2 className="text-[17px] font-bold text-slate-900 lg:text-lg">Registrasi Terbaru</h2>
-            <button onClick={() => onNavigate('open-mic')} className="text-xs font-semibold text-blue-700 hover:text-blue-900 lg:text-sm">Lihat Semua</button>
-          </div>
-          <div className="space-y-2">
-            {recentRegs.map((r) => (
-              <div key={r.id} className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{r.stage_name}</p><p className="mt-0.5 truncate text-xs text-slate-500">{micTitleMap[r.open_mic_id] ?? 'Open Mic'}</p></div>
-                  <StatusBadge status={r.status} />
+      </section>
+      <section aria-labelledby="admin-main-menu-title">
+        <h2 id="admin-main-menu-title" className="mb-1.5 text-sm font-extrabold text-slate-900">Menu Utama</h2>
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            { label: 'Komika', section: 'komika' as const, icon: Users },
+            { label: 'Akun', section: 'account-management' as const, icon: ShieldPlus },
+            { label: 'Partner', section: 'partners' as const, icon: Handshake },
+            { label: 'Annual Recap', section: 'annual-recap' as const, icon: BarChart3 },
+            { label: 'Gabung Komunitas', section: 'applications' as const, icon: UserPlus },
+            { label: 'Settings', section: 'settings' as const, icon: Settings },
+          ]).map(({ label, section, icon: Icon }) => (
+            <button key={section} type="button" onClick={() => onNavigate(section)} className="group flex min-h-[76px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-blue-100 bg-white px-1.5 py-2 text-center text-slate-800 shadow-[0_4px_10px_rgba(37,99,235,0.07)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-[0_8px_16px_rgba(37,99,235,0.13)] active:translate-y-0 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-[0_3px_8px_rgba(37,99,235,0.28)] ring-2 ring-blue-100 transition duration-200 group-hover:scale-105 group-hover:ring-blue-200"><Icon className="h-5 w-5" /></span>
+              <span className="max-w-full text-[10px] font-bold leading-tight transition-colors group-hover:text-blue-800 sm:text-[11px]">{label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+      <section aria-labelledby="admin-summary-title">
+        <h1 id="admin-summary-title" className="mb-1.5 text-sm font-extrabold text-slate-900">Ringkasan</h1>
+        <div className="grid grid-cols-2 items-stretch gap-2 sm:gap-3">
+        <SummaryDashboardCard title="Open Mic" icon={Mic} onInfo={() => setInfo({
+          title: 'Ringkasan Open Mic',
+          description: ['Total Open Mic menghitung seluruh jadwal yang tercatat.', 'Selesai, Mendatang, dan Batal mengikuti status Open Mic dan tanggal jadwal.'],
+        })}>
+          <div>
+            <div className="flex items-end justify-between border-b border-white/25 pb-2">
+              <span className="text-[11px] font-semibold text-blue-100">Total Open Mic</span>
+              {loading ? <div className="h-7 w-8 skeleton !bg-white/20" /> : <span className="text-2xl font-black leading-none text-white">{openMics.length}</span>}
+            </div>
+            <div className="grid grid-cols-3 gap-1 pt-2">
+              {([
+                ['Selesai', countStatus(openMicStatuses, 'completed')],
+                ['Mendatang', countStatus(openMicStatuses, 'upcoming')],
+                ['Batal', countStatus(openMicStatuses, 'cancelled')],
+              ] as const).map(([label, value]) => (
+                <div key={label} className="min-w-0">
+                  <p className="truncate text-[10px] font-semibold text-blue-100 sm:text-[11px]">{label}</p>
+                  {loading ? <div className="mt-1 h-4 w-5 skeleton !bg-white/20" /> : <p className="mt-0.5 text-[15px] font-extrabold leading-none text-white">{value}</p>}
                 </div>
+              ))}
+            </div>
+          </div>
+        </SummaryDashboardCard>
+
+        <SummaryDashboardCard title="Event" icon={CalendarDays} onInfo={() => setInfo({
+          title: 'Ringkasan Event',
+          description: ['Total Event menghitung seluruh event yang tercatat.', 'Selesai, Mendatang, dan Batal mengikuti status Event dan tanggal event.'],
+        })}>
+          <div>
+            <div className="flex items-end justify-between border-b border-white/25 pb-2">
+              <span className="text-[11px] font-semibold text-blue-100">Total Event</span>
+              {loading ? <div className="h-7 w-8 skeleton !bg-white/20" /> : <span className="text-2xl font-black leading-none text-white">{events.length}</span>}
+            </div>
+            <div className="grid grid-cols-3 gap-1 pt-2">
+              {([
+                ['Selesai', countStatus(eventStatuses, 'completed')],
+                ['Mendatang', countStatus(eventStatuses, 'upcoming')],
+                ['Batal', countStatus(eventStatuses, 'cancelled')],
+              ] as const).map(([label, value]) => (
+                <div key={label} className="min-w-0">
+                  <p className="truncate text-[10px] font-semibold text-blue-100 sm:text-[11px]">{label}</p>
+                  {loading ? <div className="mt-1 h-4 w-5 skeleton !bg-white/20" /> : <p className="mt-0.5 text-[15px] font-extrabold leading-none text-white">{value}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </SummaryDashboardCard>
+
+        <SummaryDashboardCard title="Tiket" icon={TicketIcon} onInfo={() => setInfo({
+          title: 'Ringkasan Tiket',
+          description: [
+            'Total tiket terjual menjumlahkan kuantitas order Lunas dan OTS terkonfirmasi. Free Pass serta pembayaran yang masih menunggu tidak dihitung.',
+            'Pendapatan bersih dihitung dari total pembayaran order dikurangi pajak dan biaya tambahan yang tercatat di order.',
+            'Potongan payment gateway atau biaya lain yang tidak tersimpan di rincian order tidak dapat dikurangkan.',
+          ],
+        })}>
+          <div>
+            <div className="flex items-end justify-between border-b border-white/25 pb-2">
+              <span className="text-[11px] font-semibold text-blue-100">Total Tiket Terjual</span>
+              {loading ? <div className="h-7 w-8 skeleton !bg-white/20" /> : <span className="text-2xl font-black leading-none text-white">{ticketOrdersUnavailable ? '—' : soldTicketCount}</span>}
+            </div>
+            <div className="mt-2 border-t border-white/25 pt-2">
+              <span className="block text-[11px] font-semibold leading-4 text-blue-100">Pendapatan Bersih</span>
+              {loading ? <div className="mt-1 h-5 w-24 skeleton !bg-white/20" /> : <span className={`mt-0.5 block max-w-full text-[clamp(0.875rem,4vw,1.125rem)] font-black leading-tight tabular-nums text-left [overflow-wrap:anywhere] ${ticketOrdersUnavailable ? 'text-blue-200' : 'text-white'}`}>{ticketOrdersUnavailable ? '—' : formatPrice(netTicketRevenue)}</span>}
+            </div>
+          </div>
+        </SummaryDashboardCard>
+
+        <SummaryDashboardCard title="Komunitas" icon={Users} onInfo={() => setInfo({
+          title: 'Ringkasan Komunitas',
+          description: ['Total Komika menghitung seluruh profil Komika, termasuk yang diarsipkan.', 'Komika Aktif dan Komika Nonaktif dihitung berdasarkan status profil.'],
+        })}>
+          <div>
+            <div className="flex items-end justify-between border-b border-white/25 pb-2">
+              <span className="text-[11px] font-semibold text-blue-100">Total Komika</span>
+              {loading ? <div className="h-7 w-8 skeleton !bg-white/20" /> : <span className="text-2xl font-black leading-none text-white">{komika.length}</span>}
+            </div>
+            <div className="grid grid-cols-2 gap-1 pt-2">
+              {([
+                ['Komika Aktif', activeKomikaCount],
+                ['Komika Nonaktif', inactiveKomikaCount],
+              ] as const).map(([label, value]) => (
+                <div key={label} className="min-w-0">
+                  <p className="truncate text-[10px] font-semibold text-blue-100 sm:text-[11px]">{label}</p>
+                  {loading ? <div className="mt-1 h-4 w-5 skeleton !bg-white/20" /> : <p className="mt-0.5 text-[15px] font-extrabold leading-none text-white">{value}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </SummaryDashboardCard>
+        </div>
+      </section>
+      <section aria-labelledby="admin-open-mic-activity-title" className="space-y-3">
+        {loading ? (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_rgba(15,23,42,0.07)]">
+            <div className="h-16 skeleton !rounded-none" />
+            <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4"><div className="h-40 skeleton" /><div className="h-40 skeleton" /></div>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_rgba(15,23,42,0.07)]">
+            <div className="flex items-start gap-2.5 bg-blue-700 px-3.5 py-3 text-white sm:px-4">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20"><Mic className="h-4 w-4" /></span>
+              <div className="min-w-0">
+                <h2 id="admin-open-mic-activity-title" className="text-xs font-extrabold sm:text-sm">Aktivitas Open Mic Anggota</h2>
+                <p className="mt-0.5 text-[10px] leading-4 text-white/85 sm:text-[11px]">Total penampilan internal + eksternal yang disetujui.</p>
+              </div>
+            </div>
+            {activeMemberOpenMicCounts.length === 0 ? (
+              <p className="p-4 text-sm text-slate-500">Belum ada anggota aktif.</p>
+            ) : (
+              <div className="grid gap-3 p-3 sm:grid-cols-2 sm:gap-4 sm:p-4">
+          {([
+            { title: 'Paling Aktif', rows: mostActiveMembers, color: 'blue' },
+            { title: 'Perlu Didorong', rows: leastActiveMembers, color: 'slate' },
+          ] as const).map(({ title, rows, color }) => (
+            <div key={title} className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
+              <div className={`flex items-center justify-between gap-2 px-4 py-3 text-white ${color === 'blue' ? 'bg-blue-700' : 'bg-slate-700'}`}>
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/20">
+                    {color === 'blue' ? <BarChart3 className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-extrabold">{title}</h3>
+                    <p className="mt-0.5 text-[10px] font-medium text-white/85">{color === 'blue' ? 'Panggung paling sering' : 'Penampilan paling sedikit'}</p>
+                  </div>
+                </div>
+                <span className="shrink-0 rounded-full border border-white/30 bg-black/10 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-white">Top 5</span>
+              </div>
+              <ol className="divide-y divide-slate-100 px-3">
+                {rows.map(({ member, count }, index) => (
+                  <li key={member.id} className={`flex items-center gap-3 px-1.5 py-2.5 ${index === 0 ? color === 'blue' ? 'rounded-lg bg-blue-50' : 'rounded-lg bg-slate-50' : ''}`}>
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-extrabold ${index === 0 ? 'bg-blue-700 text-white' : index === 1 ? 'bg-slate-500 text-white' : index === 2 ? 'bg-slate-300 text-slate-800' : 'bg-slate-100 text-slate-600'}`}>{index + 1}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{member.stage_name}</span>
+                    <span className="shrink-0 rounded-xl bg-blue-50 px-2.5 py-1.5 text-right text-blue-900 ring-1 ring-inset ring-blue-100">
+                      <span className="block text-xs font-extrabold leading-none tabular-nums">{count}x</span>
+                      <span className="mt-1 block text-[9px] font-semibold leading-none opacity-75">Open Mic</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+      <section aria-labelledby="admin-external-open-mic-activity-title" className="space-y-3">
+        {loading ? (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_rgba(15,23,42,0.07)]">
+            <div className="h-16 skeleton !rounded-none" />
+            <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4"><div className="h-36 skeleton" /><div className="h-36 skeleton" /></div>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_rgba(15,23,42,0.07)]">
+            <div className="flex items-start gap-2.5 bg-slate-900 px-3.5 py-3 text-white sm:px-4">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20"><Building2 className="h-4 w-4" /></span>
+              <div className="min-w-0">
+                <h2 id="admin-external-open-mic-activity-title" className="text-xs font-extrabold sm:text-sm">Aktivitas Open Mic Komunitas & Komika Eksternal</h2>
+                <p className="mt-0.5 text-[10px] leading-4 text-white/85 sm:text-[11px]">Top 3 komunitas lain dan komika non-member berdasarkan kehadiran tercatat.</p>
+              </div>
+            </div>
+            <div className="grid gap-3 p-3 sm:grid-cols-2 sm:gap-4 sm:p-4">
+            {externalRankingSections.map(({ title, subtitle, rows, icon, color }) => (
+              <div key={title} className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
+                <div className={`flex min-h-[62px] items-center justify-between gap-2 px-3 py-2.5 text-white ${color === 'indigo' ? 'bg-indigo-700' : 'bg-blue-700'}`}>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/25">{icon}</span>
+                    <div className="min-w-0">
+                      <h3 className="text-xs font-extrabold text-white sm:text-sm">{title}</h3>
+                      <p className="mt-0.5 text-[10px] leading-4 text-white/85 sm:text-[11px]">{subtitle}</p>
+                    </div>
+                  </div>
+                  <span className={`shrink-0 rounded-full border border-white/40 bg-white px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wide ${color === 'indigo' ? 'text-indigo-800' : 'text-blue-800'}`}>Top 3</span>
+                </div>
+                {rows.length === 0 ? (
+                  <p className="px-3 py-5 text-center text-xs text-slate-500">Belum ada data kehadiran.</p>
+                ) : (
+                  <ol className="divide-y divide-slate-100 px-2">
+                    {rows.map(({ name, count, ...details }, index) => (
+                      <li key={name.toLocaleLowerCase('id')} className={`flex min-h-12 items-center gap-2.5 px-1.5 py-2 ${index === 0 ? 'rounded-lg bg-blue-50' : ''}`}>
+                        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold ${index === 0 ? 'bg-blue-700 text-white' : index === 1 ? 'bg-slate-500 text-white' : 'bg-slate-200 text-slate-700'}`}>{index + 1}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block break-words text-xs font-bold leading-4 text-slate-800">{name}</span>
+                          {details.communities && details.communities.length > 0 && <span className="mt-0.5 block break-words text-[10px] leading-4 text-slate-500">{details.communities.join(', ')}</span>}
+                          {details.instagramHandles && (
+                            <span className="mt-0.5 flex flex-wrap gap-x-2 gap-y-1">
+                              {details.instagramHandles.length > 0
+                                ? details.instagramHandles.map((handle) => {
+                                  const profileUrl = instagramProfileUrl(handle);
+                                  return profileUrl ? (
+                                    <a key={handle} href={profileUrl} target="_blank" rel="noopener noreferrer" className="group/instagram inline-flex min-h-6 items-center gap-1 rounded-md text-[10px] font-semibold text-slate-700 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-[#9f1857]">
+                                      <Instagram className="h-3 w-3 text-[#c13584] transition-transform group-hover/instagram:scale-110" />{handle}
+                                    </a>
+                                  ) : null;
+                                })
+                                : <span className="text-[10px] text-slate-400">IG belum dicantumkan</span>}
+                            </span>
+                          )}
+                        </span>
+                        <span className="shrink-0 rounded-lg bg-blue-50 px-2 py-1.5 text-right text-blue-900 ring-1 ring-inset ring-blue-100">
+                          <span className="block text-xs font-extrabold leading-none tabular-nums">{count}x</span>
+                          <span className="mt-1 block text-[9px] font-semibold leading-none opacity-75">Tampil</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </div>
             ))}
-            {recentRegs.length === 0 && <div className="rounded-xl border border-slate-200/60 bg-white p-6 text-center text-sm text-slate-400">Belum ada registrasi terbaru.</div>}
+            </div>
           </div>
-        </div>
-      </div>
-
-      <p className="text-xs text-slate-400 lg:text-sm">Total komika aktif: <strong className="text-slate-700">{komika.filter((k) => k.status === 'active').length}</strong></p>
+        )}
+      </section>
+      <Modal open={Boolean(info)} onClose={() => setInfo(null)} title={info?.title} titleEyebrow="Informasi" titleLayout="stacked" size="sm">
+        {info && <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
+          {info.description.map((item) => <li key={item}>{item}</li>)}
+          {info.title === 'Ringkasan Tiket' && ticketOrdersUnavailable && <li className="font-semibold text-amber-800">Data order gagal dimuat, sehingga angka pada kartu ditampilkan sebagai “—”.</li>}
+        </ul>}
+      </Modal>
     </div>
   );
 }
@@ -2539,7 +2855,18 @@ function EventManagement({ rows, loading, pendingCounts, canManageTickets, initi
   );
 }
 
-function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit, onDelete, onTogglePublish }: { rows: Partner[]; events: EventItem[]; partnerships: EventPartnership[]; loading: boolean; onAdd: () => void; onEdit: (row: Partner) => void; onDelete: (id: string) => void; onTogglePublish: (id: string, current: boolean) => void }) {
+function PartnerVisibilityBadges({ partner }: { partner: Partner }) {
+  const badgeClass = 'rounded-full px-2 py-1 text-[9px] font-bold ring-1';
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <span className={`${badgeClass} ${partner.is_active ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-slate-200'}`}>{partner.is_active ? 'Aktif' : 'Nonaktif'}</span>
+      <span className={`${badgeClass} ${partner.show_on_home ? 'bg-blue-50 text-blue-700 ring-blue-200' : 'bg-slate-50 text-slate-500 ring-slate-200'}`}>{partner.show_on_home ? 'Home' : 'Home off'}</span>
+      <span className={`${badgeClass} ${partner.show_on_partnership_page ? 'bg-violet-50 text-violet-700 ring-violet-200' : 'bg-slate-50 text-slate-500 ring-slate-200'}`}>{partner.show_on_partnership_page ? 'Kerja Sama' : 'Kerja Sama off'}</span>
+    </div>
+  );
+}
+
+function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit, onDelete }: { rows: Partner[]; events: EventItem[]; partnerships: EventPartnership[]; loading: boolean; onAdd: () => void; onEdit: (row: Partner) => void; onDelete: (id: string) => void }) {
   const [viewPartner, setViewPartner] = useState<Partner | null>(null);
   const [viewImage, setViewImage] = useState<string | null>(null);
   const [deletePartner, setDeletePartner] = useState<Partner | null>(null);
@@ -2664,15 +2991,8 @@ function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit,
                         <div className="min-w-0">
                         <p className="text-lg font-black leading-tight text-slate-900">{partner.name}</p>
                         <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">{categoryLabels[partner.category]}</p>
+                        <div className="mt-2"><PartnerVisibilityBadges partner={partner} /></div>
                         </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => onTogglePublish(partner.id, partner.is_published)}
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 transition ${partner.is_published ? 'bg-green-50 text-green-700 ring-green-200 hover:bg-green-100' : 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200'}`}
-                      >
-                        {partner.is_published ? 'Published' : 'Draft'}
                       </button>
                     </div>
 
@@ -2752,7 +3072,7 @@ function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit,
                 Yakin ingin menghapus <span className="font-extrabold text-slate-900">{deletePartner.name}</span>?
               </p>
               <p className="mt-2 text-xs leading-5 text-red-700">
-                Semua data histori partner di event terkait juga akan ikut terhapus.
+                Partner yang sudah terhubung ke Event tidak dapat dihapus agar histori tetap terjaga. Nonaktifkan Partner untuk menyembunyikannya dari website.
               </p>
             </div>
 
@@ -2786,13 +3106,7 @@ function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit,
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Partner</p>
                     <h3 className="mt-1 text-2xl font-black text-slate-900">{viewPartner.name}</h3>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => onTogglePublish(viewPartner.id, viewPartner.is_published)}
-                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 transition ${viewPartner.is_published ? 'bg-green-50 text-green-700 ring-green-200 hover:bg-green-100' : 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200'}`}
-                  >
-                    {viewPartner.is_published ? 'Published' : 'Draft'}
-                  </button>
+                  <PartnerVisibilityBadges partner={viewPartner} />
                 </div>
                 <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{viewPartner.category}</p>
               </div>
@@ -2904,7 +3218,7 @@ function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit,
   );
 }
 
-function KomikaManagement({ rows, registrations, openMics, attendanceCounts, loading, onReload, onNotice, onAdd, onEdit, onDelete }: { rows: Komika[]; registrations: OpenMicRegistration[]; openMics: OpenMic[]; attendanceCounts: Record<string, number>; loading: boolean; onReload: () => Promise<void>; onNotice: (message: string) => void; onAdd: () => void; onEdit: (row: Komika) => void; onDelete: (id: string) => void }) {
+function KomikaManagement({ rows, attendanceCounts, externalOpenMicCounts, loading, onReload, onNotice, onAdd, onEdit, onDelete }: { rows: Komika[]; attendanceCounts: Record<string, number>; externalOpenMicCounts: Record<string, number>; loading: boolean; onReload: () => Promise<void>; onNotice: (message: string) => void; onAdd: () => void; onEdit: (row: Komika) => void; onDelete: (id: string) => void }) {
   const [viewKomika, setViewKomika] = useState<Komika | null>(null);
   const [accountAction, setAccountAction] = useState<{ mode: 'create' | 'manage'; komika: Komika } | null>(null);
   const [accountEmail, setAccountEmail] = useState('');
@@ -2912,16 +3226,79 @@ function KomikaManagement({ rows, registrations, openMics, attendanceCounts, loa
   const [showAccountPassword, setShowAccountPassword] = useState(false);
   const [accountActionSaving, setAccountActionSaving] = useState(false);
   const [search, setSearch] = useState('');
-  const [folder, setFolder] = useState<'active' | 'archived'>('active');
-  const [historySaving, setHistorySaving] = useState(false);
-  const [deleteHistoryTarget, setDeleteHistoryTarget] = useState<OpenMicRegistration | null>(null);
-  const folderRows = rows.filter((row) => row.status === folder);
+  const [folder, setFolder] = useState<'activity' | 'active' | 'archived'>('active');
+  const [activitySources, setActivitySources] = useState<{
+    registrations: OpenMicRegistration[];
+    openMics: OpenMic[];
+    history: MemberOpenMicHistorySubmission[];
+    lineups: RecapOfficialLineup[];
+    experiences: RecapStageExperience[];
+  } | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState('');
+  const folderRows = folder === 'activity' ? [] : rows.filter((row) => row.status === folder);
   const filteredRows = folderRows.filter((row) => {
     const query = search.trim().toLowerCase();
     return !query || row.full_name.toLowerCase().includes(query) || row.stage_name.toLowerCase().includes(query) || row.specialties.join(' ').toLowerCase().includes(query);
   });
-  const printRows = [...rows].sort((first, second) => first.stage_name.localeCompare(second.stage_name, 'id', { sensitivity: 'base' }));
-  const history = viewKomika ? registrations.filter((registration) => registration.komika_id === viewKomika.id).sort((first, second) => second.created_at.localeCompare(first.created_at)) : [];
+  const printRows = [...filteredRows].sort((first, second) => first.stage_name.localeCompare(second.stage_name, 'id', { sensitivity: 'base' }));
+  function printKomika() {
+    const printMode = folder === 'activity' ? 'komika-ranking' : 'komika-roster';
+    const clearPrintMode = () => {
+      delete document.body.dataset.printMode;
+      window.removeEventListener('afterprint', clearPrintMode);
+    };
+    document.body.dataset.printMode = printMode;
+    window.addEventListener('afterprint', clearPrintMode);
+    window.setTimeout(() => window.print(), 0);
+  }
+  const loadActivityData = useCallback(async () => {
+    setActivityLoading(true);
+    setActivityError('');
+    try {
+      const [registrationResult, openMicResult, historyResult, lineupResult, experienceResult] = await Promise.all([
+        loadAllAdminRows<OpenMicRegistration>((from, to) => supabase.from('open_mic_registrations').select('*').order('id').range(from, to)),
+        loadAllAdminRows<OpenMic>((from, to) => supabase.from('open_mics').select('*').order('id').range(from, to)),
+        loadAllAdminRows<MemberOpenMicHistorySubmission>((from, to) => supabase.from('member_open_mic_history_submissions').select('*').order('id').range(from, to)),
+        loadAllAdminRows<RecapOfficialLineupQuery>((from, to) => supabase.from('event_lineups')
+          .select('id, komika_id, event_id, role_category, role_title, event:events!inner(id, title, date, status, published, venue, location)')
+          .eq('events.published', true)
+          .order('id')
+          .range(from, to)),
+        loadAllAdminRows<RecapStageExperience>((from, to) => supabase.from('member_stage_experiences')
+          .select('id, komika_id, event_date, event_name, organizer, role, custom_role, city')
+          .order('id')
+          .range(from, to)),
+      ]);
+      const error = registrationResult.error || openMicResult.error || historyResult.error || lineupResult.error || experienceResult.error;
+      if (error) {
+        console.error('Data leaderboard keaktifan Komika gagal dimuat.', error);
+        setActivitySources(null);
+        setActivityError('Data keaktifan Komika gagal dimuat. Coba muat ulang data.');
+        return;
+      }
+      setActivitySources({
+        registrations: registrationResult.data ?? [],
+        openMics: openMicResult.data ?? [],
+        history: historyResult.data ?? [],
+        lineups: ((lineupResult.data as unknown as RecapOfficialLineupQuery[]) ?? []).map((item) => ({
+          ...item,
+          event: Array.isArray(item.event) ? item.event[0] ?? null : item.event,
+        })),
+        experiences: (experienceResult.data as unknown as RecapStageExperience[]) ?? [],
+      });
+    } catch (error) {
+      console.error('Data leaderboard keaktifan Komika gagal dimuat.', error);
+      setActivitySources(null);
+      setActivityError('Data keaktifan Komika gagal dimuat. Coba muat ulang data.');
+    } finally {
+      setActivityLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (folder === 'activity' && !activitySources && !activityLoading && !activityError) void loadActivityData();
+  }, [activityError, activityLoading, activitySources, folder, loadActivityData]);
 
   function openAccountAction(mode: 'create' | 'manage', komika: Komika) {
     setAccountEmail('');
@@ -2980,55 +3357,46 @@ function KomikaManagement({ rows, registrations, openMics, attendanceCounts, loa
     }
   }
 
-  async function deleteHistory() {
-    if (!deleteHistoryTarget) return;
-    setHistorySaving(true);
-    const { error } = await supabase.from('open_mic_registrations').delete().eq('id', deleteHistoryTarget.id);
-    setHistorySaving(false);
-    if (!error) {
-      setDeleteHistoryTarget(null);
-      await onReload();
-    }
-  }
-
-  function printKomikaHistory() {
-    document.body.dataset.printMode = 'komika-history';
-    window.setTimeout(() => {
-      window.print();
-      delete document.body.dataset.printMode;
-    }, 0);
-  }
-
   return (
     <div className="space-y-5">
-      <WorkspacePageHeader eyebrow="Komika Workspace" title="Komika" subtitle="Kelola profil komika yang tampil di website." action={<div className="flex shrink-0 gap-2"><button type="button" onClick={() => window.print()} aria-label="Print daftar komika" title="Print" className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm transition hover:bg-blue-50 sm:w-auto sm:px-3"><Printer className="h-4 w-4" /><span className="ml-2 hidden text-sm font-bold sm:inline">Print</span></button><button type="button" onClick={onAdd} aria-label="Tambah komika" title="Tambah komika" className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm transition hover:bg-blue-50 sm:w-auto sm:px-3"><Plus className="h-5 w-5" /><span className="ml-2 hidden text-sm font-bold sm:inline">Tambah</span></button></div>} />
+      <WorkspacePageHeader eyebrow="Komika Workspace" title="Komika" subtitle="Kelola profil komika yang tampil di website." action={<div className="flex shrink-0 gap-2"><button type="button" onClick={printKomika} disabled={folder === 'activity' && (!activitySources || activityLoading || !!activityError)} aria-label="Print daftar komika sesuai tab dan filter" title="Print sesuai tab dan filter" className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto sm:px-3"><Printer className="h-4 w-4" /><span className="ml-2 hidden text-sm font-bold sm:inline">Print</span></button><button type="button" onClick={onAdd} aria-label="Tambah komika" title="Tambah komika" className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm transition hover:bg-blue-50 sm:w-auto sm:px-3"><Plus className="h-5 w-5" /><span className="ml-2 hidden text-sm font-bold sm:inline">Tambah</span></button></div>} />
 
-      <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => setFolder('active')} className={`flex items-center gap-3 rounded-2xl border p-3.5 text-left transition ${folder === 'active' ? 'border-blue-200 bg-blue-50 text-blue-700 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-100'}`}>
-          <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${folder === 'active' ? 'bg-white' : 'bg-slate-50'}`}><FolderOpen className="h-5 w-5" /></span>
-          <span><span className="block text-sm font-bold">Komika Aktif</span><span className="mt-0.5 block text-xs opacity-70">{rows.filter((row) => row.status === 'active').length} profil</span></span>
+      <div className="relative grid grid-cols-3 gap-1 rounded-2xl border border-slate-200 bg-slate-100 p-1" role="tablist" aria-label="Daftar Komika">
+        <span aria-hidden="true" className={`absolute bottom-1 left-1 top-1 w-[calc((100%-1rem)/3)] rounded-xl bg-blue-700 shadow-sm transition-transform duration-300 ease-in-out ${folder === 'activity' ? 'translate-x-0' : folder === 'active' ? 'translate-x-[calc(100%+0.25rem)]' : 'translate-x-[calc(200%+0.5rem)]'}`} />
+        <button type="button" role="tab" aria-selected={folder === 'activity'} onClick={() => setFolder('activity')} className={`relative z-10 min-w-0 rounded-xl px-1 py-3 text-center text-xs font-bold transition-colors sm:text-sm ${folder === 'activity' ? 'text-white' : 'text-slate-600 hover:text-slate-900'}`}>
+          Ranking
         </button>
-        <button onClick={() => setFolder('archived')} className={`flex items-center gap-3 rounded-2xl border p-3.5 text-left transition ${folder === 'archived' ? 'border-slate-300 bg-slate-100 text-slate-800 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
-          <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${folder === 'archived' ? 'bg-white' : 'bg-slate-50'}`}><Archive className="h-5 w-5" /></span>
-          <span><span className="block text-sm font-bold">Archived</span><span className="mt-0.5 block text-xs opacity-70">{rows.filter((row) => row.status === 'archived').length} profil</span></span>
+        <button type="button" role="tab" aria-selected={folder === 'active'} onClick={() => setFolder('active')} className={`relative z-10 min-w-0 rounded-xl px-1 py-3 text-center text-xs font-bold transition-colors sm:text-sm ${folder === 'active' ? 'text-white' : 'text-slate-600 hover:text-slate-900'}`}>
+          Komika Aktif
+        </button>
+        <button type="button" role="tab" aria-selected={folder === 'archived'} onClick={() => setFolder('archived')} className={`relative z-10 min-w-0 rounded-xl px-1 py-3 text-center text-xs font-bold transition-colors sm:text-sm ${folder === 'archived' ? 'text-white' : 'text-slate-600 hover:text-slate-900'}`}>
+          Arsip
         </button>
       </div>
 
-      <div className="print-sheet">
-        <div className="print-brand"><img src={LOGO_URL} alt="Logo Standupindo Cilegon" /><div><h1>DAFTAR KOMIKA KOMUNITAS STANDUPINDO CILEGON</h1><p>Urut alfabetis berdasarkan nama panggung</p></div></div>
+      <div className="print-sheet komika-roster-print">
+        <div className="print-brand"><img src={LOGO_URL} alt="Logo Standupindo Cilegon" /><div><p className="print-kicker">STANDUPINDO CILEGON</p><h1>DAFTAR KOMIKA {folder === 'archived' ? 'ARSIP' : 'AKTIF'}</h1><p>Diurutkan alfabetis berdasarkan nama panggung{search.trim() ? ` · Pencarian: ${search.trim()}` : ''}</p></div></div>
         <table>
           <thead><tr><th>No.</th><th>Foto</th><th>Nama Lengkap</th><th>Nama Panggung</th><th>Spesialis</th><th>Bergabung</th><th>Status</th></tr></thead>
-          <tbody>{printRows.map((row, index) => <tr key={row.id}><td>{index + 1}</td><td>{row.photo ? <img src={row.photo} alt="" style={{ width: '16mm', height: '16mm', objectFit: 'cover' }} /> : '-'}</td><td>{row.full_name}</td><td>{row.stage_name}</td><td>{row.specialties.join(', ') || '-'}</td><td>{row.joined_at || '-'}</td><td>{row.status === 'active' ? 'Aktif' : 'Tidak Aktif'}</td></tr>)}</tbody>
+          <tbody>{printRows.map((row, index) => <tr key={row.id}><td>{index + 1}</td><td>{row.photo ? <img src={row.photo} alt="" style={{ width: '12mm', height: '12mm', objectFit: 'cover', borderRadius: '50%' }} /> : '-'}</td><td>{row.full_name}</td><td>{row.stage_name}</td><td>{row.specialties.join(', ') || '-'}</td><td>{row.joined_at || '-'}</td><td>{row.status === 'active' ? 'Aktif' : 'Arsip'}</td></tr>)}</tbody>
         </table>
       </div>
 
-      <div className="relative">
+      {folder !== 'activity' && <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Cari ${folder === 'archived' ? 'komika archived' : 'komika aktif'} atau specialty...`} className="input-field pl-10" aria-label="Cari komika" />
-      </div>
+      </div>}
+
+      {folder === 'activity' && <KomikaActivityLeaderboard
+        rows={rows}
+        sources={activitySources}
+        loading={activityLoading}
+        error={activityError}
+        onRetry={loadActivityData}
+      />}
 
       {/* Desktop Table */}
-      <div className="hidden overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70 lg:block">
+      {folder !== 'activity' && <div className="hidden overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70 lg:block">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
@@ -3055,10 +3423,10 @@ function KomikaManagement({ rows, registrations, openMics, attendanceCounts, loa
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
 
       {/* Mobile Card Grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:hidden">
+      {folder !== 'activity' && <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:hidden">
         {loading ? (
           <>{[1,2,3,4].map((n) => <div key={n} className="h-48 skeleton" />)}</>
         ) : filteredRows.length === 0 ? (
@@ -3088,7 +3456,7 @@ function KomikaManagement({ rows, registrations, openMics, attendanceCounts, loa
             </div>
           </div>
         ))}
-      </div>
+      </div>}
 
       <Modal open={accountAction?.mode === 'create'} onClose={() => { if (!accountActionSaving) setAccountAction(null); }} title="Buat Akun Login" size="sm">
         {accountAction?.mode === 'create' && <form onSubmit={submitAccountAction} className="space-y-4">
@@ -3131,22 +3499,180 @@ function KomikaManagement({ rows, registrations, openMics, attendanceCounts, loa
               <button onClick={() => { setViewKomika(null); onEdit(viewKomika); }} className="btn-secondary w-full !border-blue-200 !bg-blue-50 !text-blue-700 sm:w-auto"><Pencil className="h-4 w-4" /> Edit Komika</button>
             </div>
             <div className="border-t border-slate-200 pt-4">
-              <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold text-slate-900">Riwayat Open Mic</p><p className="mt-0.5 text-xs text-slate-500">Khusus rekaman Komika anggota ini.</p></div><div className="flex items-center gap-2"><button type="button" onClick={printKomikaHistory} className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-blue-50 hover:text-blue-700" title="Print riwayat" aria-label="Print riwayat Open Mic"><Printer className="h-4 w-4" /></button><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">{attendanceCounts[viewKomika.id] ?? 0}x Tampil</span></div></div>
-              {history.length === 0 ? <p className="mt-3 rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-500">Belum ada riwayat Open Mic.</p> : <div className="mt-3 space-y-2">{history.map((registration) => { const historyMic = openMics.find((openMic) => openMic.id === registration.open_mic_id); return <div key={registration.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2.5"><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{historyMic?.title ?? 'Open Mic'}</p><p className="truncate text-xs text-slate-500">{historyMic ? `${formatDate(historyMic.date)} · ${historyMic.venue}` : 'Acara tidak ditemukan'}</p></div><div className="flex shrink-0 items-center gap-1.5"><span className={`rounded-lg px-2 py-1.5 text-[11px] font-bold ${registration.attendance_status === 'attended' ? 'bg-green-100 text-green-700' : registration.attendance_status === 'absent' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>{registration.attendance_status === 'attended' ? 'Tampil' : registration.attendance_status === 'absent' ? 'Tidak Tampil' : 'Belum Dicek'}</span><button type="button" onClick={() => setDeleteHistoryTarget(registration)} disabled={historySaving} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600" title="Hapus riwayat"><Trash2 className="h-3.5 w-3.5" /></button></div></div>; })}</div>}
+              <h5 className="text-sm font-bold text-slate-900">Riwayat Open Mic</h5>
+              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between gap-3 bg-blue-50 px-3.5 py-3">
+                  <span className="text-sm font-bold text-blue-900">Total Open Mic</span>
+                  <span className="shrink-0 rounded-lg bg-white px-2.5 py-1 text-sm font-extrabold text-blue-700">{(attendanceCounts[viewKomika.id] ?? 0) + (externalOpenMicCounts[viewKomika.id] ?? 0)}x</span>
+                </div>
+                <div className="divide-y divide-slate-100 bg-white px-3.5">
+                  <div className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                    <span className="text-slate-600">Internal</span>
+                    <span className="font-bold text-slate-900">{attendanceCounts[viewKomika.id] ?? 0}x</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                    <span className="text-slate-600">Eksternal</span>
+                    <span className="font-bold text-slate-900">{externalOpenMicCounts[viewKomika.id] ?? 0}x</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
       </Modal>
-      {viewKomika && <div className="print-sheet komika-history-print">
-        <div className="print-brand"><img src={LOGO_URL} alt="Logo Standupindo Cilegon" /><div><h1>RIWAYAT OPEN MIC KOMIKA</h1><p>Standupindo Cilegon</p></div></div>
-        <div className="komika-print-profile"><strong>{viewKomika.full_name}</strong><span>Stage Name: {viewKomika.stage_name}</span><span>Komunitas: Standupindo Cilegon</span></div>
-        <div className="komika-print-summary"><span>Total tampil: <strong>{attendanceCounts[viewKomika.id] ?? 0}</strong></span><span>Total riwayat: <strong>{history.length}</strong></span><span>Tidak tampil / belum dicek: <strong>{history.length - (attendanceCounts[viewKomika.id] ?? 0)}</strong></span></div>
-        <table><thead><tr><th>No.</th><th>Nama Open Mic</th><th>Tanggal</th><th>Tempat</th><th>Status</th></tr></thead><tbody>{history.map((registration, index) => { const historyMic = openMics.find((openMic) => openMic.id === registration.open_mic_id); return <tr key={registration.id}><td>{index + 1}</td><td>{historyMic?.title ?? 'Open Mic'}</td><td>{historyMic ? formatDate(historyMic.date) : '-'}</td><td>{historyMic?.venue ?? '-'}</td><td>{registration.attendance_status === 'attended' ? 'Tampil' : registration.attendance_status === 'absent' ? 'Tidak Tampil' : 'Belum Dicek'}</td></tr>; })}</tbody></table>
-      </div>}
-      <Modal open={Boolean(deleteHistoryTarget)} onClose={() => setDeleteHistoryTarget(null)} title="Hapus Riwayat Open Mic?" size="sm">
-        {deleteHistoryTarget && <div className="space-y-4"><p className="text-sm leading-6 text-slate-600">Yakin ingin menghapus rekaman <strong className="text-slate-900">{deleteHistoryTarget.stage_name}</strong> dari riwayat Open Mic ini? Data kehadiran dan hubungan dengan profil Komika akan ikut dihapus.</p><div className="flex gap-3"><button type="button" onClick={() => setDeleteHistoryTarget(null)} className="btn-secondary flex-1">Batal</button><button type="button" onClick={() => void deleteHistory()} disabled={historySaving} className="flex-1 rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60">{historySaving ? 'Menghapus...' : 'Ya, Hapus'}</button></div></div>}
-      </Modal>
     </div>
+  );
+}
+
+function KomikaActivityLeaderboard({ rows, sources, loading, error, onRetry }: { rows: Komika[]; sources: { registrations: OpenMicRegistration[]; openMics: OpenMic[]; history: MemberOpenMicHistorySubmission[]; lineups: RecapOfficialLineup[]; experiences: RecapStageExperience[] } | null; loading: boolean; error: string; onRetry: () => Promise<void> }) {
+  const [sortBy, setSortBy] = useState<'total' | 'open-mic' | 'journey'>('total');
+  const [period, setPeriod] = useState<'all' | 'year'>('all');
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [query, setQuery] = useState('');
+  const todayParts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const today = `${todayParts.find((part) => part.type === 'year')?.value}-${todayParts.find((part) => part.type === 'month')?.value}-${todayParts.find((part) => part.type === 'day')?.value}`;
+  const currentYear = Number(today.slice(0, 4));
+  const activityYear = selectedYear ?? currentYear;
+  const years = Array.from({ length: Math.max(0, currentYear - 2014 + 1) }, (_, index) => currentYear - index);
+  const summaries = useMemo(() => !sources ? [] : rows.map((member) => {
+    const memberRegistrations = sources.registrations.filter((item) => item.komika_id === member.id);
+    const openMicIds = new Set(memberRegistrations.map((item) => item.open_mic_id));
+    const recapSources: RecapSources = {
+      registrations: memberRegistrations.map((item) => ({
+        id: item.id,
+        open_mic_id: item.open_mic_id,
+        attendance_status: item.attendance_status,
+        status: item.status,
+      })),
+      openMics: sources.openMics.filter((item) => openMicIds.has(item.id)).map((item) => ({
+        id: item.id,
+        title: item.title,
+        date: item.date,
+        venue: item.venue,
+        location: item.location,
+        status: item.status,
+      })),
+      history: sources.history.filter((item) => item.komika_id === member.id).map((item) => ({
+        id: item.id,
+        activity_type: item.activity_type ?? null,
+        internal_open_mic_id: item.internal_open_mic_id ?? null,
+        title: item.title,
+        event_date: item.event_date,
+        venue: item.venue,
+        city: item.city,
+        status: item.status,
+      })),
+      lineups: sources.lineups.filter((item) => item.komika_id === member.id),
+      experiences: sources.experiences.filter((item) => item.komika_id === member.id),
+    };
+    const activity = period === 'all'
+      ? buildKomikaLifetimeActivity(recapSources, today)
+      : buildKomikaYearActivity(recapSources, activityYear, today);
+    return { member, activity };
+  }), [activityYear, period, rows, sources, today]);
+  const rankedRows = [...summaries].sort((first, second) => {
+    const firstValue = sortBy === 'total' ? first.activity.totalUniqueActivities : sortBy === 'open-mic' ? first.activity.openMicTotal : first.activity.journeyTotal;
+    const secondValue = sortBy === 'total' ? second.activity.totalUniqueActivities : sortBy === 'open-mic' ? second.activity.openMicTotal : second.activity.journeyTotal;
+    return secondValue - firstValue
+      || first.member.stage_name.localeCompare(second.member.stage_name, 'id', { sensitivity: 'base' })
+      || first.member.full_name.localeCompare(second.member.full_name, 'id', { sensitivity: 'base' })
+      || first.member.id.localeCompare(second.member.id);
+  }).map((entry, index) => ({ ...entry, rank: index + 1 }));
+  const normalizedQuery = query.trim().toLocaleLowerCase('id-ID');
+  const visibleRows = rankedRows.filter(({ member }) => !normalizedQuery
+    || member.full_name.toLocaleLowerCase('id-ID').includes(normalizedQuery)
+    || member.stage_name.toLocaleLowerCase('id-ID').includes(normalizedQuery));
+  const sortLabel = sortBy === 'total' ? 'Semua Aktivitas' : sortBy === 'open-mic' ? 'Frekuensi Open Mic' : 'Pengalaman Panggung';
+
+  return (
+    <section aria-label="List Keaktifan Komika" className="space-y-3">
+      <div className="print-sheet komika-ranking-print">
+        <div className="print-brand">
+          <img src={LOGO_URL} alt="Logo Standupindo Cilegon" />
+          <div>
+            <p className="print-kicker">LAPORAN KEAKTIFAN KOMIKA</p>
+            <h1>RANKING KOMIKA</h1>
+            <p>Standupindo Cilegon · {period === 'all' ? 'Sepanjang Masa' : `Per Tahun ${activityYear}`} · Urutan: {sortLabel}{query.trim() ? ` · Pencarian: ${query.trim()}` : ''}</p>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>Peringkat</th><th>Nama Panggung</th><th>Nama Lengkap</th><th>Open Mic Internal</th><th>Open Mic Eksternal</th><th>Total Open Mic</th><th>Panggung Internal</th><th>Panggung Eksternal</th><th>Total Panggung</th><th>Total Aktivitas</th></tr></thead>
+          <tbody>{visibleRows.map(({ member, activity, rank }) => (
+            <tr key={member.id}>
+              <td>{rank}</td><td>{member.stage_name || '-'}</td><td>{member.full_name}</td>
+              <td>{activity.openMicInternal}</td><td>{activity.openMicExternal}</td><td>{activity.openMicTotal}</td>
+              <td>{activity.journeyInternal}</td><td>{activity.journeyExternal}</td><td>{activity.journeyTotal}</td><td>{activity.totalUniqueActivities}</td>
+            </tr>
+          ))}{visibleRows.length === 0 && <tr><td colSpan={10}>Tidak ada data untuk filter yang dipilih.</td></tr>}</tbody>
+        </table>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_180px_150px_180px]">
+        <div className="relative sm:col-span-2 lg:col-span-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama lengkap atau nama panggung..." className="input-field pl-10" aria-label="Cari Komika pada daftar keaktifan" />
+        </div>
+        <label className="sr-only" htmlFor="komika-activity-period">Filter periode</label>
+        <select id="komika-activity-period" value={period} onChange={(event) => setPeriod(event.target.value as 'all' | 'year')} className="input-field">
+          <option value="all">Sepanjang Masa</option>
+          <option value="year">Per Tahun</option>
+        </select>
+        {period === 'year' && <>
+          <label className="sr-only" htmlFor="komika-activity-year">Pilih tahun</label>
+          <select id="komika-activity-year" value={activityYear} onChange={(event) => setSelectedYear(Number(event.target.value))} className="input-field">
+            {years.map((year) => <option key={year} value={year}>{year}</option>)}
+          </select>
+        </>}
+        <label className="sr-only" htmlFor="komika-activity-sort">Urutkan leaderboard</label>
+        <select id="komika-activity-sort" value={sortBy} onChange={(event) => setSortBy(event.target.value as 'total' | 'open-mic' | 'journey')} className="input-field">
+          <option value="total">Semua Aktivitas</option>
+          <option value="open-mic">Frekuensi Open Mic</option>
+          <option value="journey">Pengalaman Panggung</option>
+        </select>
+      </div>
+      <p className="text-[11px] leading-4 text-slate-500">{period === 'all' ? 'Sepanjang masa' : `Tahun ${activityYear}`} · Aktif dan Archived. Aktivitas unik mencocokkan tanggal, nama acara, dan lokasi untuk mencegah hitung ganda.</p>
+      {error ? <div className="flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <p role="alert" className="text-sm font-semibold text-red-800">{error}</p>
+        <button type="button" onClick={() => void onRetry()} className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-red-700 ring-1 ring-red-200 hover:bg-red-100">Coba lagi</button>
+      </div> : loading || !sources ? <div className="space-y-3">{[1, 2, 3].map((item) => <div key={item} className="h-40 skeleton" />)}</div>
+        : visibleRows.length === 0 ? <AdminEmptyState title={normalizedQuery ? 'Komika tidak ditemukan.' : 'Belum ada data keaktifan Komika.'} />
+          : <ol className="space-y-3">
+            {visibleRows.map(({ member, activity, rank }) => (
+              <li key={member.id} className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${rank === 1 ? 'border-amber-300 shadow-amber-100/70' : rank === 2 ? 'border-slate-300 shadow-slate-200/70' : rank === 3 ? 'border-orange-300 shadow-orange-100/70' : 'border-slate-200'}`}>
+                <div className="flex items-center gap-2.5 p-2.5 sm:gap-3 sm:p-3">
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-xs font-extrabold shadow-sm ${rank === 1 ? 'border-amber-500 bg-amber-400 text-amber-950' : rank === 2 ? 'border-slate-400 bg-slate-300 text-slate-900' : rank === 3 ? 'border-orange-700 bg-orange-600 text-white' : 'border-slate-200 bg-slate-50 text-slate-600'}`} aria-label={`Peringkat ${rank}`}>{rank}</span>
+                  {member.photo ? <img src={member.photo} alt={member.stage_name} className="h-10 w-10 shrink-0 rounded-full bg-slate-100 object-cover ring-1 ring-slate-200 sm:h-11 sm:w-11" /> : <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-700 ring-1 ring-blue-100 sm:h-11 sm:w-11"><Users className="h-5 w-5" /></div>}
+                  <div className="min-w-0 flex-1">
+                    <p className="flex min-w-0 items-center gap-1.5 text-sm font-extrabold text-slate-900">
+                      <span className="truncate">{member.stage_name.trim() || member.full_name}</span>
+                      {rank <= 3 && <Crown className={`h-5 w-5 shrink-0 drop-shadow-sm ${rank === 1 ? 'fill-amber-400 text-amber-500' : rank === 2 ? 'fill-slate-300 text-slate-500' : 'fill-orange-700 text-orange-800'}`} aria-label={`Peringkat ${rank}`} />}
+                    </p>
+                    {member.stage_name.trim() && <p className="truncate text-xs text-slate-500">{member.full_name}</p>}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[8px] font-bold uppercase leading-tight tracking-wide text-slate-500 sm:text-[9px]">Total Semua Aktivitas</p>
+                    <p className="text-base font-black leading-tight tabular-nums text-blue-800">{activity.totalUniqueActivities}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-100 px-2.5 py-2 sm:px-3">
+                  <div className="flex min-w-0 items-center justify-between gap-2 rounded-xl bg-blue-50/70 px-2.5 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-[9px] font-bold uppercase leading-tight tracking-wide text-blue-800">Open Mic</p>
+                      <p className="mt-1 text-[10px] font-medium leading-tight text-slate-600">Int {activity.openMicInternal} · Eks {activity.openMicExternal}</p>
+                    </div>
+                    <p className="shrink-0 text-lg font-black leading-none tabular-nums text-slate-900">{activity.openMicTotal}</p>
+                  </div>
+                  <div className="flex min-w-0 items-center justify-between gap-2 rounded-xl bg-slate-50 px-2.5 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-[9px] font-bold uppercase leading-tight tracking-wide text-slate-600">Pengalaman Panggung</p>
+                      <p className="mt-1 text-[10px] font-medium leading-tight text-slate-600">Int {activity.journeyInternal} · Eks {activity.journeyExternal}</p>
+                    </div>
+                    <p className="shrink-0 text-lg font-black leading-none tabular-nums text-slate-900">{activity.journeyTotal}</p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>}
+    </section>
   );
 }
 
@@ -3669,6 +4195,34 @@ function EvaluatorAssignmentView({ openMics, komika, assignments, currentUserId,
   );
 }
 
+function AccountManagementLanding({ onNavigate }: { onNavigate: (section: Section) => void }) {
+  const accounts = [
+    { section: 'member-accounts' as const, label: 'Akun Member', description: 'Kelola akun dan profil Member.', icon: UserPlus },
+    { section: 'admin-accounts' as const, label: 'Akun Admin', description: 'Kelola akun admin dan role operasional.', icon: ShieldPlus },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <WorkspacePageHeader title="Manajemen Akun" subtitle="Pilih jenis akun yang ingin dikelola." eyebrow="Admin Penuh" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        {accounts.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button key={item.section} type="button" onClick={() => onNavigate(item.section)} className="flex min-h-24 items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-200 hover:shadow-md">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><Icon className="h-5 w-5" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-extrabold text-slate-900">{item.label}</span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500">{item.description}</span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUnreadCount, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner }: { onNavigate: (s: Section) => void; onSignOut: () => Promise<void>; ticketOrderUnreadCount: number; applicationUnreadCount: number; isAdmin: boolean; isOpenMicAdmin: boolean; isEventAdmin: boolean; isTicketAdmin: boolean; isQrScanner: boolean }) {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -3702,23 +4256,66 @@ function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUn
     ...(isAdmin ? [{ label: 'Pengaturan Gate', icon: DoorOpen, onClick: () => onNavigate('ticket-gates'), section: 'ticket-gates' as Section }] : []),
     { label: 'Settings', icon: Settings, onClick: () => onNavigate('settings'), section: 'settings' },
   ];
+  const superadminGroups: { label: string; items: { label: string; icon: typeof BarChart3; section: Section; badge?: number }[] }[] = [
+    {
+      label: 'Komunitas',
+      items: [
+        { label: 'Jadwal Cilegon Comedy Sharing', icon: CalendarDays, section: 'ccs-schedule' },
+        { label: 'Gabung Komunitas', icon: UserPlus, section: 'applications', badge: applicationUnreadCount },
+      ],
+    },
+    {
+      label: 'Konten & Arsip',
+      items: [{ label: 'Annual Recap', icon: BarChart3, section: 'annual-recap' }],
+    },
+    {
+      label: 'Pengaturan',
+      items: [
+        { label: 'Pengaturan Profil', icon: Settings, section: 'profile-settings' },
+        { label: 'Settings', icon: Settings, section: 'settings' },
+      ],
+    },
+  ];
   return (
     <div className="space-y-5">
       <WorkspacePageHeader title={isTicketAdmin || isOpenMicAdmin || isAdmin ? 'Lainnya' : 'More'} subtitle="Menu lainnya." eyebrow={isAdmin ? 'Admin Penuh' : isTicketAdmin ? 'Admin Tiket' : isQrScanner ? 'Admin QR Scanner' : isOpenMicAdmin ? 'Open Mic Workspace' : isEventAdmin ? 'Event Workspace' : 'Workspace'} />
       <div className="overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
-        <div className="divide-y divide-slate-100">
-          {items.filter((item) => !item.section || canAccessSection(item.section, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner)).map((item) => {
-            const Icon = item.icon;
-            return (
-              <button key={item.label} onClick={item.onClick} className={`flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-slate-50 ${item.mobileOnly ? 'lg:hidden' : ''}`}>
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><Icon className="h-5 w-5" /></span>
-                <span className="flex-1 text-sm font-semibold text-slate-800">{item.label}</span>
-                {item.badge ? <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-extrabold text-white">{item.badge > 99 ? '99+' : item.badge}</span> : null}
-                <ChevronRight className="h-4 w-4 text-slate-400" />
-              </button>
-            );
-          })}
-        </div>
+        {isAdmin ? (
+          <div className="space-y-4 p-3 sm:p-4">
+            {superadminGroups.map((group) => (
+              <section key={group.label} aria-label={group.label}>
+                <h2 className="px-2 text-xs font-extrabold uppercase tracking-wide text-slate-500">{group.label}</h2>
+                <div className="mt-2 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-100">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button key={item.section} onClick={() => onNavigate(item.section)} className="flex min-h-14 w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-slate-50 sm:px-4">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><Icon className="h-5 w-5" /></span>
+                        <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800">{item.label}</span>
+                        {item.badge ? <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-extrabold text-white">{item.badge > 99 ? '99+' : item.badge}</span> : null}
+                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {items.filter((item) => !item.section || canAccessSection(item.section, isAdmin, isOpenMicAdmin, isEventAdmin, isTicketAdmin, isQrScanner)).map((item) => {
+              const Icon = item.icon;
+              return (
+                <button key={item.label} onClick={item.onClick} className={`flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-slate-50 ${item.mobileOnly ? 'lg:hidden' : ''}`}>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><Icon className="h-5 w-5" /></span>
+                  <span className="flex-1 text-sm font-semibold text-slate-800">{item.label}</span>
+                  {item.badge ? <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-extrabold text-white">{item.badge > 99 ? '99+' : item.badge}</span> : null}
+                  <ChevronRight className="h-4 w-4 text-slate-400" />
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="border-t border-slate-100">
           <button onClick={() => setConfirmLogout(true)} className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-red-50">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-600"><LogOut className="h-5 w-5" /></span>
@@ -3865,7 +4462,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
       const defaultDate = `${nextFriday.getFullYear()}-${String(nextFriday.getMonth() + 1).padStart(2, '0')}-${String(nextFriday.getDate()).padStart(2, '0')}`;
       setForm({ title: nextOpenMicTitle, poster: '', date: defaultDate, time: '19.30', venue: '', location: 'Kota Cilegon', maps_url: '', description: 'Open Mic Standupindo Cilegon adalah ruang terbuka bagi siapa saja yang ingin mencoba, belajar, dan mengembangkan kemampuan di dunia stand up comedy.\n\nDi sini, para komika dapat menguji materi baru, mengasah kemampuan menulis dan membawakan jokes, sekaligus mendapatkan pengalaman tampil langsung di depan penonton.\n\nBukan cuma untuk komika, Open Mic juga menjadi ruang bagi masyarakat Cilegon untuk menikmati hiburan, mengenal dunia stand up comedy, dan menjadi bagian dari perkembangan komunitas komedi di Kota Cilegon.', capacity: '20', status: 'upcoming', registration_status: 'open', published: 'true' });
     } else if (kind === 'partner') {
-      setForm({ name: '', logo_url: '', website_url: '', contact_name: '', contact_phone: '', notes: '', category: 'sponsor', is_published: 'true', sort_order: '0' });
+      setForm({ name: '', logo_url: '', website_url: '', contact_name: '', contact_phone: '', notes: '', category: 'sponsor', is_published: 'false', is_active: 'true', show_on_home: 'false', show_on_partnership_page: 'false', sort_order: '0' });
     } else {
       setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', documentation_photos: '', status: 'upcoming', registration_status: 'closed', published: 'true', ticket_sales_mode: 'free', event_rules: DEFAULT_EVENT_RULES });
     }
@@ -3954,6 +4551,9 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
           notes: base.notes?.trim() || null,
           category: base.category || 'sponsor',
           is_published: base.is_published !== 'false',
+          is_active: base.is_active !== 'false',
+          show_on_home: base.show_on_home === 'true',
+          show_on_partnership_page: base.show_on_partnership_page === 'true',
           sort_order: Number(base.sort_order) || 0,
         };
         const result = editing ? await supabase.from('partners').update(payload).eq('id', editing.id) : await supabase.from('partners').insert(payload);
@@ -4091,7 +4691,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
               />
             )}
             {kind === 'partner' && (
-              <ImageUpload label="Logo Partner" folder="partners" value={form.logo_url ?? ''} onChange={(url) => set('logo_url', url)} aspect="square" processingProfile="logo" onUploadingChange={setUploading} />
+              <ImageUpload label="Logo Partner" folder="partners" value={form.logo_url ?? ''} onChange={(url) => set('logo_url', url)} aspect="square" processingProfile="logo" adjustLogo onUploadingChange={setUploading} />
             )}
           </div>
           <div className="mt-4 space-y-4 lg:mt-0 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
@@ -4209,16 +4809,29 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
                 )}
               </div>
             ))}
-            <div className="flex items-center gap-3 pt-2 lg:col-span-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={kind === 'partner' ? form.is_published !== 'false' : form.published !== 'false'}
-                  onChange={(e) => set(kind === 'partner' ? 'is_published' : 'published', String(e.target.checked))}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-600"
-                /> Tampilkan di website
-              </label>
-            </div>
+            {kind === 'partner' ? (
+              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 lg:col-span-2 sm:grid-cols-3">
+                <label className="flex items-start gap-2.5 rounded-xl bg-white p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
+                  <input type="checkbox" checked={form.is_active !== 'false'} onChange={(e) => set('is_active', String(e.target.checked))} className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600" />
+                  <span><span className="block">Partner aktif</span><span className="mt-1 block text-[11px] font-normal leading-4 text-slate-500">Partner nonaktif disembunyikan tanpa menghapus histori.</span></span>
+                </label>
+                <label className="flex items-start gap-2.5 rounded-xl bg-white p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
+                  <input type="checkbox" checked={form.show_on_home === 'true'} onChange={(e) => set('show_on_home', String(e.target.checked))} className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600" />
+                  <span><span className="block">Tampilkan di Home</span><span className="mt-1 block text-[11px] font-normal leading-4 text-slate-500">Tetap perlu relasi ke Event publik yang tidak dibatalkan.</span></span>
+                </label>
+                <label className="flex items-start gap-2.5 rounded-xl bg-white p-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
+                  <input type="checkbox" checked={form.show_on_partnership_page === 'true'} onChange={(e) => set('show_on_partnership_page', String(e.target.checked))} className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600" />
+                  <span><span className="block">Tampilkan di Kerja Sama</span><span className="mt-1 block text-[11px] font-normal leading-4 text-slate-500">Penempatan ini terpisah dari Home dan Event.</span></span>
+                </label>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 pt-2 lg:col-span-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input type="checkbox" checked={form.published !== 'false'} onChange={(e) => set('published', String(e.target.checked))} className="h-4 w-4 rounded border-slate-300 text-blue-600" />
+                  Tampilkan di website
+                </label>
+              </div>
+            )}
             {errorMessage && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 lg:col-span-2">{errorMessage}</p>}
             <div className="flex gap-3 pt-2 lg:col-span-2">
               <button type="button" onClick={onClose} className="btn-secondary flex-1">Batal</button>
@@ -4330,7 +4943,7 @@ function EventPartnershipManagementModal({ event, partners, partnerships, onClos
     onNotice('Hubungan partner dihapus.');
   }
 
-  const availablePartners = partners.filter((partner) => !currentPartnerships.some((relationship) => relationship.partner_id === partner.id));
+  const availablePartners = partners.filter((partner) => partner.is_active && !currentPartnerships.some((relationship) => relationship.partner_id === partner.id));
   const supportPresets = [
     'Venue',
     'Cash',

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, Calendar, ChevronDown, ClipboardList, Clock, Info } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { EventItem, EventLineupEntry, EventLineupRole, EventTicket, EventPartnership, Partner } from '@/lib/types';
+import type { EventItem, EventLineupEntry, EventLineupRole, EventTicket, PartnerCategory, PublicEventPartner, PublicPartnerLogo } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -13,6 +13,7 @@ import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { ShareButton } from '@/components/ui/ShareButton';
 import { NoSmokeAreaNotice } from '@/components/ui/NoSmokeAreaNotice';
 import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
+import { PartnerMarqueeCollection } from '@/components/ui/PartnerMarquee';
 import { formatDate, formatPrice, getEventStatus, safeExternalUrl } from '@/lib/format';
 import { seoDescription, setPageMetadata } from '@/lib/seo';
 import { useAuth } from '@/lib/auth-context';
@@ -20,42 +21,6 @@ import { useAuth } from '@/lib/auth-context';
 interface Props {
   router: Router;
   slug: string;
-}
-
-function EventPartnerMarquee({ partners, logoSize, role }: { partners: Partner[]; logoSize: string; role: 'sponsor' | 'support' | 'media_partner' }) {
-  const shellRef = useRef<HTMLDivElement>(null);
-  const dragStart = useRef({ x: 0, scrollLeft: 0 });
-  const [dragging, setDragging] = useState(false);
-
-  function startDrag(event: React.PointerEvent<HTMLDivElement>) {
-    const shell = shellRef.current;
-    if (!shell) return;
-    shell.setPointerCapture(event.pointerId);
-    dragStart.current = { x: event.clientX, scrollLeft: shell.scrollLeft };
-    setDragging(true);
-  }
-
-  function moveDrag(event: React.PointerEvent<HTMLDivElement>) {
-    const shell = shellRef.current;
-    if (!shell || !dragging) return;
-    shell.scrollLeft = dragStart.current.scrollLeft - (event.clientX - dragStart.current.x);
-  }
-
-  function endDrag(event: React.PointerEvent<HTMLDivElement>) {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    setDragging(false);
-  }
-
-  return <div ref={shellRef} className={`event-partner-marquee-shell ${dragging ? 'is-dragging' : ''}`} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
-    <div className={`event-partner-marquee-track ${role === 'support' ? 'event-partner-marquee-track-right' : ''}`}>
-      {[...partners, ...partners].map((partner, index) => <div key={`${partner.id}-${index}`} className="flex w-32 shrink-0 flex-col items-center justify-center px-3 text-center sm:w-40">
-        <div className={`flex items-center justify-center overflow-visible ${logoSize}`}>
-          {partner.logo_url ? <img src={partner.logo_url} alt={partner.name} draggable={false} className="h-full w-full select-none object-contain" /> : <span className="text-[10px] font-black text-slate-600 sm:text-xs">{partner.name.slice(0, 2).toUpperCase()}</span>}
-        </div>
-        <p className={`mt-2 font-bold text-slate-800 ${role === 'sponsor' ? 'text-base' : role === 'support' ? 'text-sm' : 'text-xs'}`}>{partner.name}</p>
-      </div>)}
-    </div>
-  </div>;
 }
 
 function EventDocumentationGallery({ photos, eventTitle, eventDate, eventVenue, eventLocation, onOpenGallery }: { photos: string[]; eventTitle: string; eventDate: string; eventVenue: string; eventLocation: string; onOpenGallery: () => void }) {
@@ -215,7 +180,7 @@ export function EventDetailPage({ router, slug }: Props) {
   const [ticketLoadError, setTicketLoadError] = useState('');
   const [lineup, setLineup] = useState<EventLineupEntry[]>([]);
   const [lineupLoadError, setLineupLoadError] = useState('');
-  const [partnersByRole, setPartnersByRole] = useState<Record<'sponsor' | 'support' | 'media_partner', Partner[]>>({ sponsor: [], support: [], media_partner: [] });
+  const [partnersByRole, setPartnersByRole] = useState<Record<PartnerCategory, PublicPartnerLogo[]>>({ sponsor: [], support: [], media_partner: [] });
   const [infoTab, setInfoTab] = useState<'about' | 'rules'>('about');
   const [infoExpanded, setInfoExpanded] = useState(false);
   const infoTabsRef = useRef<HTMLDivElement>(null);
@@ -266,37 +231,28 @@ export function EventDetailPage({ router, slug }: Props) {
           setLineupLoadError('');
         }
 
-        const { data: partnershipData } = await supabase
-          .from('event_partnerships')
-          .select('*')
+        const { data: partnershipData, error: partnershipError } = await supabase
+          .from('event_partner_public')
+          .select('event_partnership_id, event_id, id, role, sort_order, created_at, name, logo_url, category')
           .eq('event_id', ev.id)
           .order('sort_order', { ascending: true })
           .order('created_at', { ascending: true });
 
-        const eventPartnerships = (partnershipData as EventPartnership[] | null) ?? [];
-        if (eventPartnerships.length > 0) {
-          const partnerIds = [...new Set(eventPartnerships.map((item) => item.partner_id))];
-          const { data: partnerData } = await supabase
-            .from('partners')
-            .select('*')
-            .in('id', partnerIds)
-            .eq('is_published', true);
-
-          const partners = (partnerData as Partner[] | null) ?? [];
-          const partnerMap = new Map(partners.map((partner) => [partner.id, partner]));
-          const groupedPartners: Record<'sponsor' | 'support' | 'media_partner', Partner[]> = { sponsor: [], support: [], media_partner: [] };
-
-          eventPartnerships.forEach((entry) => {
-            const partner = partnerMap.get(entry.partner_id);
-            if (partner) {
-              groupedPartners[entry.role].push(partner);
-            }
-          });
-
-          setPartnersByRole(groupedPartners);
+        const groupedPartners: Record<PartnerCategory, PublicPartnerLogo[]> = { sponsor: [], support: [], media_partner: [] };
+        if (partnershipError) {
+          console.error('Failed to load public event partners', partnershipError);
         } else {
-          setPartnersByRole({ sponsor: [], support: [], media_partner: [] });
+          (partnershipData as PublicEventPartner[] | null)?.forEach((entry) => {
+            groupedPartners[entry.role].push({
+              id: entry.id,
+              name: entry.name,
+              logo_url: entry.logo_url,
+              category: entry.category,
+              sort_order: entry.sort_order,
+            });
+          });
         }
+        setPartnersByRole(groupedPartners);
 
         setPageMetadata({
           path: `/event/${encodeURIComponent(ev.slug)}`,
@@ -592,36 +548,7 @@ export function EventDetailPage({ router, slug }: Props) {
         {(['sponsor', 'support', 'media_partner'] as const).some((role) => partnersByRole[role].length > 0) && (
           <section data-scroll-reveal className="scroll-reveal space-y-4 border-t border-white/20 pt-8 sm:pt-10">
             <h2 className="text-xl font-bold text-white">Partner Event</h2>
-            <div className="space-y-4">
-              {(['sponsor', 'support', 'media_partner'] as const).map((role) => {
-                const rolePartners = partnersByRole[role];
-                if (rolePartners.length === 0) return null;
-
-                const labels = {
-                  sponsor: 'Sponsor',
-                  support: 'Support',
-                  media_partner: 'Media Partner',
-                };
-
-                const logoSize = {
-                  sponsor: 'h-20 w-20 sm:h-24 sm:w-24',
-                  support: 'h-14 w-14 sm:h-16 sm:w-16',
-                  media_partner: 'h-12 w-12 sm:h-14 sm:w-14',
-                };
-
-                return (
-                  <div key={role} className={`rounded-[26px] border p-3 shadow-[0_8px_22px_rgba(15,23,42,0.04)] sm:p-4 ${role === 'sponsor' ? 'border-blue-200 bg-blue-50/40' : role === 'support' ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-white'}`}>
-                    <div className="mb-3 flex items-center justify-center">
-                      <span className={`rounded-full border bg-white px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] sm:text-[11px] ${role === 'sponsor' ? 'border-blue-200 text-blue-700' : role === 'support' ? 'border-emerald-200 text-emerald-700' : 'border-slate-300 text-slate-600'}`}>
-                        {labels[role]}
-                      </span>
-                    </div>
-
-                    <EventPartnerMarquee partners={rolePartners} logoSize={logoSize[role]} role={role} />
-                  </div>
-                );
-              })}
-            </div>
+            <PartnerMarqueeCollection partnersByCategory={partnersByRole} />
           </section>
         )}
       </div>

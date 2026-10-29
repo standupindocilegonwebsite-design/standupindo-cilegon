@@ -88,8 +88,10 @@ export async function processImageForUpload(
     const context = canvas.getContext('2d');
     if (!context) throw new ImageProcessingFallbackError('Browser tidak dapat memproses gambar ini.');
 
-    context.fillStyle = '#ffffff';
-    context.fillRect(0, 0, width, height);
+    if (profile !== 'logo') {
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, width, height);
+    }
     context.drawImage(loaded.image, 0, 0, width, height);
     const processed = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(

@@ -343,7 +343,9 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
   const [midtransReturnRetry, setMidtransReturnRetry] = useState(0);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [legalAccepted, setLegalAccepted] = useState(false);
-  const midtransReturnOrderId = router.query.get('midtransOrderId');
+  const midtransReturnStorageKey = `midtrans-return:${slug}:${ticketId}`;
+  const midtransReturnOrderId = router.query.get('midtransOrderId')
+    ?? sessionStorage.getItem(midtransReturnStorageKey);
   const midtransExpiryTime = savedOrder?.payment_channel === 'midtrans' && savedOrder.expires_at
     ? Date.parse(savedOrder.expires_at)
     : Number.NaN;
@@ -763,6 +765,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
         return;
       }
       sessionStorage.setItem(`midtrans-order:${order.id}`, JSON.stringify({ whatsapp: form.whatsapp }));
+      sessionStorage.setItem(midtransReturnStorageKey, order.id);
       window.location.assign(checkoutUrl.toString());
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : 'Checkout Midtrans gagal dimulai.');
@@ -1015,7 +1018,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
                   <button type="button" onClick={() => router.navigate('/tiket')} className="btn-primary w-full">
                     <Ticket aria-hidden="true" className="h-4 w-4" /> Buka Tiket Saya
                   </button>
-                  <button type="button" onClick={() => router.navigate(`/event/${event.slug}`)} className="btn-secondary w-full">Kembali ke Event</button>
+                  <button type="button" onClick={() => { sessionStorage.removeItem(midtransReturnStorageKey); router.navigate(`/event/${event.slug}`); }} className="btn-secondary w-full">Kembali ke Event</button>
                 </div>
               </section>
             </div>

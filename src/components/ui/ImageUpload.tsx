@@ -19,10 +19,11 @@ interface ImageUploadProps {
   skipCrop?: boolean;
   processingProfile?: ImageProcessingProfile;
   cropToFrame?: boolean;
+  adjustLogo?: boolean;
   onSaveImmediately?: (photoUrl: string | null, cardPhotoUrl: string | null) => Promise<void>;
 }
 
-export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', objectFit = 'cover', required = false, onUploadingChange, compact = false, avatar = false, onPreview, skipCrop = false, processingProfile, cropToFrame = false, onSaveImmediately }: ImageUploadProps) {
+export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', objectFit = 'cover', required = false, onUploadingChange, compact = false, avatar = false, onPreview, skipCrop = false, processingProfile, cropToFrame = false, adjustLogo = false, onSaveImmediately }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -145,6 +146,7 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', o
               Hapus
             </button>
           </div>
+          {adjustLogo && <p className="text-xs leading-relaxed text-slate-500">Pilih Ganti untuk menyesuaikan ukuran dan posisi logo.</p>}
         </div>
       ) : (
         <div
@@ -167,6 +169,7 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', o
               <p className="text-sm font-semibold text-slate-700">Klik untuk memilih gambar</p>
               <p className="text-xs text-slate-400">atau drag & drop ke sini</p>
               <p className="mt-1 text-xs text-slate-400">JPG, PNG, WEBP · Maks. 5 MB</p>
+              {adjustLogo && <p className="max-w-56 text-xs leading-relaxed text-blue-700">Setelah memilih gambar, atur ukuran dan posisinya di pratinjau.</p>}
             </div>
           )}
         </div>
@@ -186,6 +189,7 @@ export function ImageUpload({ label, folder, value, onChange, aspect = 'auto', o
           folder={folder}
           processingProfile={effectiveProcessingProfile}
           cropToFrame={cropToFrame}
+          adjustLogo={adjustLogo}
           onSave={async (url, cardUrl) => {
             if (onSaveImmediately) await onSaveImmediately(url, cardUrl ?? null);
             else onChange(url);

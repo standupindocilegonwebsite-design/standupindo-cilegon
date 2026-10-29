@@ -148,6 +148,8 @@ Jangan menjalankan seluruh file dalam `supabase/migrations` secara membabi buta 
 
 Audit daftar berkas menemukan rangkaian schema awal yang berulang/duplikat, migration seed akun admin, dan banyak migration fitur sesudah baseline lama. Migration fitur terbaru sebelum proposal Annual Recap adalah `20261008120000_add_komika_card_photo.sql`. File `20261009100000_create_annual_recaps.sql` adalah proposal Annual Recap yang masih menunggu persetujuan; **jangan masukkan atau jalankan** sebagai bagian clone sebelum disetujui secara eksplisit. Jika migration proposal itu masih berada di folder dan belum tercatat di database baru, `supabase db push` dapat mencoba menerapkannya sebagai migration pending. Daftar kandidat di bawah menunjukkan source memuat fitur baru, tetapi **bukan** urutan yang aman untuk database kosong. Nama dan timestamp file saja tidak membuktikan urutan, dependensi, keamanan, atau keberhasilan pada project baru.
 
+Migration `20261029114944_add_partner_publication_controls.sql` disiapkan setelah audit tersebut. Dry-run terisolasi hanya menampilkan migration ini, tetapi belum membuktikan eksekusi SQL; migration **belum diterapkan** dan memerlukan persetujuan terpisah sebelum deployment.
+
 Migration seed admin berikut tidak boleh dijalankan untuk produksi:
 
 ```text

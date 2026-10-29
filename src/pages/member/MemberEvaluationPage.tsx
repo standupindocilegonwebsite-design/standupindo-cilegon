@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CheckCheck, ClipboardList, Mic } from 'lucide-react';
+import { ArrowRight, CheckCheck, ClipboardList, Info, Mic } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
+import { MemberModal } from '@/components/member/MemberModal';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import type { Evaluation, OpenMic, OpenMicRegistration } from '@/lib/types';
@@ -18,6 +19,7 @@ export function MemberEvaluationPage({ router }: { router: Router }) {
   const [loadError, setLoadError] = useState('');
   const [selectedOpenMicId, setSelectedOpenMicId] = useState('all');
   const [targetEvaluationUnavailable, setTargetEvaluationUnavailable] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const notificationEvaluationId = router.query.get('notificationEvaluationId');
 
   useEffect(() => {
@@ -114,7 +116,20 @@ export function MemberEvaluationPage({ router }: { router: Router }) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader router={router} title="Evaluasi Saya" subtitle="Lihat evaluasi yang diberikan untuk performa kamu." />
+      <PageHeader
+        router={router}
+        title="Evaluasi Saya"
+        subtitle="Lihat evaluasi yang diberikan untuk performa kamu."
+        headerAction={<button type="button" onClick={() => setInfoOpen(true)} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-700" aria-label="Informasi Evaluasi Saya" title="Informasi Evaluasi Saya"><Info className="h-4 w-4" /></button>}
+      />
+      <MemberModal open={infoOpen} onClose={() => setInfoOpen(false)} title="Panduan Evaluasi Saya" titleEyebrow="INFORMASI" size="md">
+        <div className="space-y-3 text-sm leading-6 text-slate-600">
+          <p>Halaman ini menyimpan evaluasi dari evaluator atas penampilan Open Mic Anda. Evaluasi akan muncul setelah dikirim oleh evaluator.</p>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Ringkasan</h4><p className="mt-0.5">Jumlah Evaluasi menunjukkan seluruh evaluasi yang tersedia. Selesai menunjukkan evaluasi yang telah dikirim. Skor Total merupakan jumlah skor dari seluruh evaluasi yang tercatat.</p></div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Filter Open Mic</h4><p className="mt-0.5">Pilih Semua Open Mic atau acara tertentu untuk menyaring evaluasi berdasarkan acara.</p></div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Melihat Detail Evaluasi</h4><p className="mt-0.5">Pilih bagian nama evaluator untuk melihat skor materi, punchline, penyampaian, timing, penguasaan panggung, dan interaksi dengan penonton, serta masukan mengenai kekuatan dan aspek yang dapat ditingkatkan.</p></div>
+        </div>
+      </MemberModal>
 
       <div className="container-app py-6 sm:py-8">
         <div className="mb-4 grid grid-cols-3 gap-2.5 sm:gap-4">

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, BookOpen, Clock3, ListPlus, Plus, Save, Search, SearchX, SlidersHorizontal, Star, TimerReset, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BookOpen, Clock3, Info, ListPlus, Plus, Save, Search, SearchX, SlidersHorizontal, Star, TimerReset, Trash2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { Material } from '@/lib/types';
@@ -43,6 +43,7 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
   const [error, setError] = useState('');
   const [createDraftReady, setCreateDraftReady] = useState(!isCreatePage);
   const [leaveConfirmationOpen, setLeaveConfirmationOpen] = useState(false);
+  const [bookInfoOpen, setBookInfoOpen] = useState(false);
   const pendingLeaveRef = useRef<(() => void) | null>(null);
   const allowBrowserBackRef = useRef(false);
   const createDraftKey = `member-material-create:${user?.id ?? ''}`;
@@ -290,7 +291,12 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
             <p className="mt-1.5 text-sm font-medium text-slate-600 sm:text-base">Simpan materi baru ke Buku Materi pribadi kamu.</p>
           </div>
         </div>
-      ) : <PageHeader router={router} title="Buku Materi" subtitle="Kumpulan materi pribadi kamu." />}
+      ) : <PageHeader
+        router={router}
+        title="Buku Materi"
+        subtitle="Kumpulan materi pribadi kamu."
+        headerAction={<button type="button" onClick={() => setBookInfoOpen(true)} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-700" aria-label="Informasi Buku Materi" title="Informasi Buku Materi"><Info className="h-4 w-4" /></button>}
+      />}
       <MemberModal open={leaveConfirmationOpen} onClose={dismissLeaveConfirmation} title="SIMPAN MATERI?" titleEyebrow="DRAFT BELUM TERSIMPAN" size="sm">
         <div className="space-y-4">
           <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-950">
@@ -313,6 +319,21 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
             <button type="button" onClick={() => router.navigate('/member/materials/new')} className="btn-primary !h-11 !w-11 !rounded-2xl !p-0" aria-label="Tambah materi"><Plus className="h-5 w-5" /></button>
           </div>
         </div>}
+
+        <MemberModal open={bookInfoOpen} onClose={() => setBookInfoOpen(false)} title="Panduan Buku Materi" titleEyebrow="INFORMASI" size="md">
+          <div className="space-y-3 text-sm leading-6 text-slate-600">
+            <p>Buku Materi merupakan tempat pribadi untuk menyimpan, mengelola, dan menyiapkan materi komedi. Berikut fungsi menu yang tersedia:</p>
+            <div className="space-y-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Pencarian Materi</h4><p className="mt-0.5">Masukkan kata kunci untuk mencari materi berdasarkan judul, tema, atau isi.</p></div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Filter Tema</h4><p className="mt-0.5">Pilih tema untuk menampilkan materi dengan tema tersebut. Tema baru yang dibuat akan tersimpan sebagai pilihan pribadi.</p></div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Filter Durasi</h4><p className="mt-0.5">Kelompokkan materi dengan durasi hingga 5 menit atau lebih dari 5 menit. Materi yang belum memiliki estimasi durasi tidak akan ditampilkan saat filter durasi digunakan.</p></div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Filter Rating</h4><p className="mt-0.5">Tampilkan materi berdasarkan nilai 1–5 bintang atau pilih materi yang belum memiliki rating.</p></div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Tombol Tambah Materi (+)</h4><p className="mt-0.5">Buat materi dengan mengisi judul, tema, dan isi. Premis serta estimasi durasi bersifat opsional. Pilih Simpan Materi untuk menyimpan materi.</p></div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Tombol Setlist</h4><p className="mt-0.5">Gabungkan beberapa materi dan atur urutannya untuk persiapan tampil. Setlist dapat dibaca melalui Mode Baca atau diunduh dalam format PDF dan Word.</p></div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><h4 className="font-extrabold text-slate-900">Kartu Materi</h4><p className="mt-0.5">Pilih kartu untuk membuka detail materi. Di halaman detail, Anda dapat melihat versi saat ini atau versi sebelumnya, menggunakan Mode Baca, menulis ulang materi, serta mengelola catatan dan rating.</p></div>
+            </div>
+          </div>
+        </MemberModal>
 
         {(showForm || isCreatePage) && <form onSubmit={saveMaterial} className="rounded-[26px] border border-blue-100 bg-blue-50/60 p-4 shadow-[0_10px_28px_rgba(37,99,235,0.08)] sm:p-5">
           <div className="mb-4 flex items-center gap-2"><BookOpen className="h-5 w-5 text-blue-700" /><h2 className="text-lg font-extrabold text-slate-950">Tambah Materi</h2></div>
