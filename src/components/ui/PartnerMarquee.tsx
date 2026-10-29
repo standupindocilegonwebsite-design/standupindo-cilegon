@@ -9,7 +9,7 @@ const CATEGORY_LABELS: Record<PartnerCategory, string> = {
 
 const CATEGORY_ORDER: PartnerCategory[] = ['sponsor', 'support', 'media_partner'];
 
-export function PartnerMarquee({ partners, category }: { partners: PublicPartnerLogo[]; category: PartnerCategory }) {
+export function PartnerMarquee({ partners, category, showCategoryLabel = true }: { partners: PublicPartnerLogo[]; category: PartnerCategory; showCategoryLabel?: boolean }) {
   const shellRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef({ x: 0, scrollLeft: 0 });
   const pausedRef = useRef(false);
@@ -101,8 +101,8 @@ export function PartnerMarquee({ partners, category }: { partners: PublicPartner
   if (partners.length === 0) return null;
 
   return (
-    <div className="partner-marquee-group">
-      <h3 className="partner-marquee-label">{CATEGORY_LABELS[category]}</h3>
+    <div className={`partner-marquee-group ${showCategoryLabel ? '' : 'is-label-hidden'}`}>
+      {showCategoryLabel && <h3 className="partner-marquee-label">{CATEGORY_LABELS[category]}</h3>}
       <div
         ref={shellRef}
         className={`partner-marquee-shell ${isLooping ? '' : 'is-static'}`}
@@ -134,8 +134,10 @@ export function PartnerMarquee({ partners, category }: { partners: PublicPartner
 
 export function PartnerMarqueeCollection({
   partnersByCategory,
+  showCategoryLabels = true,
 }: {
   partnersByCategory: Partial<Record<PartnerCategory, PublicPartnerLogo[]>>;
+  showCategoryLabels?: boolean;
 }) {
   const categories = CATEGORY_ORDER.filter((category) => (partnersByCategory[category]?.length ?? 0) > 0);
 
@@ -148,6 +150,7 @@ export function PartnerMarqueeCollection({
           key={category}
           partners={partnersByCategory[category] ?? []}
           category={category}
+          showCategoryLabel={showCategoryLabels}
         />
       ))}
     </div>

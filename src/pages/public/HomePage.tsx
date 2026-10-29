@@ -404,7 +404,7 @@ export function HomePage({ router }: Props) {
             </div>
 
             <div className="mx-auto mt-6 max-w-5xl">
-              <PartnerMarqueeCollection partnersByCategory={partnersByCategory} />
+              <PartnerMarqueeCollection partnersByCategory={partnersByCategory} showCategoryLabels={false} />
             </div>
           </section>
         )}

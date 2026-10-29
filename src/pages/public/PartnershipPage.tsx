@@ -94,7 +94,7 @@ export function PartnershipPage({ router, settings }: { router: Router; settings
               </div>
 
               <div>
-                <PartnerMarqueeCollection partnersByCategory={partnersByCategory} />
+                <PartnerMarqueeCollection partnersByCategory={partnersByCategory} showCategoryLabels={false} />
               </div>
 
               <a href={waLink(settings.whatsapp_partnership || settings.whatsapp_admin, message)} target="_blank" rel="noopener noreferrer" className="btn-primary mt-8 w-full !py-3.5 text-base">

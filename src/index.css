@@ -499,6 +499,10 @@
     padding: 0.5rem 0;
   }
 
+  .partner-marquee-group.is-label-hidden {
+    padding: 0.125rem 0;
+  }
+
   .partner-marquee-group + .partner-marquee-group {
     border-top: 1px solid #e2e8f0;
   }
