@@ -494,6 +494,14 @@
     box-shadow: 0 12px 28px rgba(2,12,32,0.12);
   }
 
+  .partner-marquee-collection.partner-marquee-embedded {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+  }
+
   .partner-marquee-group {
     overflow: hidden;
     padding: 0.5rem 0;

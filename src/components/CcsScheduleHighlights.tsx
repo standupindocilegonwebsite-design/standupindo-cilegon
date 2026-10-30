@@ -38,7 +38,7 @@ export function CcsScheduleHighlights({ compact = false }: { compact?: boolean }
   if (!loaded || schedules.length === 0) return null;
 
   return (
-    <section className={compact ? 'rounded-xl border border-slate-200 bg-white p-3.5 shadow-[0_5px_16px_rgba(15,23,42,0.06)]' : ''}>
+    <section className={compact ? 'rounded-xl border border-slate-200 bg-white p-3.5 shadow-[0_5px_16px_rgba(15,23,42,0.06)]' : 'w-full'}>
       {compact ? (
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className="min-w-0">
@@ -47,7 +47,7 @@ export function CcsScheduleHighlights({ compact = false }: { compact?: boolean }
           <span className="shrink-0 rounded-full bg-blue-100 px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.12em] text-blue-800">CCS</span>
         </div>
       ) : null}
-      <div className={compact ? 'grid gap-2' : 'grid gap-4 lg:grid-cols-3'}>
+      <div className={compact ? 'grid gap-2' : 'grid gap-4'}>
         {schedules.map((schedule) => {
           const mapsUrl = getCcsMapsUrl(schedule);
           const time = formatCcsTime(schedule.start_time);
@@ -77,19 +77,20 @@ export function CcsScheduleHighlights({ compact = false }: { compact?: boolean }
             <div key={schedule.id} className="group/ccs relative isolate min-w-0 px-1 pb-1">
               <span aria-hidden="true" className="pointer-events-none absolute inset-1 translate-x-2 translate-y-2 rounded-2xl bg-gradient-to-br from-sky-400 via-blue-600 to-blue-900 shadow-[0_10px_20px_rgba(29,78,216,0.3)] transition-transform duration-300 group-hover/ccs:translate-x-2.5 group-hover/ccs:translate-y-2.5" />
               <article className="relative z-10 overflow-hidden rounded-2xl bg-white shadow-[0_14px_30px_rgba(11,31,68,0.2)]">
-              <div className="flex min-w-0 items-center justify-between gap-3 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 px-4 py-3.5 text-white sm:px-5">
-                <div className="min-w-0 flex-1">
+              <div className="relative flex min-w-0 items-center justify-between gap-3 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 px-4 py-3.5 text-white sm:px-5 lg:justify-center lg:px-10 lg:py-5">
+                <div className="min-w-0 lg:text-center">
                   <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-blue-200 sm:text-[10px]">Standupindo Cilegon</p>
-                  <h2 className="mt-0.5 break-words text-xs font-black uppercase leading-snug tracking-[0.02em] sm:text-sm">Jadwal Cilegon Comedy Sharing</h2>
+                  <h2 className="mt-0.5 break-words text-xs font-black leading-snug sm:text-sm lg:text-2xl lg:tracking-normal">Jadwal Cilegon Comedy Sharing</h2>
                 </div>
-                <span className="shrink-0 rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-white sm:px-3 sm:text-[10px]">CCS</span>
+                <span className="shrink-0 rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-white sm:px-3 sm:text-[10px] lg:absolute lg:right-6">CCS</span>
               </div>
+              <div className={schedule.poster_url ? 'lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]' : ''}>
               {schedule.poster_url && (
-                <div className="overflow-hidden bg-slate-50">
-                  <img src={schedule.poster_url} alt={`Poster ${schedule.title}`} width={800} height={1000} loading="lazy" className="block h-auto w-full" />
+                <div className="overflow-hidden bg-slate-50 lg:flex lg:min-h-[480px] lg:items-center lg:justify-center lg:p-5">
+                  <img src={schedule.poster_url} alt={`Poster ${schedule.title}`} width={800} height={1000} loading="lazy" className="block h-auto w-full lg:max-h-[600px] lg:object-contain" />
                 </div>
               )}
-              <div className="space-y-2.5 bg-white p-3.5 sm:p-4">
+              <div className="space-y-2.5 bg-white p-3.5 sm:p-4 lg:flex lg:flex-col lg:justify-center lg:space-y-4 lg:px-6 lg:py-8 xl:px-8">
                 <div className="relative flex items-start gap-2 overflow-hidden rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/90 via-white to-slate-50 px-3 py-2.5 shadow-[0_3px_10px_rgba(11,31,68,0.04)]">
                   <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-blue-500 to-blue-800" />
                   <div className="min-w-0 flex-1 pl-1">
@@ -143,6 +144,7 @@ export function CcsScheduleHighlights({ compact = false }: { compact?: boolean }
                     </p>
                   )
                 )}
+              </div>
               </div>
               </article>
             </div>

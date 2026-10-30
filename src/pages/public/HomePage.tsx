@@ -273,6 +273,46 @@ export function HomePage({ router }: Props) {
           </section>
         )}
 
+        {/* EVENT MENDATANG */}
+        <section data-home-reveal className="home-reveal">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
+            <div className="min-w-0 flex-1 border-l-4 border-l-amber-600 pl-3 sm:pl-4"><SectionHeader title="Event Mendatang" subtitle="Malam penuh tawa bersama komika terbaik." /></div>
+            <button type="button" onClick={() => router.navigate('/event')} aria-label="Lihat semua Event" className="mr-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center text-amber-700 sm:mr-2"><CalendarDays aria-hidden="true" className="h-8 w-8 sm:h-9 sm:w-9" /></button>
+            <button onClick={() => router.navigate('/event')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
+              Lihat semua <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-6">
+            {loading ? (
+              <div className={`-mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(5)} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
+                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
+                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
+                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
+                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
+                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
+              </div>
+            ) : events.length === 0 ? (
+              <EmptyState
+                title="Belum ada event baru untuk saat ini."
+                description="Tapi tenang, keseruan berikutnya sedang dalam perjalanan. Sampai jumpa di tawa selanjutnya!"
+                action={latestCompletedEvent && (
+                  <button type="button" onClick={() => router.navigate(`/event/${encodeURIComponent(latestCompletedEvent.slug)}/dokumentasi`)} className="inline-flex min-h-10 items-center gap-1.5 text-sm font-bold text-blue-700 transition hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+                    Lihat Event Sebelumnya <ArrowRight className="h-4 w-4" />
+                  </button>
+                )}
+              />
+            ) : (
+              <AutoSlideRow highlightActive highlightTone="amber" lightLeakSlot="event" activeLightLeakSlot={activeLightLeakSlot} className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(Math.min(events.length, 5))} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
+                {events.map((e) => (
+                  <div key={e.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
+                    <EventCard event={e} router={router} price={ticketPrices[e.id] ?? (e.ticket_sales_mode === 'free' ? 0 : null)} />
+                  </div>
+                ))}
+              </AutoSlideRow>
+            )}
+          </div>
+        </section>
+
         {/* OPEN MIC TERDEKAT */}
         <section data-home-reveal className="home-reveal">
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
@@ -318,46 +358,6 @@ export function HomePage({ router }: Props) {
           </div>
         </section>
 
-        {/* EVENT MENDATANG */}
-        <section data-home-reveal className="home-reveal">
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
-            <div className="min-w-0 flex-1 border-l-4 border-l-amber-600 pl-3 sm:pl-4"><SectionHeader title="Event Mendatang" subtitle="Malam penuh tawa bersama komika terbaik." /></div>
-            <button type="button" onClick={() => router.navigate('/event')} aria-label="Lihat semua Event" className="mr-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center text-amber-700 sm:mr-2"><CalendarDays aria-hidden="true" className="h-8 w-8 sm:h-9 sm:w-9" /></button>
-            <button onClick={() => router.navigate('/event')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
-              Lihat semua <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="mt-6">
-            {loading ? (
-              <div className={`-mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(5)} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
-                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
-                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
-                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
-                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
-                <div className="min-w-[260px] max-w-[260px] snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none"><LoadingSkeleton count={1} /></div>
-              </div>
-            ) : events.length === 0 ? (
-              <EmptyState
-                title="Belum ada event baru untuk saat ini."
-                description="Tapi tenang, keseruan berikutnya sedang dalam perjalanan. Sampai jumpa di tawa selanjutnya!"
-                action={latestCompletedEvent && (
-                  <button type="button" onClick={() => router.navigate(`/event/${encodeURIComponent(latestCompletedEvent.slug)}/dokumentasi`)} className="inline-flex min-h-10 items-center gap-1.5 text-sm font-bold text-blue-700 transition hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
-                    Lihat Event Sebelumnya <ArrowRight className="h-4 w-4" />
-                  </button>
-                )}
-              />
-            ) : (
-              <AutoSlideRow highlightActive highlightTone="amber" lightLeakSlot="event" activeLightLeakSlot={activeLightLeakSlot} className={`home-stagger -mx-4 flex gap-4 overflow-x-auto pl-4 ${carouselEndPadding(Math.min(events.length, 5))} pt-4 pb-8 snap-x snap-mandatory scroll-px-4 lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:p-0 lg:scroll-p-0`}>
-                {events.map((e) => (
-                  <div key={e.id} className="min-w-[260px] max-w-[260px] shrink-0 snap-start sm:min-w-[300px] lg:min-w-0 lg:max-w-none">
-                    <EventCard event={e} router={router} price={ticketPrices[e.id] ?? (e.ticket_sales_mode === 'free' ? 0 : null)} />
-                  </div>
-                ))}
-              </AutoSlideRow>
-            )}
-          </div>
-        </section>
-
         {/* KOMIKA */}
         <section data-home-reveal className="home-reveal">
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
@@ -396,15 +396,14 @@ export function HomePage({ router }: Props) {
         {/* PARTNERS */}
         {(partnersByCategory.sponsor.length > 0 || partnersByCategory.support.length > 0 || partnersByCategory.media_partner.length > 0) && (
           <section data-home-reveal className="home-reveal">
-            <div className="flex items-end justify-between gap-4 rounded-2xl border border-slate-300 bg-white px-3.5 py-3.5 shadow-sm sm:px-4">
-              <div className="min-w-0 flex-1 border-l-4 border-l-blue-500 pl-3 sm:pl-4"><SectionHeader title="Our Beloved Partner" subtitle="Mereka yang turut mendukung komitmen kami." /></div>
-              <button onClick={() => router.navigate('/more/kerja-sama')} className="hidden items-center gap-1 text-sm font-semibold text-blue-700 hover:gap-2 transition-all sm:inline-flex">
+            <div className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-[0_12px_28px_rgba(2,12,32,0.12)] sm:rounded-3xl sm:p-7">
+              <SectionHeader title="Our Beloved Partner" subtitle="Mereka yang turut mendukung komitmen kami." align="center" />
+              <div className="mt-4 border-t border-slate-100 pt-3 sm:mt-5 sm:pt-4">
+                <PartnerMarqueeCollection partnersByCategory={partnersByCategory} showCategoryLabels={false} className="partner-marquee-embedded" />
+              </div>
+              <button onClick={() => router.navigate('/more/kerja-sama')} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-blue-700 transition-all hover:gap-2">
                 Lihat semua <ArrowRight className="h-4 w-4" />
               </button>
-            </div>
-
-            <div className="mx-auto mt-6 max-w-5xl">
-              <PartnerMarqueeCollection partnersByCategory={partnersByCategory} showCategoryLabels={false} />
             </div>
           </section>
         )}

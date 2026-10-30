@@ -135,16 +135,18 @@ export function PartnerMarquee({ partners, category, showCategoryLabel = true }:
 export function PartnerMarqueeCollection({
   partnersByCategory,
   showCategoryLabels = true,
+  className = '',
 }: {
   partnersByCategory: Partial<Record<PartnerCategory, PublicPartnerLogo[]>>;
   showCategoryLabels?: boolean;
+  className?: string;
 }) {
   const categories = CATEGORY_ORDER.filter((category) => (partnersByCategory[category]?.length ?? 0) > 0);
 
   if (categories.length === 0) return null;
 
   return (
-    <div className="partner-marquee-collection">
+    <div className={`partner-marquee-collection ${className}`}>
       {categories.map((category) => (
         <PartnerMarquee
           key={category}
