@@ -320,6 +320,14 @@ export function MemberMaterialsPage({ router }: { router: Router }) {
           </div>
         </div>}
 
+        {!isCreatePage && !loading && (
+          <div className="inline-flex min-h-8 items-center gap-2 self-start text-sm text-slate-600" aria-live="polite">
+            <BookOpen className="h-4 w-4 text-blue-700" />
+            <span>Total Materi</span>
+            <strong className="font-extrabold text-slate-900">{materials.length}</strong>
+          </div>
+        )}
+
         <MemberModal open={bookInfoOpen} onClose={() => setBookInfoOpen(false)} title="Panduan Buku Materi" titleEyebrow="INFORMASI" size="md">
           <div className="space-y-3 text-sm leading-6 text-slate-600">
             <p>Buku Materi merupakan tempat pribadi untuk menyimpan, mengelola, dan menyiapkan materi komedi. Berikut fungsi menu yang tersedia:</p>
