@@ -7,6 +7,7 @@ import { OpenMicCard } from '@/components/cards/OpenMicCard';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { EmptyOpenMicState } from '@/components/ui/EmptyOpenMicState';
 import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { MemberPerformanceHistoryPage } from '@/pages/member/MemberPerformanceHistoryPage';
@@ -320,10 +321,7 @@ export function OpenMicPage({ router }: { router: Router }) {
           {loading ? (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"><LoadingSkeleton count={3} /></div>
           ) : upcoming.length === 0 ? (
-            <EmptyState
-              title="Belum ada Open Mic yang tersedia."
-              description="Pantau terus untuk panggung berikutnya."
-              noSmokeArea
+            <EmptyOpenMicState
               action={latestCompletedMic && (
                 <button
                   type="button"

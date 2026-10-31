@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { AnimatedCount } from '@/components/ui/AnimatedCount';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { EmptyEventState } from '@/components/ui/EmptyEventState';
 import { Modal } from '@/components/ui/Modal';
 import { formatDate, getEventStatus } from '@/lib/format';
 
@@ -266,9 +267,7 @@ export function EventPage({ router }: { router: Router }) {
           ) : loadError ? (
             <EmptyState title="Event belum dapat dimuat." description="Silakan coba lagi beberapa saat." />
           ) : upcoming.length === 0 ? (
-            <EmptyState
-              title="Belum ada event baru untuk saat ini."
-              description="Tapi tenang, keseruan berikutnya sedang dalam perjalanan. Sampai jumpa di tawa selanjutnya!"
+            <EmptyEventState
               action={latestCompletedEvent && (
                 <button
                   type="button"

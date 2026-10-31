@@ -1,4 +1,4 @@
-const CACHE_NAME = 'standupindo-shell-v8';
+const CACHE_NAME = 'standupindo-shell-v9';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -8,8 +8,14 @@ const APP_SHELL = [
   '/manifest.member.webmanifest',
   '/assets/images/favicon.png?v=4',
   '/assets/images/pwa-public.png',
+  '/assets/images/pwa-public-192.png',
+  '/assets/images/pwa-public-512.png',
   '/assets/images/pwa-admin.png',
+  '/assets/images/pwa-admin-192.png',
+  '/assets/images/pwa-admin-512.png',
   '/assets/images/pwa-member.png',
+  '/assets/images/pwa-member-192.png',
+  '/assets/images/pwa-member-512.png',
 ];
 
 self.addEventListener('install', (event) => {
