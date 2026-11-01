@@ -230,7 +230,9 @@ function RoutedApp() {
   const router = useRouter();
   const { settings, refreshSettings } = useSiteSettings();
   const { session, loading, isMember } = useAuth();
-  useEffect(() => { updateSeo(router.path, settings.site_name); }, [router.path, settings.site_name]);
+  useEffect(() => {
+    updateSeo(router.path, settings.site_name);
+  }, [router.path, settings.site_name]);
 
   if (router.path.startsWith('/admin')) return <ProtectedAdmin router={router} settings={settings} onSettingsUpdated={refreshSettings} />;
   if (router.path === '/member/login' || router.path.startsWith('/member')) {

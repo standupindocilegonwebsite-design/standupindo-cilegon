@@ -3,21 +3,14 @@ import type { Router } from '@/lib/router';
 import { DesktopNavbar } from './nav/DesktopNavbar';
 import { MobileBottomNav } from './nav/MobileBottomNav';
 import type { SiteSettings } from '@/lib/types';
-import { Instagram, Youtube, MapPin, MessageCircle } from 'lucide-react';
+import { MapPin, MessageCircle } from 'lucide-react';
 import { waLink } from '@/lib/format';
+import { SocialIconButton } from './ui/SocialIconButton';
 import { AppCredit } from './AppCredit';
 import { FollowInstagramPopup } from './FollowInstagramPopup';
 import { UpcomingEventPopup } from './UpcomingEventPopup';
 import { MerchBanner } from './MerchBanner';
 import { getMerchBannerSignature, getPublicMerchConfig } from '@/lib/merch';
-
-function TikTokIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.3 0 .59.04.86.13V9.4a6.33 6.33 0 0 0-.86-.06A6.34 6.34 0 0 0 3.14 15.7a6.34 6.34 0 0 0 11.94-3V8.4a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-.26-.83z" />
-    </svg>
-  );
-}
 
 interface AppShellProps {
   router: Router;
@@ -52,6 +45,8 @@ export function AppShell({ router, settings, children }: AppShellProps) {
   const [readyMerchSignature, setReadyMerchSignature] = useState('');
   const [timedOutMerchSignature, setTimedOutMerchSignature] = useState('');
   const year = new Date().getFullYear();
+  const [footerBrandFirst, ...footerBrandRest] = settings.site_short_name.trim().split(/\s+/);
+  const footerBrandSecond = footerBrandRest.join(' ');
   const isTicketAccessPage = router.path === '/tiket';
   const isEventDocumentationPage = /^\/event\/[^/]+\/dokumentasi$/.test(router.path);
   const isPublicMainPage = ['/', '/open-mic', '/event', '/komika', '/more'].includes(router.path);
@@ -149,25 +144,17 @@ export function AppShell({ router, settings, children }: AppShellProps) {
                     <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt={settings.site_name} width={640} height={859} className="block h-full w-auto rounded-md object-contain" />
                   </span>
                 </span>
-                <span className="max-w-[14rem] truncate text-sm font-extrabold leading-tight tracking-tight text-slate-900">{settings.site_short_name}</span>
+                <span className="max-w-[14rem] truncate text-sm font-extrabold leading-tight tracking-tight text-slate-900">
+                  <span className="sm:hidden">
+                    <span className="block">{footerBrandFirst || settings.site_short_name}</span>
+                    {footerBrandSecond && <span className="mt-0.5 block text-yellow-600">{footerBrandSecond}</span>}
+                  </span>
+                  <span className="hidden sm:inline">{settings.site_short_name}</span>
+                </span>
               </div>
               <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-slate-700">Menjadi ruang bertemunya komika, penikmat komedi, dan insan kreatif untuk berbagi tawa, mengembangkan potensi, serta membangun ekosistem stand up comedy di Cilegon.</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                {settings.instagram_url && (
-                  <a href={settings.instagram_url} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-blue-600 hover:text-white">
-                    <Instagram className="h-4 w-4" />
-                  </a>
-                )}
-                {settings.tiktok_url && (
-                  <a href={settings.tiktok_url} target="_blank" rel="noopener noreferrer" aria-label="TikTok" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-blue-600 hover:text-white">
-                    <TikTokIcon className="h-4 w-4" />
-                  </a>
-                )}
-                {settings.youtube_url && (
-                  <a href={settings.youtube_url} target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-blue-600 hover:text-white">
-                    <Youtube className="h-4 w-4" />
-                  </a>
-                )}
+                <SocialIconButton instagram={settings.instagram_url} tiktok={settings.tiktok_url} youtube={settings.youtube_url} size="md" />
                 <a href={waLink(settings.whatsapp_admin)} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-blue-600 hover:text-white">
                   <MessageCircle className="h-4 w-4" />
                 </a>

@@ -6,6 +6,10 @@ Project ini sudah dapat dideploy sebagai static website dan dapat diclone untuk 
 
 Panduan clone mandiri untuk komunitas baru tersedia di [COMMUNITY_CLONE_RUNBOOK.md](COMMUNITY_CLONE_RUNBOOK.md). Panduan lama [DUPLICATE_DEPLOY_GUIDE.md](DUPLICATE_DEPLOY_GUIDE.md) hanya arsip historis dan jangan dipakai sebagai urutan deploy database.
 
+Prompt branding siap-copas untuk pengelola non-programmer tersedia di [COMMUNITY_BRANDING_CLONE_PROMPT.md](COMMUNITY_BRANDING_CLONE_PROMPT.md). Prompt tersebut tetap mensyaratkan baseline migration canonical yang sudah tervalidasi.
+
+Panduan lengkap dari nol sampai website online tersedia di [COMMUNITY_CLONE_START_TO_FINISH.md](COMMUNITY_CLONE_START_TO_FINISH.md).
+
 > Setiap komunitas harus memakai repository, domain, hosting, Supabase, Resend, akun admin, dan secrets sendiri. Jangan memakai migration seed admin, `.env`, atau kredensial milik Cilegon.
 
 ## Jalankan Lokal

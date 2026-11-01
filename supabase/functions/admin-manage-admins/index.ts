@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-const MANAGED_ROLES = ['open_mic_admin', 'event_admin', 'admin_ticket', 'admin_qr'] as const;
+const MANAGED_ROLES = ['admin', 'open_mic_admin', 'event_admin', 'admin_ticket', 'admin_qr'] as const;
 const SCOPED_ROLES = ['admin_ticket', 'admin_qr'] as const;
 type ManagedRole = typeof MANAGED_ROLES[number];
 
@@ -113,9 +113,9 @@ serve(async (request) => {
 
   if (body.action === 'update-profile' || body.action === 'toggle' || body.action === 'delete') {
     if (!body.user_id) return json({ error: 'Akun admin tidak dipilih.' }, 400);
+    if (body.action === 'delete' && body.user_id === authData.user.id) return json({ error: 'Akun yang sedang digunakan tidak dapat dihapus.' }, 400);
     const { data: target, error: targetError } = await adminClient.auth.admin.getUserById(body.user_id);
     if (targetError || !target.user) return json({ error: 'Akun admin tidak ditemukan.' }, 404);
-    if (hasRole(target.user.app_metadata as Record<string, unknown> | undefined, 'admin')) return json({ error: 'Akun admin utama tidak dapat diubah dari menu ini.' }, 400);
     if (!isManagedRole((target.user.app_metadata as Record<string, unknown> | undefined)?.role)) return json({ error: 'Akun ini bukan admin operasional.' }, 400);
     if (callerIsEventAdmin) {
       if (!SCOPED_ROLES.includes((target.user.app_metadata as Record<string, unknown>).role as typeof SCOPED_ROLES[number])) return json({ error: 'Admin Event hanya dapat mengelola akun Admin Tiket atau Admin QR Scanner.' }, 403);

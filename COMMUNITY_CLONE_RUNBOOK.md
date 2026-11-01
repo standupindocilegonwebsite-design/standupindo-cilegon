@@ -2,6 +2,104 @@
 
 Panduan ini untuk membuat website komunitas baru yang mandiri sepenuhnya dari Standupindo Cilegon. Contoh: Standupindo Serang, Standupindo Rangkasbitung, dan Standupindo Pandeglang.
 
+## Status audit 1 November 2026
+
+Audit ini bersifat dokumentasi dan tidak menjalankan SQL, tidak mengubah database, serta tidak mengubah kode aplikasi. Kesimpulan saat ini:
+
+- **Aplikasi/frontend:** secara konsep dapat dijadikan template dengan fitur yang sama, tetapi masih memiliki fallback, SEO, API, Service Worker, dan Edge Function yang spesifik Cilegon.
+- **Database:** belum ada satu baseline clone netral yang terbukti berhasil dari database Supabase kosong.
+- **Migration:** terdapat 122 file migration, dua jalur fondasi yang tumpang tindih, pasangan migration dengan isi/fungsi yang sama, seed data Cilegon, dan patch yang tampaknya pernah dijalankan manual melalui SQL Editor.
+- **Migration ledger Cilegon:** pemeriksaan read-only `supabase migration list --linked` menunjukkan 47 migration tercatat remote, sedangkan 75 dari 122 file lokal tidak tercatat remote. Ini bukan bukti 75 migration belum pernah diterapkan; sebagian dapat berasal dari SQL Editor/manual SQL atau sudah diserap ke perubahan lain. Jangan menyamakan status ledger dengan kondisi schema.
+- **Provisioning:** `supabase/config.toml` sudah tersedia, tetapi belum ada bukti repository ini telah lulus `supabase db reset` dari nol dengan seluruh fitur aktif.
+- **Validasi lokal:** pemeriksaan `supabase db dump --linked --schema public` belum dapat dilakukan di mesin ini karena Docker/Podman tidak tersedia. Audit berikutnya memerlukan environment teknis dengan Docker dan staging Supabase kosong.
+- **Kesimpulan:** repository **belum boleh dipakai langsung untuk onboarding komunitas baru** dengan cara menjalankan seluruh folder migration atau menyalin SQL secara acak. Siapkan dan uji satu paket baseline canonical terlebih dahulu.
+
+### Verdict audit SQL migration
+
+Hasil pemeriksaan statis terhadap seluruh migration saat ini:
+
+| Severity | Temuan | Dampak |
+| --- | --- | --- |
+| **BLOCKER** | `20261004090000_isolate_pwa_push_subscriptions.sql` mengubah `public.push_subscriptions`, tetapi tidak ditemukan migration lokal yang membuat tabel tersebut. | Database clone kosong dapat gagal sebelum fitur Push selesai dibuat. |
+| **HIGH** | `20260912000000_restore_public_select_grants.sql` memberi grant kolom `featured_order`, sedangkan `20260912010000_add_komika_featured_order.sql` baru menambahkan kolom tersebut pada timestamp berikutnya. | Urutan timestamp canonical dapat gagal pada database kosong karena grant mereferensikan kolom yang belum ada. |
+| **HIGH** | Dua fondasi schema dan beberapa pasangan migration lama/baru masih berada di folder yang sama. | Menjalankan seluruh folder dapat menghasilkan policy/schema berbeda atau error akibat objek sudah ada. |
+| **HIGH** | Migration fondasi memasukkan seed data Cilegon; migration `20260903040009_create_admin_auth_user.sql` membuat akun/password admin Cilegon. | Clone dapat membawa data/credential sumber dan tidak netral. |
+| **HIGH** | Policy awal memakai `TO authenticated USING (true) WITH CHECK (true)` sebelum hardening role diterapkan. | Jika urutan terpotong, member biasa dapat memperoleh akses management. |
+| **MEDIUM** | Beberapa migration Storage melakukan `INSERT INTO storage.buckets` tanpa pola `ON CONFLICT`, dan ada bucket yang didefinisikan oleh jalur lama/baru. | Rerun manual dapat gagal atau menghasilkan konfigurasi bucket yang tidak konsisten. |
+| **MEDIUM** | `20261002120000`, `20261003050000`, dan `20261006110000` memakai `pg_cron`; push juga memakai `pg_net` dan Vault. | Migration atau scheduler dapat gagal jika extension, Vault, secret, atau function belum tersedia. |
+| **MEDIUM** | `20261010100000_update_community_logo.sql` mengisi path logo Cilegon; beberapa RPC/arsip/CCS juga memiliki teks atau aturan Cilegon. | Branding clone dapat kembali ke identitas sumber setelah migration dijalankan. |
+| **MEDIUM** | Project Cilegon menunjukkan 122 file lokal tetapi hanya 47 record migration remote; 75 file lokal tidak punya record remote. | Tidak ada kepastian bahwa urutan file lokal merepresentasikan schema production saat ini. |
+
+**Kesimpulan audit:** migration saat ini **belum “benar dan siap clone”**. Fitur aplikasi dapat menjadi target clone, tetapi perlu paket migration canonical baru yang dibangun dari hasil rekonsiliasi schema production dan diuji dari database kosong. Jangan mengubah urutan timestamp atau menghapus migration production secara langsung; perbaikan harus dilakukan melalui baseline clone terpisah atau migration kompensasi yang terdokumentasi.
+
+### Temuan yang harus ditangani sebelum clone pertama
+
+| Area | Temuan audit | Rekomendasi |
+| --- | --- | --- |
+| Baseline database | Jalur `202608...` dan `202609030358...` sama-sama berisi fondasi schema; beberapa migration feature juga memiliki pasangan lama/baru. | Tetapkan satu baseline netral yang idempotent dan simpan daftar file yang benar-benar termasuk. Jangan menjalankan kedua jalur. |
+| Migration terbaru | Daftar kandidat lama belum mencakup seluruh fitur sampai migration `20261029130000_add_merch_banner_settings_and_bucket.sql`, termasuk voucher, OTS, Midtrans, notifikasi persisten, arsip Event, dan kontrol publikasi partner. | Buat ulang dependency map dari seluruh migration yang dipilih untuk commit aplikasi yang akan dipakai clone. |
+| SQL manual | Menjalankan SQL Editor tidak otomatis menyamakan `supabase_migrations.schema_migrations` dengan source migration. Riwayat yang tidak cocok dapat menyebabkan `db push` mengulang, melewati, atau menolak perubahan. | Inventarisasikan SQL yang pernah dijalankan, cocokkan schema/function/policy aktual, lalu gunakan satu mekanisme resmi untuk baseline baru. |
+| Seed dan Auth | Fondasi lama memasukkan data contoh Cilegon; ada migration lama yang membuat/mengubah akun Auth tertentu. | Buat seed demo terpisah dan opt-in. Buat Admin Penuh melalui Auth API/Dashboard, bukan password atau `INSERT` Auth dari migration. |
+| RLS dan Storage | Sebagian policy awal terlalu luas untuk semua `authenticated`; bucket media juga harus diuji terhadap member/evaluator biasa. | Uji anon, member, evaluator, admin operasional, Admin Event/Tiket, dan Admin Penuh pada setiap tabel serta `storage.objects`. |
+| Push dan scheduler | Migration push mengasumsikan `public.push_subscriptions`, `pg_cron`, `pg_net`, Vault, dan secret project. | Pastikan migration pembuat tabel/prasyarat tersedia, extension aktif, secret unik tersedia, dan function sudah ter-deploy sebelum job dijadwalkan. |
+| Branding aktif | Masih ada URL/domain/nama Cilegon di SEO, API server-side, Service Worker, email ticketing, dan push function. | Parameterkan ke Settings atau environment/domain komunitas. Jadikan hasil pencarian hardcode sebagai gate sebelum publish. |
+| Konfigurasi publik | `.env.example` masih terikat ke project Supabase/VAPID publik milik Cilegon. Nilai publishable memang bukan secret, tetapi tetap dapat membuat clone salah menunjuk backend lama. | Ganti dengan placeholder sebelum repository dijadikan template; untuk saat ini buat `.env` clone secara manual dan jangan menyalin `.env.example` apa adanya. |
+
+### Temuan baru dari pemeriksaan project Cilegon
+
+Perintah berikut aman untuk audit karena hanya membaca daftar migration yang diketahui Supabase:
+
+```bash
+supabase migration list --linked
+```
+
+Hasil pada 1 November 2026:
+
+```text
+local migration files: 122
+remote migration records: 47
+local files without matching remote record: 75
+```
+
+Interpretasinya harus hati-hati. Angka tersebut menunjukkan **ledger migration tidak menjadi sumber kebenaran tunggal** untuk project lama. Sebelum membuat baseline clone, teknisi harus membandingkan ledger dengan schema aktual, function/RPC, trigger, policy, Storage, extension, dan scheduler. Jangan memperbaiki mismatch dengan mengisi tabel migration secara manual atau menghapus ledger.
+
+Dump schema dari project sumber juga harus dilakukan dari environment yang memiliki Docker/Podman, karena Supabase CLI memerlukannya untuk menjalankan `pg_dump`. Dump tersebut hanya bahan rekonsiliasi; jangan dipakai mentah sebagai data clone dan jangan menyalin secret, Auth user, order, pendaftar, atau file Storage.
+
+### Prinsip keputusan
+
+Target clone adalah **fitur dan perilaku sama**, bukan salinan data. Setiap komunitas harus memiliki repository, Supabase project/database, Auth, Storage, Edge Functions, secrets, email sender, domain, dan backup sendiri. Afiliasi Stand Up Indo boleh tetap menjadi identitas pusat; nama, logo, warna, kontak, dan data operasional komunitas harus berasal dari konfigurasi komunitas baru.
+
+## Target pengalaman clone yang diinginkan
+
+Setelah paket migration canonical selesai disiapkan dan diuji, proses untuk komunitas baru harus sesederhana ini:
+
+### Yang disiapkan komunitas
+
+- Supabase project baru.
+- Akun Resend dan domain pengirim yang sudah diverifikasi.
+- Domain website dan HTTPS.
+- Logo komunitas utama.
+- Logo/aset masing-masing PWA yang digunakan.
+- Repository GitHub milik komunitas.
+- Project Vercel yang terhubung ke repository tersebut.
+- Data branding: nama resmi, nama singkat, warna tema, kontak, sosial media, alamat, dan afiliasi.
+
+### Yang dilakukan AI/penanggung jawab teknis
+
+1. Menggunakan commit aplikasi yang disetujui, bukan working copy yang belum dirilis.
+2. Menghubungkan clone ke Supabase project, Resend, domain, GitHub, dan Vercel milik komunitas.
+3. Menerapkan **satu paket migration canonical** yang sudah diuji dari database kosong; tidak menjalankan seluruh folder migration secara membabi buta.
+4. Menyiapkan Auth, Storage, RLS, RPC, Edge Functions, scheduler, dan secrets sesuai fitur yang digunakan.
+5. Mengisi branding komunitas melalui Settings dan mengganti konfigurasi statis yang memang belum dapat berasal dari Settings, termasuk warna tema dan aset PWA.
+6. Menghapus referensi aktif komunitas sumber dari domain, email, SEO, API, Service Worker, push, dan ticketing.
+7. Menjalankan type-check, lint, build, smoke test publik/admin/member, serta verifikasi bahwa tidak ada resource yang masih menunjuk ke project sumber.
+
+Hasil akhirnya harus memiliki menu, fitur, alur, role, dan perilaku yang sama dengan aplikasi sumber. Yang berbeda hanya identitas komunitas, warna, aset, kontak, domain, akun layanan, dan isi database.
+
+> **Catatan penting:** AI boleh membantu mengganti branding dan menyiapkan deployment, tetapi tidak boleh menebak migration, menyalin secret, memakai database komunitas lain, atau menjalankan SQL manual yang belum divalidasi. Jika paket migration canonical belum tersedia, proses harus berhenti pada tahap persiapan dan staging.
+
+Prompt siap-copas untuk pengelola non-programmer tersedia di [COMMUNITY_BRANDING_CLONE_PROMPT.md](./COMMUNITY_BRANDING_CLONE_PROMPT.md). Isi data dalam tanda kurung siku, lalu berikan prompt tersebut kepada AI coding assistant dari repository clone. Prompt ini tidak menggantikan validasi migration dan tidak boleh digunakan untuk memaksa AI melewati blocker database.
+
 ## Tutorial untuk Pemula
 
 Tujuan clone adalah memakai **aplikasi dan fitur yang sama**, tetapi setiap komunitas mempunyai repository, Supabase/database, akun layanan, domain, dan data sendiri. Logo, nama, warna, kontak, serta teks komunitas diganti. Data Cilegon seperti akun, pendaftar, event, order tiket, file Storage, dan subscription push **tidak** ikut disalin.
@@ -48,7 +146,7 @@ Yang bisa disiapkan tanpa kemampuan pemrograman:
 2. Buat akun layanan komunitas sendiri atau minta penanggung jawab komunitas membuatnya.
 3. Ikuti bagian pengisian Settings, pengaturan hosting, dan pengujian setelah penanggung jawab teknis menyiapkan aplikasi dan database.
 
-**Penting:** pada pemeriksaan 9 Oktober 2026, setup database dari nol belum memiliki paket migration lengkap yang sudah diuji. Karena itu, komunitas baru belum boleh menekan `db push` atau menjalankan SQL satu per satu sendiri. Minta pengelola teknis menyiapkan dan menguji paket database untuk clone terlebih dahulu. Instruksi ini mencegah database rusak atau fitur tertentu hilang; jangan melewati blocker ini demi membuat website cepat online.
+**Penting:** pada pemeriksaan 1 November 2026, setup database dari nol masih belum memiliki paket migration lengkap yang sudah diuji untuk seluruh fitur terbaru. Karena itu, komunitas baru belum boleh menekan `db push` atau menjalankan SQL satu per satu sendiri. Minta pengelola teknis menyiapkan dan menguji paket database untuk clone terlebih dahulu. Instruksi ini mencegah database rusak atau fitur tertentu hilang; jangan melewati blocker ini demi membuat website cepat online.
 
 ### Yang disalin dan yang tidak
 
@@ -168,7 +266,7 @@ Panduan arsip `DUPLICATE_DEPLOY_GUIDE.md` pernah mencantumkan urutan yang hanya 
 6. Simpan urutan migration yang lolos, hasil pengujian, dan commit paketnya. Setelah itu barulah pengelola dapat mengikuti instruksi migration yang spesifik pada paket tersebut untuk project production.
 7. Deploy Edge Functions yang cocok dengan commit aplikasi dan set secret milik komunitas. Jangan mengaktifkan job push sebelum secrets dan endpoint project baru benar.
 
-**Status praktis pada pemeriksaan 9 Oktober 2026:** dependency migration sudah ditelusuri dan urutan kandidat di bawah disusun untuk membantu penanggung jawab teknis. Namun urutan itu **belum diuji/diaplikasikan pada database kosong** dan bukan perintah deploy siap pakai. Migration prasyarat `public.push_subscriptions` belum ditemukan, beberapa policy/seed Cilegon perlu dibersihkan, dan ada migration dokumentasi Event yang tumpang tindih. Tahan deployment publik sampai blocker tersebut dibereskan dan seluruh paket lolos uji.
+**Status praktis pada pemeriksaan 1 November 2026:** dependency migration sudah ditelusuri sebagian dan urutan kandidat di bawah hanya membantu penanggung jawab teknis. Namun urutan itu **belum diuji/diaplikasikan pada database kosong**, belum mencakup seluruh migration terbaru, dan bukan perintah deploy siap pakai. Migration prasyarat `public.push_subscriptions` belum ditemukan, beberapa policy/seed Cilegon perlu dibersihkan, dan ada migration dokumentasi Event yang tumpang tindih. Tahan deployment publik sampai blocker tersebut dibereskan dan seluruh paket lolos uji.
 
 Jangan pernah menganggap daftar A/B/C sebagai urutan resmi hanya karena sudah dikelompokkan. Penanggung jawab teknis harus menghasilkan satu paket/commit final dengan urutan yang benar-benar diuji, serta menyatakan migration mana yang termasuk dan tidak termasuk. Proposal Annual Recap tetap dikecualikan sampai pemilik proyek menyetujuinya.
 
@@ -204,7 +302,7 @@ Ini adalah daftar file yang tampak membentuk jalur fitur source saat ini, disusu
 20260913010000_add_partner_event_pic_columns.sql
 ```
 
-`20260912010000_add_komika_featured_order.sql` sengaja ditempatkan sebelum `20260912000000_restore_public_select_grants.sql`: migration grant memberi akses kolom `featured_order`, sehingga kolom itu harus sudah ada.
+`20260912010000_add_komika_featured_order.sql` harus diterapkan sebelum `20260912000000_restore_public_select_grants.sql` karena migration grant memberi akses kolom `featured_order`, sehingga kolom itu harus sudah ada. Namun Supabase CLI mengurutkan migration berdasarkan version/timestamp pada nama file, sehingga daftar teks yang menaruh `12010000` sebelum `12000000` tidak mengubah urutan eksekusi. Ini adalah blocker yang harus diselesaikan dalam baseline clone dengan penamaan/penyusunan migration canonical baru; jangan mengandalkan urutan visual daftar.
 
 **B. Tiket awal, member, evaluator, dan role admin**
 
@@ -308,7 +406,7 @@ Berkas berikut merupakan baseline/patch lama yang duplikat, perubahan untuk memp
 
 Catatan: migration Auth lama bukan pengganti pembuatan admin melalui Supabase Auth API. Jangan membuat akun dengan password SQL yang tertanam di source.
 
-Sebelum label status di bagian ini diubah menjadi “tervalidasi”, penanggung jawab teknis perlu membuat Supabase staging kosong, menyusun baseline netral, menjalankan seluruh urutan terpilih dari nol, memverifikasi schema/policies/RPC/extensions/functions, dan mencatat hasilnya. Repository saat ini tidak menyertakan `supabase/config.toml`, sehingga belum ada konfigurasi Supabase CLI lokal yang siap dipakai untuk membuktikan `db reset` dari source ini.
+Sebelum label status di bagian ini diubah menjadi “tervalidasi”, penanggung jawab teknis perlu membuat Supabase staging kosong, menyusun baseline netral, menjalankan seluruh urutan terpilih dari nol, memverifikasi schema/policies/RPC/extensions/functions, dan mencatat hasilnya. `supabase/config.toml` sudah tersedia, tetapi keberadaannya belum membuktikan bahwa `db reset` dari source ini berhasil.
 
 ### Supabase CLI atau SQL Editor?
 
@@ -316,6 +414,20 @@ Sebelum label status di bagian ini diubah menjadi “tervalidasi”, penanggung 
 - SQL Editor hanya boleh dipakai oleh orang yang diberi urutan SQL hasil validasi; jalankan sesuai urutan, satu langkah per satu langkah, dan catat hasilnya.
 - Jangan campur SQL Editor dengan `db push` tanpa menyelaraskan riwayat migration. Hal ini dapat membuat migration terulang atau status riwayat tidak sesuai.
 - CLI bukan pengganti pengujian. Bila paket belum diuji dari database kosong, kedua cara tetap berisiko.
+
+### Rekonsiliasi SQL manual yang pernah dijalankan
+
+Karena sebagian perubahan pernah dijalankan dengan copy-paste ke SQL Editor, penanggung jawab teknis harus membuat rekonsiliasi sebelum menyusun baseline clone:
+
+1. Bekukan perubahan manual sementara dan catat project, tanggal, operator, serta tujuan setiap SQL yang pernah dijalankan.
+2. Export schema, function/RPC, trigger, policy, extension, bucket, dan scheduled job dari project sumber. Jangan mengekspor isi data produksi atau secret.
+3. Bandingkan hasil export dengan seluruh file migration yang ingin dipakai dan tandai tiga status: **sudah ada**, **belum ada**, atau **berbeda**.
+4. Periksa riwayat `supabase_migrations.schema_migrations` dan jangan menganggap migration sudah tercatat hanya karena SQL-nya berhasil di SQL Editor.
+5. Untuk database clone baru, gunakan baseline/migration canonical yang sudah diuji; jangan mencoba meniru ledger project Cilegon dengan insert manual.
+6. Untuk project yang sudah berjalan, buat migration kompensasi yang eksplisit untuk perbedaan schema/policy/function. Jangan mengedit atau menghapus migration yang telah diterapkan.
+7. Jalankan validasi pada staging kosong dan staging yang menyerupai kondisi production sebelum menyetujui paket untuk komunitas lain.
+
+Output minimum rekonsiliasi adalah: daftar migration canonical, daftar SQL manual yang sudah diserap atau digantikan, diff schema/policy yang ditutup, bukti `db reset`/apply dari nol, dan hasil smoke test fitur.
 
 Jangan memasukkan data komunitas Cilegon ke database baru. Buat admin baru melalui prosedur Auth yang disiapkan dan diuji penanggung jawab teknis; role Admin Penuh harus diberikan dengan mekanisme server-side yang aman. Pengelola non-teknis jangan mengedit tabel `auth.users`, menjalankan SQL untuk role, atau menebak lokasi metadata Auth. Jangan gunakan seed admin/password yang ada di migration.
 

@@ -1,6 +1,6 @@
 export function EventPosterFallback({ label = 'ARSIP EVENT' }: { label?: string }) {
   return (
-    <span className="absolute inset-0 flex h-full w-full flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-[#17366c] via-[#0c2450] to-[#071735] px-3 text-center text-white">
+    <span className="absolute inset-0 flex h-full w-full flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-blue-700 via-blue-800 to-blue-900 px-3 text-center text-white">
       <span aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_50%_35%,rgba(96,165,250,0.55),transparent_38%),linear-gradient(135deg,transparent_48%,rgba(255,255,255,0.08)_49%,transparent_50%)]" />
       <svg
         aria-hidden="true"

@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Check, ChevronDown, Eye, EyeOff, KeyRound, Mail, Pencil, Phone, Power, Plus, Search, ShieldCheck, ShieldPlus, Trash2, UserRound } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, Eye, EyeOff, KeyRound, Mail, Pencil, Phone, Power, Plus, Search, ScanLine, ShieldCheck, ShieldPlus, Ticket, Trash2, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { AdminModal as Modal } from '@/components/admin/AdminModal';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
 import type { StatusBannerVariant } from '@/components/ui/StatusBanner';
 
-type AdminRole = 'open_mic_admin' | 'event_admin' | 'admin_ticket' | 'admin_qr';
+type AdminRole = 'admin' | 'open_mic_admin' | 'event_admin' | 'admin_ticket' | 'admin_qr';
 interface AdminAccount { id: string; email?: string; full_name: string; whatsapp: string; created_at: string; active: boolean; role: AdminRole; scopes?: Array<{ event_id: string | null; scope_all: boolean }>; }
 interface AdminEvent { id: string; title: string; date: string; }
 
-const ROLE_LABELS: Record<AdminRole, string> = { open_mic_admin: 'Admin Open Mic', event_admin: 'Admin Event', admin_ticket: 'Admin Tiket', admin_qr: 'Admin QR Scanner' };
+const ROLE_LABELS: Record<AdminRole, string> = { admin: 'Admin Penuh', open_mic_admin: 'Admin Open Mic', event_admin: 'Admin Event', admin_ticket: 'Admin Tiket', admin_qr: 'Admin QR Scanner' };
+const ROLE_DESCRIPTIONS: Record<AdminRole, string> = {
+  admin: 'Akses penuh seluruh panel admin',
+  open_mic_admin: 'Mengelola Open Mic dan anggota',
+  event_admin: 'Mengelola Event dan operasional',
+  admin_ticket: 'Mengelola tiket sesuai cakupan Event',
+  admin_qr: 'Memindai tiket sesuai cakupan Event',
+};
 
 async function getFunctionErrorMessage(error: { message: string; context?: unknown }, fallback: string) {
   const context = error.context;
@@ -48,6 +55,7 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
   const [scopeMode, setScopeMode] = useState<'all' | 'selected'>('all');
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
   const [eventDropdownOpen, setEventDropdownOpen] = useState(false);
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [eventSearch, setEventSearch] = useState('');
   const [eventsLoading, setEventsLoading] = useState(true);
   const [eventsError, setEventsError] = useState('');
@@ -56,6 +64,7 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminAccount | null>(null);
   const eventDropdownRef = useRef<HTMLDivElement>(null);
+  const roleDropdownRef = useRef<HTMLDivElement>(null);
   const eventSearchRef = useRef<HTMLInputElement>(null);
   const filteredEvents = useMemo(() => {
     const query = eventSearch.trim().toLocaleLowerCase('id-ID');
@@ -98,6 +107,7 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
         setEventDropdownOpen(false);
         setEventSearch('');
       }
+      if (event.target instanceof Node && !roleDropdownRef.current?.contains(event.target)) setRoleDropdownOpen(false);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -209,7 +219,42 @@ export function AdminAccountsPage({ onNotice, creatorRole = 'admin' }: { onNotic
           <div><label className="label-field" htmlFor="admin-account-whatsapp">Nomor Handphone</label><input id="admin-account-whatsapp" type="tel" required maxLength={30} value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} className="input-field" autoComplete="tel" placeholder="Contoh: 08xxxxxxxxxx" /></div>
           <div><label className="label-field" htmlFor="admin-account-email">Email</label><input id="admin-account-email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="input-field" autoComplete="off" /></div>
           <div><label className="label-field" htmlFor="admin-account-password">Password sementara</label><div className="relative"><input id="admin-account-password" type={showPassword ? 'text' : 'password'} required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} className="input-field !pr-12" autoComplete="new-password" /><button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-blue-700" aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} title={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
-          <div className="sm:col-span-2"><label className="label-field" htmlFor="admin-account-role">Role</label><select id="admin-account-role" value={role} onChange={(event) => setRole(event.target.value as AdminRole)} className="input-field">{creatorRole === 'admin' ? <><option value="open_mic_admin">Admin Open Mic</option><option value="event_admin">Admin Event</option></> : null}<option value="admin_ticket">Admin Tiket</option><option value="admin_qr">Admin QR Scanner</option></select></div>
+          <div className="relative sm:col-span-2" ref={roleDropdownRef}>
+            <label className="label-field" htmlFor="admin-account-role">Role</label>
+            <button
+              id="admin-account-role"
+              type="button"
+              onClick={() => setRoleDropdownOpen((open) => !open)}
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-left shadow-sm transition hover:border-blue-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/25"
+              aria-haspopup="listbox"
+              aria-expanded={roleDropdownOpen}
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                {role === 'admin' ? <ShieldCheck className="h-4 w-4" /> : role === 'open_mic_admin' ? <UserRound className="h-4 w-4" /> : role === 'event_admin' ? <CalendarDays className="h-4 w-4" /> : role === 'admin_ticket' ? <Ticket className="h-4 w-4" /> : <ScanLine className="h-4 w-4" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold text-slate-800">{ROLE_LABELS[role]}</span>
+                <span className="block truncate text-xs text-slate-500">{ROLE_DESCRIPTIONS[role]}</span>
+              </span>
+              <ChevronDown className={`h-5 w-5 shrink-0 text-slate-500 transition-transform ${roleDropdownOpen ? 'rotate-180 text-blue-600' : ''}`} />
+            </button>
+            {roleDropdownOpen && (
+              <div className="absolute inset-x-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-blue-100 bg-white p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.2)]" role="listbox" aria-label="Pilih role admin">
+                {(creatorRole === 'admin' ? ['admin', 'open_mic_admin', 'event_admin', 'admin_ticket', 'admin_qr'] : ['admin_ticket', 'admin_qr']).map((value) => {
+                  const option = value as AdminRole;
+                  const Icon = option === 'admin' ? ShieldCheck : option === 'open_mic_admin' ? UserRound : option === 'event_admin' ? CalendarDays : option === 'admin_ticket' ? Ticket : ScanLine;
+                  const selected = role === option;
+                  return (
+                    <button key={option} type="button" role="option" aria-selected={selected} onClick={() => { setRole(option); setRoleDropdownOpen(false); }} className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition ${selected ? 'bg-blue-50 text-blue-800' : 'text-slate-700 hover:bg-slate-50'}`}>
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${selected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}><Icon className="h-4 w-4" /></span>
+                      <span className="min-w-0 flex-1"><span className="block text-sm font-bold">{ROLE_LABELS[option]}</span><span className="block truncate text-xs text-slate-500">{ROLE_DESCRIPTIONS[option]}</span></span>
+                      {selected && <Check className="h-4 w-4 shrink-0 text-blue-700" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
         {(role === 'admin_ticket' || role === 'admin_qr') && <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
           <p className="text-sm font-bold text-slate-800">Akses Event</p>

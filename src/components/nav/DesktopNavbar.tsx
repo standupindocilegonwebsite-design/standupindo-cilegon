@@ -16,6 +16,8 @@ export function DesktopNavbar({ router, settings }: { router: Router; settings: 
     to === '/' ? router.path === '/' : router.path.startsWith(to);
   const isGuideActive = router.path === '/panduan';
   const merchConfig = getPublicMerchConfig(settings);
+  const [headerBrandFirst, ...headerBrandRest] = settings.site_short_name.trim().split(/\s+/);
+  const headerBrandSecond = headerBrandRest.join(' ');
 
   return (
     <header className="relative sticky top-0 z-40 overflow-hidden border-b border-blue-900/40 bg-blue-700/95 text-white shadow-[0_4px_20px_rgba(15,23,42,0.16)] backdrop-blur-md before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-gradient-to-r before:from-sky-300 before:via-white before:to-yellow-300">
@@ -27,7 +29,10 @@ export function DesktopNavbar({ router, settings }: { router: Router; settings: 
             </span>
           </span>
           <span className="site-brand-light-leak-text hidden max-w-[18rem] truncate text-[15px] font-black tracking-[-0.02em] text-white sm:inline sm:text-[15px]" data-light-leak={settings.site_short_name}>{settings.site_short_name}</span>
-          <span className="site-brand-light-leak-text flex max-w-[10rem] truncate text-left text-[14px] font-black leading-[0.95] tracking-[-0.025em] text-white sm:hidden" data-light-leak={settings.site_short_name}>{settings.site_short_name}</span>
+          <span className="site-brand-light-leak-text flex max-w-[10rem] flex-col truncate text-left text-[13px] font-black leading-tight tracking-[-0.025em] text-white sm:hidden" data-light-leak={settings.site_short_name}>
+            <span className="truncate">{headerBrandFirst || settings.site_short_name}</span>
+            {headerBrandSecond && <span className="mt-0.5 truncate text-[13px] leading-tight tracking-[-0.025em] text-yellow-300">{headerBrandSecond}</span>}
+          </span>
         </button>
 
         <nav className="hidden items-center gap-1 rounded-2xl border border-white/20 bg-blue-800/50 p-1 md:flex">
