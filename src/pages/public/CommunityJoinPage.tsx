@@ -4,13 +4,14 @@ import type { Router } from '@/lib/router';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/PageHeader';
 import { Modal } from '@/components/ui/Modal';
-import { LOGO_URL } from '@/lib/types';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 import { InstagramFollowLink } from '@/components/ui/InstagramFollowLink';
 import { CommunityCombobox } from '@/components/ui/CommunityCombobox';
 
 const INTERESTS = ['Komika', 'Penulis', 'Volunteer', 'Dokumentasi', 'Event', 'Supporter', 'Lainnya'];
 
 export function CommunityJoinPage({ router }: { router: Router }) {
+  const { settings } = useSiteSettings();
   const [form, setForm] = useState({ full_name: '', whatsapp: '', instagram: '', city: 'Cilegon', notes: '' });
   const [interests, setInterests] = useState<string[]>([]);
   const [otherInterest, setOtherInterest] = useState('');
@@ -75,7 +76,7 @@ export function CommunityJoinPage({ router }: { router: Router }) {
           ) : (
             <form data-scroll-reveal onSubmit={submit} className="scroll-reveal card space-y-4 p-4 sm:p-6">
               <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-blue-100"><img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-8 w-8 object-contain" /></span>
+                <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-blue-100"><img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt="Logo Standupindo Cilegon" className="h-8 w-8 object-contain" /></span>
                 <div><h2 className="font-bold text-slate-900">Kenalan dengan kami</h2><p className="text-xs text-slate-500 sm:text-sm">Isi data singkat untuk bergabung.</p></div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">

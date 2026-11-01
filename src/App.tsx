@@ -108,7 +108,7 @@ function updateSeo(path: string, siteName: string) {
     clearPageMetadata();
     return;
   }
-  setPageMetadata({ path, ...page });
+  setPageMetadata({ path, ...page, siteName });
 }
 
 function RouteLoading() {

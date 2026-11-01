@@ -3,7 +3,7 @@ import { Mic, CalendarDays, ArrowRight, Sparkles, Handshake, Drama } from 'lucid
 import { useRestoreScrollPosition, type Router } from '@/lib/router';
 import type { OpenMic, EventItem, Komika, EventTicket, PublicPartnerLogo } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { LOGO_URL } from '@/lib/types';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 import { OpenMicCard } from '@/components/cards/OpenMicCard';
 import { EventCard } from '@/components/cards/EventCard';
 import { KomikaCard } from '@/components/cards/KomikaCard';
@@ -86,6 +86,7 @@ function carouselEndPadding(itemCount: number): string {
 }
 
 export function HomePage({ router }: Props) {
+  const { settings } = useSiteSettings();
   const [loading, setLoading] = useState(true);
   const revealRootRef = useRef<HTMLDivElement>(null);
   const [activeLightLeakSlot, setActiveLightLeakSlot] = useState<'open-mic' | 'event' | 'komika' | 'event-cta' | null>(null);
@@ -221,7 +222,7 @@ export function HomePage({ router }: Props) {
         <div className="hero-flag-glow hero-flag-glow-two" aria-hidden="true" />
         <div className="hero-flag-wave hero-flag-wave-one" aria-hidden="true" />
         <div className="hero-flag-wave hero-flag-wave-two" aria-hidden="true" />
-        <img src={LOGO_URL} alt="" aria-hidden="true" width={640} height={859} fetchPriority="high" className="hero-watermark" />
+        <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt="" aria-hidden="true" width={640} height={859} fetchPriority="high" className="hero-watermark" />
 
         <div className="container-app relative z-10 py-7 sm:py-10 lg:py-16">
           <div className="max-w-2xl animate-fade-up">

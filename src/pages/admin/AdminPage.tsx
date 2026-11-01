@@ -20,6 +20,7 @@ import { NotificationInbox } from '@/components/nav/NotificationInbox';
 import { StatusBanner, type StatusBannerVariant } from '@/components/ui/StatusBanner';
 import { LOGO_URL } from '@/lib/types';
 import { useNotifications } from '@/lib/notification-context';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 import type { NotificationRecord } from '@/lib/notification-context';
 import { MemberAccountsPage } from '@/pages/admin/MemberAccountsPage';
 import { AdminAccountsPage } from '@/pages/admin/AdminAccountsPage';
@@ -329,6 +330,7 @@ function ticketOrderStatusTone(status: TicketOrderStatus) {
 }
 
 function ScopedEventList({ events, loading, onManageTickets }: { events: EventItem[]; loading: boolean; onManageTickets?: (event: EventItem) => void }) {
+  const { settings } = useSiteSettings();
   const [eventFilter, setEventFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'upcoming' | 'completed' | 'cancelled'>('upcoming');
   const statusTabsRef = useRef<HTMLDivElement>(null);
@@ -363,7 +365,7 @@ function ScopedEventList({ events, loading, onManageTickets }: { events: EventIt
         </button>
         <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="relative aspect-[16/9] max-h-[360px] overflow-hidden bg-slate-100">
-            <img src={selectedEvent.poster || LOGO_URL} alt={`Poster ${selectedEvent.title}`} className={`h-full w-full ${selectedEvent.poster ? 'object-cover' : 'object-contain p-8'}`} />
+            <img src={selectedEvent.poster || settings.logo_url || LOGO_URL} alt={`Poster ${selectedEvent.title}`} className={`h-full w-full ${selectedEvent.poster ? 'object-cover' : 'object-contain p-8'}`} />
             <span className="absolute left-3 top-3"><StatusBadge status={eventStatus} /></span>
           </div>
           <div className="space-y-5 p-4 sm:p-6">
@@ -419,7 +421,7 @@ function ScopedEventList({ events, loading, onManageTickets }: { events: EventIt
               const eventStatus = getEventStatus(event.status, event.date);
               return <button key={event.id} type="button" onClick={() => setSelectedEvent(event)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-700">
                 <div className="relative aspect-[16/8] overflow-hidden bg-slate-100">
-                  <img src={event.poster || LOGO_URL} alt={`Poster ${event.title}`} className={`h-full w-full transition duration-300 group-hover:scale-[1.02] ${event.poster ? 'object-cover' : 'object-contain p-8'}`} loading="lazy" />
+                  <img src={event.poster || settings.logo_url || LOGO_URL} alt={`Poster ${event.title}`} className={`h-full w-full transition duration-300 group-hover:scale-[1.02] ${event.poster ? 'object-cover' : 'object-contain p-8'}`} loading="lazy" />
                   <span className="absolute left-3 top-3"><StatusBadge status={eventStatus} /></span>
                 </div>
                 <div className="space-y-2 p-4">
@@ -1393,6 +1395,7 @@ function getTicketOrderFeeAmount(order: TicketOrder): number {
 }
 
 function Dashboard({ openMics, events, komika, registrations, memberHistory, ticketOrders, ticketOrdersUnavailable, loading, adminName, adminPhoto, onNavigate }: { openMics: OpenMic[]; events: EventItem[]; komika: Komika[]; registrations: OpenMicRegistration[]; memberHistory: MemberOpenMicHistorySubmission[]; ticketOrders: TicketOrder[]; ticketOrdersUnavailable: boolean; loading: boolean; adminName: string; adminPhoto: string; onNavigate: (section: Section) => void }) {
+  const { settings } = useSiteSettings();
   type ExternalActivityRow = { name: string; count: number; communities?: string[]; instagramHandles?: string[] };
   const [info, setInfo] = useState<{ title: string; description: string[] } | null>(null);
   const openMicStatuses = openMics.map((item) => getOpenMicStatus(item.status, item.date));
@@ -1472,7 +1475,7 @@ function Dashboard({ openMics, events, komika, registrations, memberHistory, tic
         <div className="relative z-10 flex max-w-[74%] flex-col justify-center p-4 sm:max-w-[66%] sm:p-5">
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-100 sm:text-xs">Admin Penuh / Superadmin</p>
           <h2 className="mt-1 truncate text-xl font-black leading-tight sm:text-2xl"><span aria-hidden="true">👑</span>{adminName}</h2>
-          <p className="mt-0.5 text-[10px] font-semibold text-blue-50 sm:text-xs">Standupindo Cilegon</p>
+          <p className="mt-0.5 max-w-full truncate text-[10px] font-semibold text-blue-50 sm:text-xs">{settings.site_name}</p>
           <div className="mt-3 border-t border-white/25 pt-2.5">
             <p className="text-xs font-extrabold leading-snug text-white sm:text-sm">Selamat datang kembali, Yang Mulia!</p>
             <p className="mt-1.5 text-[10px] font-medium leading-relaxed text-blue-50 sm:text-xs">
@@ -2060,6 +2063,7 @@ function CompactOpenMicRosterView({ mode, openMics, registrations, loading, onRe
 }
 
 function RegistrantsView({ openMicId, komika, onBack, initialRegistrationId }: { openMicId: string; komika: Komika[]; onBack: () => void; initialRegistrationId?: string | null }) {
+  const { settings } = useSiteSettings();
   const [openMic, setOpenMic] = useState<OpenMic | null>(null);
   const [rows, setRows] = useState<OpenMicRegistration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2327,7 +2331,7 @@ function RegistrantsView({ openMicId, komika, onBack, initialRegistrationId }: {
       )}
 
       <div className="print-sheet thermal-registration-sheet">
-        <div className="print-brand"><img src={LOGO_URL} alt="Logo Standupindo Cilegon" /><div><h1>{openMic?.title ?? 'Open Mic'}</h1><p>{openMic ? `${openMic.venue} · ${formatDate(openMic.date)} · ${openMic.time} WIB` : ''}</p></div></div>
+        <div className="print-brand">        <img src={settings.logo_url || LOGO_URL} alt="Logo Standupindo Cilegon" /><div><h1>{openMic?.title ?? 'Open Mic'}</h1><p>{openMic ? `${openMic.venue} · ${formatDate(openMic.date)} · ${openMic.time} WIB` : ''}</p></div></div>
         <table>
           <thead><tr><th className="print-check">Cek</th><th>No.</th><th>Nama</th><th>Nama Panggung</th><th>Komunitas</th><th>Catatan</th></tr></thead>
           <tbody>{printRows.map((row, index) => <tr key={row.id}><td className="print-check">□</td><td>{index + 1}</td><td>{row.full_name}</td><td>{row.stage_name}</td><td>{row.community || 'Umum'}</td><td>{row.notes || ''}</td></tr>)}</tbody>
@@ -2618,6 +2622,7 @@ function OpenMicManagement({ rows, registrations, loading, showRegistrants = tru
 }
 
 function EventParticipantsView({ eventId, onBack, initialParticipantId }: { eventId: string; onBack: () => void; initialParticipantId?: string | null }) {
+  const { settings } = useSiteSettings();
   const [event, setEvent] = useState<EventItem | null>(null);
   const [rows, setRows] = useState<EventParticipant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2693,7 +2698,7 @@ function EventParticipantsView({ eventId, onBack, initialParticipantId }: { even
         <div className="space-y-3 lg:hidden">{filtered.map((row) => <div key={row.id} className="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-200/70"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-mono text-xs font-semibold text-blue-700">{row.registration_id}</p><p className="truncate font-bold text-slate-900">{row.full_name}</p><p className="truncate text-sm text-slate-500">{row.stage_name}</p><p className="mt-1 truncate text-xs text-slate-500">{row.community || 'Umum'} · {row.whatsapp}</p></div><div className="flex items-center gap-2"><StatusBadge status={row.status} /><button onClick={() => setViewParticipant(row)} className="rounded-lg p-2 text-slate-500 hover:bg-blue-50 hover:text-blue-700" title="Lihat Detail"><Eye className="h-4 w-4" /></button></div></div></div>)}</div>
       </>}
       <div className="print-sheet thermal-event-sheet">
-        <div className="print-brand"><img src={LOGO_URL} alt="Logo Standupindo Cilegon" /><div><h1>{event?.title ?? 'Event'}</h1><p>{event ? `${event.venue} · ${formatDate(event.date)} · ${event.time} WIB` : ''}</p></div></div>
+        <div className="print-brand"><img src={settings.logo_url || LOGO_URL} alt="Logo Standupindo Cilegon" /><div><h1>{event?.title ?? 'Event'}</h1><p>{event ? `${event.venue} · ${formatDate(event.date)} · ${event.time} WIB` : ''}</p></div></div>
         <table>
           <thead><tr><th className="print-check">Cek</th><th>No.</th><th>Nama</th><th>Nama Panggung / Tim</th><th>Komunitas</th><th>Catatan</th></tr></thead>
           <tbody>{printRows.map((row, index) => <tr key={row.id}><td className="print-check">□</td><td>{index + 1}</td><td>{row.full_name}</td><td>{row.stage_name}</td><td>{row.community || 'Umum'}</td><td>{row.notes || ''}</td></tr>)}</tbody>
@@ -2870,6 +2875,7 @@ function PartnerVisibilityBadges({ partner }: { partner: Partner }) {
 }
 
 function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit, onDelete }: { rows: Partner[]; events: EventItem[]; partnerships: EventPartnership[]; loading: boolean; onAdd: () => void; onEdit: (row: Partner) => void; onDelete: (id: string) => void }) {
+  const { settings } = useSiteSettings();
   const [viewPartner, setViewPartner] = useState<Partner | null>(null);
   const [viewImage, setViewImage] = useState<string | null>(null);
   const [deletePartner, setDeletePartner] = useState<Partner | null>(null);
@@ -3180,7 +3186,7 @@ function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit,
 
             <div className="print-sheet">
               <div className="print-brand">
-                <img src={LOGO_URL} alt="Logo Standupindo Cilegon" />
+                <img src={settings.logo_url || LOGO_URL} alt="Logo Standupindo Cilegon" />
                 <div>
                   <h1>LAPORAN PARTNER - {viewPartner.name}</h1>
                   <p>{viewPartner.category}</p>
@@ -3222,6 +3228,7 @@ function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit,
 }
 
 function KomikaManagement({ rows, attendanceCounts, externalOpenMicCounts, loading, onReload, onNotice, onAdd, onEdit, onDelete }: { rows: Komika[]; attendanceCounts: Record<string, number>; externalOpenMicCounts: Record<string, number>; loading: boolean; onReload: () => Promise<void>; onNotice: AdminNoticeHandler; onAdd: () => void; onEdit: (row: Komika) => void; onDelete: (id: string) => void }) {
+  const { settings } = useSiteSettings();
   const [viewKomika, setViewKomika] = useState<Komika | null>(null);
   const [accountAction, setAccountAction] = useState<{ mode: 'create' | 'manage'; komika: Komika } | null>(null);
   const [accountEmail, setAccountEmail] = useState('');
@@ -3378,7 +3385,7 @@ function KomikaManagement({ rows, attendanceCounts, externalOpenMicCounts, loadi
       </div>
 
       <div className="print-sheet komika-roster-print">
-        <div className="print-brand"><img src={LOGO_URL} alt="Logo Standupindo Cilegon" /><div><p className="print-kicker">STANDUPINDO CILEGON</p><h1>DAFTAR KOMIKA {folder === 'archived' ? 'ARSIP' : 'AKTIF'}</h1><p>Diurutkan alfabetis berdasarkan nama panggung{search.trim() ? ` · Pencarian: ${search.trim()}` : ''}</p></div></div>
+        <div className="print-brand"><img src={settings.logo_url || LOGO_URL} alt="Logo Standupindo Cilegon" /><div><p className="print-kicker">STANDUPINDO CILEGON</p><h1>DAFTAR KOMIKA {folder === 'archived' ? 'ARSIP' : 'AKTIF'}</h1><p>Diurutkan alfabetis berdasarkan nama panggung{search.trim() ? ` · Pencarian: ${search.trim()}` : ''}</p></div></div>
         <table>
           <thead><tr><th>No.</th><th>Foto</th><th>Nama Lengkap</th><th>Nama Panggung</th><th>Spesialis</th><th>Bergabung</th><th>Status</th></tr></thead>
           <tbody>{printRows.map((row, index) => <tr key={row.id}><td>{index + 1}</td><td>{row.photo ? <img src={row.photo} alt="" style={{ width: '12mm', height: '12mm', objectFit: 'cover', borderRadius: '50%' }} /> : '-'}</td><td>{row.full_name}</td><td>{row.stage_name}</td><td>{row.specialties.join(', ') || '-'}</td><td>{row.joined_at || '-'}</td><td>{row.status === 'active' ? 'Aktif' : 'Arsip'}</td></tr>)}</tbody>
@@ -3528,6 +3535,7 @@ function KomikaManagement({ rows, attendanceCounts, externalOpenMicCounts, loadi
 }
 
 function KomikaActivityLeaderboard({ rows, sources, loading, error, onRetry }: { rows: Komika[]; sources: { registrations: OpenMicRegistration[]; openMics: OpenMic[]; history: MemberOpenMicHistorySubmission[]; lineups: RecapOfficialLineup[]; experiences: RecapStageExperience[] } | null; loading: boolean; error: string; onRetry: () => Promise<void> }) {
+  const { settings } = useSiteSettings();
   const [sortBy, setSortBy] = useState<'total' | 'open-mic' | 'journey'>('total');
   const [period, setPeriod] = useState<'all' | 'year'>('all');
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
@@ -3591,11 +3599,11 @@ function KomikaActivityLeaderboard({ rows, sources, loading, error, onRetry }: {
     <section aria-label="List Keaktifan Komika" className="space-y-3">
       <div className="print-sheet komika-ranking-print">
         <div className="print-brand">
-          <img src={LOGO_URL} alt="Logo Standupindo Cilegon" />
+          <img src={settings.logo_url || LOGO_URL} alt="Logo Standupindo Cilegon" />
           <div>
             <p className="print-kicker">LAPORAN KEAKTIFAN KOMIKA</p>
             <h1>RANKING KOMIKA</h1>
-            <p>Standupindo Cilegon · {period === 'all' ? 'Sepanjang Masa' : `Per Tahun ${activityYear}`} · Urutan: {sortLabel}{query.trim() ? ` · Pencarian: ${query.trim()}` : ''}</p>
+            <p>{settings.site_name} · {period === 'all' ? 'Sepanjang Masa' : `Per Tahun ${activityYear}`} · Urutan: {sortLabel}{query.trim() ? ` · Pencarian: ${query.trim()}` : ''}</p>
           </div>
         </div>
         <table>
@@ -3680,6 +3688,7 @@ function KomikaActivityLeaderboard({ rows, sources, loading, error, onRetry }: {
 }
 
 function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete, audienceMode = false }: { orders: TicketOrder[]; events: EventItem[]; loading: boolean; onStatusChange: (id: string, status: TicketOrderStatus) => void; onDelete: (id: string) => void; audienceMode?: boolean }) {
+  const { settings } = useSiteSettings();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | TicketOrderStatus>('all');
   const [eventFilter, setEventFilter] = useState<string>('all');
@@ -3905,10 +3914,10 @@ function TicketOrdersPage({ orders, events, loading, onStatusChange, onDelete, a
 
           <div className="print-sheet ticket-orders-print">
             <div className="print-brand">
-              <img src={LOGO_URL} alt="Logo Standupindo Cilegon" />
+              <img src={settings.logo_url || LOGO_URL} alt="Logo Standupindo Cilegon" />
               <div>
                 <h1>DATA PENONTON</h1>
-                <p>Standupindo Cilegon · {selectedEventTitle} · {selectedStatusTitle}</p>
+                <p>{settings.site_name} · {selectedEventTitle} · {selectedStatusTitle}</p>
                 {search.trim() && <p>Pencarian: {search.trim()}</p>}
               </div>
             </div>

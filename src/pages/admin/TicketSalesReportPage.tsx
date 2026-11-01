@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Clock3, Printer, Search, SlidersHorizontal, ChevronDown, X, Eye } from 'lucide-react';
 import type { EventItem, EventTicket, TicketOrder } from '@/lib/types';
 import { formatDate, formatPrice, getEventStatus } from '@/lib/format';
-import { LOGO_URL } from '@/lib/types';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 import { supabase } from '@/lib/supabase';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
@@ -267,6 +267,7 @@ function paymentDetails(order: TicketOrder) {
 }
 
 export function TicketSalesReportPage({ events, orders, onBack, onReload }: { events: EventItem[]; orders: TicketOrder[]; onBack: () => void; onReload: () => Promise<void> }) {
+  const { settings } = useSiteSettings();
   const [categories, setCategories] = useState<EventTicket[]>([]);
   const [eventFilter, setEventFilter] = useState(() => nearestReportEventId(events));
   const eventFilterInitialized = useRef(events.length > 0);
@@ -899,7 +900,7 @@ export function TicketSalesReportPage({ events, orders, onBack, onReload }: { ev
         </section>
       </div>}
       <div className="print-sheet ticket-sales-report-print">
-        <div className="print-brand"><img src={LOGO_URL} alt="" /><div><h1>LAPORAN PENJUALAN TIKET</h1><p>{eventFilter === 'all' ? 'Semua Event dalam scope Admin Tiket' : reports[0]?.event.title}</p><p>Dicetak: {new Date().toLocaleString('id-ID')}</p></div></div>
+        <div className="print-brand"><img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt="" /><div><h1>LAPORAN PENJUALAN TIKET</h1><p>{eventFilter === 'all' ? 'Semua Event dalam scope Admin Tiket' : reports[0]?.event.title}</p><p>Dicetak: {new Date().toLocaleString('id-ID')}</p></div></div>
         <table><thead><tr><th>Total Event</th><th>Total Online</th><th>OTS Terkonfirmasi</th><th>Total Free Pass</th><th>Pendapatan Tercatat</th></tr></thead><tbody><tr><td>{reports.length}</td><td>{reports.reduce((total, report) => total + report.onlineSold, 0)}</td><td>{filteredOtsOrders.filter((order) => order.ots_payment_status === 'confirmed').reduce((count, order) => count + order.quantity, 0)}</td><td>{reports.reduce((total, report) => total + report.freePass, 0)}</td><td>{formatPrice(totalRevenue)}</td></tr></tbody></table>
         <h2>Rekap Pendapatan dan Rincian Harga</h2>
         <p className="ticket-report-print-note">Rekap memakai transaksi yang diakui sistem dan snapshot harga saat order dibuat. Nilai tiket setelah diskon belum dikurangi pajak/biaya layanan. Pendapatan bersih penyelenggara tidak ditetapkan tanpa klasifikasi akuntansi yang valid.</p>

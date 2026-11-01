@@ -33,7 +33,7 @@ export function MemberDesktopNav({ router, settings, sticky = true, compact = fa
           </span>
           <span className="flex min-w-0 flex-col text-left leading-tight">
             <span className={`${compact ? 'text-[12px] sm:text-[14px]' : 'text-[13px] sm:text-[15px]'} font-black tracking-[0.02em] text-white`}>MEMBER <span className="text-blue-100">AREA</span></span>
-            <span className={`${compact ? 'text-[8px] sm:text-[9px]' : 'text-[9px] sm:text-[10px]'} mt-0.5 truncate font-bold tracking-[0.12em] text-blue-100`}>STANDUPINDO CILEGON</span>
+            <span className={`${compact ? 'text-[8px] sm:text-[9px]' : 'text-[9px] sm:text-[10px]'} mt-0.5 max-w-[12rem] truncate font-bold tracking-[0.12em] text-blue-100`}>{settings.site_short_name}</span>
           </span>
         </button>
 

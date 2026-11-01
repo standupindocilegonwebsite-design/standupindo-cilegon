@@ -124,7 +124,7 @@ export function OpenMicCard({ mic, openMicNumber, confirmedCount, lineup = [], r
         <div className={`flex min-w-0 flex-1 flex-col ${isCompleted ? 'p-3.5 sm:p-4' : 'p-3 sm:p-4'}`}>
           {isCompleted && <>
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1.5">
-              {openMicNumber !== undefined && <p className="w-fit rounded-sm bg-blue-600 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white sm:text-xs">Open Mic #{openMicNumber} Selesai</p>}
+              {openMicNumber !== undefined && <p className="w-fit rounded-md bg-blue-600 px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white sm:text-xs">Open Mic #{openMicNumber} Selesai</p>}
             </div>
             <button onClick={() => router.navigate(`/open-mic/${mic.slug}`)} className="text-left">
               <h3 className="line-clamp-2 text-base font-extrabold leading-tight text-slate-900 transition group-hover:text-blue-700 sm:text-lg">{mic.title}</h3>

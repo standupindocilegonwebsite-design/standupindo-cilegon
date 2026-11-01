@@ -7,6 +7,7 @@ import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 import type {
   RecapHistorySubmission,
   RecapOfficialLineup,
@@ -63,7 +64,6 @@ function formatReceiptRange() {
   return '01 Januari - 31 Desember';
 }
 
-const RECEIPT_LOGO_URL = '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png';
 const RECEIPT_TEXTURE_URL = '/assets/images/receipt-paper-texture.svg?v=4';
 
 function createGrayscaleLogo(source: string) {
@@ -158,8 +158,9 @@ function ReceiptMetaRow({ label, value }: { label: string; value: string }) {
 
 export function MemberKomikaRecapPage({ router }: { router: Router }) {
   const { user } = useAuth();
+  const { settings } = useSiteSettings();
   const receiptRef = useRef<HTMLElement | null>(null);
-  const [receiptLogo, setReceiptLogo] = useState(RECEIPT_LOGO_URL);
+  const [receiptLogo, setReceiptLogo] = useState(settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png');
   const [receiptLogoError, setReceiptLogoError] = useState('');
   const [profile, setProfile] = useState<RecapProfile | null>(null);
   const [sources, setSources] = useState<RecapSources | null>(null);
@@ -180,7 +181,7 @@ export function MemberKomikaRecapPage({ router }: { router: Router }) {
   const [receiptLogoReady, setReceiptLogoReady] = useState(false);
   useEffect(() => {
     let active = true;
-    void createGrayscaleLogo(RECEIPT_LOGO_URL).then((grayscaleLogo) => {
+    void createGrayscaleLogo(settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png').then((grayscaleLogo) => {
       if (active) {
         setReceiptLogo(grayscaleLogo);
         setReceiptLogoReady(true);
@@ -190,7 +191,7 @@ export function MemberKomikaRecapPage({ router }: { router: Router }) {
       if (active) setReceiptLogoError(logoError instanceof Error ? logoError.message : 'Logo struk gagal disiapkan.');
     });
     return () => { active = false; };
-  }, []);
+  }, [settings.logo_url]);
 
   useEffect(() => {
     let active = true;

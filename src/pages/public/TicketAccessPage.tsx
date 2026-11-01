@@ -5,7 +5,7 @@ import type { Router } from '@/lib/router';
 import { AnimatedBottomNav } from '@/components/nav/AnimatedBottomNav';
 import { supabase } from '@/lib/supabase';
 import { TicketPagination } from '@/components/TicketPagination';
-import { LOGO_URL } from '@/lib/types';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 import { formatDate, formatPrice, getEventStatus } from '@/lib/format';
 import { downloadETicketPdf } from '@/lib/ticket-pdf';
 
@@ -84,6 +84,7 @@ function getDeviceTag() {
 }
 
 export function TicketAccessPage({ router }: { router: Router }) {
+  const { settings } = useSiteSettings();
   const [whatsapp, setWhatsapp] = useState('');
   const [accessCode, setAccessCode] = useState('');
   const [session, setSession] = useState<TicketSessionData | null>(null);
@@ -254,6 +255,8 @@ export function TicketAccessPage({ router }: { router: Router }) {
         order,
         tickets,
         qrCanvases,
+        logoUrl: settings.logo_url,
+        siteName: settings.site_name,
       });
     } catch (downloadError) {
       setPdfErrors((current) => ({
@@ -277,6 +280,8 @@ export function TicketAccessPage({ router }: { router: Router }) {
         order,
         tickets: [ticket],
         qrCanvases: new Map([[ticket.id, qrCanvas]]),
+        logoUrl: settings.logo_url,
+        siteName: settings.site_name,
       }, ticket.sequence_no);
     } catch (downloadError) {
       setPdfErrors((current) => ({
@@ -300,7 +305,7 @@ export function TicketAccessPage({ router }: { router: Router }) {
     <div className="animate-fade-in" onPointerDown={() => void touchSession()} onKeyDown={() => void touchSession()} onTouchStart={() => void touchSession()}>
       {session && <header className="sticky top-0 z-30 border-b border-blue-900/40 bg-gradient-to-r from-blue-800 via-blue-700 to-blue-600 text-white shadow-[0_4px_18px_rgba(15,23,42,0.18)]">
         <div className="container-app flex min-h-16 items-center justify-between gap-3 py-2.5 sm:min-h-[4.5rem]">
-          <img src={LOGO_URL} alt="" className="h-10 w-10 shrink-0 rounded-xl border border-white/40 bg-white p-1 object-contain shadow-sm" />
+          <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt="" className="h-10 w-10 shrink-0 rounded-xl border border-white/40 bg-white p-1 object-contain shadow-sm" />
           <div className="mr-auto min-w-0 pl-3 leading-tight">
             <p className="truncate text-sm font-black tracking-wide sm:text-base">STANDUPINDO</p>
             <p className="text-xs font-extrabold tracking-[0.12em] text-amber-200 sm:text-sm">CILEGON</p>
@@ -318,7 +323,7 @@ export function TicketAccessPage({ router }: { router: Router }) {
           <div aria-hidden="true" className="pointer-events-none absolute -bottom-[23%] -right-[20%] h-[34%] w-[68%] -skew-x-[38deg] border-t border-blue-400/15 bg-blue-500/10" />
           <div className="relative z-10 flex w-full flex-col items-center">
             <span className="ticket-access-logo mb-6 h-[4.5rem] w-[4.5rem] rounded-xl shadow-[0_0_28px_rgba(96,165,250,0.4)] sm:mb-7">
-              <img src={LOGO_URL} alt="Standupindo Cilegon" className="relative z-0 h-full w-full rounded-xl bg-white p-1 object-contain shadow-lg" />
+              <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt={settings.site_name} className="relative z-0 h-full w-full rounded-xl bg-white p-1 object-contain shadow-lg" />
             </span>
             <section className="relative w-full max-w-[580px] overflow-hidden rounded-[22px] bg-gradient-to-br from-white via-[#f8fbff] to-[#edf5ff] px-6 py-7 shadow-[0_24px_60px_rgba(0,10,28,0.35)] sm:rounded-[24px] sm:px-11 sm:py-11">
               <div aria-hidden="true" className="pointer-events-none absolute -left-1 top-0 h-[68px] w-[68px] bg-gradient-to-br from-blue-500 to-blue-400 [clip-path:polygon(0_0,100%_0,0_100%)]" />

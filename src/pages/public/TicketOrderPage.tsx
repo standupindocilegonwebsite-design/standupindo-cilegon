@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, Clock3, Copy, CreditCard, Eye, Landmark, LoaderCircle, QrCode, Ticket, Upload, UserRound } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import { LOGO_URL, type EventItem, type EventTicket } from '@/lib/types';
+import type { EventItem, EventTicket } from '@/lib/types';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 import { supabase } from '@/lib/supabase';
 import { getImageFileExtension, processImageForUpload, validateImageFile } from '@/lib/image-processing';
 import { PageHeader } from '@/components/PageHeader';
@@ -311,6 +312,7 @@ interface Props {
 }
 
 export function TicketOrderPage({ router, slug, ticketId }: Props) {
+  const { settings } = useSiteSettings();
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState<EventItem | null>(null);
   const [ticket, setTicket] = useState<EventTicket | null>(null);
@@ -1140,7 +1142,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
                 <img src={event.poster} alt={`Poster ${event.title}`} className="w-24 shrink-0 self-stretch rounded-xl bg-white object-contain ring-1 ring-slate-200 sm:w-28" />
               ) : (
                 <span className="flex w-24 shrink-0 items-center justify-center self-stretch overflow-hidden rounded-xl bg-white ring-1 ring-blue-100 sm:w-28">
-                  <img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-9 w-9 object-contain" />
+                  <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt="Logo Standupindo Cilegon" className="h-9 w-9 object-contain" />
                 </span>
               )}
               <div className="min-w-0 flex-1">

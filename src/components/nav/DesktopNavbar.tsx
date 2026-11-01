@@ -26,14 +26,8 @@ export function DesktopNavbar({ router, settings }: { router: Router; settings: 
               <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt={settings.site_name} width={640} height={859} className="block h-full w-auto rounded-md object-contain" />
             </span>
           </span>
-          <span className="hidden text-[15px] font-black tracking-[-0.02em] text-white sm:inline sm:text-[15px]">
-            <span className="site-brand-light-leak-text" data-light-leak={settings.site_short_name.replace(/\s+CILEGON$/i, '')}>{settings.site_short_name.replace(/\s+CILEGON$/i, '')}</span>{' '}
-            <span className="site-brand-light-leak-text text-yellow-300" data-light-leak="CILEGON">CILEGON</span>
-          </span>
-          <span className="flex flex-col text-left text-[14px] font-black leading-[0.95] tracking-[-0.025em] text-white sm:hidden">
-            <span className="site-brand-light-leak-text" data-light-leak="STANDUPINDO">STANDUPINDO</span>
-            <span className="site-brand-light-leak-text text-yellow-300" data-light-leak="CILEGON">CILEGON</span>
-          </span>
+          <span className="site-brand-light-leak-text hidden max-w-[18rem] truncate text-[15px] font-black tracking-[-0.02em] text-white sm:inline sm:text-[15px]" data-light-leak={settings.site_short_name}>{settings.site_short_name}</span>
+          <span className="site-brand-light-leak-text flex max-w-[10rem] truncate text-left text-[14px] font-black leading-[0.95] tracking-[-0.025em] text-white sm:hidden" data-light-leak={settings.site_short_name}>{settings.site_short_name}</span>
         </button>
 
         <nav className="hidden items-center gap-1 rounded-2xl border border-white/20 bg-blue-800/50 p-1 md:flex">
@@ -64,8 +58,8 @@ export function DesktopNavbar({ router, settings }: { router: Router; settings: 
               rel="noopener noreferrer"
               data-merch-store-trigger
               className="flex h-10 w-10 items-center justify-center rounded-full text-white transition hover:bg-white/15 hover:text-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-              aria-label="Buka toko Merch Standupindo Cilegon"
-              title="Toko Merch Standupindo Cilegon"
+              aria-label={`Buka toko Merch ${settings.site_name}`}
+              title={`Toko Merch ${settings.site_name}`}
             >
               <Store className="h-5 w-5" />
             </a>

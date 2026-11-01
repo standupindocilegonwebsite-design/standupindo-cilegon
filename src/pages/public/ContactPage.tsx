@@ -46,7 +46,7 @@ export function ContactPage({ router, settings }: { router: Router; settings: Si
       ? {
           label: 'WhatsApp',
           href: waLink(settings.whatsapp_registration || settings.whatsapp_admin),
-          ariaLabel: 'Hubungi Standupindo Cilegon melalui WhatsApp',
+          ariaLabel: `Hubungi ${settings.site_name} melalui WhatsApp`,
           icon: <MessageCircle className="h-8 w-8" strokeWidth={1.8} />,
         }
       : null,
@@ -54,7 +54,7 @@ export function ContactPage({ router, settings }: { router: Router; settings: Si
       ? {
           label: 'Instagram',
           href: settings.instagram_url,
-          ariaLabel: 'Kunjungi Instagram Standupindo Cilegon',
+          ariaLabel: `Kunjungi Instagram ${settings.site_name}`,
           icon: <Instagram className="h-8 w-8" strokeWidth={1.8} />,
         }
       : null,
@@ -62,7 +62,7 @@ export function ContactPage({ router, settings }: { router: Router; settings: Si
       ? {
           label: 'TikTok',
           href: settings.tiktok_url,
-          ariaLabel: 'Kunjungi TikTok Standupindo Cilegon',
+          ariaLabel: `Kunjungi TikTok ${settings.site_name}`,
           icon: <TikTokIcon className="h-8 w-8" />,
         }
       : null,
@@ -70,7 +70,7 @@ export function ContactPage({ router, settings }: { router: Router; settings: Si
       ? {
           label: 'YouTube',
           href: settings.youtube_url,
-          ariaLabel: 'Kunjungi YouTube Standupindo Cilegon',
+          ariaLabel: `Kunjungi YouTube ${settings.site_name}`,
           icon: <Youtube className="h-8 w-8" strokeWidth={1.8} />,
           nativeAppUrl: settings.youtube_url,
         }
@@ -91,7 +91,7 @@ export function ContactPage({ router, settings }: { router: Router; settings: Si
             <div className="rounded-[24px] border border-blue-100 bg-white/90 p-5 text-center shadow-[0_10px_25px_rgba(37,99,235,0.06)]">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">Stay connected</p>
               <h1 className="mt-1 text-2xl font-black tracking-[-0.04em] text-slate-900 sm:text-3xl">Kontak & Sosial Media</h1>
-              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">{settings.short_description?.trim() || 'Temukan kabar terbaru dan hubungi Standupindo Cilegon melalui kanal resmi kami.'}</p>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">{settings.short_description?.trim() || `Temukan kabar terbaru dan hubungi ${settings.site_name} melalui kanal resmi kami.`}</p>
             </div>
 
             {items.length > 0 && (

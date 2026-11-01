@@ -149,10 +149,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
                     <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt={settings.site_name} width={640} height={859} className="block h-full w-auto rounded-md object-contain" />
                   </span>
                 </span>
-                <span className="flex flex-col text-sm font-extrabold leading-tight tracking-tight text-slate-900">
-                  <span>{settings.site_short_name.replace(/\s+CILEGON$/i, '')}</span>
-                  <span className="text-blue-600">CILEGON</span>
-                </span>
+                <span className="max-w-[14rem] truncate text-sm font-extrabold leading-tight tracking-tight text-slate-900">{settings.site_short_name}</span>
               </div>
               <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-slate-700">Menjadi ruang bertemunya komika, penikmat komedi, dan insan kreatif untuk berbagi tawa, mengembangkan potensi, serta membangun ekosistem stand up comedy di Cilegon.</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">

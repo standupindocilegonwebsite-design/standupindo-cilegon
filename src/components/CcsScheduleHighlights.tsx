@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, CalendarDays, Clock3, ExternalLink, Info, MapPin } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 import { formatCcsDate, formatCcsTime, getCcsMapsUrl, getCcsOccurrenceDate, getCcsRecurrenceLabel, isUpcomingCcsSchedule } from '@/lib/ccs';
 import type { CcsSchedule } from '@/lib/types';
 import { Modal } from '@/components/ui/Modal';
 
 export function CcsScheduleHighlights({ compact = false }: { compact?: boolean }) {
+  const { settings } = useSiteSettings();
   const [schedules, setSchedules] = useState<CcsSchedule[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mapsSchedule, setMapsSchedule] = useState<CcsSchedule | null>(null);
@@ -79,7 +81,7 @@ export function CcsScheduleHighlights({ compact = false }: { compact?: boolean }
               <article className="relative z-10 overflow-hidden rounded-2xl bg-white shadow-[0_14px_30px_rgba(11,31,68,0.2)]">
               <div className="relative flex min-w-0 items-center justify-between gap-3 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 px-4 py-3.5 text-white sm:px-5 lg:justify-center lg:px-10 lg:py-5">
                 <div className="min-w-0 lg:text-center">
-                  <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-blue-200 sm:text-[10px]">Standupindo Cilegon</p>
+                  <p className="max-w-full truncate text-[9px] font-extrabold uppercase tracking-[0.16em] text-blue-200 sm:text-[10px]">{settings.site_name}</p>
                   <h2 className="mt-0.5 break-words text-xs font-black leading-snug sm:text-sm lg:text-2xl lg:tracking-normal">Jadwal Cilegon Comedy Sharing</h2>
                 </div>
                 <span className="shrink-0 rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-white sm:px-3 sm:text-[10px] lg:absolute lg:right-6">CCS</span>

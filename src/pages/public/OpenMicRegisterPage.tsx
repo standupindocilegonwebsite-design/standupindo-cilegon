@@ -9,7 +9,7 @@ import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
-import { LOGO_URL } from '@/lib/types';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 import { InstagramFollowLink } from '@/components/ui/InstagramFollowLink';
 import { CommunityCombobox } from '@/components/ui/CommunityCombobox';
 
@@ -39,6 +39,7 @@ interface MemberProfile {
 const EMPTY: FormState = { full_name: '', stage_name: '', community: '', instagram: '', whatsapp: '', notes: '' };
 
 export function OpenMicRegisterPage({ router, slug }: Props) {
+  const { settings } = useSiteSettings();
   const { user, isMember } = useAuth();
   const [loading, setLoading] = useState(true);
   const [micId, setMicId] = useState<string | null>(null);
@@ -267,7 +268,7 @@ export function OpenMicRegisterPage({ router, slug }: Props) {
       <div className="container-app py-8">
         <div className="mx-auto max-w-xl">
           <form data-scroll-reveal onSubmit={handleSubmit} className="scroll-reveal is-visible card p-6 space-y-5" noValidate>
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-5">{micPoster ? <img src={micPoster} alt={`Poster ${micTitle}`} className="h-14 w-20 shrink-0 rounded-xl object-cover ring-1 ring-slate-200" /> : <span className="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-blue-100"><img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-9 w-9 object-contain" /></span>}<div className="min-w-0"><h2 className="truncate font-bold text-slate-900">{micTitle}</h2><p className="text-sm text-slate-500">Isi data kamu untuk mendaftar.</p></div></div>
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-5">{micPoster ? <img src={micPoster} alt={`Poster ${micTitle}`} className="h-14 w-20 shrink-0 rounded-xl object-cover ring-1 ring-slate-200" /> : <span className="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-blue-100"><img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt="Logo Standupindo Cilegon" className="h-9 w-9 object-contain" /></span>}<div className="min-w-0"><h2 className="truncate font-bold text-slate-900">{micTitle}</h2><p className="text-sm text-slate-500">Isi data kamu untuk mendaftar.</p></div></div>
             {memberProfile ? (
               <div className="space-y-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
                 <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-700">Profil pendaftar</p><h3 className="mt-1 text-lg font-black text-slate-900">{memberProfile.stage_name}</h3><p className="text-sm text-slate-600">{memberProfile.full_name}</p></div>

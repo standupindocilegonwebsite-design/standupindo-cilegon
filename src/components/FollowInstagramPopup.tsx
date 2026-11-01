@@ -166,15 +166,15 @@ export function FollowInstagramPopup({ router, settings }: { router: Router; set
   if (!instagramUrl) return null;
 
   return (
-    <Modal open={open} onClose={() => closeWithCooldown('dismissed')} ariaLabel="Follow Standupindo Cilegon" panelClassName="!border-white/60 !bg-sky-50/70 !shadow-[0_26px_80px_rgba(11,31,68,0.38)] !backdrop-blur-2xl [&>div:first-child]:!bg-transparent [&>div:first-child>button]:!bg-white/70 [&>div:first-child>button]:!backdrop-blur-md" size="sm">
+    <Modal open={open} onClose={() => closeWithCooldown('dismissed')} ariaLabel={`Follow ${settings.site_name}`} panelClassName="!border-white/60 !bg-sky-50/70 !shadow-[0_26px_80px_rgba(11,31,68,0.38)] !backdrop-blur-2xl [&>div:first-child]:!bg-transparent [&>div:first-child>button]:!bg-white/70 [&>div:first-child>button]:!backdrop-blur-md" size="sm">
       <div className="flex flex-col items-center px-2 pb-1 pt-1 text-center sm:px-3">
         <div className="mb-3 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-white/70 bg-white/65 p-2 shadow-[0_8px_20px_rgba(37,99,235,0.12)] backdrop-blur-md">
-          <img src={settings.logo_url ?? LOGO_URL} alt="Logo Standupindo Cilegon" className="h-full w-full object-contain" />
+          <img src={settings.logo_url ?? LOGO_URL} alt={`Logo ${settings.site_name}`} className="h-full w-full object-contain" />
         </div>
         <h2 className="flex flex-col items-center text-base font-black leading-tight tracking-tight text-slate-900 sm:text-lg">
           <span>Follow</span>
           <span className="mt-1 inline-flex items-center gap-1.5">
-            <Instagram className="h-4 w-4 text-pink-600" /> Standupindo Cilegon
+            <Instagram className="h-4 w-4 text-pink-600" /> {settings.site_name}
           </span>
         </h2>
         <a

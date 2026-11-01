@@ -1,4 +1,4 @@
-const CACHE_NAME = 'standupindo-shell-v9';
+const CACHE_NAME = 'standupindo-shell-v10';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -16,6 +16,7 @@ const APP_SHELL = [
   '/assets/images/pwa-member.png',
   '/assets/images/pwa-member-192.png',
   '/assets/images/pwa-member-512.png',
+  '/assets/images/open-mic-empty-performer.png',
 ];
 
 self.addEventListener('install', (event) => {

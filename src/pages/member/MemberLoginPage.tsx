@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { useAuth } from '@/lib/auth-context';
-import { LOGO_URL } from '@/lib/types';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 
 export function MemberLoginPage({ router }: { router: Router }) {
   const { signIn, deviceSwitchPending, sessionNotice, clearSessionNotice, confirmDeviceSwitch, cancelDeviceSwitch } = useAuth();
+  const { settings } = useSiteSettings();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -66,11 +67,11 @@ export function MemberLoginPage({ router }: { router: Router }) {
         <div className="mb-6 text-center">
           <span className="relative mx-auto flex w-fit shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-0.5 shadow-[0_5px_14px_rgba(29,94,219,0.1)]">
             <span className="site-brand-logo-light-leak relative isolate block h-12 w-auto overflow-hidden rounded-md sm:h-14">
-              <img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="block h-full w-auto rounded-md object-contain" />
+              <img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt="Logo Standupindo Cilegon" className="block h-full w-auto rounded-md object-contain" />
             </span>
           </span>
           <h1 className="mt-4 text-xl font-extrabold text-white">Member Area</h1>
-          <p className="mt-1 text-sm text-blue-100">Masuk untuk melihat profil dan performa kamu.</p>
+          <p className="mt-1 text-sm text-blue-100">Masuk untuk melihat profil dan performa kamu di {settings.site_name}.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-200 space-y-4">

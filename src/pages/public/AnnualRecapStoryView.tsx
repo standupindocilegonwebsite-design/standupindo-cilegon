@@ -3,6 +3,7 @@ import { CalendarDays, MapPin, Medal, Mic2, Sparkles, Star, Trophy, Users, X } f
 import { DEFAULT_RECAP_CLOSING, type AnnualRecapStats } from '@/lib/annual-recap';
 import { formatDate } from '@/lib/format';
 import { LOGO_URL } from '@/lib/types';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 
 const SLIDE_DURATIONS = {
   opening: 9000,
@@ -56,6 +57,7 @@ export function AnnualRecapStory({ year, stats, closingNarrative, musicUrl, onCl
   musicUrl?: string | null;
   onClose: () => void;
 }) {
+  const { settings } = useSiteSettings();
   const [index, setIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [holdPaused, setHoldPaused] = useState(false);
@@ -227,7 +229,7 @@ export function AnnualRecapStory({ year, stats, closingNarrative, musicUrl, onCl
             {activeSlide === 'opening' && <section className="relative flex min-h-full flex-col justify-between overflow-hidden pb-2 pt-20">
               <div className="absolute right-1 top-[27%] rotate-[-13deg] text-cyan-300/80" aria-hidden="true"><Mic2 className="h-24 w-24 drop-shadow-[0_10px_18px_rgba(12,173,255,0.3)] sm:h-28 sm:w-28" strokeWidth={1.4} /><span className="absolute -left-7 top-2 h-20 w-px rotate-[-26deg] bg-cyan-300/50" /><span className="absolute -left-2 top-[-1.5rem] h-16 w-px rotate-[-26deg] bg-cyan-300/30" /></div>
               <img src="/assets/images/standup-indo-logo.png" alt="Logo Standupindo" className="absolute right-0 top-1 h-12 w-24 object-contain" />
-              <div className="recap-sequence"><div className="flex items-center gap-3"><span className="flex shrink-0 items-center justify-center rounded-xl bg-white p-1.5"><img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-[4.5rem] w-auto object-contain" /></span><p className="text-[11px] font-bold uppercase text-cyan-100">Satu tahun bersama Standupindo Cilegon</p></div><h1 className="mt-5 flex flex-col text-[4.5rem] font-black leading-[0.78] text-white sm:text-[5.5rem]"><span>RECAP</span><span className="mt-3 -rotate-2 text-[5.8rem] text-cyan-300 sm:text-[6.5rem]">{year}</span></h1><p className="mt-7 max-w-[18rem] text-sm leading-6 text-blue-100">Setahun penuh cerita, panggung, tawa, dan orang-orang yang ikut memeriahkan.</p><p className="mt-6 max-w-[15rem] -rotate-2 font-serif text-lg italic text-cyan-200">Yuk, lihat apa yang terjadi selama setahun...</p></div>
+              <div className="recap-sequence"><div className="flex items-center gap-3"><span className="flex shrink-0 items-center justify-center rounded-xl bg-white p-1.5"><img src={settings.logo_url ?? LOGO_URL} alt="Logo Standupindo Cilegon" className="h-[4.5rem] w-auto object-contain" /></span><p className="text-[11px] font-bold uppercase text-cyan-100">Satu tahun bersama Standupindo Cilegon</p></div><h1 className="mt-5 flex flex-col text-[4.5rem] font-black leading-[0.78] text-white sm:text-[5.5rem]"><span>RECAP</span><span className="mt-3 -rotate-2 text-[5.8rem] text-cyan-300 sm:text-[6.5rem]">{year}</span></h1><p className="mt-7 max-w-[18rem] text-sm leading-6 text-blue-100">Setahun penuh cerita, panggung, tawa, dan orang-orang yang ikut memeriahkan.</p><p className="mt-6 max-w-[15rem] -rotate-2 font-serif text-lg italic text-cyan-200">Yuk, lihat apa yang terjadi selama setahun...</p></div>
               <div className="pb-2 text-[9px] font-bold uppercase text-blue-200/80" style={{ animationDelay: '3600ms' }}>STANDUPINDO CILEGON</div>
             </section>}
 
@@ -321,7 +323,7 @@ export function AnnualRecapStory({ year, stats, closingNarrative, musicUrl, onCl
             </section>}
 
             {activeSlide === 'closing' && <section className="relative flex min-h-full flex-col items-center justify-center overflow-hidden pb-7 text-center">
-              <div className="absolute inset-x-[-2rem] bottom-0 flex h-24 items-end justify-center gap-1 opacity-70" aria-hidden="true">{[34, 54, 38, 72, 46, 60, 84, 44, 66, 39, 74, 52, 32].map((height, buildingIndex) => <span key={buildingIndex} className="w-7 bg-[#020918]" style={{ height: `${height}px` }} />)}</div><Sparkles className="mb-4 h-6 w-6 text-cyan-300" /><p className="text-sm font-black uppercase tracking-wide text-white">TERIMA KASIH,</p><h1 className="mt-1 -rotate-2 text-[5.3rem] font-black leading-none text-cyan-300">{year}.</h1><p className="mt-5 max-w-[19rem] text-xs leading-5 text-blue-100">{closingCopy}</p><p className="mt-6 max-w-[17rem] rounded-full bg-cyan-300 px-5 py-3 text-[10px] font-black text-[#0b1f44] shadow-[0_8px_28px_rgba(34,211,238,0.2)]">SAMPAI KETEMU DI PANGGUNG BERIKUTNYA.</p><div className="relative mt-8 flex flex-col items-center gap-2"><img src="/assets/images/standup-indo-logo.png" alt="Logo Standupindo" className="h-12 w-24 object-contain" /><img src={LOGO_URL} alt="Logo Standupindo Cilegon" className="h-10 w-10 rounded-full bg-white object-contain p-0.5" /></div>
+              <div className="absolute inset-x-[-2rem] bottom-0 flex h-24 items-end justify-center gap-1 opacity-70" aria-hidden="true">{[34, 54, 38, 72, 46, 60, 84, 44, 66, 39, 74, 52, 32].map((height, buildingIndex) => <span key={buildingIndex} className="w-7 bg-[#020918]" style={{ height: `${height}px` }} />)}</div><Sparkles className="mb-4 h-6 w-6 text-cyan-300" /><p className="text-sm font-black uppercase tracking-wide text-white">TERIMA KASIH,</p><h1 className="mt-1 -rotate-2 text-[5.3rem] font-black leading-none text-cyan-300">{year}.</h1><p className="mt-5 max-w-[19rem] text-xs leading-5 text-blue-100">{closingCopy}</p><p className="mt-6 max-w-[17rem] rounded-full bg-cyan-300 px-5 py-3 text-[10px] font-black text-[#0b1f44] shadow-[0_8px_28px_rgba(34,211,238,0.2)]">SAMPAI KETEMU DI PANGGUNG BERIKUTNYA.</p><div className="relative mt-8 flex flex-col items-center gap-2"><img src="/assets/images/standup-indo-logo.png" alt="Logo Stand Up Indo" className="h-12 w-24 object-contain" /><img src={settings.logo_url ?? LOGO_URL} alt="Logo Standupindo Cilegon" className="h-10 w-10 rounded-full bg-white object-contain p-0.5" /></div>
             </section>}
           </div>
         </main>

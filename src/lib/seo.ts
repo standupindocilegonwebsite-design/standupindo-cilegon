@@ -6,6 +6,7 @@ type PageMetadata = {
   title: string;
   description: string;
   image?: string | null;
+  siteName?: string;
 };
 
 function setMeta(attribute: 'name' | 'property', key: string, value: string) {
@@ -32,7 +33,7 @@ export function seoDescription(value: string | null | undefined, fallback: strin
   return `${shortened.slice(0, lastSpace > 100 ? lastSpace : 157).trimEnd()}...`;
 }
 
-export function setPageMetadata({ path, title, description, image }: PageMetadata) {
+export function setPageMetadata({ path, title, description, image, siteName = 'Standupindo Cilegon' }: PageMetadata) {
   const canonicalPath = path.startsWith('/') ? path : '/';
   const canonicalUrl = new URL(canonicalPath, SITE_ORIGIN).toString();
   const imageUrl = new URL(image || DEFAULT_IMAGE, SITE_ORIGIN).toString();
@@ -48,7 +49,7 @@ export function setPageMetadata({ path, title, description, image }: PageMetadat
   canonical.href = canonicalUrl;
 
   setMeta('property', 'og:type', 'website');
-  setMeta('property', 'og:site_name', 'Standupindo Cilegon');
+  setMeta('property', 'og:site_name', siteName);
   setMeta('property', 'og:title', title);
   setMeta('property', 'og:description', description);
   setMeta('property', 'og:url', canonicalUrl);

@@ -67,9 +67,9 @@ async function loadPosterData(url: string): Promise<{ data: string; width: numbe
   }
 }
 
-async function loadLogoData(): Promise<{ data: string; width: number; height: number }> {
+async function loadLogoData(logoUrl?: string | null): Promise<{ data: string; width: number; height: number }> {
   const image = new Image();
-  image.src = LOGO_URL;
+  image.src = logoUrl || LOGO_URL;
   try {
     await image.decode();
   } catch {
@@ -108,11 +108,15 @@ export async function createETicketPdfDocument({
   order,
   tickets,
   qrCanvases,
+  logoUrl,
+  siteName,
 }: {
   event: ETicketEvent;
   order: ETicketOrder;
   tickets: ETicketInstance[];
   qrCanvases: Map<string, HTMLCanvasElement>;
+  logoUrl?: string | null;
+  siteName?: string | null;
 }) {
   if (tickets.length === 0) throw new Error('Tiket individual belum tersedia untuk order ini.');
   if (tickets.some((ticket) => !ticket.qr_token || !qrCanvases.has(ticket.id))) {
@@ -120,7 +124,7 @@ export async function createETicketPdfDocument({
   }
 
   const poster = event.poster?.trim() ? await loadPosterData(event.poster.trim()) : null;
-  const logo = await loadLogoData();
+  const logo = await loadLogoData(logoUrl);
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [148, 225], compress: true });
   const pageWidth = 148;
@@ -256,7 +260,7 @@ export async function createETicketPdfDocument({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7);
     doc.setTextColor(30, 41, 59);
-    doc.text('STANDUPINDO CILEGON', pageWidth / 2, 222, { align: 'center' });
+    doc.text((siteName || 'Standupindo Cilegon').toUpperCase(), pageWidth / 2, 222, { align: 'center' });
   });
 
   return doc;

@@ -7,6 +7,7 @@ import type { EventStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { TicketPagination } from '@/components/TicketPagination';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
 import { AdminModal as Modal } from '@/components/admin/AdminModal';
@@ -217,6 +218,7 @@ async function loadTickets() {
 }
 
 export function TicketAdminTicketsPage() {
+  const { settings } = useSiteSettings();
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [events, setEvents] = useState<TicketEvent[]>([]);
   const [categories, setCategories] = useState<EventTicketCategory[]>([]);
@@ -725,6 +727,8 @@ export function TicketAdminTicketsPage() {
       },
       tickets: otsResult.tickets,
       qrCanvases,
+      logoUrl: settings.logo_url,
+      siteName: settings.site_name,
     });
     return { blob: pdf.output('blob'), filename: `E-Tiket-OTS-${otsResult.order_number}.pdf` };
   }

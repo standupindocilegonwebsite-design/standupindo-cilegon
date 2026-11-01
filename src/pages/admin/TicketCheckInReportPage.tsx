@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Printer } from 'lucide-react';
 import { formatDate, getEventStatus } from '@/lib/format';
-import { LOGO_URL } from '@/lib/types';
+import { useSiteSettings } from '@/lib/useSiteSettings';
 import { supabase } from '@/lib/supabase';
 import { TicketWorkspaceHeader } from '@/pages/admin/TicketWorkspaceHeader';
 import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
@@ -35,6 +35,7 @@ interface CheckInReportResponse {
 }
 
 export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
+  const { settings } = useSiteSettings();
   const [eventFilter, setEventFilter] = useState('all');
   const [report, setReport] = useState<CheckInReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,8 +122,8 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
       sheetName: selectedEvent ? 'Detail Tiket' : 'Rekap per Event',
       title: selectedEvent ? `LAPORAN CHECK-IN - ${selectedEvent.title}` : 'LAPORAN CHECK-IN',
       subtitle: selectedEvent
-        ? `${formatDate(selectedEvent.date)}${selectedEvent.venue ? ` · ${selectedEvent.venue}` : ''} · Standupindo Cilegon`
-        : 'Rekap semua Event dalam scope Admin QR Scanner · Standupindo Cilegon',
+        ? `${formatDate(selectedEvent.date)}${selectedEvent.venue ? ` · ${selectedEvent.venue}` : ''} · ${settings.site_name}`
+        : `Rekap semua Event dalam scope Admin QR Scanner · ${settings.site_name}`,
       headers: eventFilter === 'all'
         ? ['Event', 'Tanggal', 'Tiket Terjual', 'Hadir', 'Tidak Hadir', 'Kehadiran']
         : ['No.', 'Nama Pemesan', 'WhatsApp', 'Kategori Tiket', 'Status'],
@@ -220,7 +221,7 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
             </section>}
         </>}
       <div className="print-sheet ticket-check-in-report-print">
-        <div className="print-brand"><img src={LOGO_URL} alt="" /><div><h1>LAPORAN CHECK-IN</h1><p>Standupindo Cilegon</p></div></div>
+        <div className="print-brand"><img src={settings.logo_url ?? '/assets/images/Logo%20Standupindo%20Cilegon%20Biru.png'} alt="" /><div><h1>LAPORAN CHECK-IN</h1><p>{settings.site_name}</p></div></div>
         <div className="ticket-check-in-report-meta">
           <p><strong>Nama Event:</strong> {printTitle}</p>
           {selectedEvent && <p><strong>Tanggal:</strong> {formatDate(selectedEvent.date)}{selectedEvent.venue ? ` · ${selectedEvent.venue}` : ''}</p>}

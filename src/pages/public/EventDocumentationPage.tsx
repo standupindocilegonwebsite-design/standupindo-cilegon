@@ -302,7 +302,7 @@ export function EventDocumentationPage({ router, slug, settings }: EventDocument
               <img src={settings.logo_url ?? FALLBACK_LOGO} alt="" className="h-full w-full object-contain" />
             </span>
             <span className="flex min-w-0 flex-col text-left leading-tight">
-              <span className="truncate text-xs font-black tracking-wide text-white sm:text-sm">{settings.site_short_name.replace(/\s+CILEGON$/i, '')}</span>
+              <span className="max-w-[14rem] truncate text-xs font-black tracking-wide text-white sm:text-sm">{settings.site_short_name}</span>
               <span className="text-xs font-extrabold tracking-wide text-blue-300">CILEGON</span>
             </span>
           </div>
