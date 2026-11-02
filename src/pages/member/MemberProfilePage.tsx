@@ -22,6 +22,19 @@ function profileUrl(value: string, prefix: string): string | null {
   return handle ? `https://${prefix}.com/${prefix === 'tiktok' ? '@' : ''}${handle}` : null;
 }
 
+function getKomikaPhotoStoragePath(photoUrl: string): string | null {
+  try {
+    const publicUrl = new URL(supabase.storage.from('standupindo-media').getPublicUrl('komika/').data.publicUrl);
+    const candidateUrl = new URL(photoUrl);
+    if (candidateUrl.origin !== publicUrl.origin || !candidateUrl.pathname.startsWith(publicUrl.pathname)) return null;
+    const relativePath = decodeURIComponent(candidateUrl.pathname.slice(publicUrl.pathname.length));
+    if (!relativePath || relativePath.split('/').some((segment) => !segment || segment === '.' || segment === '..')) return null;
+    return `komika/${relativePath}`;
+  } catch {
+    return null;
+  }
+}
+
 export function MemberProfilePage({ router }: { router: Router }) {
   const { user } = useAuth();
   const [profile, setProfile] = useState<Komika | null>(null);
@@ -135,6 +148,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
 
   async function handleSaveProfilePhoto(photoUrl: string | null, cardPhotoUrl: string | null) {
     if (!profile) throw new Error('Profil komika tidak ditemukan.');
+    const previousPhoto = profile.photo;
     const { error } = await supabase
       .from('komika')
       .update({
@@ -143,11 +157,42 @@ export function MemberProfilePage({ router }: { router: Router }) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', profile.id);
-    if (error) throw error;
+    if (error) {
+      if (photoUrl && photoUrl !== previousPhoto) {
+        const { data: currentProfile, error: verificationError } = await supabase
+          .from('komika')
+          .select('photo')
+          .eq('id', profile.id)
+          .maybeSingle();
+        if (!verificationError && currentProfile?.photo === previousPhoto) {
+          const temporaryPath = getKomikaPhotoStoragePath(photoUrl);
+          if (temporaryPath) {
+            const { error: cleanupError } = await supabase.storage.from('standupindo-media').remove([temporaryPath]);
+            if (cleanupError) console.error('Foto profil sementara gagal dibersihkan setelah penyimpanan database gagal.', { temporaryPath, cleanupError });
+          }
+        } else if (verificationError) {
+          console.error('Status foto profil tidak dapat diverifikasi setelah penyimpanan gagal.', verificationError);
+        }
+      }
+      throw error;
+    }
+
+    if (previousPhoto && previousPhoto !== photoUrl) {
+       const previousPath = getKomikaPhotoStoragePath(previousPhoto);
+       if (previousPath) {
+         const { error: cleanupError } = await supabase.storage.from('standupindo-media').remove([previousPath]);
+         if (cleanupError) {
+           console.error('Foto profil lama berhasil diganti, tetapi gagal dibersihkan dari Storage.', { previousPath, cleanupError });
+           setProfileNotice({ type: 'success', message: 'Foto profil berhasil disimpan, tetapi foto lama belum berhasil dibersihkan.' });
+         }
+       }
+    }
 
     setForm((current) => ({ ...current, photo: photoUrl ?? '' }));
     setProfile((current) => current ? { ...current, photo: photoUrl, photo_card: cardPhotoUrl } : current);
-    setProfileNotice({ type: 'success', message: photoUrl ? 'Foto profil berhasil disimpan.' : 'Foto profil berhasil dihapus.' });
+    if (!previousPhoto || previousPhoto === photoUrl || !getKomikaPhotoStoragePath(previousPhoto)) {
+       setProfileNotice({ type: 'success', message: photoUrl ? 'Foto profil berhasil disimpan.' : 'Foto profil berhasil dihapus.' });
+    }
   }
 
   function cancelEditing() {

@@ -37,6 +37,7 @@ type RequestBody = {
 type PublicTicketAvailability = {
   id: string;
   quota: number | null;
+  qr_per_purchase: number;
 };
 
 type TicketOrderReservation = {
@@ -90,7 +91,7 @@ serve(async (request) => {
       if (!event) return json({ error: 'Event tidak menerima pemesanan tiket.' }, 404);
 
       const { data: tickets, error: ticketError } = await serviceClient.from('event_tickets')
-        .select('id, quota').eq('event_id', event.id).eq('status', 'active').eq('available_public', true);
+        .select('id, quota, qr_per_purchase').eq('event_id', event.id).eq('status', 'active').eq('available_public', true);
       if (ticketError) return json({ error: 'Status ketersediaan tiket gagal diperiksa.' }, 500);
 
       const limitedTickets = (tickets ?? []) as PublicTicketAvailability[];
@@ -111,9 +112,9 @@ serve(async (request) => {
         for (const order of (orders ?? []) as TicketOrderReservation[]) {
           const counts = quantitiesByTicket.get(order.ticket_id) ?? { confirmed: 0, reserved: 0 };
           if (confirmedStatuses.has(order.status)) {
-            counts.confirmed += order.quantity;
+            counts.confirmed += order.quantity * (limitedTickets.find((ticket) => ticket.id === order.ticket_id)?.qr_per_purchase ?? 1);
           } else if (!order.expires_at || new Date(order.expires_at).getTime() > now) {
-            counts.reserved += order.quantity;
+            counts.reserved += order.quantity * (limitedTickets.find((ticket) => ticket.id === order.ticket_id)?.qr_per_purchase ?? 1);
           }
           quantitiesByTicket.set(order.ticket_id, counts);
         }

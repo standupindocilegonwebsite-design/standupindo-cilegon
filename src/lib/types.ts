@@ -133,6 +133,7 @@ export interface EventTicket {
   event_id: string;
   name: string;
   price: number;
+  qr_per_purchase: number;
   available_public: boolean;
   available_ots: boolean;
   ots_price: number | null;
@@ -402,6 +403,14 @@ export interface Evaluation {
   status: EvaluationStatus;
   created_at: string;
   updated_at: string;
+}
+
+export interface EvaluationSeason {
+  key: string;
+  label: string;
+  periodLabel: string;
+  year: number;
+  season: 1 | 2;
 }
 
 export interface SiteSettings {

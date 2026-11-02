@@ -261,16 +261,19 @@ serve(async (request) => {
 
   if (!encryptionKey || !accessCodePepper) return json({ error: 'Secret penerbitan tiket belum dikonfigurasi.' }, 503);
   const { data: order, error: orderError } = await serviceClient.from('ticket_orders')
-    .select('id, order_number, event_id, full_name, email, whatsapp, ticket_category, quantity, total_price, status, access_code_id, payment_channel')
+    .select('id, order_number, event_id, ticket_id, full_name, email, whatsapp, ticket_category, quantity, total_price, status, access_code_id, payment_channel')
     .eq('id', transaction.ticket_order_id).maybeSingle();
   if (orderError || !order || order.payment_channel !== 'midtrans') return json({ error: 'Order Midtrans tidak ditemukan.' }, 503);
+  const { data: ticket, error: ticketError } = await serviceClient.from('event_tickets')
+    .select('qr_per_purchase').eq('id', order.ticket_id).maybeSingle();
+  if (ticketError || !ticket) return json({ error: 'Konfigurasi kategori tiket tidak ditemukan.' }, 503);
 
   let allocationResult: Record<string, unknown> | null = null;
   let allocationError: { message: string } | null = null;
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const normalizedPhone = normalizeWhatsapp(order.whatsapp);
     const accessCode = createAccessCode();
-    const qrTokens = await Promise.all(Array.from({ length: order.quantity }, async () => {
+    const qrTokens = await Promise.all(Array.from({ length: order.quantity * (ticket.qr_per_purchase ?? 1) }, async () => {
       const token = randomToken();
       return { hash: await sha256(token), ciphertext: await encryptSecret(token, encryptionKey) };
     }));

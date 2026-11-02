@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronRight, Save, Search, Sparkles, UserRound } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Info, Save, Search, Sparkles, UserRound } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBanner } from '@/components/ui/StatusBanner';
+import { MemberModal } from '@/components/member/MemberModal';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import type { Evaluation, OpenMic, OpenMicRegistration } from '@/lib/types';
@@ -52,6 +53,8 @@ export function EvaluatorEvaluationPage({ router, openMicId }: { router: Router;
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [submitConfirmationOpen, setSubmitConfirmationOpen] = useState(false);
 
   useEffect(() => {
     if (!user?.id) {
@@ -120,6 +123,47 @@ export function EvaluatorEvaluationPage({ router, openMicId }: { router: Router;
 
   function fillDemoForm() {
     setForm(DEMO_FORM);
+    setFormError('Isi Contoh hanya untuk referensi. Ubah seluruh penilaian dengan hasil evaluasi sebenarnya sebelum mengirim.');
+  }
+
+  function isDemoForm() {
+    return (Object.keys(DEMO_FORM) as Array<keyof typeof DEMO_FORM>).every((key) => form[key] === DEMO_FORM[key]);
+  }
+
+  function requestSubmitEvaluation() {
+    if (isDemoForm()) {
+      setFormError('Evaluasi berisi Isi Contoh dan tidak dapat dikirim. Ganti dengan penilaian sebenarnya terlebih dahulu.');
+      return;
+    }
+    const scoreFields = [
+      ['Materi', form.material_score],
+      ['Punchline', form.punchline_score],
+      ['Delivery', form.delivery_score],
+      ['Timing', form.timing_score],
+      ['Penguasaan Panggung', form.stage_presence_score],
+      ['Interaksi Penonton', form.crowd_interaction_score],
+    ];
+    const emptyScore = scoreFields.find(([, value]) => !value.trim());
+    if (emptyScore) {
+      setFormError(`${emptyScore[0]} wajib diisi sebelum evaluasi dikirim.`);
+      return;
+    }
+    const invalidScore = scoreFields.find(([, value]) => value.trim() && (Number.isNaN(Number(value)) || Number(value) < 0 || Number(value) > 10));
+    if (invalidScore) {
+      setFormError(`${invalidScore[0]} harus diisi antara 0 sampai 10.`);
+      return;
+    }
+    const emptyFeedback = [
+      ['Kekuatan', form.strengths],
+      ['Pengembangan', form.improvements],
+      ['Catatan', form.notes],
+    ].find(([, value]) => !value.trim());
+    if (emptyFeedback) {
+      setFormError(`${emptyFeedback[0]} wajib diisi sebelum evaluasi dikirim.`);
+      return;
+    }
+    setFormError('');
+    setSubmitConfirmationOpen(true);
   }
 
   async function handleSave(nextStatus: 'draft' | 'submitted') {
@@ -137,6 +181,26 @@ export function EvaluatorEvaluationPage({ router, openMicId }: { router: Router;
     if (invalidScore) {
       setFormError(`${invalidScore[0]} harus diisi antara 0 sampai 10.`);
       return;
+    }
+    if (nextStatus === 'submitted') {
+      if (isDemoForm()) {
+        setFormError('Evaluasi berisi Isi Contoh dan tidak dapat dikirim. Ganti dengan penilaian sebenarnya terlebih dahulu.');
+        return;
+      }
+      const emptyScore = scoreFields.find(([, value]) => !value.trim());
+      const emptyFeedback = [
+        ['Kekuatan', form.strengths],
+        ['Pengembangan', form.improvements],
+        ['Catatan', form.notes],
+      ].find(([, value]) => !value.trim());
+      if (emptyScore) {
+        setFormError(`${emptyScore[0]} wajib diisi sebelum evaluasi dikirim.`);
+        return;
+      }
+      if (emptyFeedback) {
+        setFormError(`${emptyFeedback[0]} wajib diisi sebelum evaluasi dikirim.`);
+        return;
+      }
     }
     setFormError('');
 
@@ -213,10 +277,11 @@ export function EvaluatorEvaluationPage({ router, openMicId }: { router: Router;
           <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600"><UserRound className="h-5 w-5" /></div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Daftar performer</p>
                 <h3 className="text-lg font-extrabold text-slate-900">Pemilihan performer</h3>
               </div>
+              <button type="button" onClick={() => setInfoOpen(true)} className="ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label="Informasi evaluasi" title="Informasi evaluasi"><Info className="h-4 w-4" /></button>
             </div>
 
             <div className="relative mt-4">
@@ -293,7 +358,7 @@ export function EvaluatorEvaluationPage({ router, openMicId }: { router: Router;
                 <button type="button" onClick={() => void handleSave('draft')} disabled={saving} className="btn-secondary">
                   {saving ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" /> Menyimpan...</> : <><Save className="h-4 w-4" /> Simpan Draft</>}
                 </button>
-                <button type="button" onClick={() => void handleSave('submitted')} disabled={saving} className="btn-primary">
+                <button type="button" onClick={requestSubmitEvaluation} disabled={saving} className="btn-primary">
                   {saving ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Mengirim...</> : <><CheckCircle2 className="h-4 w-4" /> Kirim Evaluasi</>}
                 </button>
               </div>}
@@ -307,6 +372,47 @@ export function EvaluatorEvaluationPage({ router, openMicId }: { router: Router;
           )}
         </div>
       </div>
+      <MemberModal open={submitConfirmationOpen} onClose={() => setSubmitConfirmationOpen(false)} title="KONFIRMASI EVALUASI" titleEyebrow="PERIKSA KEMBALI" size="sm">
+        <div className="space-y-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+            <p className="font-extrabold">Yakin ingin mengirim evaluasi ini?</p>
+            <p className="mt-1">Evaluasi yang sudah dikirim hanya dapat dibuat satu kali dan tidak dapat diedit kembali.</p>
+          </div>
+          {selectedPerformer && <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Preview Evaluasi</p>
+            <p className="mt-1 text-base font-extrabold text-slate-900">{selectedPerformer.stage_name || selectedPerformer.full_name}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              {[
+                ['Materi', form.material_score],
+                ['Punchline', form.punchline_score],
+                ['Delivery', form.delivery_score],
+                ['Timing', form.timing_score],
+                ['Penguasaan Panggung', form.stage_presence_score],
+                ['Interaksi Penonton', form.crowd_interaction_score],
+              ].map(([label, value]) => <div key={label} className="flex items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-2"><span className="text-slate-600">{label}</span><strong className="text-slate-900">{value || '-'}</strong></div>)}
+            </div>
+            <div className="mt-3 space-y-2 text-sm">
+              <p><span className="font-bold text-slate-700">Kekuatan:</span> {form.strengths.trim() || '-'}</p>
+              <p><span className="font-bold text-slate-700">Pengembangan:</span> {form.improvements.trim() || '-'}</p>
+              <p><span className="font-bold text-slate-700">Catatan:</span> {form.notes.trim() || '-'}</p>
+            </div>
+          </div>}
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setSubmitConfirmationOpen(false)} disabled={saving} className="btn-secondary flex-1">Periksa Lagi</button>
+            <button type="button" onClick={() => { setSubmitConfirmationOpen(false); void handleSave('submitted'); }} disabled={saving} className="btn-primary flex-1">{saving ? 'Mengirim...' : 'Ya, Kirim Evaluasi'}</button>
+          </div>
+        </div>
+      </MemberModal>
+      <MemberModal open={infoOpen} onClose={() => setInfoOpen(false)} title="INFORMASI EVALUASI" titleEyebrow="PENTING" size="sm">
+        <div className="space-y-4">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm leading-6 text-blue-950">
+            <p className="font-extrabold">Evaluasi hanya dapat dikirim satu kali untuk setiap performer.</p>
+            <p className="mt-1">Setelah evaluasi dikirim, data tidak dapat diedit atau diubah kembali.</p>
+          </div>
+          <p className="text-sm leading-6 text-slate-600">Pastikan seluruh skor dan catatan sudah benar sebelum menekan tombol kirim agar hasil penilaian tetap akurat.</p>
+          <button type="button" onClick={() => setInfoOpen(false)} className="btn-primary w-full">Saya Mengerti</button>
+        </div>
+      </MemberModal>
       {notice && <StatusBanner message={notice.message} variant={notice.type} onDismiss={() => setNotice(null)} className="fixed inset-x-4 bottom-4 z-[220] sm:left-auto sm:right-5 sm:max-w-md" />}
     </div>
   );

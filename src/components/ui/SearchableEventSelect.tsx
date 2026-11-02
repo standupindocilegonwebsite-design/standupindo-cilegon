@@ -15,6 +15,9 @@ interface SearchableEventSelectProps {
   onChange: (value: string) => void;
   allLabel: string;
   ariaLabel: string;
+  emptyLabel?: string;
+  searchPlaceholder?: string;
+  noResultsLabel?: string;
 }
 
 function EventPosterThumbnail({ src, className }: { src: string; className: string }) {
@@ -31,13 +34,13 @@ function EventPosterThumbnail({ src, className }: { src: string; className: stri
   return <img src={src} alt="" onError={() => setFailed(true)} className={className} />;
 }
 
-export function SearchableEventSelect({ options, value, onChange, allLabel, ariaLabel }: SearchableEventSelectProps) {
+export function SearchableEventSelect({ options, value, onChange, allLabel, ariaLabel, emptyLabel, searchPlaceholder = 'Ketik nama Event...', noResultsLabel = 'Event tidak ditemukan.' }: SearchableEventSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const selectedOption = options.find((option) => option.id === value);
-  const selectedLabel = value === 'all' ? allLabel : selectedOption?.title ?? allLabel;
+  const selectedLabel = value === '' ? (emptyLabel ?? allLabel) : value === 'all' ? allLabel : selectedOption?.title ?? allLabel;
   const filteredOptions = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('id-ID');
     return options.filter((option) => !normalizedQuery
@@ -105,7 +108,7 @@ export function SearchableEventSelect({ options, value, onChange, allLabel, aria
                   choose(filteredOptions[0].id);
                 }
               }}
-              placeholder="Ketik nama Event..."
+              placeholder={searchPlaceholder}
               className="min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm font-medium text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/15"
               aria-label={`Cari ${ariaLabel.toLocaleLowerCase('id-ID')}`}
             />
@@ -139,7 +142,7 @@ export function SearchableEventSelect({ options, value, onChange, allLabel, aria
             {option.statusLabel && <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[9px] font-extrabold tracking-wide text-slate-600">{option.statusLabel}</span>}
             {value === option.id && <Check className="h-4 w-4 shrink-0" />}
           </button>)}
-          {!filteredOptions.length && <p className="px-3 py-4 text-center text-xs font-medium text-slate-500">Event tidak ditemukan.</p>}
+          {!filteredOptions.length && <p className="px-3 py-4 text-center text-xs font-medium text-slate-500">{noResultsLabel}</p>}
         </div>
       </div>}
     </div>

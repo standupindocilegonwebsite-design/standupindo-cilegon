@@ -171,6 +171,7 @@ export function TicketSelectionPage({ router, slug }: Props) {
                           <p className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-blue-700">Kategori Tiket</p>
                           <h3 className="mt-0.5 break-words text-base font-extrabold text-slate-900 sm:text-lg">{ticket.name}</h3>
                           {ticket.description && <p className="mt-1.5 whitespace-pre-line text-xs leading-5 text-slate-600 sm:text-sm">{ticket.description}</p>}
+                          <p className="mt-1.5 text-xs font-semibold text-blue-700">{ticket.qr_per_purchase} QR per pembelian</p>
                           {ticket.quota != null && availability?.remaining_tickets != null && (
                             <p className="mt-2 text-xs font-bold text-slate-700">Sisa {availability.remaining_tickets} tiket</p>
                           )}

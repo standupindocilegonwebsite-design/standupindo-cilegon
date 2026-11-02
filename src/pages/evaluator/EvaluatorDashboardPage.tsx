@@ -12,7 +12,7 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
   const { user } = useAuth();
   const [assignments, setAssignments] = useState<{ open_mic_id: string; open_mic?: OpenMic }[]>([]);
   const [search, setSearch] = useState('');
-  const [progressFilter, setProgressFilter] = useState<'all' | 'pending' | 'completed'>('all');
+  const [progressFilter, setProgressFilter] = useState<'all' | 'pending' | 'completed'>('pending');
   const [visibleLimit, setVisibleLimit] = useState(10);
   const [komikaByMic, setKomikaByMic] = useState<Record<string, string>>({});
   const [progressByMic, setProgressByMic] = useState<Record<string, { evaluated: number; total: number }>>({});
@@ -187,7 +187,7 @@ export function EvaluatorDashboardPage({ router }: { router: Router }) {
                 {search && <button type="button" onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Hapus pencarian"><X className="h-4 w-4" /></button>}
               </div>
               <div className="grid grid-cols-3 rounded-xl border border-slate-300 bg-white p-1">
-                {([{ value: 'all', label: 'Semua' }, { value: 'pending', label: 'Belum selesai' }, { value: 'completed', label: 'Sudah selesai' }] as const).map((option) => (
+                {([{ value: 'pending', label: 'Belum Selesai' }, { value: 'completed', label: 'Selesai' }, { value: 'all', label: 'Semua' }] as const).map((option) => (
                   <button key={option.value} type="button" onClick={() => setProgressFilter(option.value)} className={`min-w-0 rounded-lg px-2 py-2 text-xs font-bold transition ${progressFilter === option.value ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-blue-700'}`}>
                     {option.label}
                   </button>

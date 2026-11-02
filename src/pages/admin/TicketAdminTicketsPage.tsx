@@ -147,6 +147,12 @@ interface EventTicketCategory {
   sort_order: number;
   available_ots: boolean;
   ots_price: number | null;
+  qr_per_purchase: number;
+}
+
+function committedQrQuantity(category: EventTicketCategory, orders: TicketOrderReservation[]) {
+  return orders.filter((order) => order.ticket_id === category.id)
+    .reduce((total, order) => total + order.quantity * (category.qr_per_purchase || 1), 0);
 }
 
 interface TicketOrderReservation {
@@ -201,7 +207,7 @@ async function loadTickets() {
   }
   const [eventsResult, categoriesResult, ordersResult] = await Promise.all([
     supabase.from('events').select('id, title, poster, status, date').order('date', { ascending: false }),
-    supabase.from('event_tickets').select('id, event_id, name, quota, status, sort_order, available_ots, ots_price')
+    supabase.from('event_tickets').select('id, event_id, name, quota, status, sort_order, available_ots, ots_price, qr_per_purchase')
       .order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
     supabase.from('ticket_orders').select('ticket_id, quantity, status, expires_at'),
   ]);
@@ -371,14 +377,10 @@ export function TicketAdminTicketsPage() {
   const eligibleOtsEvents = useMemo(() => visibleEvents.filter((event) => event.status === 'upcoming'
     && categories.some((category) => category.event_id === event.id && category.status === 'active'
       && category.available_ots && category.ots_price != null
-      && (category.quota == null || category.quota - quotaOrders
-        .filter((order) => order.ticket_id === category.id)
-        .reduce((total, order) => total + order.quantity, 0) > 0))), [categories, quotaOrders, visibleEvents]);
+      && (category.quota == null || category.quota - committedQrQuantity(category, quotaOrders) > 0))), [categories, quotaOrders, visibleEvents]);
   const otsCategories = useMemo(() => categories.filter((category) => {
     if (category.event_id !== otsForm.event_id || category.status !== 'active' || !category.available_ots || category.ots_price == null) return false;
-    return category.quota == null || category.quota - quotaOrders
-      .filter((order) => order.ticket_id === category.id)
-      .reduce((total, order) => total + order.quantity, 0) > 0;
+    return category.quota == null || category.quota - committedQrQuantity(category, quotaOrders) > 0;
   }), [categories, otsForm.event_id, quotaOrders]);
   const selectedOtsCategory = otsCategories.find((category) => category.id === otsForm.ticket_id) ?? null;
   const isOtsDestinationSuitable = (destination: OtsPaymentDestination) => otsForm.payment_method === 'qris'
@@ -403,13 +405,9 @@ export function TicketAdminTicketsPage() {
     if (!path) return;
     setPosterPreview({ src: otsQrisUrl(path), alt: `QRIS ${recipient}` });
   }
-  const otsRemaining = selectedOtsCategory?.quota == null ? null : Math.max(0, selectedOtsCategory.quota - quotaOrders
-    .filter((order) => order.ticket_id === selectedOtsCategory.id)
-    .reduce((total, order) => total + order.quantity, 0));
+  const otsRemaining = selectedOtsCategory?.quota == null ? null : Math.max(0, selectedOtsCategory.quota - committedQrQuantity(selectedOtsCategory, quotaOrders));
   const selectedFreePassCategory = freePassCategories.find((category) => category.id === freePassForm.ticket_id) ?? null;
-  const freePassRemaining = selectedFreePassCategory?.quota == null ? null : Math.max(0, selectedFreePassCategory.quota - quotaOrders
-    .filter((order) => order.ticket_id === selectedFreePassCategory.id)
-    .reduce((total, order) => total + order.quantity, 0));
+  const freePassRemaining = selectedFreePassCategory?.quota == null ? null : Math.max(0, selectedFreePassCategory.quota - committedQrQuantity(selectedFreePassCategory, quotaOrders));
   const otsQuantityLimit = Math.min(10, otsRemaining ?? 10);
   const freePassQuantityLimit = Math.min(10, freePassRemaining ?? 10);
   const otsFieldStates = {
@@ -972,7 +970,7 @@ export function TicketAdminTicketsPage() {
               <select required value={otsForm.ticket_id} onChange={(event) => setOtsForm((current) => ({ ...current, ticket_id: event.target.value, quantity: '1' }))} className="input-field mt-1" disabled={!otsForm.event_id}>
                 <option value="">Pilih kategori</option>
                 {otsCategories.map((category) => {
-                  const committed = quotaOrders.filter((order) => order.ticket_id === category.id).reduce((total, order) => total + order.quantity, 0);
+                  const committed = committedQrQuantity(category, quotaOrders);
                   const remaining = category.quota == null ? null : Math.max(0, category.quota - committed);
                   return <option key={category.id} value={category.id}>{category.name} · Rp{category.ots_price?.toLocaleString('id-ID')}{remaining == null ? ' · kuota tanpa batas' : ` · sisa ${remaining}`}</option>;
                 })}
@@ -1008,11 +1006,12 @@ export function TicketAdminTicketsPage() {
             <label className="block text-xs font-bold text-slate-700">
               <span className="block">Jumlah Tiket</span>
               <TicketQuantityStepper value={otsForm.quantity} max={otsQuantityLimit} disabled={!selectedOtsCategory || otsQuantityLimit < 1} onChange={(quantity) => setOtsForm((current) => ({ ...current, quantity }))} />
-              <span className="mt-1 block text-[11px] font-medium text-slate-500">{selectedOtsCategory ? `Maksimal ${otsQuantityLimit} tiket per penjualan.` : 'Pilih kategori tiket terlebih dahulu.'}</span>
+              <span className="mt-1 block text-[11px] font-medium text-slate-500">{selectedOtsCategory ? `Maksimal ${otsQuantityLimit} paket · ${otsQuantityLimit * (selectedOtsCategory.qr_per_purchase || 1)} QR per penjualan.` : 'Pilih kategori tiket terlebih dahulu.'}</span>
             </label>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Total OTS</p>
               <p className="mt-1 text-lg font-black text-blue-800">Rp{((selectedOtsCategory?.ots_price ?? 0) * Number(otsForm.quantity)).toLocaleString('id-ID')}</p>
+              <p className="mt-1 text-xs font-semibold text-slate-600">{Number(otsForm.quantity) * (selectedOtsCategory?.qr_per_purchase || 1)} QR akan dibuat</p>
             </div>
           </div>
           <fieldset className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4">
@@ -1238,7 +1237,7 @@ export function TicketAdminTicketsPage() {
             <label className="block text-xs font-bold text-slate-700">
               <span className="block">Jumlah Tiket</span>
               <TicketQuantityStepper value={freePassForm.quantity} max={freePassQuantityLimit} disabled={!selectedFreePassCategory || freePassQuantityLimit < 1} onChange={(quantity) => setFreePassForm((current) => ({ ...current, quantity }))} />
-              <span className="mt-1 block text-[11px] font-medium text-slate-500">{freePassQuantityLimit > 0 ? `Maksimal ${freePassQuantityLimit} tiket per penerbitan.` : 'Kuota kategori tiket sudah habis.'}</span>
+              <span className="mt-1 block text-[11px] font-medium text-slate-500">{freePassQuantityLimit > 0 ? `Maksimal ${freePassQuantityLimit} paket · ${freePassQuantityLimit * (selectedFreePassCategory?.qr_per_purchase || 1)} QR per penerbitan.` : 'Kuota kategori tiket sudah habis.'}</span>
             </label>
             <label className="block text-xs font-bold text-slate-700 sm:col-span-2">Sumber / Alasan Free Pass
               <textarea required maxLength={300} rows={2} value={freePassForm.reason} onChange={(event) => setFreePassForm((current) => ({ ...current, reason: event.target.value }))} className="input-field mt-1 resize-y" placeholder="Contoh: Media partner — Cilegon Update" />

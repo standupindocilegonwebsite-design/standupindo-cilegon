@@ -257,15 +257,15 @@ export function NotificationInbox({
           : error ? <div className="px-5 py-8 text-center"><p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>{onRetry && <button type="button" onClick={() => void onRetry()} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-blue-800 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-900"><RefreshCw className="h-4 w-4" />Coba Lagi</button>}</div>
             : visibleItems.length === 0 ? <div className="px-5 py-8 text-center sm:py-9"><span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-blue-800"><Bell className="h-5 w-5" /></span><p className="mt-3 text-sm font-bold text-slate-900">{filter === 'read' ? 'Belum ada notifikasi yang dibaca.' : filter === 'unread' ? 'Tidak ada notifikasi belum dibaca.' : 'Belum ada notifikasi'}</p><p className="mt-1 text-xs text-slate-500">{filter === 'read' ? 'Notifikasi yang dibaca akan muncul di sini.' : filter === 'unread' ? 'Notifikasi yang belum dibaca akan muncul di sini.' : 'Notifikasi yang masuk akan muncul di sini.'}</p></div>
               : <div className="max-h-[min(22rem,calc(100dvh-13rem))] overflow-y-auto px-3 py-2 sm:px-4">
-              {visibleItems.map((item) => <div key={item.id} className="flex items-start gap-2 border-b border-slate-100 px-2 py-3 last:border-b-0">
-                <button type="button" onClick={() => void openNotification(item)} className="flex min-w-0 flex-1 items-start gap-2.5 rounded-lg p-1 text-left hover:bg-slate-50">
-                  <span className={`mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${item.readAt ? 'bg-slate-100 text-slate-500' : 'bg-blue-100 text-blue-800'}`}>{item.readAt ? <Bell className="h-3.5 w-3.5" /> : <Circle className="h-2.5 w-2.5 fill-current" />}</span>
+              {visibleItems.map((item) => <div key={item.id} className={`flex items-start gap-2 rounded-xl border-b px-2 py-3 last:border-b-0 ${item.readAt ? 'border-slate-100 bg-white' : 'border-blue-100 bg-blue-50/70'}`}>
+                <button type="button" onClick={() => void openNotification(item)} className="flex min-w-0 flex-1 items-start gap-2.5 rounded-lg p-1 text-left hover:bg-white/70">
+                  <span className={`mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${item.readAt ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-800 ring-1 ring-inset ring-blue-200'}`}>{item.readAt ? <Bell className="h-3.5 w-3.5" /> : <Circle className="h-2.5 w-2.5 fill-current" />}</span>
                   <span className="min-w-0 flex-1">
-                    <span className={`block text-sm ${item.readAt ? 'font-semibold text-slate-700' : 'font-extrabold text-slate-900'}`}>{item.title}</span>
-                    <span className="mt-0.5 block break-words text-xs text-slate-600">{item.description}</span>
-                    <span className="mt-1 block text-[10px] text-slate-400">{new Date(item.createdAt).toLocaleString('id-ID')}</span>
+                    <span className={`block text-sm ${item.readAt ? 'font-semibold text-slate-700' : 'font-extrabold text-slate-950'}`}>{item.title}</span>
+                    <span className={`mt-0.5 block break-words text-xs ${item.readAt ? 'text-slate-600' : 'font-medium text-slate-700'}`}>{item.description}</span>
+                    <span className={`mt-1 block text-[10px] ${item.readAt ? 'text-slate-500' : 'font-medium text-blue-700'}`}>{new Date(item.createdAt).toLocaleString('id-ID')}</span>
                   </span>
-                  <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
+                  <ChevronRight className={`mt-1 h-4 w-4 shrink-0 ${item.readAt ? 'text-slate-400' : 'text-blue-600'}`} />
                 </button>
                 {!item.readAt
                   ? <button type="button" onClick={() => void markRead(item.id)} className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-blue-800 transition hover:bg-blue-100" aria-label="Tandai sudah dibaca" title="Tandai sudah dibaca"><Check className="h-4 w-4" /></button>

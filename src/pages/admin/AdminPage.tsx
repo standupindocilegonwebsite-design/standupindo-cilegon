@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, BarChart3, Building2, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, Crown, DoorOpen, Eye, EyeOff, FolderOpen, Handshake, History, ImagePlus, Instagram, Info, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, Minus, MoreHorizontal, Pencil, Phone, Plus, Power, Printer, RefreshCw, Search, Settings, Share2, ShieldPlus, Store, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, UserRound, Users, X, ExternalLink, Youtube } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BarChart3, Building2, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, Crown, DoorOpen, Eye, EyeOff, FolderOpen, Handshake, History, ImagePlus, Instagram, Info, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, Minus, MoreHorizontal, Pencil, Phone, Plus, Power, Printer, RefreshCw, Search, Settings, Share2, ShieldPlus, Store, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, UserRound, Users, X, ExternalLink, Youtube } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, MemberOpenMicHistoryStatus, MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -60,54 +60,54 @@ function getErrorMessage(error: unknown): string {
   return 'Kesalahan tidak diketahui.';
 }
 
-function getEventPosterStoragePath(posterUrl: string): string | null {
+function getMediaStoragePath(posterUrl: string, folder: 'events' | 'open-mic'): string | null {
   try {
-    const publicUrl = new URL(supabase.storage.from('standupindo-media').getPublicUrl('events/').data.publicUrl);
+    const publicUrl = new URL(supabase.storage.from('standupindo-media').getPublicUrl(`${folder}/`).data.publicUrl);
     const candidateUrl = new URL(posterUrl);
     if (candidateUrl.origin !== publicUrl.origin || !candidateUrl.pathname.startsWith(publicUrl.pathname)) return null;
 
     const relativePath = decodeURIComponent(candidateUrl.pathname.slice(publicUrl.pathname.length));
     if (!relativePath || relativePath.split('/').some((segment) => !segment || segment === '.' || segment === '..')) return null;
-    return `events/${relativePath}`;
+    return `${folder}/${relativePath}`;
   } catch {
     return null;
   }
 }
 
-async function removeEventPosterFromStorage(posterUrl: string): Promise<string | null> {
-  const path = getEventPosterStoragePath(posterUrl);
+async function removePosterFromStorage(posterUrl: string, folder: 'events' | 'open-mic'): Promise<string | null> {
+  const path = getMediaStoragePath(posterUrl, folder);
   if (!path) return null;
   try {
     const { error } = await supabase.storage.from('standupindo-media').remove([path]);
     if (!error) return null;
-    console.error('Gagal membersihkan file poster Event dari Storage.', { path, error });
+    console.error(`Gagal membersihkan file poster ${folder === 'events' ? 'Event' : 'Open Mic'} dari Storage.`, { path, error });
     return getErrorMessage(error);
   } catch (error) {
-    console.error('Gagal membersihkan file poster Event dari Storage.', { path, error });
+    console.error(`Gagal membersihkan file poster ${folder === 'events' ? 'Event' : 'Open Mic'} dari Storage.`, { path, error });
     return getErrorMessage(error);
   }
 }
 
-async function removeEventPosterIfUnused(posterUrl: string, currentEventId: string): Promise<string | null> {
-  if (!getEventPosterStoragePath(posterUrl)) return null;
+async function removePosterIfUnused(posterUrl: string, folder: 'events' | 'open-mic', currentId: string): Promise<string | null> {
+  if (!getMediaStoragePath(posterUrl, folder)) return null;
   try {
     const { data, error } = await supabase
-      .from('events')
+      .from(folder === 'events' ? 'events' : 'open_mics')
       .select('id')
       .eq('poster', posterUrl)
-      .neq('id', currentEventId)
+      .neq('id', currentId)
       .limit(1);
     if (error) {
-      console.error('Tidak dapat memeriksa apakah poster lama Event masih digunakan.', { posterUrl, error });
+      console.error(`Tidak dapat memeriksa apakah poster lama ${folder === 'events' ? 'Event' : 'Open Mic'} masih digunakan.`, { posterUrl, error });
       return getErrorMessage(error);
     }
     if (data?.length) {
-      console.info('Poster lama tidak dihapus karena masih digunakan Event lain.', posterUrl);
+      console.info(`Poster lama tidak dihapus karena masih digunakan ${folder === 'events' ? 'Event' : 'Open Mic'} lain.`, posterUrl);
       return null;
     }
-    return removeEventPosterFromStorage(posterUrl);
+    return removePosterFromStorage(posterUrl, folder);
   } catch (error) {
-    console.error('Tidak dapat memeriksa apakah poster lama Event masih digunakan.', { posterUrl, error });
+    console.error(`Tidak dapat memeriksa apakah poster lama ${folder === 'events' ? 'Event' : 'Open Mic'} masih digunakan.`, { posterUrl, error });
     return getErrorMessage(error);
   }
 }
@@ -4594,10 +4594,10 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
   const [previewKomikaPhoto, setPreviewKomikaPhoto] = useState(false);
   const [venueSuggestionsOpen, setVenueSuggestionsOpen] = useState(false);
   const [partnerCategoryOpen, setPartnerCategoryOpen] = useState(false);
-  const stagedEventPosterUrls = useRef(new Set<string>());
+  const stagedPosterUrls = useRef(new Set<string>());
   const closingForm = useRef(false);
   const submitInProgress = useRef(false);
-  const originalEventPoster = kind === 'event' && editing ? String((editing as EventItem).poster ?? '') : '';
+  const originalPoster = (kind === 'event' || kind === 'open-mic') && editing ? String((editing as EventItem | OpenMic).poster ?? '') : '';
   const nextOpenMicTitle = `Open Mic Standupindo Cilegon #${venueHistory.length + 1}`;
   useEffect(() => {
     if (!kind) return;
@@ -4605,7 +4605,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
     setErrorMessage('');
     setPreviewKomikaPhoto(false);
     setPartnerCategoryOpen(false);
-    stagedEventPosterUrls.current.clear();
+    stagedPosterUrls.current.clear();
     const row = editing as Record<string, unknown> | null;
     if (row) {
       setForm({ ...Object.fromEntries(Object.entries(row).map(([k, v]) => [k === 'instagram_url' ? k : k === 'tiktok_url' ? k : k, k === 'instagram_url' ? formatInstagramHandle(String(v ?? '')) : k === 'tiktok_url' ? formatTikTokHandle(String(v ?? '')) : Array.isArray(v) ? v.join(', ') : String(v ?? '')])) });
@@ -4630,28 +4630,29 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
   if (!kind) return null;
   const isEdit = Boolean(editing);
   const set = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
-  async function cleanupStagedEventPosters(keepUrl?: string): Promise<string[]> {
+  async function cleanupStagedPosters(keepUrl?: string): Promise<string[]> {
     const failures: string[] = [];
-    for (const posterUrl of stagedEventPosterUrls.current) {
+    const folder = kind === 'event' ? 'events' : 'open-mic';
+    for (const posterUrl of stagedPosterUrls.current) {
       if (posterUrl === keepUrl) {
-        stagedEventPosterUrls.current.delete(posterUrl);
+        stagedPosterUrls.current.delete(posterUrl);
         continue;
       }
-      if (!getEventPosterStoragePath(posterUrl)) {
-        console.error('URL poster sementara tidak mengarah ke file Event pada bucket media.', posterUrl);
+      if (!getMediaStoragePath(posterUrl, folder)) {
+        console.error('URL poster sementara tidak mengarah ke file pada bucket media.', { folder, posterUrl });
         failures.push('URL poster sementara tidak dapat dibersihkan.');
         continue;
       }
-      const failure = await removeEventPosterFromStorage(posterUrl);
+      const failure = await removePosterFromStorage(posterUrl, folder);
       if (failure) failures.push(failure);
-      else stagedEventPosterUrls.current.delete(posterUrl);
+      else stagedPosterUrls.current.delete(posterUrl);
     }
     return failures;
   }
   async function closeForm() {
     if (saving || uploading || submitInProgress.current || closingForm.current) return;
     closingForm.current = true;
-    const cleanupFailures = kind === 'event' ? await cleanupStagedEventPosters() : [];
+    const cleanupFailures = kind === 'event' || kind === 'open-mic' ? await cleanupStagedPosters() : [];
     if (cleanupFailures.length > 0) {
       onNotice('Form ditutup, tetapi file poster sementara gagal dibersihkan. Periksa log admin untuk detailnya.', 'warning');
     }
@@ -4718,16 +4719,48 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
         const result = editing ? await supabase.from('partners').update(payload).eq('id', editing.id) : await supabase.from('partners').insert(payload);
         if (result.error) throw result.error;
       } else if (kind === 'open-mic') {
-        const payload = { ...base, slug: isEdit ? base.slug : slugify(base.title), capacity: Number(base.capacity), published: base.published !== 'false' };
-        const result = editing ? await supabase.from('open_mics').update(payload).eq('id', editing.id) : await supabase.from('open_mics').insert(payload);
-        if (result.error) throw result.error;
+        const nextPoster = base.poster ?? '';
+        const posterChanged = !isEdit || nextPoster !== originalPoster;
+        const payload: Record<string, unknown> = { ...base, poster: nextPoster, slug: isEdit ? base.slug : slugify(base.title), capacity: Number(base.capacity), published: base.published !== 'false' };
+        if (isEdit && !posterChanged) delete payload.poster;
+        const result = editing
+          ? await supabase.from('open_mics').update(payload).eq('id', editing.id).select('id, poster').maybeSingle()
+          : await supabase.from('open_mics').insert(payload).select('id, poster').maybeSingle();
+        let savedOpenMic = result.data;
+        let saveFailure: unknown = result.error;
+        if (!result.error && !savedOpenMic) saveFailure = new Error('Open Mic tidak ditemukan atau tidak dapat disimpan.');
+        if (saveFailure || !savedOpenMic) {
+          const verification = editing
+            ? await supabase.from('open_mics').select('id, poster').eq('id', editing.id).maybeSingle()
+            : await supabase.from('open_mics').select('id, poster').eq('slug', payload.slug).maybeSingle();
+          if (verification.error) {
+            posterActivationUncertain = posterChanged;
+            throw new Error(`Penyimpanan Open Mic belum dapat diverifikasi. ${getErrorMessage(saveFailure ?? verification.error)}`);
+          }
+          const verifiedOpenMic = verification.data;
+          const canConfirmCommittedWrite = posterChanged && (isEdit || Boolean(nextPoster && stagedPosterUrls.current.has(nextPoster)));
+          if (!verifiedOpenMic || !canConfirmCommittedWrite || String(verifiedOpenMic.poster ?? '') !== nextPoster) {
+            throw saveFailure ?? new Error('Poster Open Mic baru belum aktif.');
+          }
+          savedOpenMic = verifiedOpenMic;
+        }
+        if (posterChanged && String(savedOpenMic.poster ?? '') !== nextPoster) {
+          throw new Error('Poster baru belum aktif pada Open Mic. Poster lama tetap dipertahankan.');
+        }
+        eventRecordSaved = true;
+        const cleanupFailures = await cleanupStagedPosters(posterChanged && nextPoster ? nextPoster : undefined);
+        if (cleanupFailures.length > 0) posterCleanupWarning = true;
+        if (editing && posterChanged && originalPoster) {
+          const oldPosterCleanupFailure = await removePosterIfUnused(originalPoster, 'open-mic', editing.id);
+          if (oldPosterCleanupFailure) posterCleanupWarning = true;
+        }
       } else {
         const eventFields = { ...base };
         delete eventFields.documentation_photos;
         delete eventFields.whatsapp_number;
         delete eventFields.whatsapp_message;
         const nextPoster = base.poster ?? '';
-        const posterChanged = !isEdit || nextPoster !== originalEventPoster;
+        const posterChanged = !isEdit || nextPoster !== originalPoster;
         if (isEdit && !posterChanged) delete eventFields.poster;
         const payload = {
           ...eventFields,
@@ -4753,7 +4786,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
             throw new Error(`Penyimpanan Event belum dapat diverifikasi. ${getErrorMessage(saveFailure ?? verification.error)}`);
           }
           const verifiedEvent = verification.data;
-          const canConfirmCommittedWrite = posterChanged && (isEdit || Boolean(nextPoster && stagedEventPosterUrls.current.has(nextPoster)));
+          const canConfirmCommittedWrite = posterChanged && (isEdit || Boolean(nextPoster && stagedPosterUrls.current.has(nextPoster)));
           if (!verifiedEvent || !canConfirmCommittedWrite || String(verifiedEvent.poster ?? '') !== nextPoster) {
             throw saveFailure ?? new Error('Poster Event baru belum aktif.');
           }
@@ -4765,11 +4798,11 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
         }
         eventRecordSaved = true;
 
-        const cleanupFailures = await cleanupStagedEventPosters(posterChanged && nextPoster ? nextPoster : undefined);
+        const cleanupFailures = await cleanupStagedPosters(posterChanged && nextPoster ? nextPoster : undefined);
         if (cleanupFailures.length > 0) posterCleanupWarning = true;
 
-        if (editing && posterChanged && originalEventPoster) {
-          const oldPosterCleanupFailure = await removeEventPosterIfUnused(originalEventPoster, editing.id);
+        if (editing && posterChanged && originalPoster) {
+          const oldPosterCleanupFailure = await removePosterIfUnused(originalPoster, 'events', editing.id);
           if (oldPosterCleanupFailure) posterCleanupWarning = true;
         }
       }
@@ -4788,10 +4821,10 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
         return;
       }
       let cleanupWarning = false;
-      if (kind === 'event' && !posterActivationUncertain) {
-        const cleanupFailures = await cleanupStagedEventPosters();
+      if ((kind === 'event' || kind === 'open-mic') && !posterActivationUncertain) {
+        const cleanupFailures = await cleanupStagedPosters();
         cleanupWarning = cleanupFailures.length > 0;
-        if (isEdit) setForm((current) => ({ ...current, poster: originalEventPoster }));
+        if (isEdit) setForm((current) => ({ ...current, poster: originalPoster }));
         else setForm((current) => ({ ...current, poster: '' }));
       }
       const detail = getErrorMessage(saveError);
@@ -4832,15 +4865,27 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
               <ImageUpload label="Foto Komika" folder="komika" value={form.photo ?? ''} onChange={(url) => set('photo', url)} aspect="portrait" objectFit="contain" processingProfile="avatar" cropToFrame onUploadingChange={setUploading} onSaveImmediately={saveKomikaPhoto} onPreview={() => setPreviewKomikaPhoto(true)} />
             )}
             {kind === 'open-mic' && (
-              <ImageUpload label="Poster / Foto Open Mic" folder="open-mic" value={form.poster ?? ''} onChange={(url) => set('poster', url)} aspect="landscape" processingProfile="poster" onUploadingChange={setUploading} skipCrop />
+              <ImageUpload
+                label="Poster / Foto Open Mic"
+                folder="open-mic"
+                value={isEdit && originalPoster && stagedPosterUrls.current.has(form.poster ?? '') ? originalPoster : form.poster ?? ''}
+                onChange={(url) => {
+                  if (url && url !== originalPoster) stagedPosterUrls.current.add(url);
+                  set('poster', url);
+                }}
+                aspect="landscape"
+                processingProfile="poster"
+                onUploadingChange={setUploading}
+                skipCrop
+              />
             )}
             {kind === 'event' && (
               <ImageUpload
                 label="Poster Event"
                 folder="events"
-                value={isEdit && originalEventPoster && stagedEventPosterUrls.current.has(form.poster ?? '') ? originalEventPoster : form.poster ?? ''}
+                value={isEdit && originalPoster && stagedPosterUrls.current.has(form.poster ?? '') ? originalPoster : form.poster ?? ''}
                 onChange={(url) => {
-                  if (url && url !== originalEventPoster) stagedEventPosterUrls.current.add(url);
+                  if (url && url !== originalPoster) stagedPosterUrls.current.add(url);
                   set('poster', url);
                 }}
                 aspect="landscape"
@@ -5369,6 +5414,7 @@ function TicketManagementModal({ event, onClose, onNotice }: { event: EventItem 
                     <p className="mt-1 text-lg font-extrabold text-blue-700">{formatPrice(t.price)}</p>
                     {expandedTickets[t.id] && <>
                       {t.description && <p className="mt-1 text-sm text-slate-500">{t.description}</p>}
+                      <p className="mt-1 text-xs font-semibold text-slate-600">{t.qr_per_purchase} QR per pembelian</p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {t.available_public && <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-800">Online</span>}
                         {t.available_ots && <span className="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-bold text-violet-800">OTS Â· {formatPrice(t.ots_price ?? 0)}</span>}
@@ -5414,6 +5460,7 @@ function parseTicketPriceInput(value: string): number {
 function TicketFormModal({ event, ticket, onClose, onSaved }: { event: EventItem; ticket: EventTicket | null; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(ticket?.name ?? '');
   const [price, setPrice] = useState(ticket ? formatTicketPriceInput(String(ticket.price)) : '0');
+  const [qrPerPurchase, setQrPerPurchase] = useState(ticket?.qr_per_purchase ?? 1);
   const [availablePublic, setAvailablePublic] = useState(ticket?.available_public ?? true);
   const [availableOts, setAvailableOts] = useState(ticket?.available_ots ?? false);
   const [otsPrice, setOtsPrice] = useState(ticket?.ots_price == null ? '' : formatTicketPriceInput(String(ticket.ots_price)));
@@ -5442,6 +5489,10 @@ function TicketFormModal({ event, ticket, onClose, onSaved }: { event: EventItem
     if (!validateUrl(ticketUrl)) { setError('Link Beli Tiket harus diawali dengan http:// atau https://'); return; }
     const numericPrice = price.trim() ? parseTicketPriceInput(price) : 0;
     const numericOtsPrice = parseTicketPriceInput(otsPrice);
+    if (!Number.isInteger(qrPerPurchase) || qrPerPurchase < 1 || qrPerPurchase > 10) {
+      setError('Jumlah QR per pembelian harus antara 1 dan 10.');
+      return;
+    }
     if (!Number.isSafeInteger(numericPrice) || numericPrice > 2147483647) {
       setError('Harga Tiket harus berupa angka Rupiah yang valid.');
       return;
@@ -5455,6 +5506,7 @@ function TicketFormModal({ event, ticket, onClose, onSaved }: { event: EventItem
       event_id: event.id,
       name: name.trim(),
       price: numericPrice,
+      qr_per_purchase: qrPerPurchase,
       available_public: availablePublic,
       available_ots: availableOts,
       ots_price: availableOts ? numericOtsPrice : null,
@@ -5485,15 +5537,42 @@ function TicketFormModal({ event, ticket, onClose, onSaved }: { event: EventItem
           <input id="ticket-price" type="text" inputMode="numeric" value={price} onChange={(e) => setPrice(formatTicketPriceInput(e.target.value))} className="input-field" placeholder="50.000" />
           <p className="mt-1 text-xs text-slate-400">Masukkan 0 untuk GRATIS.</p>
         </div>
+        <div>
+          <label className="label-field" htmlFor="ticket-qr-per-purchase">Jumlah QR Per Pembelian</label>
+          <div className="mt-1 inline-flex h-11 items-center overflow-hidden rounded-xl border border-slate-300 bg-white">
+            <button
+              type="button"
+              aria-label="Kurangi jumlah QR per pembelian"
+              disabled={qrPerPurchase <= 1}
+              onClick={() => setQrPerPurchase((value) => Math.max(1, value - 1))}
+              className="flex h-full w-11 items-center justify-center text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <output className="flex h-full w-12 items-center justify-center border-x border-slate-200 text-base font-semibold text-slate-900" aria-live="polite">
+              {qrPerPurchase}
+            </output>
+            <button
+              type="button"
+              aria-label="Tambah jumlah QR per pembelian"
+              disabled={qrPerPurchase >= 10}
+              onClick={() => setQrPerPurchase((value) => Math.min(10, value + 1))}
+              className="flex h-full w-11 items-center justify-center text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">Pilih jumlah QR: Single = 1, Couple = 2, Family = 4, Group = 10.</p>
+        </div>
         <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
           <h3 className="text-sm font-extrabold text-slate-900">Ketersediaan Penjualan</h3>
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
             <input type="checkbox" checked={availablePublic} onChange={(e) => setAvailablePublic(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600" />
-            Tersedia untuk publik/online
+            Tersedia Untuk Publik/Online
           </label>
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
             <input type="checkbox" checked={availableOts} onChange={(e) => setAvailableOts(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600" />
-            Tersedia untuk penjualan OTS
+            Tersedia Untuk Penjualan OTS
           </label>
           {availableOts && <div>
             <label className="label-field" htmlFor="ticket-ots-price">Harga OTS (Rp)</label>
@@ -5501,7 +5580,7 @@ function TicketFormModal({ event, ticket, onClose, onSaved }: { event: EventItem
           </div>}
         </section>
         <div>
-          <label className="label-field" htmlFor="ticket-quota">Kuota tiket <span className="font-normal text-slate-400">(opsional)</span></label>
+          <label className="label-field" htmlFor="ticket-quota">Kuota Tiket <span className="font-normal text-slate-400">(Opsional)</span></label>
           <input id="ticket-quota" type="number" min="0" step="1" value={quota} onChange={(e) => setQuota(e.target.value)} className="input-field" placeholder="Kosongkan untuk tanpa batas" />
         </div>
         <div>
@@ -5509,7 +5588,7 @@ function TicketFormModal({ event, ticket, onClose, onSaved }: { event: EventItem
           <textarea id="ticket-desc" value={description} onChange={(e) => setDescription(e.target.value)} className="input-field min-h-[72px]" placeholder="Keterangan tiket (opsional)" />
         </div>
         <div>
-          <label className="label-field" htmlFor="ticket-url">Link Pembelian Eksternal <span className="font-normal text-slate-500">(opsional)</span></label>
+          <label className="label-field" htmlFor="ticket-url">Link Pembelian Eksternal <span className="font-normal text-slate-500">(Opsional)</span></label>
           <input id="ticket-url" type="url" value={ticketUrl} onChange={(e) => setTicketUrl(e.target.value)} className="input-field" placeholder="https://ticketing.example.com/..." />
           <p className="mt-1 text-xs text-slate-600">Jika diisi, pembeli akan diarahkan ke pihak ketiga.</p>
         </div>

@@ -609,15 +609,18 @@ serve(async (request) => {
         ticketPageUrl = pageUrl;
       }
       const { data: order, error: orderError } = await serviceClient.from('ticket_orders')
-        .select('id, order_number, event_id, full_name, email, whatsapp, ticket_category, quantity, total_price, payment_amount, status')
+        .select('id, order_number, event_id, ticket_id, full_name, email, whatsapp, ticket_category, quantity, total_price, payment_amount, status')
         .eq('id', body.order_id).maybeSingle();
       if (orderError || !order) return json({ error: 'Order tidak ditemukan.' }, 404);
+      const { data: ticket, error: ticketError } = await serviceClient.from('event_tickets')
+        .select('qr_per_purchase').eq('id', order.ticket_id).maybeSingle();
+      if (ticketError || !ticket) return json({ error: 'Konfigurasi kategori tiket tidak ditemukan.' }, 500);
       const previousStatus = order.status;
       if (!await hasEventScope(order.event_id, 'admin_ticket')) return json({ error: 'Event di luar scope akun ini.' }, 403);
 
       let qrTokens: Array<{ hash: string; ciphertext: string }> = [];
       if (body.resolution === 'Lunas') {
-        qrTokens = await Promise.all(Array.from({ length: order.quantity }, async () => {
+        qrTokens = await Promise.all(Array.from({ length: order.quantity * (ticket.qr_per_purchase ?? 1) }, async () => {
           const token = randomToken();
           return { hash: await sha256(token), ciphertext: await encryptSecret(token, encryptionKey) };
         }));
@@ -819,7 +822,7 @@ serve(async (request) => {
 
       const [{ data: event, error: eventError }, { data: category, error: categoryError }] = await Promise.all([
         serviceClient.from('events').select('id, title, status, date, time, venue, location, poster, event_rules').eq('id', body.event_id).maybeSingle(),
-        serviceClient.from('event_tickets').select('id, event_id, name, status, available_ots, ots_price')
+        serviceClient.from('event_tickets').select('id, event_id, name, status, available_ots, ots_price, qr_per_purchase')
           .eq('id', body.ticket_id).eq('event_id', body.event_id).maybeSingle(),
       ]);
       if (eventError || categoryError) return json({ error: 'Informasi Event atau kategori gagal dimuat.' }, 500);
@@ -934,7 +937,7 @@ serve(async (request) => {
         if (usedCodeHashes.has(phoneCodeHash)) continue;
         const codeHash = await accessCodeHash(body.event_id, normalizedPhone, accessCode, accessCodePepper);
         const codeCiphertext = await encryptSecret(accessCode, encryptionKey);
-        qrTokenValues = Array.from({ length: body.quantity! }, () => randomToken());
+        qrTokenValues = Array.from({ length: body.quantity! * (category.qr_per_purchase ?? 1) }, () => randomToken());
         const qrTokens = await Promise.all(qrTokenValues.map(async (token) => {
           return { hash: await sha256(token), ciphertext: await encryptSecret(token, encryptionKey) };
         }));
@@ -973,7 +976,7 @@ serve(async (request) => {
         .select('id, sequence_no, qr_token_ciphertext')
         .eq('ticket_order_id', issued.issued_order_id)
         .order('sequence_no', { ascending: true });
-      if (ticketRowsError || !ticketRows || ticketRows.length !== body.quantity) {
+      if (ticketRowsError || !ticketRows || ticketRows.length !== body.quantity! * (category.qr_per_purchase ?? 1)) {
         return json({ error: `Order ${orderNumber} sudah terbit, tetapi data QR tiket untuk PDF gagal dimuat. Jangan buat order ulang; muat ulang daftar tiket dan hubungi admin jika QR belum tersedia.` }, 500);
       }
       const tickets = await Promise.all(ticketRows.map(async (ticket) => ({
@@ -987,7 +990,7 @@ serve(async (request) => {
         access_code: accessCode,
         whatsapp_url: whatsappUrl(normalizedPhone, message),
         whatsapp_message: message,
-        ticket_count: body.quantity,
+        ticket_count: body.quantity * (category.qr_per_purchase ?? 1),
         unit_price: category.ots_price,
         total_price: category.ots_price * body.quantity,
         tickets,
@@ -1027,7 +1030,7 @@ serve(async (request) => {
 
       const [{ data: event, error: eventError }, { data: category, error: categoryError }] = await Promise.all([
         serviceClient.from('events').select('id, title, status, date, time, venue, location').eq('id', body.event_id).maybeSingle(),
-        serviceClient.from('event_tickets').select('id, event_id, name, status').eq('id', body.ticket_id).eq('event_id', body.event_id).maybeSingle(),
+        serviceClient.from('event_tickets').select('id, event_id, name, status, qr_per_purchase').eq('id', body.ticket_id).eq('event_id', body.event_id).maybeSingle(),
       ]);
       if (eventError || categoryError) return json({ error: 'Informasi Event atau kategori gagal dimuat.' }, 500);
       if (!event || !category || category.status !== 'active') return json({ error: 'Event atau kategori tiket tidak tersedia.' }, 404);
@@ -1048,7 +1051,7 @@ serve(async (request) => {
         if (usedCodeHashes.has(phoneCodeHash)) continue;
         const codeHash = await accessCodeHash(body.event_id, normalizedPhone, accessCode, accessCodePepper);
         const codeCiphertext = await encryptSecret(accessCode, encryptionKey);
-        const qrTokens = await Promise.all(Array.from({ length: body.quantity! }, async () => {
+        const qrTokens = await Promise.all(Array.from({ length: body.quantity! * (category.qr_per_purchase ?? 1) }, async () => {
           const token = randomToken();
           return { hash: await sha256(token), ciphertext: await encryptSecret(token, encryptionKey) };
         }));

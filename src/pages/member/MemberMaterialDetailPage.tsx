@@ -168,6 +168,21 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
     setLeaveConfirmationOpen(true);
   }
 
+  function toggleReadingRewrite() {
+    if (!editing) {
+      setEditing(true);
+      return;
+    }
+    requestLeave(() => setEditing(false));
+  }
+
+  function closeReadingMode() {
+    requestLeave(() => {
+      setReadingMode(false);
+      setEditing(false);
+    });
+  }
+
   function dismissLeaveConfirmation() {
     pendingLeaveRef.current = null;
     setLeaveConfirmationOpen(false);
@@ -444,6 +459,20 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
   const readingContent = tab === 'current' ? material.content : material.previous_content || 'Belum ada versi sebelumnya.';
   const readingBlocks = parseMaterialContent(readingContent);
   const darkReadingTheme = readingTheme === 'dark';
+  const rewriteForm = editing ? (
+    <form ref={editFormRef} onSubmit={confirmRewriteSubmit} className="scroll-mt-24 space-y-4 rounded-[26px] border border-blue-100 bg-blue-50/60 p-4 sm:p-5">
+      {rewriteDraftRecovered && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">Draft rewrite yang belum tersimpan berhasil dipulihkan.</p>}
+      <input className="input-field" placeholder="Judul materi" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+      <input className="input-field" placeholder="Tema materi" value={form.theme} onChange={(event) => setForm({ ...form, theme: event.target.value })} />
+      <div><label htmlFor="edit-material-premis" className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Premis</label><textarea id="edit-material-premis" className="input-field !min-h-[88px]" placeholder="Inti atau gagasan utama materi..." value={form.premis} onChange={(event) => setForm({ ...form, premis: event.target.value })} /></div>
+      <div>
+        <label htmlFor="edit-material-duration" className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Estimasi durasi <span className="font-semibold normal-case tracking-normal text-slate-400">(opsional)</span></label>
+        <MaterialDurationInput id="edit-material-duration" value={form.estimated_duration} onChange={(estimated_duration) => setForm((current) => ({ ...current, estimated_duration }))} extraOption={material.estimated_duration} />
+      </div>
+      <MaterialContentEditor value={form.content} onChange={(content) => setForm((current) => ({ ...current, content }))} />
+      <button type="submit" disabled={saving} className="btn-primary w-full"><Save className="h-4 w-4" />{saving ? 'Menyimpan...' : 'Simpan Rewrite'}</button>
+    </form>
+  ) : null;
 
   return (
     <div className="animate-fade-in">
@@ -466,20 +495,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
             <p className="mt-3 border-t border-slate-100 pt-3 text-sm leading-6 text-slate-600"><span className="font-bold text-slate-800">Premis:</span> {material.premis?.trim() || '-'}</p>
           </section>
           {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
-          {editing ? (
-            <form ref={editFormRef} onSubmit={confirmRewriteSubmit} className="scroll-mt-24 space-y-4 rounded-[26px] border border-blue-100 bg-blue-50/60 p-4 sm:p-5">
-              {rewriteDraftRecovered && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">Draft rewrite yang belum tersimpan berhasil dipulihkan.</p>}
-              <input className="input-field" placeholder="Judul materi" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
-              <input className="input-field" placeholder="Tema materi" value={form.theme} onChange={(event) => setForm({ ...form, theme: event.target.value })} />
-              <div><label htmlFor="edit-material-premis" className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Premis</label><textarea id="edit-material-premis" className="input-field !min-h-[88px]" placeholder="Inti atau gagasan utama materi..." value={form.premis} onChange={(event) => setForm({ ...form, premis: event.target.value })} /></div>
-              <div>
-                <label htmlFor="edit-material-duration" className="mb-1.5 block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Estimasi durasi <span className="font-semibold normal-case tracking-normal text-slate-400">(opsional)</span></label>
-                <MaterialDurationInput id="edit-material-duration" value={form.estimated_duration} onChange={(estimated_duration) => setForm((current) => ({ ...current, estimated_duration }))} extraOption={material.estimated_duration} />
-              </div>
-              <MaterialContentEditor value={form.content} onChange={(content) => setForm((current) => ({ ...current, content }))} />
-              <button type="submit" disabled={saving} className="btn-primary w-full"><Save className="h-4 w-4" />{saving ? 'Menyimpan...' : 'Simpan Rewrite'}</button>
-            </form>
-          ) : (
+          {!readingMode && editing ? rewriteForm : (
             <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.04)] sm:p-5">
               <div ref={versionTabsRef} data-sliding-indicator-theme="blue-700" className="relative isolate mb-4 flex gap-2 rounded-xl bg-slate-100 p-1">
                 <SlidingTabIndicator trackRef={versionTabsRef} activeId={tab} className="rounded-lg bg-blue-700 shadow-sm" />
@@ -591,7 +607,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
       {editing && <button type="button" onClick={() => editFormRef.current?.requestSubmit()} disabled={saving} className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue-700 text-white shadow-[0_4px_14px_rgba(29,78,216,0.3)] transition hover:bg-blue-800 disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 sm:bottom-6 sm:right-6" aria-label={saving ? 'Menyimpan rewrite' : 'Simpan rewrite'} title={saving ? 'Menyimpan...' : 'Simpan rewrite'}><Save className="h-4 w-4" /></button>}
       <MemberModal
         open={readingMode}
-        onClose={() => setReadingMode(false)}
+        onClose={closeReadingMode}
         title={material.title}
         titleEyebrow="Mode Baca Materi"
         titleLayout="stacked"
@@ -600,11 +616,11 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-1.5">
               <div className="flex min-w-0 flex-wrap items-center gap-1">
-                <span className={`rounded-full px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.04em] ${darkReadingTheme ? 'bg-blue-950 text-blue-200' : 'bg-blue-100 text-blue-800'}`}>{tab === 'current' ? 'Versi Sekarang' : 'Versi Sebelumnya'}</span>
-                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${darkReadingTheme ? 'text-slate-300' : 'text-slate-600'}`}><BookOpen className="h-3 w-3 shrink-0" />1 materi · {formatEstimatedDuration(material.estimated_duration)}</span>
+                <span className={`rounded-full px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.04em] ${darkReadingTheme ? 'bg-blue-950 text-blue-200' : 'bg-white/20 text-white ring-1 ring-white/20'}`}>{tab === 'current' ? 'Versi Sekarang' : 'Versi Sebelumnya'}</span>
+                <span className={`inline-flex items-center gap-1 text-[10px] font-bold ${darkReadingTheme ? 'text-slate-300' : 'text-white'}`}><BookOpen className="h-3 w-3 shrink-0" />1 materi · {formatEstimatedDuration(material.estimated_duration)}</span>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {tab === 'current' && <button type="button" onClick={() => { setReadingMode(false); setEditing(true); }} aria-label="Rewrite materi" title="Rewrite materi" className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${darkReadingTheme ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}><Pencil className="h-4 w-4" /></button>}
+                {tab === 'current' && <button type="button" onClick={toggleReadingRewrite} aria-label={editing ? 'Kembali ke mode baca' : 'Rewrite materi'} title={editing ? 'Kembali ke mode baca' : 'Rewrite materi'} className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${darkReadingTheme ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}><Pencil className="h-4 w-4" /></button>}
               <button
                 type="button"
                 onClick={() => setReadingTheme(darkReadingTheme ? 'light' : 'dark')}
@@ -623,7 +639,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
           </div>
         }
       >
-        <div className={`space-y-4 rounded-2xl p-3 transition-colors sm:p-4 ${darkReadingTheme ? 'bg-slate-950' : 'bg-white'}`}>
+        {editing ? rewriteForm : <div className={`space-y-4 rounded-2xl p-3 transition-colors sm:p-4 ${darkReadingTheme ? 'bg-slate-950' : 'bg-white'}`}>
           <article className={`overflow-hidden rounded-2xl border ${darkReadingTheme ? 'border-slate-700 bg-slate-900' : 'border-amber-100 bg-[#fffdf7]'}`}>
             <header className={`border-b px-4 py-3 ${darkReadingTheme ? 'border-slate-700' : 'border-amber-100'}`}>
               <p className={`text-[10px] font-extrabold uppercase tracking-[0.14em] ${darkReadingTheme ? 'text-sky-400' : 'text-blue-700'}`}>Materi 1</p>
@@ -642,7 +658,7 @@ export function MemberMaterialDetailPage({ router, id }: { router: Router; id: s
               ))}
             </div>
           </article>
-        </div>
+        </div>}
       </MemberModal>
       <MemberModal open={saveConfirmationOpen} onClose={() => setSaveConfirmationOpen(false)} title="SIMPAN PERUBAHAN" titleEyebrow="KONFIRMASI" size="sm">
         <div className="space-y-4">
