@@ -87,6 +87,8 @@ export interface Partner {
   website_url: string | null;
   contact_name: string | null;
   contact_phone: string | null;
+  internal_pic_komika_id?: string | null;
+  internal_pic_name?: string | null;
   notes: string | null;
   category: 'sponsor' | 'support' | 'media_partner';
   is_published: boolean;
@@ -434,6 +436,12 @@ export interface SiteSettings {
   youtube_url: string;
   address: string;
   short_description: string;
+  home_hero_title?: string | null;
+  home_hero_description?: string | null;
+  footer_description?: string | null;
+  about_story_title?: string | null;
+  about_story_tagline?: string | null;
+  about_story?: string | null;
   affiliation_name?: string | null;
   affiliation_website?: string | null;
   affiliation_logo_url?: string | null;

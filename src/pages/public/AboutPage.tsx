@@ -12,19 +12,9 @@ const ACTIVITIES = [
   { icon: Handshake, label: 'Collaboration' },
 ];
 
-const COMMUNITY_STORY = [
-  'November 2013 menjadi salah satu titik awal perjalanan Standupindo Cilegon. Saat itu, Adam Datau, Luthfi, dan Entus Bewok tampil membawakan stand-up comedy dalam acara Apresiasi Seni di SMPN 5 Cilegon. Sebuah penampilan sederhana yang mungkin tak pernah mereka bayangkan akan membuka jalan bagi sesuatu yang lebih besar.',
-  'Usai acara, Adam Datau mengunggah beberapa dokumentasi penampilan mereka ke Facebook. Respons pun berdatangan. Di antara banyaknya tanggapan, seorang pecinta stand-up comedy menawarkan kesempatan bagi mereka untuk tampil di Premiere Cafe.',
-  'Tawaran itu membawa mereka ke sebuah panggung baru. Malam itu, mereka kembali tampil, sekaligus berkenalan dengan teman-teman dari Standupindo BSC (Banten Serang Cilegon), komunitas yang dalam perjalanannya kemudian berganti nama menjadi Standupindo Serang.',
-  'Pertemuan tersebut menjadi bagian penting dari perjalanan mereka. Sebab, terkadang, sebuah perkenalan sederhana bisa membuka jalan menuju sesuatu yang sebelumnya tak pernah terpikirkan.',
-  'Sekitar seminggu setelah penampilan itu, Adam Datau dihubungi oleh Ray Koto. Keduanya kemudian bertemu di Premiere Cafe. Dari pertemuan tersebut, muncul sebuah gagasan untuk membangun komunitas stand-up comedy di Kota Cilegon.',
-  'Gagasan itu tidak berhenti sebagai percakapan di sebuah kafe. Open mic mulai digelar, promosi terus dilakukan, dan perlahan ruang bagi para pecinta stand-up comedy di Cilegon mulai terbentuk.',
-  'Hingga akhirnya, pada Januari 2014, Standupindo Cilegon muncul ke permukaan dan secara resmi menandai terbentuknya komunitas ini.',
-  'Waktu terus berjalan. Orang-orang datang dan pergi, pengalaman bertambah, dan banyak hal berubah. Namun, semangat yang mengawali perjalanan ini tetap menjadi bagian penting dari identitas Standupindo Cilegon.',
-];
-
 export function AboutPage({ router, settings }: { router: Router; settings: SiteSettings }) {
   const [logoLightbox, setLogoLightbox] = useState(false);
+  const storyParagraphs = (settings.about_story?.trim() || '').split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
   return (
     <div className="animate-fade-in">
       <PageHeader router={router} title="Tentang Komunitas" />
@@ -46,13 +36,13 @@ export function AboutPage({ router, settings }: { router: Router; settings: Site
                 </button>
                 <div className="min-w-0 font-mono text-[#302b22]">
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#806b46] sm:text-xs">{settings.site_name}</p>
-                  <h2 className="mt-1 text-lg font-black leading-tight tracking-tight sm:text-2xl">Standupindo Cilegon: The Story</h2>
-                  <p className="mt-1 text-xs italic leading-5 text-[#625740] sm:text-sm">Berawal dari tawa, tumbuh menjadi cerita.</p>
+                  <h2 className="mt-1 text-lg font-black leading-tight tracking-tight sm:text-2xl">{settings.about_story_title?.trim() || 'Standupindo Cilegon: The Story'}</h2>
+                  <p className="mt-1 text-xs italic leading-5 text-[#625740] sm:text-sm">{settings.about_story_tagline?.trim() || 'Berawal dari tawa, tumbuh menjadi cerita.'}</p>
                 </div>
               </div>
               <div className="font-mono text-[13px] leading-[1.65] text-[#302b22] sm:text-[15px] sm:leading-[1.7]">
                 <div className="space-y-4 sm:space-y-5">
-                  {COMMUNITY_STORY.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                  {storyParagraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
                 </div>
               </div>
             </div>

@@ -152,7 +152,7 @@ export function AppShell({ router, settings, children }: AppShellProps) {
                   <span className="hidden sm:inline">{settings.site_short_name}</span>
                 </span>
               </div>
-              <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-slate-700">Menjadi ruang bertemunya komika, penikmat komedi, dan insan kreatif untuk berbagi tawa, mengembangkan potensi, serta membangun ekosistem stand up comedy di Cilegon.</p>
+              <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-slate-700">{settings.footer_description?.trim() || settings.short_description}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <SocialIconButton instagram={settings.instagram_url} tiktok={settings.tiktok_url} youtube={settings.youtube_url} size="md" />
                 <a href={waLink(settings.whatsapp_admin)} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-blue-600 hover:text-white">

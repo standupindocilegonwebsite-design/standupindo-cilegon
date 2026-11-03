@@ -1185,7 +1185,7 @@ export function AdminPage({ router, settings, onSettingsUpdated }: Props) {
 
       {/* Form Modal */}
       <EventDocumentationPhotosModal event={documentationEvent} onClose={() => setDocumentationEvent(null)} onNotice={notify} onSaved={async () => { setDocumentationEvent(null); await load(); }} />
-      <AdminFormModal kind={modal} editing={editing} venueHistory={openMics} eventVenueHistory={events} saving={saving} onClose={() => setModal(null)} onSaving={setSaving} onNotice={notify} onPhotoSaved={load} onSaved={async () => { setModal(null); await load(); notify('Perubahan berhasil disimpan.', 'success'); }} />
+      <AdminFormModal kind={modal} editing={editing} komika={komika} venueHistory={openMics} eventVenueHistory={events} saving={saving} onClose={() => setModal(null)} onSaving={setSaving} onNotice={notify} onPhotoSaved={load} onSaved={async () => { setModal(null); await load(); notify('Perubahan berhasil disimpan.', 'success'); }} />
 
     </div>
   );
@@ -3168,6 +3168,13 @@ function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit,
                           <p className="mt-1 text-[11px] font-medium text-slate-700">{partner.contact_name}</p>
                         </div>
                       )}
+
+                      {partner.internal_pic_name && (
+                        <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-2 sm:col-span-2">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-blue-500">Penghubung Partner</p>
+                          <p className="mt-1 text-[11px] font-semibold text-blue-800">{partner.internal_pic_name}</p>
+                        </div>
+                      )}
                     </div>}
 
                     {expanded && linkedEvents.length > 0 && (
@@ -3280,6 +3287,13 @@ function PartnerManagement({ rows, events, partnerships, loading, onAdd, onEdit,
                 <div className="rounded-xl border border-slate-200 bg-white p-3 sm:col-span-2">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Nomor Kontak</p>
                   <a href={waLink(viewPartner.contact_phone, getPartnerWaMessage(viewPartner))} target="_blank" rel="noopener noreferrer" className="mt-1 block text-sm font-medium text-slate-700 transition hover:text-blue-700">{viewPartner.contact_phone}</a>
+                </div>
+              )}
+              {viewPartner.internal_pic_name && (
+                <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 sm:col-span-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-500">Penghubung Partner</p>
+                  <p className="mt-1 text-sm font-semibold text-blue-800">{viewPartner.internal_pic_name}</p>
+                  <p className="mt-1 text-xs text-blue-700/80">PIC dari pihak Standupindo Cilegon.</p>
                 </div>
               )}
             </div>
@@ -4587,13 +4601,15 @@ Peserta dan penonton wajib mengikuti ketentuan pendaftaran, tiket, dan akses mas
 8. Sanksi dan Keputusan Penyelenggara
 Pelanggaran terhadap peraturan dapat dikenai teguran atau tindakan lain yang sesuai dengan tingkat pelanggaran. Penyelenggara berwenang mengambil tindakan yang diperlukan demi kelancaran dan keselamatan acara.`;
 
-function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving, onClose, onSaving, onNotice, onPhotoSaved, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; venueHistory: OpenMic[]; eventVenueHistory: EventItem[]; saving: boolean; onClose: () => void; onSaving: (v: boolean) => void; onNotice: AdminNoticeHandler; onPhotoSaved: () => Promise<void>; onSaved: () => void }) {
+function AdminFormModal({ kind, editing, komika, venueHistory, eventVenueHistory, saving, onClose, onSaving, onNotice, onPhotoSaved, onSaved }: { kind: 'open-mic' | 'event' | 'komika' | 'partner' | null; editing: OpenMic | EventItem | Komika | Partner | null; komika: Komika[]; venueHistory: OpenMic[]; eventVenueHistory: EventItem[]; saving: boolean; onClose: () => void; onSaving: (v: boolean) => void; onNotice: AdminNoticeHandler; onPhotoSaved: () => Promise<void>; onSaved: () => void }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [previewKomikaPhoto, setPreviewKomikaPhoto] = useState(false);
   const [venueSuggestionsOpen, setVenueSuggestionsOpen] = useState(false);
   const [partnerCategoryOpen, setPartnerCategoryOpen] = useState(false);
+  const [partnerPicDropdownOpen, setPartnerPicDropdownOpen] = useState(false);
+  const [partnerPicSearch, setPartnerPicSearch] = useState('');
   const stagedPosterUrls = useRef(new Set<string>());
   const closingForm = useRef(false);
   const submitInProgress = useRef(false);
@@ -4605,6 +4621,8 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
     setErrorMessage('');
     setPreviewKomikaPhoto(false);
     setPartnerCategoryOpen(false);
+    setPartnerPicDropdownOpen(false);
+    setPartnerPicSearch('');
     stagedPosterUrls.current.clear();
     const row = editing as Record<string, unknown> | null;
     if (row) {
@@ -4621,7 +4639,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
       const defaultDate = `${nextFriday.getFullYear()}-${String(nextFriday.getMonth() + 1).padStart(2, '0')}-${String(nextFriday.getDate()).padStart(2, '0')}`;
       setForm({ title: nextOpenMicTitle, poster: '', date: defaultDate, time: '19.30', venue: '', location: 'Kota Cilegon', maps_url: '', description: 'Open Mic Standupindo Cilegon adalah ruang terbuka bagi siapa saja yang ingin mencoba, belajar, dan mengembangkan kemampuan di dunia stand up comedy.\n\nDi sini, para komika dapat menguji materi baru, mengasah kemampuan menulis dan membawakan jokes, sekaligus mendapatkan pengalaman tampil langsung di depan penonton.\n\nBukan cuma untuk komika, Open Mic juga menjadi ruang bagi masyarakat Cilegon untuk menikmati hiburan, mengenal dunia stand up comedy, dan menjadi bagian dari perkembangan komunitas komedi di Kota Cilegon.', capacity: '20', status: 'upcoming', registration_status: 'open', published: 'true' });
     } else if (kind === 'partner') {
-      setForm({ name: '', logo_url: '', website_url: '', contact_name: '', contact_phone: '', notes: '', category: 'sponsor', is_published: 'false', is_active: 'true', show_on_home: 'false', show_on_partnership_page: 'false', sort_order: '0' });
+      setForm({ name: '', logo_url: '', website_url: '', contact_name: '', contact_phone: '', internal_pic_komika_id: '', internal_pic_name: '', notes: '', category: 'sponsor', is_published: 'false', is_active: 'true', show_on_home: 'false', show_on_partnership_page: 'false', sort_order: '0' });
     } else {
       setForm({ title: '', poster: '', date: '', time: '19.00', venue: '', location: 'Cilegon', maps_url: '', description: '', documentation_photos: '', status: 'upcoming', registration_status: 'closed', published: 'true', ticket_sales_mode: 'free', event_rules: DEFAULT_EVENT_RULES });
     }
@@ -4708,6 +4726,8 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
           website_url: base.website_url?.trim() || null,
           contact_name: base.contact_name?.trim() || null,
           contact_phone: base.contact_phone?.trim() || null,
+          internal_pic_komika_id: base.internal_pic_komika_id?.trim() || null,
+          internal_pic_name: base.internal_pic_name?.trim() || null,
           notes: base.notes?.trim() || null,
           category: base.category || 'sponsor',
           is_published: base.is_published !== 'false',
@@ -4846,7 +4866,7 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
     : kind === 'open-mic'
     ? [['title', 'Title', 'text'], ['date', 'Date', 'date'], ['time', 'Time', 'text'], ['venue', 'Venue', 'text'], ['location', 'Location', 'text'], ['maps_url', 'Maps URL', 'text'], ['description', 'Description', 'textarea'], ['capacity', 'Capacity', 'number'], ['status', 'Status', 'select'], ['registration_status', 'Registration', 'select']]
     : kind === 'partner'
-    ? [['name', 'Nama Partner', 'text'], ['category', 'Kategori', 'select'], ['website_url', 'Website URL', 'text'], ['contact_name', 'Nama Kontak', 'text'], ['contact_phone', 'Nomor Kontak', 'text'], ['notes', 'Catatan', 'textarea'], ['sort_order', 'Urutan tampil', 'number']]
+    ? [['name', 'Nama Partner', 'text'], ['category', 'Kategori', 'select'], ['website_url', 'Website URL', 'text'], ['contact_name', 'Nama Kontak', 'text'], ['contact_phone', 'Nomor Kontak', 'text'], ['internal_pic_komika_id', 'Penghubung Partner (Komika Member)', 'select'], ['internal_pic_name', 'Nama Penghubung Manual', 'text'], ['notes', 'Catatan', 'textarea'], ['sort_order', 'Urutan tampil', 'number']]
     : [['title', 'Event Title', 'text'], ['date', 'Date', 'date'], ['time', 'Time', 'text'], ['venue', 'Venue', 'text'], ['location', 'Location', 'text'], ['maps_url', 'Maps URL', 'text'], ['description', 'Description', 'textarea'], ['event_rules', 'Peraturan Event', 'textarea'], ['ticket_sales_mode', 'Status Penjualan Tiket', 'select'], ['status', 'Status', 'select'], ['registration_status', 'Pendaftaran Peserta', 'select']];
 
   const selectOptions: Record<string, [string, string][]> = {
@@ -4855,6 +4875,11 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
     ticket_sales_mode: [['free', 'GRATIS'], ['paid', 'TIKET BERBAYAR']],
     category: [['sponsor', 'Sponsor'], ['support', 'Support'], ['media_partner', 'Media Partner']],
   };
+  const partnerPicMembers = komika
+    .filter((member) => member.status === 'active')
+    .sort((first, second) => (first.stage_name || first.full_name).localeCompare(second.stage_name || second.full_name, 'id', { sensitivity: 'base' }));
+  const filteredPartnerPicMembers = partnerPicMembers.filter((member) => `${member.stage_name} ${member.full_name}`.toLocaleLowerCase().includes(partnerPicSearch.trim().toLocaleLowerCase()));
+  const selectedPartnerPic = partnerPicMembers.find((member) => member.id === form.internal_pic_komika_id);
 
   return (
     <Modal open={Boolean(kind)} onClose={() => { void closeForm(); }} title={`${isEdit ? 'Edit' : 'Tambah'} ${title}`} size={kind === 'event' || kind === 'open-mic' ? 'xl' : 'lg'}>
@@ -4934,6 +4959,93 @@ function AdminFormModal({ kind, editing, venueHistory, eventVenueHistory, saving
                           {selected && <Check className="h-4 w-4 shrink-0 text-blue-700" />}
                         </button>;
                       })}
+                    </div>}
+                  </div>
+                ) : kind === 'partner' && key === 'internal_pic_komika_id' ? (
+                  <div
+                    className="relative"
+                    onBlur={(blurEvent) => {
+                      if (!(blurEvent.relatedTarget instanceof Node) || !blurEvent.currentTarget.contains(blurEvent.relatedTarget)) {
+                        setPartnerPicDropdownOpen(false);
+                      }
+                    }}
+                  >
+                    <button
+                      id={`admin-${key}`}
+                      type="button"
+                      onClick={() => setPartnerPicDropdownOpen((open) => !open)}
+                      className={`input-field flex min-h-12 items-center justify-between gap-3 text-left ${partnerPicDropdownOpen ? 'border-blue-500 ring-2 ring-blue-100' : ''}`}
+                      aria-haspopup="listbox"
+                      aria-expanded={partnerPicDropdownOpen}
+                    >
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        {selectedPartnerPic ? (
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-xs font-bold text-blue-700">
+                            {selectedPartnerPic.photo_card || selectedPartnerPic.photo
+                              ? <img src={selectedPartnerPic.photo_card || selectedPartnerPic.photo || ''} alt="" className="h-full w-full object-cover" />
+                              : (selectedPartnerPic.stage_name || selectedPartnerPic.full_name).charAt(0).toUpperCase()}
+                          </span>
+                        ) : <UserRound className="h-4 w-4 shrink-0 text-slate-500" />}
+                        <span className="truncate font-semibold">{selectedPartnerPic?.stage_name || selectedPartnerPic?.full_name || 'Isi manual / bukan Komika Member'}</span>
+                        {selectedPartnerPic && <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">Dipilih</span>}
+                      </span>
+                      <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${partnerPicDropdownOpen ? 'rotate-180 text-blue-700' : ''}`} />
+                    </button>
+                    {partnerPicDropdownOpen && <div role="listbox" aria-label="Pilih Penghubung Partner" className="absolute inset-x-0 top-full z-30 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+                      <div className="sticky top-0 bg-white p-1.5">
+                        <input
+                          type="search"
+                          value={partnerPicSearch}
+                          onChange={(event) => setPartnerPicSearch(event.target.value)}
+                          onClick={(event) => event.stopPropagation()}
+                          placeholder="Cari nama Komika..."
+                          className="input-field !min-h-10 !py-2 text-sm"
+                          aria-label="Cari Komika untuk Penghubung Partner"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={!form.internal_pic_komika_id}
+                        onClick={() => {
+                          set('internal_pic_komika_id', '');
+                          setPartnerPicSearch('');
+                          setPartnerPicDropdownOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition ${!form.internal_pic_komika_id ? 'bg-blue-50 text-blue-800' : 'hover:bg-slate-50'}`}
+                      >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500"><UserRound className="h-4 w-4" /></span>
+                        <span className="min-w-0 flex-1 text-sm font-semibold">Isi manual / bukan Komika Member</span>
+                        {!form.internal_pic_komika_id && <Check className="h-4 w-4 shrink-0 text-blue-600" />}
+                      </button>
+                      {filteredPartnerPicMembers.map((member) => {
+                        const selected = form.internal_pic_komika_id === member.id;
+                        const photo = member.photo_card || member.photo;
+                        return (
+                          <button
+                            key={member.id}
+                            type="button"
+                            role="option"
+                            aria-selected={selected}
+                            onClick={() => {
+                              setForm((current) => ({ ...current, internal_pic_komika_id: member.id, internal_pic_name: member.stage_name || member.full_name }));
+                              setPartnerPicSearch('');
+                              setPartnerPicDropdownOpen(false);
+                            }}
+                            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition ${selected ? 'bg-blue-50 text-blue-800' : 'hover:bg-blue-50'}`}
+                          >
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-xs font-bold text-blue-700">
+                              {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : (member.stage_name || member.full_name).charAt(0).toUpperCase()}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-semibold text-slate-800">{member.stage_name || member.full_name}</span>
+                              {member.stage_name && member.full_name !== member.stage_name && <span className="block truncate text-[11px] text-slate-500">{member.full_name}</span>}
+                            </span>
+                            {selected && <Check className="h-4 w-4 shrink-0 text-blue-600" />}
+                          </button>
+                        );
+                      })}
+                      {filteredPartnerPicMembers.length === 0 && <p className="px-3 py-4 text-center text-xs text-slate-500">Komika tidak ditemukan.</p>}
                     </div>}
                   </div>
                 ) : (kind === 'open-mic' || kind === 'event') && key === 'venue' ? (
@@ -5767,7 +5879,7 @@ function SettingsPanel({ settings, onSaved, onNotice }: { settings: SiteSettings
           {renderSectionHeading('Sosial Media & Lokasi', 'Link ini tampil pada halaman Kontak, footer, dan profil komunitas.', Share2, [
             'Instagram, TikTok, dan YouTube menentukan tautan ikon media sosial pada halaman Kontak dan footer. Instagram juga dipakai untuk membuka ajakan Follow Instagram.',
             'Alamat Komunitas tampil di halaman Kontak dan footer.',
-            'Deskripsi Singkat tampil pada halaman Tentang dan deskripsi halaman Kontak.',
+            'Deskripsi Singkat tampil pada halaman Tentang dan Kontak & Sosial Media.',
           ])}
           <div className="grid gap-3 sm:grid-cols-2">
             {renderField(['instagram_url', 'Instagram URL', 'text'], <Instagram className="h-4 w-4 text-pink-600" />)}
@@ -5775,6 +5887,31 @@ function SettingsPanel({ settings, onSaved, onNotice }: { settings: SiteSettings
             {renderField(['youtube_url', 'YouTube URL', 'text'], <Youtube className="h-4 w-4 text-red-600" />)}
             {renderField(['address', 'Alamat Komunitas', 'text'], <MapPin className="h-4 w-4 text-blue-600" />)}
             <div className="sm:col-span-2">{renderField(['short_description', 'Deskripsi Singkat', 'textarea'])}</div>
+          </div>
+        </section>
+
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] sm:p-4">
+           {renderSectionHeading('Teks Publik', 'Atur teks Banner Home dan footer yang tampil di halaman publik.', MessageCircle, [
+             'Judul Banner Home memakai gaya judul besar yang sudah digunakan di halaman utama.',
+           'Jika salah satu kolom dikosongkan, website menggunakan teks bawaan atau Deskripsi Singkat sebagai fallback.',
+           ])}
+           <div className="grid gap-3">
+             {renderField(['home_hero_title', 'Judul Banner Home', 'text'])}
+             {renderField(['home_hero_description', 'Deskripsi Banner Home', 'textarea'])}
+             {renderField(['footer_description', 'Deskripsi Footer', 'textarea'])}
+           </div>
+        </section>
+
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] sm:p-4 xl:col-span-2">
+          {renderSectionHeading('Branding & Sejarah Komunitas', 'Atur identitas visual cerita dan sejarah yang tampil di halaman Tentang Komunitas.', Building2, [
+            'Judul dan tagline mengatur bagian header cerita dengan gaya visual yang sudah tersedia.',
+            'Isi Cerita Komunitas menggunakan satu baris kosong untuk memisahkan paragraf.',
+            'Perubahan di sini akan mengganti teks sejarah yang dibaca publik.',
+          ])}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {renderField(['about_story_title', 'Judul Cerita Komunitas', 'text'])}
+            {renderField(['about_story_tagline', 'Tagline Cerita Komunitas', 'text'])}
+            <div className="sm:col-span-2">{renderField(['about_story', 'Isi Cerita Komunitas', 'textarea'])}</div>
           </div>
         </section>
 

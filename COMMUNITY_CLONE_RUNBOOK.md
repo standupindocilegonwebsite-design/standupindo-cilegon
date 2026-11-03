@@ -32,6 +32,50 @@ Hasil pemeriksaan statis terhadap seluruh migration saat ini:
 
 **Kesimpulan audit:** migration saat ini **belum “benar dan siap clone”**. Fitur aplikasi dapat menjadi target clone, tetapi perlu paket migration canonical baru yang dibangun dari hasil rekonsiliasi schema production dan diuji dari database kosong. Jangan mengubah urutan timestamp atau menghapus migration production secara langsung; perbaikan harus dilakukan melalui baseline clone terpisah atau migration kompensasi yang terdokumentasi.
 
+## Perubahan aplikasi 2 November 2026
+
+Bagian ini mencatat perubahan yang harus ikut diverifikasi ketika aplikasi ini dijadikan sumber clone. Perubahan berikut bersifat additive dan tidak menghapus histori evaluasi atau data tiket lama.
+
+### Evaluasi Member dan season
+
+- Evaluasi Member sekarang dikelompokkan secara deterministik berdasarkan tanggal Open Mic:
+  - **Season 1:** Januari–Juni.
+  - **Season 2:** Juli–Desember.
+- Filter periode menyediakan season aktif, season sebelumnya, dan semua riwayat. Pergantian season tidak menghapus atau mereset data lama.
+- Hanya evaluasi berstatus `submitted` yang masuk ke metrik selesai dan skor.
+- Skor utama ditampilkan sebagai rata-rata per aspek dalam skala **0–10**, dengan persentase dan keterangan enam aspek. Draft tidak dihitung.
+- Ringkasan Member menampilkan empat metrik: **Open Mic**, **Evaluasi**, **Selesai**, dan **Skor**.
+- **Open Mic** hanya menghitung Open Mic internal unik dengan `open_mic_registrations.status = 'confirmed'` dan `attendance_status = 'attended'`, sesuai season yang dipilih.
+- Pemilihan Open Mic menggunakan combobox searchable yang menampilkan poster, nama, tanggal, dan tempat. Default kosong; pilihan diurutkan dari tanggal terbaru; opsi `Semua Open Mic` tersedia.
+- Detail evaluator dibuka melalui modal/tabel ringkas. Ikon mata pada kartu Evaluasi menampilkan evaluator yang belum mengirim evaluasi.
+- Tombol Japri membuat URL WhatsApp dengan nama evaluator, nama/tanggal Open Mic, dan URL detail Open Mic yang tepat. Template pesan menggunakan penekanan WhatsApp dengan tanda `*...*`.
+- Empty state selector evaluasi harus bertuliskan **“Open Mic tidak ditemukan.”**, bukan “Event tidak ditemukan.”
+
+Saat melakukan clone, pastikan tabel dan policy berikut tersedia dan tetap konsisten:
+
+- `evaluations` dengan status `draft`/`submitted`.
+- `evaluator_assignments` dengan assignment aktif per Open Mic atau assignment global.
+- `open_mic_registrations` dengan status `confirmed` dan `attendance_status`.
+- Profil evaluator pada `komika` dengan `user_id` dan `whatsapp` agar follow-up dapat dibuat.
+- RLS member hanya mengizinkan pembacaan evaluasi milik performer terkait; evaluator hanya dapat mengelola evaluasi miliknya sesuai assignment aktif.
+
+### Ticketing dan QR per pembelian
+
+- Migration `20261102150000_add_ticket_qr_per_purchase.sql` menambahkan `qr_per_purchase` dengan default `1` dan batas `1–10`.
+- Kuota dihitung berdasarkan total QR (`quantity × qr_per_purchase`), sedangkan harga tetap dihitung berdasarkan jumlah paket.
+- Checkout publik, OTS, Free Pass, pembayaran manual, Midtrans, dan penerbitan token QR harus memakai konfigurasi ini.
+- UI admin memakai stepper QR dengan default `1`; tiket lama tetap kompatibel melalui default tersebut.
+- Migration QR sudah diterapkan pada project Supabase sumber secara target-only dan dicatat sebagai `applied`. Untuk clone baru, migration tetap harus masuk dalam baseline canonical yang diuji dari database kosong; jangan menyalin ledger project sumber secara manual.
+
+### Verifikasi minimum setelah clone
+
+- Buat satu Open Mic dengan pendaftar `confirmed`, tandai `attended`, lalu pastikan jumlah Open Mic season bertambah satu.
+- Buat assignment evaluator, buat evaluasi draft, lalu pastikan draft tidak masuk skor atau Selesai.
+- Submit evaluasi, lalu pastikan Selesai bertambah dan skor rata-rata berubah.
+- Pastikan evaluator yang belum submit muncul pada modal ikon mata dan link WhatsApp menunjuk ke Open Mic yang benar.
+- Cari Open Mic dengan selector, pilih Open Mic terbaru, pilih `Semua Open Mic`, dan uji empty state.
+- Buat tiket dengan `qr_per_purchase` 1, 2, dan 10; pastikan kuota serta jumlah token QR sesuai.
+
 ### Temuan yang harus ditangani sebelum clone pertama
 
 | Area | Temuan audit | Rekomendasi |
