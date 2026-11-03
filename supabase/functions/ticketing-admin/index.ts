@@ -13,6 +13,7 @@ const PROOF_BUCKET = 'ticket-payment-proofs';
 
 type RequestBody = {
   action?: string;
+  request_id?: string;
   order_id?: string;
   event_id?: string;
   gate_id?: string | null;
@@ -810,7 +811,8 @@ serve(async (request) => {
     if (body.action === 'issue-ots-sale') {
       if (!encryptionKey || !accessCodePepper) return json({ error: 'Secret Ticketing belum dikonfigurasi.' }, 500);
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (!body.event_id || !uuidPattern.test(body.event_id) || !body.ticket_id || !uuidPattern.test(body.ticket_id)
+      if ((body.request_id && !uuidPattern.test(body.request_id))
+        || !body.event_id || !uuidPattern.test(body.event_id) || !body.ticket_id || !uuidPattern.test(body.ticket_id)
         || !body.full_name?.trim() || body.full_name.trim().length > 160 || !body.whatsapp?.trim()
         || !Number.isInteger(body.quantity) || (body.quantity ?? 0) < 1 || (body.quantity ?? 0) > 10
         || (!isAdmin && !isTicketAdmin)) {
@@ -1016,7 +1018,7 @@ serve(async (request) => {
         || !body.full_name?.trim() || body.full_name.trim().length > 160 || !body.whatsapp?.trim()
         || !body.free_pass_reason?.trim() || !Number.isInteger(body.quantity) || (body.quantity ?? 0) < 1
         || (body.quantity ?? 0) > 10 || (!isAdmin && !isTicketAdmin)) {
-        return json({ error: 'Lengkapi Event, kategori, nama maksimal 160 karakter, WhatsApp, jumlah 1–10, dan alasan Free Pass.' }, 400);
+        return json({ error: 'Data Event, kategori, nama, WhatsApp, jumlah, dan alasan Free Pass harus valid.' }, 400);
       }
       const ticketPageUrl = getTicketPageUrl(request.headers.get('origin'));
       if (!ticketPageUrl) return json({ error: 'Domain halaman tiket tidak dapat ditentukan dari request.' }, 400);
@@ -1055,7 +1057,7 @@ serve(async (request) => {
           const token = randomToken();
           return { hash: await sha256(token), ciphertext: await encryptSecret(token, encryptionKey) };
         }));
-        const result = await serviceClient.rpc('issue_ticket_free_pass', {
+        const rpcParameters = {
           p_order_number: orderNumber,
           p_event_id: body.event_id,
           p_ticket_id: body.ticket_id,
@@ -1069,7 +1071,12 @@ serve(async (request) => {
           p_whatsapp_code_hash: phoneCodeHash,
           p_access_code_ciphertext: codeCiphertext,
           p_qr_tokens: qrTokens,
-        });
+          ...(body.request_id ? { p_request_id: body.request_id } : {}),
+        };
+        const result = await serviceClient.rpc(
+          body.request_id ? 'issue_ticket_free_pass_idempotent' : 'issue_ticket_free_pass',
+          rpcParameters,
+        );
         issuedData = result.data;
         issueError = result.error;
         if (!issueError || issueError.code !== '23505') break;

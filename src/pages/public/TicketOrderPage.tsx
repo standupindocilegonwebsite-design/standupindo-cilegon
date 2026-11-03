@@ -208,6 +208,9 @@ function getBuyerFieldError(field: BuyerField, value: string): string {
   }
 
   if (field === 'email') {
+    if (/[*•●…]/u.test(trimmedValue)) {
+      return 'Masukkan email lengkap, jangan gunakan email yang disamarkan.';
+    }
     return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmedValue)
       ? ''
       : 'Format email belum benar. Contoh: nama@email.com.';
@@ -264,7 +267,7 @@ function isCreatedPricedOrder(value: unknown): value is CreatedPricedOrder {
     && isPriceBreakdown(order.price_breakdown);
 }
 
-function PriceBreakdown({ quote, qrPerPurchase = 1 }: { quote: PriceQuote | null; qrPerPurchase?: number }) {
+function PriceBreakdown({ quote }: { quote: PriceQuote | null }) {
   if (!quote) return null;
   const feeLines = quote.price_breakdown.fees?.length
     ? quote.price_breakdown.fees
@@ -282,7 +285,7 @@ function PriceBreakdown({ quote, qrPerPurchase = 1 }: { quote: PriceQuote | null
       </div>
       <div className="space-y-3 px-4 py-4 text-sm">
         <div className="flex items-center justify-between gap-3 text-slate-600"><span>Harga Tiket</span><span className="font-medium text-slate-800">{formatPrice(quote.ticket_subtotal / quote.quantity)}</span></div>
-        <div className="flex items-center justify-between gap-3 text-slate-600"><span>Jumlah paket</span><span className="font-medium text-slate-800">{quote.quantity} Paket · {quote.quantity * qrPerPurchase} QR</span></div>
+        <div className="flex items-center justify-between gap-3 text-slate-600"><span>Jumlah paket</span><span className="font-medium text-slate-800">{quote.quantity} Paket</span></div>
         <div className="border-t border-dashed border-slate-200 pt-3">
           <div className="flex items-center justify-between gap-3 text-slate-700"><span>Subtotal Tiket</span><span className="font-semibold">{formatPrice(quote.ticket_subtotal)}</span></div>
           {quote.discount_amount > 0 && (
@@ -1040,7 +1043,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nama</p>
                   <h2 className="mt-1 truncate text-lg font-extrabold text-slate-900">{savedOrder?.full_name ?? form.full_name}</h2>
                   <p className="mt-2 text-sm font-semibold text-slate-700">{event.title}</p>
-                  <p className="mt-1 text-sm text-slate-500">{savedOrder?.quantity ?? quantity} paket · {(savedOrder?.quantity ?? quantity) * (ticket?.qr_per_purchase ?? 1)} QR</p>
+                  <p className="mt-1 text-sm text-slate-500">{savedOrder?.quantity ?? quantity} paket</p>
                   <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Total bayar</p>
                   <p className="mt-0.5 text-xl font-black text-slate-900">{formatPrice(savedOrder?.total_price ?? displayedTotal)}</p>
                 </div>
@@ -1111,7 +1114,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
                   <div className="review-row"><span className="review-label">WhatsApp</span><span className="review-value">{form.whatsapp}</span></div>
                   <div className="review-row"><span className="review-label">Tiket</span><span className="review-value">{savedOrder?.ticket_category ?? ticket.name}</span></div>
                   <div className="review-row"><span className="review-label">Jumlah</span><span className="review-value">{savedOrder?.quantity ?? quantity}</span></div>
-                  <PriceBreakdown quote={priceQuote} qrPerPurchase={ticket?.qr_per_purchase} />
+                  <PriceBreakdown quote={priceQuote} />
                   <div className="review-row"><span className="review-label">Bukti transfer</span><span className="review-value">{proofFile?.name}</span></div>
                   <div className="review-row"><span className="review-label">Bukti</span><span className="review-value">{proofFile?.name}</span></div>
                 </div>
@@ -1214,7 +1217,7 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
               {quoteError && <p role="alert" className="mt-1 text-xs font-medium text-red-600">{quoteError}</p>}
             </div>
             {quoteLoading && !priceQuote && <p className="flex items-center gap-2 text-sm text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin" /> Memeriksa Rincian Harga...</p>}
-            {priceQuote && <PriceBreakdown quote={priceQuote} qrPerPurchase={ticket?.qr_per_purchase} />}
+            {priceQuote && <PriceBreakdown quote={priceQuote} />}
             {!buyerInfoReady && !priceQuote && <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">Rincian pembayaran akan muncul setelah data pembeli dan jumlah tiket diisi dengan benar.</p>}
             {buyerInfoReady && !quoteLoading && !priceQuote && quoteError && <button type="button" onClick={() => setQuoteRefresh((current) => current + 1)} className="text-sm font-semibold text-blue-700 underline underline-offset-2">Coba muat rincian harga lagi</button>}
             {event.ticket_payment_mode === 'both' && !savedOrder && <div className="space-y-2">
@@ -1269,8 +1272,8 @@ export function TicketOrderPage({ router, slug, ticketId }: Props) {
                 <div className="review-row"><span className="review-label">Email</span><span className="review-value">{form.email}</span></div>
                 <div className="review-row"><span className="review-label">WhatsApp</span><span className="review-value">{form.whatsapp}</span></div>
                 <div className="review-row"><span className="review-label">Tiket</span><span className="review-value">{ticket.name}</span></div>
-                <div className="review-row"><span className="review-label">Jumlah Paket / QR</span><span className="review-value">{quantity} / {quantity * (ticket?.qr_per_purchase ?? 1)}</span></div>
-                <PriceBreakdown quote={priceQuote} qrPerPurchase={ticket?.qr_per_purchase} />
+                <div className="review-row"><span className="review-label">Jumlah Paket</span><span className="review-value">{quantity}</span></div>
+                <PriceBreakdown quote={priceQuote} />
                 {manualCheckoutAllowed && <div className="review-row"><span className="review-label">Bukti transfer</span><span className="review-value">{proofFile?.name}</span></div>}
               </div>
               {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>}

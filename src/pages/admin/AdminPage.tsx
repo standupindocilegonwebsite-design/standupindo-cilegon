@@ -442,27 +442,166 @@ function ScopedEventList({ events, loading, onManageTickets }: { events: EventIt
   );
 }
 
-function TicketAdminDashboard({ orders, events, loading, onNavigate }: { orders: TicketOrder[]; events: EventItem[]; loading: boolean; onNavigate: (section: Section) => void }) {
-  const [ticketStats, setTicketStats] = useState<{ total_tickets: number; checked_in: number; not_checked_in: number } | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [statsError, setStatsError] = useState('');
-  const waitingPayment = orders.filter((order) => order.status === 'Menunggu Pembayaran').length;
-  const waitingVerification = orders.filter((order) => order.status === 'Menunggu Verifikasi' || order.status === 'Sudah Bayar').length;
-  const issuedOrders = orders.filter((order) => order.status === 'Lunas' || order.status === 'Terverifikasi' || order.status === 'Selesai');
-  const paidOrders = issuedOrders.filter((order) => order.order_type !== 'free_pass');
-  const soldTickets = paidOrders.reduce((total, order) => total + order.quantity, 0);
-  const issuedTickets = issuedOrders.reduce((total, order) => total + order.quantity, 0);
+function TicketAdminDashboard({ orders, events, loading, ordersUnavailable, eventFilter, setEventFilter, ticketSummary, ticketSummaryLoading, ticketSummaryError, onNavigate }: {
+  orders: TicketOrder[];
+  events: EventItem[];
+  loading: boolean;
+  ordersUnavailable: boolean;
+  eventFilter: string;
+  setEventFilter: (eventId: string) => void;
+  ticketSummary: TicketAdminScannerSummary | null;
+  ticketSummaryLoading: boolean;
+  ticketSummaryError: string;
+  onNavigate: (section: Section) => void;
+}) {
+  const selectableEvents = useMemo(() => [...events]
+    .sort((first, second) => second.date.localeCompare(first.date) || second.id.localeCompare(first.id))
+    .map((event) => ({
+      id: event.id,
+      title: event.title,
+      subtitle: `${formatDate(event.date)} · ${event.venue}`,
+      poster: event.poster,
+      statusLabel: getEventStatus(event.status, event.date) === 'completed' ? 'SELESAI' : undefined,
+    })), [events]);
+  const effectiveEventFilter = eventFilter === 'all' || selectableEvents.some((event) => event.id === eventFilter)
+    ? eventFilter
+    : 'all';
+  const visibleOrders = useMemo(() => orders.filter((order) => (
+    order.status !== 'Draft Pembayaran'
+    && (effectiveEventFilter === 'all' || order.event_id === effectiveEventFilter)
+  )), [effectiveEventFilter, orders]);
+  const totalOrders = visibleOrders.length;
+  const waitingPayment = visibleOrders.filter((order) => order.status === 'Menunggu Pembayaran').length;
+  const waitingVerification = visibleOrders.filter((order) => order.status === 'Menunggu Verifikasi' || order.status === 'Sudah Bayar').length;
+  const paidOrders = visibleOrders.filter((order) => (
+    ['Lunas', 'Terverifikasi', 'Selesai'].includes(order.status)
+    && order.order_type !== 'free_pass'
+    && (order.sale_channel !== 'ots' || order.ots_payment_status === 'confirmed')
+  ));
+  const selectedEventSummary = ticketSummary?.events.find((event) => event.id === effectiveEventFilter);
+  const selectedEventStats = effectiveEventFilter === 'all'
+    ? ticketSummary
+      ? { total: ticketSummary.total_tickets, checkedIn: ticketSummary.checked_in }
+      : null
+    : selectedEventSummary
+      ? { total: selectedEventSummary.total, checkedIn: selectedEventSummary.checked_in }
+      : null;
+
   useEffect(() => {
-    let active = true;
-    void supabase.functions.invoke('ticketing-admin', { body: { action: 'scanner-summary', scope_role: 'admin_ticket' } }).then(({ data, error }) => {
-      if (!active) return;
-      setStatsLoading(false);
-      if (error || data?.error) { setStatsError(error?.message ?? data?.error ?? 'Statistik check-in gagal dimuat.'); return; }
-      setTicketStats({ total_tickets: data.total_tickets ?? 0, checked_in: data.checked_in ?? 0, not_checked_in: data.not_checked_in ?? 0 });
-    });
-    return () => { active = false; };
-  }, []);
-  return <div className="space-y-5"><WorkspacePageHeader title="Ringkasan Ticketing" subtitle="Statistik order sesuai Event dalam scope akun." eyebrow="Admin Tiket" /><div className="grid grid-cols-2 gap-3 xl:grid-cols-3"><StatCard label="Total Order" value={orders.length} icon={TicketIcon} tone="bg-blue-50 text-blue-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Menunggu Pembayaran" value={waitingPayment} icon={Clock3} tone="bg-amber-50 text-amber-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Menunggu Verifikasi" value={waitingVerification} icon={Eye} tone="bg-orange-50 text-orange-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Order Lunas (berbayar)" value={paidOrders.length} icon={Check} tone="bg-emerald-50 text-emerald-700" onClick={() => onNavigate('ticket-orders')} loading={loading} /><StatCard label="Tiket Terjual" value={soldTickets} icon={TicketIcon} tone="bg-indigo-50 text-indigo-700" onClick={() => onNavigate('tickets')} loading={loading} /><StatCard label="Tiket Diterbitkan" value={ticketStats?.total_tickets ?? issuedTickets} icon={TicketIcon} tone="bg-blue-50 text-blue-700" onClick={() => onNavigate('tickets')} loading={loading || statsLoading} /><StatCard label="Tiket Check-in" value={ticketStats?.checked_in ?? 0} icon={UserCheck} tone="bg-emerald-50 text-emerald-700" onClick={() => onNavigate('tickets')} loading={statsLoading} /><StatCard label="Belum Check-in" value={ticketStats?.not_checked_in ?? 0} icon={Clock3} tone="bg-sky-50 text-sky-700" onClick={() => onNavigate('tickets')} loading={statsLoading} /></div>{statsError && <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">{statsError}</p>}<p className="text-xs text-slate-500">Event dalam scope: {events.length}</p></div>;
+    if (!loading && eventFilter !== 'all' && !selectableEvents.some((event) => event.id === eventFilter)) {
+      setEventFilter('all');
+    }
+  }, [eventFilter, loading, selectableEvents, setEventFilter]);
+
+  const orderMetricLoading = loading && !ordersUnavailable;
+  const scannerMetricLoading = ticketSummaryLoading;
+  const orderMetricError = ordersUnavailable;
+  const scannerMetricError = Boolean(ticketSummaryError) || (!ticketSummaryLoading && !selectedEventStats);
+  const issuedTicketsValue = scannerMetricError ? null : selectedEventStats?.total ?? null;
+  const checkedInValue = scannerMetricError ? null : selectedEventStats?.checkedIn ?? null;
+
+  return (
+    <div className="space-y-6">
+      <WorkspacePageHeader title="Ringkasan Ticketing" subtitle="Pantau transaksi, distribusi tiket, dan kehadiran sesuai Event." eyebrow="Admin Tiket" />
+      <section className="space-y-2" aria-label="Filter Event">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Cakupan Event</p>
+        <SearchableEventSelect
+          options={selectableEvents}
+          value={effectiveEventFilter}
+          onChange={setEventFilter}
+          allLabel="Semua Event"
+          ariaLabel="Pilih cakupan Event"
+          emptyLabel="Pilih Event"
+          searchPlaceholder="Cari Event..."
+        />
+        {!selectableEvents.length && !loading && <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">Belum ada Event dalam scope akun.</p>}
+      </section>
+
+      <section className="space-y-3" aria-labelledby="ticket-transaction-heading">
+        <h2 id="ticket-transaction-heading" className="text-sm font-extrabold text-slate-900">Monitoring Transaksi</h2>
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <TicketDashboardStatCard label="Total Order" value={orderMetricError ? null : totalOrders} icon={TicketIcon} tone="bg-blue-50 text-blue-700" loading={orderMetricLoading} onClick={() => onNavigate('ticket-orders')} />
+          <TicketDashboardStatCard label="Order Lunas" value={orderMetricError ? null : paidOrders.length} icon={Check} tone="bg-emerald-50 text-emerald-700" loading={orderMetricLoading} onClick={() => onNavigate('ticket-orders')} />
+          <TicketDashboardStatCard label="Menunggu Pembayaran" value={orderMetricError ? null : waitingPayment} icon={Clock3} tone="bg-amber-50 text-amber-700" loading={orderMetricLoading} onClick={() => onNavigate('ticket-orders')} />
+          <TicketDashboardStatCard label="Menunggu Verifikasi" value={orderMetricError ? null : waitingVerification} icon={Eye} tone="bg-orange-50 text-orange-700" loading={orderMetricLoading} onClick={() => onNavigate('ticket-orders')} />
+        </div>
+      </section>
+
+      <section className="space-y-3" aria-labelledby="ticket-distribution-heading">
+        <h2 id="ticket-distribution-heading" className="text-sm font-extrabold text-slate-900">Distribusi Tiket</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <TicketDashboardStatCard label="Tiket Diterbitkan" value={issuedTicketsValue} icon={TicketIcon} tone="bg-blue-50 text-blue-700" loading={scannerMetricLoading} onClick={() => onNavigate('tickets')} />
+        </div>
+      </section>
+
+      <section className="space-y-3" aria-labelledby="ticket-attendance-heading">
+        <h2 id="ticket-attendance-heading" className="text-sm font-extrabold text-slate-900">Kehadiran Penonton</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <TicketDashboardStatCard label="Sudah Check-in" value={checkedInValue} icon={UserCheck} tone="bg-emerald-50 text-emerald-700" loading={scannerMetricLoading} onClick={() => onNavigate('tickets')} />
+          <TicketDashboardStatCard label="Belum Check-in" value={null} icon={Clock3} tone="bg-sky-50 text-sky-700" onClick={() => onNavigate('tickets')} />
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="ticket-checkin-progress-heading">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 id="ticket-checkin-progress-heading" className="text-sm font-extrabold text-slate-900">Progress Kehadiran</h2>
+            <p className="mt-1 text-xs text-slate-500">Persentase belum tersedia dari ringkasan yang diberikan.</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">Belum tersedia</span>
+        </div>
+        <div className="h-3 overflow-hidden rounded-full bg-slate-100" role="img" aria-label="Progress check-in tidak tersedia">
+          <div className="h-full w-full rounded-full bg-slate-200" />
+        </div>
+        <p className="text-xs leading-relaxed text-slate-600">
+          Sudah check-in: {scannerMetricLoading ? 'Memuat…' : checkedInValue ?? 'Tidak tersedia'}
+          {' · '}Belum check-in: tidak tersedia
+        </p>
+      </section>
+
+      {(ticketSummaryError || ordersUnavailable) && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
+        {ordersUnavailable && 'Data order gagal dimuat lengkap. Statistik transaksi tidak ditampilkan. '}
+        {ticketSummaryError && `Statistik tiket gagal dimuat: ${ticketSummaryError}`}
+      </p>}
+      <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-600">
+        Cakupan statistik: {effectiveEventFilter === 'all' ? `semua ${events.length} Event dalam scope akun` : selectableEvents.find((event) => event.id === effectiveEventFilter)?.title ?? 'Event terpilih'}.
+        {' '}Tiket Diterbitkan mengikuti agregat scanner yang tersedia (status active/expired dan tiket dengan waktu check-in); QR revoked tanpa check-in tidak disertakan. Sumber saat ini tidak menyediakan jumlah QR aktual per order atau jumlah tiket active yang belum check-in, sehingga Tiket Terjual, Belum Check-in, dan persentase kehadiran tidak ditampilkan sebagai angka perkiraan.
+      </p>
+    </div>
+  );
+}
+
+function TicketDashboardStatCard({ label, value, icon: Icon, tone, loading = false, onClick }: {
+  label: string;
+  value: number | null;
+  icon: typeof BarChart3;
+  tone: string;
+  loading?: boolean;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${tone}`}><Icon className="h-4.5 w-4.5" /></span>
+      <span className="mt-2.5 block text-xs font-medium leading-tight text-slate-500 sm:text-[13px]">{label}</span>
+      {loading
+        ? <span className="mt-1 block h-7 w-10 skeleton" />
+        : <span className={`mt-0.5 block leading-tight text-slate-900 ${value === null ? 'text-sm font-bold text-slate-500' : 'text-2xl font-extrabold sm:text-[26px]'}`}>
+          {value === null ? 'Tidak tersedia' : value.toLocaleString('id-ID')}
+        </span>}
+    </>
+  );
+
+  return onClick
+    ? <button type="button" onClick={onClick} className="flex min-h-[116px] flex-col items-start rounded-2xl border border-slate-200/80 bg-white p-3.5 text-left shadow-sm transition hover:border-blue-200 hover:shadow-md active:scale-[0.98] sm:p-4">{content}</button>
+    : <div className="flex min-h-[116px] flex-col items-start rounded-2xl border border-slate-200/80 bg-white p-3.5 text-left shadow-sm sm:p-4">{content}</div>;
+}
+
+interface TicketAdminScannerSummary {
+  total_tickets: number;
+  checked_in: number;
+  not_checked_in: number;
+  events: Array<{ id: string; total: number; checked_in: number }>;
+  error?: string;
 }
 
 interface QrScannerAttendee {
@@ -818,6 +957,10 @@ export function AdminPage({ router, settings, onSettingsUpdated }: Props) {
   const [communityApplications, setCommunityApplications] = useState<CommunityApplication[]>([]);
   const [ticketOrders, setTicketOrders] = useState<TicketOrder[]>([]);
   const [ticketOrdersUnavailable, setTicketOrdersUnavailable] = useState(false);
+  const [ticketDashboardEventId, setTicketDashboardEventId] = useState('all');
+  const [ticketDashboardSummary, setTicketDashboardSummary] = useState<TicketAdminScannerSummary | null>(null);
+  const [ticketDashboardSummaryLoading, setTicketDashboardSummaryLoading] = useState(true);
+  const [ticketDashboardSummaryError, setTicketDashboardSummaryError] = useState('');
   const [evaluatorAssignments, setEvaluatorAssignments] = useState<EvaluatorAssignment[]>([]);
   const [memberHistory, setMemberHistory] = useState<MemberOpenMicHistorySubmission[]>([]);
   const [eventPendingCounts, setEventPendingCounts] = useState<Record<string, number>>({});
@@ -834,6 +977,34 @@ export function AdminPage({ router, settings, onSettingsUpdated }: Props) {
   const [lineupEvent, setLineupEvent] = useState<EventItem | null>(null);
   const [documentationEvent, setDocumentationEvent] = useState<EventItem | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (!isTicketAdmin) return;
+    let active = true;
+    void (async () => {
+      setTicketDashboardSummaryLoading(true);
+      setTicketDashboardSummaryError('');
+      try {
+        const { data, error } = await supabase.functions.invoke<TicketAdminScannerSummary>('ticketing-admin', {
+          body: { action: 'scanner-summary', scope_role: 'admin_ticket' },
+        });
+        if (!active) return;
+        if (error || !data || data.error) {
+          setTicketDashboardSummary(null);
+          setTicketDashboardSummaryError(error?.message ?? data?.error ?? 'Statistik tiket gagal dimuat.');
+          return;
+        }
+        setTicketDashboardSummary(data);
+      } catch (error) {
+        if (!active) return;
+        setTicketDashboardSummary(null);
+        setTicketDashboardSummaryError(error instanceof Error ? error.message : 'Statistik tiket gagal dimuat.');
+      } finally {
+        if (active) setTicketDashboardSummaryLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [isTicketAdmin]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1086,7 +1257,7 @@ export function AdminPage({ router, settings, onSettingsUpdated }: Props) {
             <ArrowLeft className="h-4 w-4" /> Kembali
           </button>}
 
-          {section === 'dashboard' && (isAdmin ? <Dashboard openMics={openMics} events={events} komika={komika} registrations={registrations} memberHistory={memberHistory} ticketOrders={ticketOrders} ticketOrdersUnavailable={ticketOrdersUnavailable} loading={loading} adminName={typeof user?.user_metadata?.full_name === 'string' && user.user_metadata.full_name.trim() ? user.user_metadata.full_name.trim() : user?.email?.split('@')[0] || 'Admin Penuh'} adminPhoto={typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : ''} onNavigate={navigateSection} /> : isTicketAdmin ? <TicketAdminDashboard orders={ticketOrders} events={events} loading={loading} onNavigate={navigateSection} /> : isQrScanner ? <QrScannerDashboard events={events} onNavigate={navigateSection} /> : <OperationalDashboard kind={isOpenMicAdmin ? 'open-mic' : 'event'} openMics={openMics} registrations={registrations} events={events} eventPendingCounts={eventPendingCounts} ticketOrders={ticketOrders} loading={loading} onNavigate={navigateSection} />)}
+          {section === 'dashboard' && (isAdmin ? <Dashboard openMics={openMics} events={events} komika={komika} registrations={registrations} memberHistory={memberHistory} ticketOrders={ticketOrders} ticketOrdersUnavailable={ticketOrdersUnavailable} loading={loading} adminName={typeof user?.user_metadata?.full_name === 'string' && user.user_metadata.full_name.trim() ? user.user_metadata.full_name.trim() : user?.email?.split('@')[0] || 'Admin Penuh'} adminPhoto={typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : ''} onNavigate={navigateSection} /> : isTicketAdmin ? <TicketAdminDashboard orders={ticketOrders} events={events} loading={loading} ordersUnavailable={ticketOrdersUnavailable} eventFilter={ticketDashboardEventId} setEventFilter={setTicketDashboardEventId} ticketSummary={ticketDashboardSummary} ticketSummaryLoading={ticketDashboardSummaryLoading} ticketSummaryError={ticketDashboardSummaryError} onNavigate={navigateSection} /> : isQrScanner ? <QrScannerDashboard events={events} onNavigate={navigateSection} /> : <OperationalDashboard kind={isOpenMicAdmin ? 'open-mic' : 'event'} openMics={openMics} registrations={registrations} events={events} eventPendingCounts={eventPendingCounts} ticketOrders={ticketOrders} loading={loading} onNavigate={navigateSection} />)}
           {section === 'account-management' && isAdmin && <AccountManagementLanding onNavigate={navigateSection} />}
           {section === 'ccs-schedule' && (isAdmin || isOpenMicAdmin) && <CcsScheduleAdminPage />}
           {section === 'open-mic' && <OpenMicManagement rows={openMics} registrations={registrations} loading={loading} showRegistrants={isAdmin} onAdd={() => { setEditing(null); setModal('open-mic'); }} onEdit={(row) => { setEditing(row); setModal('open-mic'); }} onDelete={(id) => deleteRow('open_mics', id)} onTogglePublish={(id, val) => togglePublish('open_mics', id, val)} onViewRegistrants={(m) => router.navigate(`/admin/pendaftar/${m.id}`)} />}

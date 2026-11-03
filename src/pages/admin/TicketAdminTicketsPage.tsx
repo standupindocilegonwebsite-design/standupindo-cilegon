@@ -13,6 +13,8 @@ import { SearchableEventSelect } from '@/components/ui/SearchableEventSelect';
 import { AdminModal as Modal } from '@/components/admin/AdminModal';
 
 const PAGE_SIZE = 30;
+const FREE_PASS_REQUEST_FINGERPRINT_KEY = 'ticket-free-pass-request-fingerprint';
+const FREE_PASS_REQUEST_ID_KEY = 'ticket-free-pass-request-id';
 
 type ContactField = 'full_name' | 'whatsapp';
 
@@ -39,7 +41,53 @@ function getContactFieldError(field: ContactField, value: string): string {
 function getOptionalEmailError(value: string): string {
   const trimmedValue = value.trim();
   if (!trimmedValue) return '';
+  if (/[*•●…]/u.test(trimmedValue)) return 'Masukkan email lengkap, jangan gunakan email yang disamarkan.';
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmedValue) ? '' : 'Format email belum benar. Contoh: nama@email.com.';
+}
+
+function normalizeFreePassWhatsapp(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('62')) return `62${digits.slice(2).replace(/^0+/, '')}`;
+  if (digits.startsWith('0')) return `62${digits.slice(1)}`;
+  if (digits.startsWith('8')) return `62${digits}`;
+  return digits;
+}
+
+async function getFreePassRequestId(form: {
+  event_id: string;
+  ticket_id: string;
+  full_name: string;
+  email: string;
+  whatsapp: string;
+  quantity: number;
+  reason: string;
+}) {
+  const fingerprintPayload = JSON.stringify({
+    event_id: form.event_id,
+    ticket_id: form.ticket_id,
+    full_name: form.full_name.trim(),
+    email: form.email.trim().toLowerCase() || null,
+    whatsapp: normalizeFreePassWhatsapp(form.whatsapp),
+    quantity: form.quantity,
+    reason: form.reason.trim(),
+  });
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(fingerprintPayload));
+  const fingerprint = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  try {
+    const savedFingerprint = sessionStorage.getItem(FREE_PASS_REQUEST_FINGERPRINT_KEY);
+    const savedRequestId = sessionStorage.getItem(FREE_PASS_REQUEST_ID_KEY);
+    if (savedFingerprint === fingerprint && savedRequestId && uuidPattern.test(savedRequestId)) return savedRequestId;
+
+    const requestId = crypto.randomUUID();
+    sessionStorage.setItem(FREE_PASS_REQUEST_FINGERPRINT_KEY, fingerprint);
+    sessionStorage.setItem(FREE_PASS_REQUEST_ID_KEY, requestId);
+    return requestId;
+  } catch {
+    throw new Error('Browser tidak dapat menyimpan kunci keamanan Free Pass. Aktifkan penyimpanan sesi lalu coba lagi.');
+  }
 }
 
 function ValidatedContactInput({ id, name, label, value, type = 'text', placeholder, autoComplete, inputMode, required, maxLength, validation, onChange, onBlur }: {
@@ -239,6 +287,7 @@ export function TicketAdminTicketsPage() {
   const [error, setError] = useState('');
   const [freePassOpen, setFreePassOpen] = useState(false);
   const [freePassSaving, setFreePassSaving] = useState(false);
+  const freePassSubmittingRef = useRef(false);
   const [freePassError, setFreePassError] = useState('');
   const [freePassTouched, setFreePassTouched] = useState<{ full_name: boolean; whatsapp: boolean; email: boolean }>({ full_name: false, whatsapp: false, email: false });
   const [freePassValidationSubmitted, setFreePassValidationSubmitted] = useState(false);
@@ -781,6 +830,7 @@ export function TicketAdminTicketsPage() {
 
   async function issueFreePass(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (freePassSubmittingRef.current) return;
     setFreePassValidationSubmitted(true);
     setFreePassTouched({ full_name: true, whatsapp: true, email: true });
     const nameError = getContactFieldError('full_name', freePassForm.full_name);
@@ -802,12 +852,18 @@ export function TicketAdminTicketsPage() {
         : 'Kuota kategori tiket sudah habis.');
       return;
     }
+    freePassSubmittingRef.current = true;
     setFreePassSaving(true);
     setFreePassError('');
     try {
+      const requestId = await getFreePassRequestId({
+        ...freePassForm,
+        quantity: Number(freePassForm.quantity),
+      });
       const { data, error: invokeError } = await supabase.functions.invoke('ticketing-admin', {
         body: {
           action: 'issue-free-pass',
+          request_id: requestId,
           event_id: freePassForm.event_id,
           ticket_id: freePassForm.ticket_id,
           full_name: freePassForm.full_name.trim(),
@@ -833,18 +889,26 @@ export function TicketAdminTicketsPage() {
         setFreePassError(actionError || 'Free Pass gagal diterbitkan.');
         return;
       }
+      let requestCleanupWarning = '';
+      try {
+        sessionStorage.removeItem(FREE_PASS_REQUEST_FINGERPRINT_KEY);
+        sessionStorage.removeItem(FREE_PASS_REQUEST_ID_KEY);
+      } catch {
+        requestCleanupWarning = ' Kunci retry tersimpan di sesi browser; kirim ulang permintaan yang sama bila perlu memastikan hasil.';
+      }
       setFreePassResult({
         order_number: data.order_number,
         access_code: data.access_code,
         whatsapp_url: typeof data.whatsapp_url === 'string' ? data.whatsapp_url : null,
         ticket_count: typeof data.ticket_count === 'number' ? data.ticket_count : Number(freePassForm.quantity),
         email_status: data.email_status === 'sent' || data.email_status === 'failed' ? data.email_status : 'skipped',
-        email_message: typeof data.email_message === 'string' ? data.email_message : 'Status email tidak tersedia.',
+        email_message: `${typeof data.email_message === 'string' ? data.email_message : 'Status email tidak tersedia.'}${requestCleanupWarning}`,
       });
       await refresh();
     } catch (actionError) {
       setFreePassError(actionError instanceof Error ? `Permintaan Free Pass gagal: ${actionError.message}` : 'Permintaan Free Pass gagal.');
     } finally {
+      freePassSubmittingRef.current = false;
       setFreePassSaving(false);
     }
   }
