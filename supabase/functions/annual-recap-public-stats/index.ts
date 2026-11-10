@@ -8,16 +8,27 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-type RequestBody = { year?: unknown };
+type RequestBody = { year?: unknown; admin_preview?: unknown };
 type EventRow = { id: string; date: string };
 type PaidOrder = { id: string; event_id: string; quantity: number };
-type TicketInstance = { event_id: string; ticket_order_id: string; status: string };
+type TicketInstance = { event_id: string; ticket_order_id: string; status: string; checked_in_at: string | null };
 
-function json(body: Record<string, unknown>, status = 200) {
+function json(body: Record<string, unknown>, status = 200, privateResponse = false) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' },
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json',
+      'Cache-Control': privateResponse || status >= 400 ? 'no-store' : 'public, max-age=300',
+    },
   });
+}
+
+function hasRole(metadata: Record<string, unknown> | undefined, role: string) {
+  if (!metadata) return false;
+  return [metadata.role, metadata.roles, metadata.user_roles].some((candidate) => typeof candidate === 'string'
+    ? candidate.trim().toLowerCase() === role
+    : Array.isArray(candidate) && candidate.some((entry) => typeof entry === 'string' && entry.trim().toLowerCase() === role));
 }
 
 function getJakartaDate() {
@@ -46,28 +57,45 @@ serve(async (request) => {
     return json({ error: 'Data permintaan tidak valid.' }, 400);
   }
 
+  if (body.admin_preview !== undefined && typeof body.admin_preview !== 'boolean') {
+    return json({ error: 'Mode preview admin tidak valid.' }, 400);
+  }
+  const adminPreview = body.admin_preview === true;
+
   const currentYear = Number(getJakartaDate().slice(0, 4));
   if (typeof body.year !== 'number' || !Number.isInteger(body.year) || body.year < 1900 || body.year > currentYear) {
     return json({ error: 'Tahun recap tidak valid.' }, 400);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'Konfigurasi Annual Recap belum tersedia.' }, 500);
 
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  if (adminPreview) {
+    const authorization = request.headers.get('Authorization');
+    if (!authorization) return json({ error: 'Sesi Admin tidak valid.' }, 401);
+    if (!anonKey) return json({ error: 'Konfigurasi autentikasi Annual Recap belum tersedia.' }, 500);
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authorization } },
+    });
+    const { data: authData, error: authError } = await userClient.auth.getUser();
+    if (authError || !authData.user) return json({ error: 'Sesi Admin tidak valid.' }, 401);
+    const metadata = authData.user.app_metadata as Record<string, unknown> | undefined;
+    if (!hasRole(metadata, 'admin')) return json({ error: 'Preview statistik draft hanya tersedia untuk Admin.' }, 403);
+  }
+
   const fromDate = `${body.year}-01-01`;
   const yearEnd = `${body.year + 1}-01-01`;
   const untilDate = body.year === currentYear ? getJakartaDate() : yearEnd;
 
   try {
-    const { data: recap, error: recapError } = await serviceClient.from('annual_recaps')
-      .select('year')
-      .eq('year', body.year)
-      .eq('published', true)
-      .maybeSingle();
-    if (recapError) return json({ error: 'Status publikasi recap gagal dimuat.' }, 500);
-    if (!recap) return json({ error: 'Annual Recap tidak tersedia.' }, 404);
+    let recapQuery = serviceClient.from('annual_recaps').select('year').eq('year', body.year);
+    if (!adminPreview) recapQuery = recapQuery.eq('published', true);
+    const { data: recap, error: recapError } = await recapQuery.maybeSingle();
+    if (recapError) return json({ error: 'Status publikasi recap gagal dimuat.' }, 500, adminPreview);
+    if (!recap) return json({ error: 'Annual Recap tidak tersedia.' }, 404, adminPreview);
 
     const { data: eventRows, error: eventError } = await fetchAllPages((from, to) => serviceClient
       .from('events')
@@ -78,22 +106,22 @@ serve(async (request) => {
       .lt('date', untilDate)
       .order('date', { ascending: true })
       .range(from, to));
-    if (eventError) return json({ error: 'Data Event gagal dimuat.' }, 500);
+    if (eventError) return json({ error: 'Data Event gagal dimuat.' }, 500, adminPreview);
 
     const events = (eventRows ?? []) as EventRow[];
     const eventIds = events.map((event) => event.id);
-    if (eventIds.length === 0) return json({ year: body.year, totalTicketsSold: 0, events: [] });
+    if (eventIds.length === 0) return json({ year: body.year, totalTicketsSold: 0, events: [] }, 200, adminPreview);
 
     const paidOrders: PaidOrder[] = [];
     for (const ids of chunkValues(eventIds)) {
       const { data, error } = await fetchAllPages((from, to) => serviceClient
         .from('ticket_orders')
         .select('id, event_id, quantity')
-        .eq('status', 'Lunas')
+        .in('status', ['Lunas', 'Terverifikasi', 'Selesai'])
         .in('event_id', ids)
         .order('id', { ascending: true })
         .range(from, to));
-      if (error) return json({ error: 'Data tiket gagal dimuat.' }, 500);
+      if (error) return json({ error: 'Data tiket gagal dimuat.' }, 500, adminPreview);
       paidOrders.push(...((data ?? []) as PaidOrder[]));
     }
 
@@ -103,16 +131,16 @@ serve(async (request) => {
     for (const orderIds of chunkValues(paidOrders.map((order) => order.id))) {
       const { data, error } = await fetchAllPages((from, to) => serviceClient
         .from('ticket_instances')
-        .select('event_id, ticket_order_id, status')
+        .select('event_id, ticket_order_id, status, checked_in_at')
         .in('ticket_order_id', orderIds)
         .order('id', { ascending: true })
         .range(from, to));
-      if (error) return json({ error: 'Data tiket terjual gagal dimuat.' }, 500);
+      if (error) return json({ error: 'Data tiket terjual gagal dimuat.' }, 500, adminPreview);
 
       ((data ?? []) as TicketInstance[]).forEach((ticket) => {
         if (orderEventById.get(ticket.ticket_order_id) !== ticket.event_id) return;
         ordersWithoutInstances.delete(ticket.ticket_order_id);
-        if (ticket.status === 'active') {
+        if (ticket.status === 'active' || ticket.status === 'expired' || ticket.checked_in_at) {
           ticketsSoldByEvent.set(ticket.event_id, (ticketsSoldByEvent.get(ticket.event_id) ?? 0) + 1);
         }
       });
@@ -128,7 +156,7 @@ serve(async (request) => {
       year: body.year,
       totalTicketsSold: eventStats.reduce((total, event) => total + event.ticketsSold, 0),
       events: eventStats,
-    });
+    }, 200, adminPreview);
   } catch (error) {
     console.error('annual-recap-public-stats failed', error instanceof Error ? error.message : 'Unknown error');
     return json({ error: 'Statistik Annual Recap gagal diproses.' }, 500);

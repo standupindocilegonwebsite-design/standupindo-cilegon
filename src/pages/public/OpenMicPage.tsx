@@ -1,5 +1,8 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { ArrowRight, History, Info, Plus, Search } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import '@fontsource/ibm-plex-mono/latin-400.css';
+import '@fontsource/ibm-plex-mono/latin-700.css';
+import { ArrowRight, Download, History, Info, LoaderCircle, Plus, Search, Send, Share2 } from 'lucide-react';
 import { useHistoryEntryState, useRestoreScrollPosition, type Router } from '@/lib/router';
 import type { OpenMic } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -10,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { EmptyOpenMicState } from '@/components/ui/EmptyOpenMicState';
 import { SlidingTabIndicator } from '@/components/ui/SlidingTabIndicator';
 import { formatDate, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
+import { LOGO_URL } from '@/lib/types';
 import { MemberPerformanceHistoryPage } from '@/pages/member/MemberPerformanceHistoryPage';
 import { Modal } from '@/components/ui/Modal';
 import { MemberModal } from '@/components/member/MemberModal';
@@ -46,6 +50,128 @@ type PerformerRegistration = {
 };
 
 type MemberOpenMicTab = 'upcoming' | 'history';
+type PerformerReceiptPreview = { performerId: string; blob: Blob; url: string; fileName: string };
+
+async function createPerformerReceiptImage(performer: PerformerSummary) {
+  const recentAppearances = performer.appearances.slice(0, 10);
+  const receipt = document.createElement('article');
+  Object.assign(receipt.style, {
+    position: 'fixed',
+    left: '-10000px',
+    top: '0',
+    width: '432px',
+    padding: '28px 24px',
+    color: '#111827',
+    backgroundColor: 'transparent',
+    fontFamily: '"IBM Plex Mono", monospace',
+  });
+  const header = document.createElement('header');
+  header.style.textAlign = 'center';
+  const logo = document.createElement('img');
+  logo.alt = '';
+  Object.assign(logo.style, { display: 'block', height: '48px', width: 'auto', margin: '0 auto 8px', filter: 'grayscale(1) contrast(1.35)' });
+  logo.src = LOGO_URL;
+  const brand = document.createElement('p');
+  brand.textContent = 'STANDUPINDO CILEGON';
+  Object.assign(brand.style, { margin: '0', fontSize: '13px', fontWeight: '800', letterSpacing: '1px' });
+  const divider = document.createElement('div');
+  Object.assign(divider.style, { marginTop: '12px', borderTop: '1px dashed #71717a', borderBottom: '1px dashed #71717a', height: '4px' });
+  const title = document.createElement('h1');
+  title.textContent = 'RIWAYAT OPEN MIC';
+  Object.assign(title.style, { margin: '16px 0 3px', fontSize: '17px', fontWeight: '800' });
+  const subtitle = document.createElement('p');
+  subtitle.textContent = 'COMEDIAN RECAP · SEPANJANG MASA';
+  Object.assign(subtitle.style, { margin: '0', fontSize: '9px', fontWeight: '700', letterSpacing: '1.5px' });
+  const subtitleBrand = document.createElement('p');
+  subtitleBrand.textContent = 'DI STANDUPINDO CILEGON';
+  Object.assign(subtitleBrand.style, { margin: '3px 0 0', fontSize: '9px', fontWeight: '700', letterSpacing: '1px' });
+  header.append(logo, brand, divider, title, subtitle, subtitleBrand);
+
+  const meta = document.createElement('div');
+  Object.assign(meta.style, { margin: '18px 0', padding: '12px 0', borderTop: '1px dashed #a1a1aa', borderBottom: '1px dashed #a1a1aa', fontSize: '11px', lineHeight: '1.8' });
+  [
+    ['Nama Panggung', performer.stageName.toLocaleUpperCase('id-ID')],
+    ['Komunitas', performer.community ?? 'Belum dicatat'],
+    ['Total Open Mic', `${performer.totalAppearances} kali`],
+    ['Riwayat tampil', `${recentAppearances.length} terbaru`],
+  ].forEach(([label, value], index) => {
+    const row = document.createElement('p');
+    row.style.margin = '0';
+    const labelText = document.createElement('span');
+    labelText.textContent = `${label.padEnd(16)}:  `;
+    const valueText = document.createElement('strong');
+    valueText.textContent = value;
+    if (index < 2) valueText.style.fontWeight = '700';
+    else valueText.style.fontWeight = '400';
+    row.append(labelText, valueText);
+    meta.append(row);
+  });
+
+  const listTitle = document.createElement('h2');
+  listTitle.textContent = '10 OPEN MIC TERAKHIR';
+  Object.assign(listTitle.style, { margin: '0 0 10px', fontSize: '12px', fontWeight: '800', letterSpacing: '1px' });
+  const list = document.createElement('ol');
+  Object.assign(list.style, { margin: '0', padding: '0', listStyle: 'none' });
+  recentAppearances.forEach((appearance, index) => {
+    const item = document.createElement('li');
+    Object.assign(item.style, { padding: '9px 0', borderBottom: '1px dashed #d4d4d8', fontSize: '11px' });
+    const eventTitle = document.createElement('strong');
+    eventTitle.textContent = `${index + 1}. ${appearance.title}`;
+    eventTitle.style.display = 'block';
+    const details = document.createElement('span');
+    details.textContent = `${formatDate(appearance.date)} · ${appearance.venue}${appearance.location ? `, ${appearance.location}` : ''}`;
+    Object.assign(details.style, { display: 'block', marginTop: '4px', color: '#52525b', fontSize: '9px', lineHeight: '1.5' });
+    item.append(eventTitle, details);
+    list.append(item);
+  });
+  const footer = document.createElement('p');
+  footer.textContent = 'TERIMA KASIH SUDAH TERUS BERKARYA.\nSAMPAI JUMPA DI PANGGUNG BERIKUTNYA!';
+  Object.assign(footer.style, { margin: '20px 0 0', fontSize: '9px', lineHeight: '1.8', fontWeight: '700', textAlign: 'center', whiteSpace: 'pre-line' });
+  const tagline = document.createElement('p');
+  tagline.textContent = 'PANGGUNG BERTAMBAH, KOMIKA BERTUMBUH';
+  Object.assign(tagline.style, { margin: '18px 0 0', fontSize: '10px', lineHeight: '1.6', fontWeight: '800', letterSpacing: '0.5px', textAlign: 'center' });
+  const source = document.createElement('div');
+  Object.assign(source.style, { marginTop: '24px', paddingTop: '12px', borderTop: '1px dashed #a1a1aa', textAlign: 'center', color: '#71717a', fontSize: '9px', lineHeight: '1.8' });
+  const sourceLabel = document.createElement('p');
+  sourceLabel.textContent = 'BASED ON RECORDED OPEN MIC DATA';
+  sourceLabel.style.margin = '0';
+  const sourceLink = document.createElement('p');
+  sourceLink.textContent = window.location.host;
+  sourceLink.style.margin = '4px 0 0';
+  sourceLink.style.textDecoration = 'underline';
+  source.append(sourceLabel, sourceLink);
+  receipt.append(header, meta, listTitle, list, tagline, footer, source);
+  document.body.append(receipt);
+  try {
+    await Promise.all([
+      document.fonts.load('400 12px "IBM Plex Mono"'),
+      document.fonts.load('700 12px "IBM Plex Mono"'),
+      logo.decode().catch(() => { throw new Error('Logo recap gagal dimuat.'); }),
+    ]);
+    const receiptCanvas = await html2canvas(receipt, { backgroundColor: null, scale: 2, useCORS: true, logging: false });
+    const texture = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Tekstur kertas struk gagal dimuat.'));
+      image.src = '/assets/images/receipt-paper-texture.svg?v=4';
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Gambar struk tidak dapat dibuat di perangkat ini.');
+    context.drawImage(texture, 0, 0, canvas.width, canvas.height);
+    const scale = Math.min(canvas.width / receiptCanvas.width, canvas.height / receiptCanvas.height);
+    const width = receiptCanvas.width * scale;
+    const height = receiptCanvas.height * scale;
+    context.drawImage(receiptCanvas, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Gambar riwayat Open Mic gagal dibuat.')), 'image/png');
+    });
+  } finally {
+    receipt.remove();
+  }
+}
 
 function normalizePerformerValue(value: string | null): string {
   return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -70,6 +196,11 @@ export function OpenMicPage({ router }: { router: Router }) {
   const [lineups, setLineups] = useState<Record<string, Array<{ stageName: string; slug: string | null }>>>({});
   const [performerSummaries, setPerformerSummaries] = useState<PerformerSummary[]>([]);
   const [selectedPerformerId, setSelectedPerformerId] = useState<string | null>(null);
+  const [sharePerformer, setSharePerformer] = useState<PerformerSummary | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<PerformerReceiptPreview | null>(null);
+  const [receiptGenerating, setReceiptGenerating] = useState(false);
+  const [receiptSharing, setReceiptSharing] = useState(false);
+  const [receiptFeedback, setReceiptFeedback] = useState('');
   const [upcomingSearch, setUpcomingSearch] = useHistoryEntryState('open-mic-upcoming-search', '');
   const [completedSearch, setCompletedSearch] = useHistoryEntryState('open-mic-completed-search', '');
   const [completedSearchInfoOpen, setCompletedSearchInfoOpen] = useState(false);
@@ -233,6 +364,89 @@ export function OpenMicPage({ router }: { router: Router }) {
     ].join(' ').toLowerCase().includes(query));
     return query && (identityMatches || appearanceMatches);
   });
+  useEffect(() => {
+    if (!sharePerformer) return;
+    let active = true;
+    let previewUrl: string | null = null;
+    setReceiptGenerating(true);
+    setReceiptPreview(null);
+    setReceiptFeedback('');
+    void createPerformerReceiptImage(sharePerformer)
+      .then((blob) => {
+        if (!active) return;
+        const safeName = sharePerformer.stageName.replace(/[^\p{L}\p{N}-]+/gu, '-').toLowerCase();
+        previewUrl = URL.createObjectURL(blob);
+        setReceiptPreview({
+          performerId: sharePerformer.id,
+          blob,
+          url: previewUrl,
+          fileName: `open-mic-${safeName}-recap.png`,
+        });
+      })
+      .catch((imageError: unknown) => {
+        if (!active) return;
+        console.error('Gambar riwayat Open Mic gagal dibuat.', imageError);
+        setReceiptFeedback(imageError instanceof Error ? imageError.message : 'Gambar riwayat Open Mic gagal dibuat.');
+      })
+      .finally(() => {
+        if (active) setReceiptGenerating(false);
+      });
+    return () => {
+      active = false;
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [sharePerformer]);
+
+  function openPerformerSharePreview(performer: PerformerSummary) {
+    if (performer.appearances.length === 0) {
+      setReceiptFeedback('Belum ada riwayat Open Mic yang dapat dibagikan.');
+      return;
+    }
+    setReceiptFeedback('');
+    setSharePerformer(performer);
+  }
+
+  function downloadPerformerReceipt() {
+    if (!receiptPreview || receiptGenerating) return;
+    const imageUrl = URL.createObjectURL(receiptPreview.blob);
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = receiptPreview.fileName;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(imageUrl), 1500);
+    setReceiptFeedback('Gambar recap berhasil diunduh.');
+  }
+
+  async function sharePerformerReceipt() {
+    if (!receiptPreview || !sharePerformer || receiptGenerating || receiptSharing) return;
+    const file = new File([receiptPreview.blob], receiptPreview.fileName, { type: 'image/png' });
+    if (typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function' || !navigator.canShare({ files: [file] })) {
+      downloadPerformerReceipt();
+      setReceiptFeedback('Perangkat ini belum mendukung berbagi file gambar. Gambar sudah diunduh untuk dibagikan dari aplikasi pilihanmu.');
+      return;
+    }
+
+    setReceiptSharing(true);
+    setReceiptFeedback('');
+    try {
+      await navigator.share({
+        title: `${sharePerformer.stageName} — Riwayat Open Mic`,
+        text: `${sharePerformer.totalAppearances} kali tampil di Open Mic. Menampilkan 10 Open Mic terakhir.`,
+        files: [file],
+      });
+    } catch (shareError) {
+      if (shareError instanceof DOMException && shareError.name === 'AbortError') return;
+      console.error('Berbagi riwayat Open Mic gagal dibuka.', shareError);
+      downloadPerformerReceipt();
+      setReceiptFeedback(shareError instanceof Error
+        ? `Menu berbagi gagal dibuka (${shareError.message}). Gambar sudah diunduh sebagai fallback.`
+        : 'Menu berbagi gagal dibuka. Gambar sudah diunduh sebagai fallback.');
+    } finally {
+      setReceiptSharing(false);
+    }
+  }
 
   return (
     <div className="animate-fade-in">
@@ -389,17 +603,51 @@ export function OpenMicPage({ router }: { router: Router }) {
               <div className="flex items-center justify-between gap-3"><h3 className={`text-sm font-extrabold uppercase tracking-[0.12em] ${isMemberPage ? 'text-slate-700' : 'text-slate-200'}`}>Komika yang pernah tampil</h3><span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-extrabold text-slate-700">{matchingPerformers.length} hasil</span></div>
             <div className="grid gap-2.5 sm:grid-cols-2">
               {matchingPerformers.map((performer) => <div key={performer.id} className="space-y-2">
-                  <button type="button" onClick={() => setSelectedPerformerId((current) => current === performer.id ? null : performer.id)} aria-expanded={selectedPerformerId === performer.id} className={`w-full rounded-xl border px-3.5 py-3 text-left shadow-sm transition ${selectedPerformerId === performer.id ? 'border-blue-500 bg-[#EFF6FF] ring-2 ring-blue-200' : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-slate-50'}`}>
-                    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-base font-extrabold leading-tight text-slate-950">{performer.fullName}</p><div className="mt-1 flex items-baseline gap-2"><span className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.1em] text-slate-500">Nama Panggung</span><span className="truncate text-sm font-bold text-slate-700">{performer.stageName}</span></div></div><span className="shrink-0 rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.05em] text-white">{performer.totalAppearances} X TAMPIL</span></div>
-                    <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[11px] font-semibold text-slate-600"><span>{performer.community ?? 'Komunitas belum dicatat'}</span>{performer.instagram && <><span className="text-slate-300">·</span><span>{formatInstagramHandle(performer.instagram)}</span></>}</div>
-                </button>
-                  {selectedPerformerId === performer.id && <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-2.5">
-                    <div className="mb-2 flex items-center justify-between gap-2"><p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-600">Riwayat tampil</p><span className="text-xs font-black uppercase tracking-[0.08em] text-blue-700">{performer.totalAppearances} OPEN MIC</span></div>
-                    <div className="space-y-1.5">{performer.appearances.map((appearance) => <div key={appearance.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs shadow-sm"><div className="min-w-0"><p className="truncate font-extrabold text-slate-900">{appearance.openMicNumber ? `Open Mic #${appearance.openMicNumber} · ` : ''}{appearance.title}</p><p className="mt-0.5 truncate font-semibold text-slate-600">{appearance.stageName} · {appearance.community ?? 'Komunitas belum dicatat'}</p><p className="mt-1 text-[10px] font-bold text-blue-700">Open Mic ke-{appearance.appearanceNumber} di Standupindo Cilegon</p></div><span className="shrink-0 text-right font-bold leading-5 text-slate-600">{formatDate(appearance.date)}<br />{appearance.venue}</span></div>)}</div>
+                <div className="relative">
+                  <button type="button" onClick={() => setSelectedPerformerId((current) => current === performer.id ? null : performer.id)} aria-expanded={selectedPerformerId === performer.id} className={`block w-full min-w-0 rounded-xl border px-3.5 py-3 text-left shadow-sm transition ${selectedPerformerId === performer.id ? 'border-blue-500 bg-[#EFF6FF] ring-2 ring-blue-200' : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-slate-50'}`}>
+                    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-base font-extrabold leading-tight text-slate-950">{performer.fullName}</p><div className="mt-1 flex items-baseline gap-2"><span className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.1em] text-slate-500">Nama Panggung</span><span className="truncate text-sm font-bold text-slate-700">{performer.stageName}</span></div></div><span className="shrink-0 rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.05em] text-white">{performer.totalAppearances}X TAMPIL</span></div>
+                    <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 pr-10 text-[11px] font-semibold text-slate-600"><span>{performer.community ?? 'Komunitas belum dicatat'}</span>{performer.instagram && <><span className="text-slate-300">·</span><span>{formatInstagramHandle(performer.instagram)}</span></>}</div>
+                  </button>
+                  <button type="button" onClick={() => openPerformerSharePreview(performer)} disabled={performer.totalAppearances === 0} className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-full border border-blue-200 bg-white text-blue-700 shadow-sm transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60" aria-label={`Bagikan recap Open Mic ${performer.stageName}`} title="Bagikan recap Open Mic">
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
+                {selectedPerformerId === performer.id && <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-2.5">
+                  <div className="mb-2 flex items-center justify-between gap-2"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-600">10 Open Mic terakhir</p><span className="text-xs font-black uppercase tracking-[0.08em] text-blue-700">{performer.totalAppearances} Open Mic sepanjang masa</span></div><span className="text-[10px] font-semibold text-slate-500">{Math.min(performer.totalAppearances, 10)} ditampilkan</span></div>
+                  <div className="space-y-1.5">{performer.appearances.slice(0, 10).map((appearance) => <div key={appearance.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs shadow-sm"><div className="min-w-0"><p className="truncate font-extrabold text-slate-900">{appearance.openMicNumber ? `Open Mic #${appearance.openMicNumber} · ` : ''}{appearance.title}</p><p className="mt-0.5 truncate font-semibold text-slate-600">{appearance.stageName} · {appearance.community ?? 'Komunitas belum dicatat'}</p><p className="mt-1 text-[10px] font-bold text-blue-700">Open Mic ke-{appearance.appearanceNumber} di Standupindo Cilegon</p></div><span className="shrink-0 text-right font-bold leading-5 text-slate-600">{formatDate(appearance.date)}<br />{appearance.venue}</span></div>)}</div>
                 </div>}
               </div>)}
             </div>
           </div>}
+          <Modal
+            open={Boolean(sharePerformer)}
+            onClose={() => { if (!receiptSharing) setSharePerformer(null); }}
+            title="Bagikan Ringkasan"
+            size="md"
+          >
+            <div className="space-y-4">
+              {receiptGenerating && <div role="status" className="rounded-xl bg-blue-50 p-4 text-center text-sm font-semibold text-blue-800">Menyiapkan gambar recap Open Mic...</div>}
+              {receiptFeedback && <p role={receiptFeedback.toLowerCase().includes('gagal') ? 'alert' : 'status'} className={`rounded-xl p-3 text-xs font-semibold leading-5 ${receiptFeedback.toLowerCase().includes('gagal') ? 'border border-amber-200 bg-amber-50 text-amber-900' : 'bg-blue-50 text-blue-800'}`}>{receiptFeedback}</p>}
+              {receiptPreview && receiptPreview.performerId === sharePerformer?.id && (
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-slate-700">Preview gambar nota · 1 halaman</p>
+                  <figure className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                    <figcaption className="border-b border-slate-200 px-3 py-2 text-xs font-bold text-slate-600">Riwayat Open Mic · {sharePerformer?.stageName}</figcaption>
+                    <img src={receiptPreview.url} alt={`Preview recap Open Mic ${sharePerformer?.stageName}`} className="mx-auto block max-h-[55dvh] w-full object-contain" />
+                  </figure>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button type="button" onClick={downloadPerformerReceipt} disabled={!receiptPreview || receiptGenerating || receiptSharing} className="btn-secondary flex-1 !min-h-11 !px-3 !py-2.5 text-sm disabled:opacity-60">
+                  <Download className="h-4 w-4" /> Unduh Gambar
+                </button>
+                <button type="button" onClick={() => void sharePerformerReceipt()} disabled={!receiptPreview || receiptGenerating || receiptSharing} className="btn-primary flex-1 !min-h-11 !px-3 !py-2.5 text-sm disabled:opacity-60">
+                  {receiptSharing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+                  {receiptSharing ? 'Membagikan...' : 'Bagikan'}
+                </button>
+              </div>
+            </div>
+          </Modal>
           {completed.length === 0 ? (
             <EmptyState title="Belum ada Open Mic yang selesai." description="Riwayat Open Mic akan muncul di sini setelah acaranya selesai." noSmokeArea />
           ) : (

@@ -20,12 +20,14 @@ export type AnnualRecapStats = {
   newMemberCount: number;
   monthlyActivity: Array<{ month: string; count: number }>;
   topInternalPerformers: Array<{ id: string; name: string; count: number; photo: string | null }>;
+  topGuestPerformers: Array<{ id: string; name: string; community: string; count: number; rank: number }>;
   topCommunities: Array<{ name: string; count: number }>;
   independentAppearanceCount: number;
   topOpenMics: Array<{ id: string; title: string; date: string; venue: string; location: string; poster: string | null; appearanceCount: number }>;
   eventPosters: Array<{ id: string; title: string; date: string; poster: string }>;
   eventPhotos: Array<{ id: string; eventId: string; eventTitle: string; date: string; url: string }>;
   totalTicketsSold: number | null;
+  ticketStatsUnavailable: boolean;
   spotlightEvent: { id: string; title: string; date: string; poster: string | null; photo: string | null; ticketsSold: number } | null;
 };
 
@@ -37,6 +39,7 @@ type AttendedRegistration = {
   komika_id: string | null;
   stage_name: string;
   community: string | null;
+  created_at: string | null;
 };
 type KomikaProfile = { id: string; stage_name: string; photo: string | null; photo_card: string | null };
 type PublicTicketSalesStats = { totalTicketsSold: number; events: Array<{ eventId: string; ticketsSold: number }> };
@@ -96,7 +99,7 @@ function loadImageDimensions(url: string): Promise<{ width: number; height: numb
   });
 }
 
-export async function loadAnnualRecapStats(year: number): Promise<AnnualRecapStats> {
+export async function loadAnnualRecapStats(year: number, options: { adminPreview?: boolean } = {}): Promise<AnnualRecapStats> {
   const fromDate = `${year}-01-01`;
   const yearEnd = `${year + 1}-01-01`;
   const currentYear = Number(getJakartaDate().slice(0, 4));
@@ -127,7 +130,7 @@ export async function loadAnnualRecapStats(year: number): Promise<AnnualRecapSta
 
   for (const openMicIds of chunkValues(historicalOpenMicIds)) {
     const { data, error } = await supabase.from('open_mic_registrations')
-      .select('open_mic_id, komika_id, stage_name, community')
+      .select('open_mic_id, komika_id, stage_name, community, created_at')
       .in('open_mic_id', openMicIds)
       .eq('status', 'confirmed')
       .eq('attendance_status', 'attended');
@@ -194,6 +197,7 @@ export async function loadAnnualRecapStats(year: number): Promise<AnnualRecapSta
   });
 
   const performerCounts = new Map<string, { id: string; name: string; count: number; photo: string | null }>();
+  const guestPerformerCounts = new Map<string, { id: string; name: string; count: number; communities: Map<string, { name: string; count: number }>; firstRegisteredAt: string | null }>();
   const communityCounts = new Map<string, { name: string; count: number }>();
   const openMicAppearanceCounts = new Map<string, number>();
   const earliestPerformanceByKomika = new Map<string, string>();
@@ -227,6 +231,28 @@ export async function loadAnnualRecapStats(year: number): Promise<AnnualRecapSta
     const communityName = registration.community?.trim().replace(/\s+/g, ' ');
     if (!communityName) return;
     const communityKey = communityName.toLocaleLowerCase('id-ID');
+    if (!internalCommunityLabels.has(communityKey)) {
+      const normalizedName = normalizePerformerName(registration.stage_name);
+      const komikaId = registration.komika_id ?? (normalizedName ? komikaIdByName.get(normalizedName) : null);
+      if (!komikaId && !normalizedName) return;
+      const performerId = komikaId ? `komika:${komikaId}` : `name:${normalizedName}`;
+      const profile = komikaId ? profilesById.get(komikaId) : undefined;
+      const performer = guestPerformerCounts.get(performerId) ?? {
+        id: performerId,
+        name: profile?.stage_name || registration.stage_name.trim(),
+        count: 0,
+        communities: new Map<string, { name: string; count: number }>(),
+        firstRegisteredAt: registration.created_at,
+      };
+      performer.count += 1;
+      if (registration.created_at && (!performer.firstRegisteredAt || registration.created_at < performer.firstRegisteredAt)) {
+        performer.firstRegisteredAt = registration.created_at;
+      }
+      const community = performer.communities.get(communityKey) ?? { name: communityName, count: 0 };
+      community.count += 1;
+      performer.communities.set(communityKey, community);
+      guestPerformerCounts.set(performerId, performer);
+    }
     if (independentLabels.has(communityKey)) {
       independentAppearanceCount += 1;
       return;
@@ -292,9 +318,14 @@ export async function loadAnnualRecapStats(year: number): Promise<AnnualRecapSta
   });
 
   let totalTicketsSold: number | null = null;
+  let ticketStatsUnavailable = false;
   let ticketsSoldByEvent = new Map<string, number>();
-  const { data: ticketStats, error: ticketStatsError } = await supabase.functions.invoke<PublicTicketSalesStats>('annual-recap-public-stats', { body: { year } });
-  if (!ticketStatsError && ticketStats) {
+  const { data: ticketStats, error: ticketStatsError } = await supabase.functions.invoke<PublicTicketSalesStats>('annual-recap-public-stats', {
+    body: { year, ...(options.adminPreview ? { admin_preview: true } : {}) },
+  });
+  if (ticketStatsError || !ticketStats) {
+    ticketStatsUnavailable = true;
+  } else {
     totalTicketsSold = ticketStats.totalTicketsSold;
     ticketsSoldByEvent = new Map(ticketStats.events.map((event) => [event.eventId, event.ticketsSold]));
   }
@@ -320,6 +351,29 @@ export async function loadAnnualRecapStats(year: number): Promise<AnnualRecapSta
     topInternalPerformers: [...performerCounts.values()]
       .sort((first, second) => byCount(first, second) || first.name.localeCompare(second.name, 'id', { sensitivity: 'base' }))
       .slice(0, 3),
+    topGuestPerformers: (() => {
+      const sortedPerformers = [...guestPerformerCounts.values()]
+        .sort((first, second) => byCount(first, second)
+          || (first.firstRegisteredAt && second.firstRegisteredAt
+            ? first.firstRegisteredAt.localeCompare(second.firstRegisteredAt)
+            : first.firstRegisteredAt ? -1 : second.firstRegisteredAt ? 1 : 0)
+          || first.name.localeCompare(second.name, 'id', { sensitivity: 'base' }))
+        .slice(0, 3);
+      return sortedPerformers
+        .map((performer, index) => {
+          const tiedCommunities = [...performer.communities.values()].sort(byCount);
+          const community = tiedCommunities.length > 1 && tiedCommunities[0].count === tiedCommunities[1].count
+            ? 'Beberapa komunitas'
+            : tiedCommunities[0]?.name ?? 'Umum / Independen';
+          return {
+            id: performer.id,
+            name: performer.name,
+            count: performer.count,
+            community,
+            rank: index + 1,
+          };
+        })
+    })(),
     topCommunities: [...communityCounts.values()].sort(byCount).slice(0, 3),
     independentAppearanceCount,
     topOpenMics: openMics.map((openMic) => ({
@@ -336,6 +390,7 @@ export async function loadAnnualRecapStats(year: number): Promise<AnnualRecapSta
     eventPosters,
     eventPhotos,
     totalTicketsSold,
+    ticketStatsUnavailable,
     spotlightEvent: spotlightEventRow ? {
       id: spotlightEventRow.id,
       title: spotlightEventRow.title,

@@ -198,9 +198,17 @@ interface EventTicketCategory {
   qr_per_purchase: number;
 }
 
+function getQrPerPurchase(category: EventTicketCategory | null | undefined) {
+  const quantity = category?.qr_per_purchase;
+  if (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity < 1 || quantity > 10) return null;
+  return quantity;
+}
+
 function committedQrQuantity(category: EventTicketCategory, orders: TicketOrderReservation[]) {
+  const qrPerPurchase = getQrPerPurchase(category);
+  if (qrPerPurchase === null) return Number.POSITIVE_INFINITY;
   return orders.filter((order) => order.ticket_id === category.id)
-    .reduce((total, order) => total + order.quantity * (category.qr_per_purchase || 1), 0);
+    .reduce((total, order) => total + order.quantity * qrPerPurchase, 0);
 }
 
 interface TicketOrderReservation {
@@ -455,10 +463,16 @@ export function TicketAdminTicketsPage() {
     setPosterPreview({ src: otsQrisUrl(path), alt: `QRIS ${recipient}` });
   }
   const otsRemaining = selectedOtsCategory?.quota == null ? null : Math.max(0, selectedOtsCategory.quota - committedQrQuantity(selectedOtsCategory, quotaOrders));
+  const otsQrPerPackage = getQrPerPurchase(selectedOtsCategory);
   const selectedFreePassCategory = freePassCategories.find((category) => category.id === freePassForm.ticket_id) ?? null;
   const freePassRemaining = selectedFreePassCategory?.quota == null ? null : Math.max(0, selectedFreePassCategory.quota - committedQrQuantity(selectedFreePassCategory, quotaOrders));
-  const otsQuantityLimit = Math.min(10, otsRemaining ?? 10);
-  const freePassQuantityLimit = Math.min(10, freePassRemaining ?? 10);
+  const freePassQrPerPackage = getQrPerPurchase(selectedFreePassCategory);
+  const otsQuantityLimit = otsQrPerPackage === null
+    ? 0
+    : Math.min(10, otsRemaining === null ? 10 : Math.floor(otsRemaining / otsQrPerPackage));
+  const freePassQuantityLimit = freePassQrPerPackage === null
+    ? 0
+    : Math.min(10, freePassRemaining === null ? 10 : Math.floor(freePassRemaining / freePassQrPerPackage));
   const otsFieldStates = {
     full_name: {
       error: otsTouched.full_name || otsValidationSubmitted ? getContactFieldError('full_name', otsForm.full_name) : '',
@@ -1070,12 +1084,20 @@ export function TicketAdminTicketsPage() {
             <label className="block text-xs font-bold text-slate-700">
               <span className="block">Jumlah Tiket</span>
               <TicketQuantityStepper value={otsForm.quantity} max={otsQuantityLimit} disabled={!selectedOtsCategory || otsQuantityLimit < 1} onChange={(quantity) => setOtsForm((current) => ({ ...current, quantity }))} />
-              <span className="mt-1 block text-[11px] font-medium text-slate-500">{selectedOtsCategory ? `Maksimal ${otsQuantityLimit} paket · ${otsQuantityLimit * (selectedOtsCategory.qr_per_purchase || 1)} QR per penjualan.` : 'Pilih kategori tiket terlebih dahulu.'}</span>
+              <span className="mt-1 block text-[11px] font-medium text-slate-500">
+                {!selectedOtsCategory
+                  ? 'Pilih kategori tiket terlebih dahulu.'
+                  : otsQrPerPackage === null
+                    ? 'Faktor QR per paket tidak valid; penerbitan dinonaktifkan.'
+                    : `${otsRemaining === null ? 'Kuota tanpa batas' : `Sisa kuota ${otsRemaining} QR`} · Maksimal ${otsQuantityLimit} paket (${otsQuantityLimit * otsQrPerPackage} QR per penjualan).`}
+              </span>
             </label>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Total OTS</p>
               <p className="mt-1 text-lg font-black text-blue-800">Rp{((selectedOtsCategory?.ots_price ?? 0) * Number(otsForm.quantity)).toLocaleString('id-ID')}</p>
-              <p className="mt-1 text-xs font-semibold text-slate-600">{Number(otsForm.quantity) * (selectedOtsCategory?.qr_per_purchase || 1)} QR akan dibuat</p>
+              <p className="mt-1 text-xs font-semibold text-slate-600">
+                {otsQrPerPackage === null ? 'Jumlah QR tidak tersedia.' : `${Number(otsForm.quantity) * otsQrPerPackage} QR akan dibuat`}
+              </p>
             </div>
           </div>
           <fieldset className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4">
@@ -1301,7 +1323,15 @@ export function TicketAdminTicketsPage() {
             <label className="block text-xs font-bold text-slate-700">
               <span className="block">Jumlah Tiket</span>
               <TicketQuantityStepper value={freePassForm.quantity} max={freePassQuantityLimit} disabled={!selectedFreePassCategory || freePassQuantityLimit < 1} onChange={(quantity) => setFreePassForm((current) => ({ ...current, quantity }))} />
-              <span className="mt-1 block text-[11px] font-medium text-slate-500">{freePassQuantityLimit > 0 ? `Maksimal ${freePassQuantityLimit} paket · ${freePassQuantityLimit * (selectedFreePassCategory?.qr_per_purchase || 1)} QR per penerbitan.` : 'Kuota kategori tiket sudah habis.'}</span>
+              <span className="mt-1 block text-[11px] font-medium text-slate-500">
+                {!selectedFreePassCategory
+                  ? 'Pilih kategori tiket terlebih dahulu.'
+                  : freePassQrPerPackage === null
+                    ? 'Faktor QR per paket tidak valid; penerbitan dinonaktifkan.'
+                    : freePassQuantityLimit > 0
+                      ? `${freePassRemaining === null ? 'Kuota tanpa batas' : `Sisa kuota ${freePassRemaining} QR`} · Maksimal ${freePassQuantityLimit} paket (${freePassQuantityLimit * freePassQrPerPackage} QR per penerbitan).`
+                      : 'Kuota kategori tiket sudah habis.'}
+              </span>
             </label>
             <label className="block text-xs font-bold text-slate-700 sm:col-span-2">Sumber / Alasan Free Pass
               <textarea required maxLength={300} rows={2} value={freePassForm.reason} onChange={(event) => setFreePassForm((current) => ({ ...current, reason: event.target.value }))} className="input-field mt-1 resize-y" placeholder="Contoh: Media partner — Cilegon Update" />

@@ -109,28 +109,6 @@ serve(async (request) => {
       ? scopedEvents.filter((event) => event.id === body.event_id)
       : scopedEvents;
     const requestedEventIds = scopedEvents.map((event) => event.id);
-    const paidOrders: Array<{
-      id: string;
-      event_id: string;
-      ticket_category: string;
-      full_name: string;
-      whatsapp: string;
-    }> = [];
-
-    for (const ids of chunkValues(requestedEventIds)) {
-      const { data, error } = await fetchAllPages((from, to) => serviceClient.from('ticket_orders')
-        .select('id, event_id, ticket_category, full_name, whatsapp')
-        .eq('status', 'Lunas')
-        .in('event_id', ids)
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true })
-        .range(from, to));
-      if (error) return json({ error: 'Order lunas untuk laporan gagal dimuat.' }, 500);
-      paidOrders.push(...(data ?? []));
-    }
-
-    const paidOrdersById = new Map(paidOrders.map((order) => [order.id, order]));
-    const paidOrderIds = paidOrders.map((order) => order.id);
     const ticketInstances: Array<{
       event_id: string;
       ticket_order_id: string;
@@ -139,22 +117,43 @@ serve(async (request) => {
       checked_in_at: string | null;
     }> = [];
 
-    for (const ids of chunkValues(paidOrderIds)) {
+    for (const ids of chunkValues(requestedEventIds)) {
       const { data, error } = await fetchAllPages((from, to) => serviceClient.from('ticket_instances')
         .select('event_id, ticket_order_id, event_ticket_id, status, checked_in_at')
-        .in('ticket_order_id', ids)
+        .in('event_id', ids)
+        .or('status.in.(active,expired),checked_in_at.not.is.null')
         .order('id', { ascending: true })
         .range(from, to));
       if (error) return json({ error: 'Data tiket individual untuk laporan gagal dimuat.' }, 500);
       ticketInstances.push(...(data ?? []));
     }
 
-    const sellableTickets = ticketInstances.filter((ticket) => {
-      const order = paidOrdersById.get(ticket.ticket_order_id);
-      return order?.event_id === ticket.event_id && (ticket.status === 'active' || ticket.status === 'expired' || Boolean(ticket.checked_in_at));
+    const reportableTickets = ticketInstances.filter((ticket) => {
+      return ticket.status === 'active' || ticket.status === 'expired' || Boolean(ticket.checked_in_at);
     });
+    const reportOrderIds = [...new Set(reportableTickets.map((ticket) => ticket.ticket_order_id))];
+    const reportOrders: Array<{
+      id: string;
+      event_id: string;
+      ticket_category: string;
+      full_name: string;
+      whatsapp: string;
+    }> = [];
+
+    for (const ids of chunkValues(reportOrderIds)) {
+      const { data, error } = await fetchAllPages((from, to) => serviceClient.from('ticket_orders')
+        .select('id, event_id, ticket_category, full_name, whatsapp')
+        .in('id', ids)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to));
+      if (error) return json({ error: 'Order untuk laporan gagal dimuat.' }, 500);
+      reportOrders.push(...(data ?? []));
+    }
+
+    const reportOrdersById = new Map(reportOrders.map((order) => [order.id, order]));
     const countsByEvent = new Map<string, { tickets_sold: number; checked_in: number }>();
-    sellableTickets.forEach((ticket) => {
+    reportableTickets.forEach((ticket) => {
       const counts = countsByEvent.get(ticket.event_id) ?? { tickets_sold: 0, checked_in: 0 };
       counts.tickets_sold += 1;
       if (ticket.checked_in_at) counts.checked_in += 1;
@@ -173,9 +172,9 @@ serve(async (request) => {
     });
 
     const tickets = body.event_id
-      ? sellableTickets.flatMap((ticket) => {
+      ? reportableTickets.flatMap((ticket) => {
         if (ticket.event_id !== body.event_id) return [];
-        const order = paidOrdersById.get(ticket.ticket_order_id);
+        const order = reportOrdersById.get(ticket.ticket_order_id);
         if (!order) return [];
         return [{
           full_name: order.full_name,

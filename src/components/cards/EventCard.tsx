@@ -95,7 +95,7 @@ export function EventCard({ event, router, price }: { event: Pick<EventItem, 'id
                   <span className="text-sm font-extrabold leading-none text-slate-950">{formatPrice(displayPrice)}</span>
                 </div>
               )}
-              {displayPrice === null && event.ticket_sales_mode === 'paid' && <div className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5"><Ticket className="h-4 w-4 shrink-0 text-amber-800" /><span className="text-xs font-bold leading-none text-amber-900">Tiket publik belum tersedia</span></div>}
+              {displayPrice === null && event.ticket_sales_mode === 'paid' && <div className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5"><Ticket className="h-4 w-4 shrink-0 text-amber-800" /><span className="text-xs font-bold leading-none text-amber-900">Cek informasi ketersediaan tiket</span></div>}
               <NoSmokeAreaNotice />
             </div>
           ) : (

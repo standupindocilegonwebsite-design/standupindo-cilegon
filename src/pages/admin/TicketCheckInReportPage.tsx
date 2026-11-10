@@ -37,6 +37,7 @@ interface CheckInReportResponse {
 export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
   const { settings } = useSiteSettings();
   const [eventFilter, setEventFilter] = useState('all');
+  const [ticketStatusFilter, setTicketStatusFilter] = useState<'all' | 'Hadir' | 'Belum Hadir'>('all');
   const [report, setReport] = useState<CheckInReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -89,6 +90,10 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
     not_checked_in: totals.not_checked_in,
     attendance_percent: totals.tickets_sold ? (totals.checked_in / totals.tickets_sold) * 100 : 0,
   };
+  const filteredTickets = useMemo(
+    () => (report?.tickets ?? []).filter((ticket) => ticketStatusFilter === 'all' || ticket.status === ticketStatusFilter),
+    [report?.tickets, ticketStatusFilter],
+  );
 
   function printReport() {
     document.body.dataset.printMode = 'ticket-check-in-report';
@@ -107,7 +112,7 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
         event.not_checked_in,
         `${event.attendance_percent.toLocaleString('id-ID', { maximumFractionDigits: 2 })}%`,
       ])
-      : report.tickets.map((ticket, index) => [
+      : filteredTickets.map((ticket, index) => [
         index + 1,
         ticket.full_name,
         ticket.whatsapp,
@@ -119,8 +124,10 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
       : '';
     downloadXlsxTable({
       fileName: `laporan-check-in${eventFileName}-${new Date().toISOString().slice(0, 10)}.xlsx`,
-      sheetName: selectedEvent ? 'Detail Tiket' : 'Rekap per Event',
-      title: selectedEvent ? `LAPORAN CHECK-IN - ${selectedEvent.title}` : 'LAPORAN CHECK-IN',
+      sheetName: selectedEvent ? (ticketStatusFilter === 'all' ? 'Detail Tiket' : ticketStatusFilter) : 'Rekap per Event',
+      title: selectedEvent
+        ? `LAPORAN CHECK-IN - ${selectedEvent.title}${ticketStatusFilter === 'all' ? '' : ` - ${ticketStatusFilter.toLocaleUpperCase('id-ID')}`}`
+        : 'LAPORAN CHECK-IN',
       subtitle: selectedEvent
         ? `${formatDate(selectedEvent.date)}${selectedEvent.venue ? ` · ${selectedEvent.venue}` : ''} · ${settings.site_name}`
         : `Rekap semua Event dalam scope Admin QR Scanner · ${settings.site_name}`,
@@ -187,6 +194,22 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
                 <p className={`mt-1 text-2xl font-black ${stat.tone}`}>{stat.value}</p>
               </div>)}
             </div>
+            {selectedEvent && <div className="grid grid-cols-3 gap-2" aria-label="Filter status tiket">
+              {([
+                ['all', 'Semua Tiket', report.tickets.length],
+                ['Hadir', 'Hadir', report.tickets.filter((ticket) => ticket.status === 'Hadir').length],
+                ['Belum Hadir', 'Belum Hadir', report.tickets.filter((ticket) => ticket.status === 'Belum Hadir').length],
+              ] as const).map(([status, label, count]) => <button
+                key={status}
+                type="button"
+                onClick={() => setTicketStatusFilter(status)}
+                aria-pressed={ticketStatusFilter === status}
+                className={`rounded-xl border px-2 py-2.5 text-center transition ${ticketStatusFilter === status ? 'border-blue-700 bg-blue-50 text-blue-800 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300'}`}
+              >
+                <span className="block text-sm font-extrabold tabular-nums">{count}</span>
+                <span className="mt-0.5 block text-[10px] font-semibold sm:text-xs">{label}</span>
+              </button>)}
+            </div>}
           </section>
           {eventFilter === 'all'
             ? <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -205,19 +228,19 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
                 : <p className="p-6 text-center text-sm text-slate-500">Belum ada Event dalam scope Admin QR Scanner.</p>}
             </section>
             : <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-4 py-3"><h2 className="text-sm font-extrabold text-slate-900">Detail Tiket / Penonton</h2></div>
-              {report.tickets.length
+              <div className="border-b border-slate-100 px-4 py-3"><h2 className="text-sm font-extrabold text-slate-900">{ticketStatusFilter === 'all' ? 'Detail Tiket / Penonton' : `Daftar ${ticketStatusFilter}`}</h2></div>
+              {filteredTickets.length
                 ? <div className="overflow-x-auto">
                   <table className="w-full min-w-[620px] text-left text-xs">
                     <thead className="bg-slate-50 text-[10px] font-extrabold uppercase tracking-wide text-slate-500"><tr>
                       <th className="w-14 px-4 py-3 text-right">No.</th><th className="px-4 py-3">Nama Pemesan</th><th className="px-4 py-3">WhatsApp</th><th className="px-4 py-3">Kategori Tiket</th><th className="px-4 py-3">Status</th>
                     </tr></thead>
-                    <tbody className="divide-y divide-slate-100">{report.tickets.map((ticket, index) => <tr key={`${ticket.full_name}-${ticket.ticket_category}-${index}`}>
+                    <tbody className="divide-y divide-slate-100">{filteredTickets.map((ticket, index) => <tr key={`${ticket.full_name}-${ticket.ticket_category}-${index}`}>
                       <td className="px-4 py-3 text-right tabular-nums text-slate-500">{index + 1}</td><td className="px-4 py-3 font-semibold text-slate-900">{ticket.full_name}</td><td className="px-4 py-3 font-mono text-slate-600">{ticket.whatsapp}</td><td className="px-4 py-3 text-slate-700">{ticket.ticket_category}</td><td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold ${ticket.status === 'Hadir' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{ticket.status}</span></td>
                     </tr>)}</tbody>
                   </table>
                 </div>
-                : <p className="p-6 text-center text-sm text-slate-500">Belum ada tiket lunas untuk Event ini.</p>}
+                : <p className="p-6 text-center text-sm text-slate-500">{ticketStatusFilter === 'Belum Hadir' ? 'Tidak ada tiket yang belum check-in untuk Event ini.' : ticketStatusFilter === 'Hadir' ? 'Belum ada tiket check-in untuk Event ini.' : 'Belum ada tiket untuk Event ini.'}</p>}
             </section>}
         </>}
       <div className="print-sheet ticket-check-in-report-print">
@@ -237,7 +260,7 @@ export function TicketCheckInReportPage({ onBack }: { onBack: () => void }) {
           ? <table><thead><tr><th>Event</th><th>Tanggal</th><th>Tiket Terjual</th><th>Hadir</th><th>Tidak Hadir</th><th>Kehadiran</th></tr></thead><tbody>{eventsNewestFirst.map((event) => <tr key={event.id}>
             <td>{event.title}</td><td>{formatDate(event.date)}</td><td className="ticket-check-in-number">{event.tickets_sold}</td><td className="ticket-check-in-number">{event.checked_in}</td><td className="ticket-check-in-number">{event.not_checked_in}</td><td className="ticket-check-in-number">{event.attendance_percent.toLocaleString('id-ID', { maximumFractionDigits: 2 })}%</td>
           </tr>)}</tbody></table>
-          : <table><thead><tr><th>No.</th><th>Nama Pemesan</th><th>WhatsApp</th><th>Kategori Tiket</th><th>Status</th></tr></thead><tbody>{report?.tickets.map((ticket, index) => <tr key={`${ticket.full_name}-${ticket.ticket_category}-${index}`}>
+          : <table><thead><tr><th>No.</th><th>Nama Pemesan</th><th>WhatsApp</th><th>Kategori Tiket</th><th>Status</th></tr></thead><tbody>{filteredTickets.map((ticket, index) => <tr key={`${ticket.full_name}-${ticket.ticket_category}-${index}`}>
             <td className="ticket-check-in-number">{index + 1}</td><td>{ticket.full_name}</td><td>{ticket.whatsapp}</td><td>{ticket.ticket_category}</td><td>{ticket.status}</td>
           </tr>)}</tbody></table>}
       </div>

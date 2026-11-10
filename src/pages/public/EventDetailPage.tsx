@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, Calendar, ChevronDown, ClipboardList, Clock, Info } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { EventItem, EventLineupEntry, EventLineupRole, EventTicket, PartnerCategory, PublicEventPartner, PublicPartnerLogo } from '@/lib/types';
+import type { EventItem, EventLineupEntry, EventLineupRole, PartnerCategory, PublicEventPartner, PublicPartnerLogo } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { fetchPublicTicketOfferings, type PublicTicketOffering } from '@/lib/public-ticket-availability';
 import { PageHeader } from '@/components/PageHeader';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -176,7 +177,7 @@ export function EventDetailPage({ router, slug }: Props) {
   const [targetParticipant, setTargetParticipant] = useState<{ id: string; registration_id: string; status: string } | null>(null);
   const [targetParticipantUnavailable, setTargetParticipantUnavailable] = useState(false);
   const [posterLightboxOpen, setPosterLightboxOpen] = useState(false);
-  const [tickets, setTickets] = useState<EventTicket[]>([]);
+  const [tickets, setTickets] = useState<PublicTicketOffering[]>([]);
   const [ticketLoadError, setTicketLoadError] = useState('');
   const [lineup, setLineup] = useState<EventLineupEntry[]>([]);
   const [lineupLoadError, setLineupLoadError] = useState('');
@@ -212,10 +213,23 @@ export function EventDetailPage({ router, slug }: Props) {
           setTargetParticipant(null);
           setTargetParticipantUnavailable(false);
         }
-        const { data: ticketData, error: ticketError } = await supabase.from('event_tickets').select('*').eq('event_id', ev.id).eq('status', 'active').eq('available_public', true).order('sort_order', { ascending: true }).order('price', { ascending: true });
-        if (ticketError) setTicketLoadError('Informasi tiket belum dapat dimuat. Coba segarkan halaman.');
-        setTickets((ticketData as EventTicket[]) ?? []);
-        const hasPublicTickets = (ticketData as EventTicket[] | null)?.length ? true : false;
+        let hasTicketOfferings = false;
+        if (getEventStatus(ev.status, ev.date) === 'upcoming') {
+          try {
+            const offerings = await fetchPublicTicketOfferings(ev.id);
+            offerings.sort((first, second) => first.sort_order - second.sort_order || first.price - second.price);
+            setTickets(offerings);
+            hasTicketOfferings = offerings.length > 0;
+            setTicketLoadError('');
+          } catch (ticketError) {
+            setTicketLoadError(ticketError instanceof Error
+              ? ticketError.message
+              : 'Informasi tiket belum dapat dimuat. Coba segarkan halaman.');
+          }
+        } else {
+          setTickets([]);
+          setTicketLoadError('');
+        }
 
         const { data: lineupData, error: lineupError } = await supabase
           .from('event_lineups')
@@ -257,7 +271,7 @@ export function EventDetailPage({ router, slug }: Props) {
         setPageMetadata({
           path: `/event/${encodeURIComponent(ev.slug)}`,
           title: `${ev.title} | Event Stand Up Comedy Cilegon | Standupindo Cilegon`,
-          description: seoDescription(ev.description, hasPublicTickets
+          description: seoDescription(ev.description, hasTicketOfferings
             ? `${ev.title} di ${ev.venue}, ${ev.location}. Lihat jadwal, informasi acara, dan tiket yang tersedia bersama Standupindo Cilegon.`
             : `${ev.title} di ${ev.venue}, ${ev.location}. Lihat jadwal dan informasi acara bersama Standupindo Cilegon.`),
           image: ev.poster,
@@ -285,7 +299,16 @@ export function EventDetailPage({ router, slug }: Props) {
     );
   }
 
-  const cheapestTicketPrice = tickets.length > 0 ? Math.min(...tickets.map((ticket) => ticket.price)) : null;
+  const onlineTickets = tickets.filter((ticket) => ticket.available_public);
+  const availableOnlineTickets = onlineTickets.filter((ticket) => !ticket.sold_out && !ticket.temporarily_unavailable);
+  const availableOtsTickets = tickets.filter((ticket) => ticket.available_ots && !ticket.sold_out && !ticket.temporarily_unavailable);
+  const cheapestTicketPrice = availableOnlineTickets.length > 0
+    ? Math.min(...availableOnlineTickets.map((ticket) => ticket.price))
+    : null;
+  const cheapestOtsPrice = availableOtsTickets.length > 0
+    ? Math.min(...availableOtsTickets.map((ticket) => ticket.ots_price ?? ticket.price))
+    : null;
+  const allCategoriesSoldOut = tickets.length > 0 && tickets.every((ticket) => ticket.sold_out);
   const isFreeEvent = tickets.length === 0 && event.ticket_sales_mode === 'free';
   const pageUrl = `${window.location.origin}/event/${event.slug}`;
   const currentStatus = getEventStatus(event.status, event.date);
@@ -357,7 +380,9 @@ export function EventDetailPage({ router, slug }: Props) {
               <div className="border-t border-slate-100"><LocationMapPanel venue={event.venue} location={event.location} mapsUrl={event.maps_url} title={event.title} completed={currentStatus === 'completed'} locationClassName="items-center gap-2.5 !rounded-none !border-0 !shadow-none !px-3.5 !py-3" /></div>
             </div>
             {currentStatus === 'upcoming' && !ticketLoadError && isFreeEvent && <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">Acara gratis. Tidak perlu membeli tiket.</p>}
-            {currentStatus === 'upcoming' && !ticketLoadError && tickets.length === 0 && event.ticket_sales_mode === 'paid' && <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Tiket publik belum tersedia.</p>}
+            {currentStatus === 'upcoming' && !ticketLoadError && tickets.length === 0 && event.ticket_sales_mode === 'paid' && <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Informasi tiket belum tersedia.</p>}
+            {currentStatus === 'upcoming' && allCategoriesSoldOut && <p role="status" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">Seluruh kategori tiket yang ditawarkan sudah sold out.</p>}
+            {currentStatus === 'upcoming' && onlineTickets.length === 0 && availableOtsTickets.length > 0 && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Penjualan tiket online sudah ditutup. Tiket OTS masih tersedia mulai {formatPrice(cheapestOtsPrice ?? 0)} dan dapat dibeli langsung di lokasi.</p>}
             {ticketLoadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{ticketLoadError}</p>}
             {currentStatus !== 'completed' && <NoSmokeAreaNotice detail context="event" />}
 
@@ -366,10 +391,10 @@ export function EventDetailPage({ router, slug }: Props) {
                 {!ticketLoadError && tickets.length > 0 && (
                   <button type="button" onClick={() => router.navigate(`/event/${event.slug}/tiket`)} className="btn-primary event-ticket-light-leak group hidden w-full !min-h-[4.5rem] items-center justify-between !rounded-2xl !bg-gradient-to-r !from-blue-700 !via-blue-600 !to-indigo-600 !px-5 !py-3 text-left shadow-[0_12px_26px_rgba(37,99,235,0.36)] ring-1 ring-blue-500/30 transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(37,99,235,0.44)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 focus-visible:ring-offset-2 active:translate-y-0 active:scale-[0.99] md:flex">
                     <span className="min-w-0">
-                      <span className="block text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-100">Harga Mulai Dari</span>
-                      <span className="mt-0.5 block text-xl font-black leading-tight text-white">{formatPrice(cheapestTicketPrice ?? 0)}</span>
+                      <span className="block text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-100">{cheapestTicketPrice === null ? 'Informasi Tiket' : 'Harga Online Mulai Dari'}</span>
+                      <span className="mt-0.5 block text-xl font-black leading-tight text-white">{cheapestTicketPrice === null ? 'Lihat status kategori' : formatPrice(cheapestTicketPrice)}</span>
                     </span>
-                    <span className="ml-4 inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-white/40 bg-white px-4 text-sm font-extrabold text-blue-800 shadow-sm transition group-hover:bg-blue-50">Beli Tiket <ArrowRight className="h-4 w-4" /></span>
+                    <span className="ml-4 inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-white/40 bg-white px-4 text-sm font-extrabold text-blue-800 shadow-sm transition group-hover:bg-blue-50">{cheapestTicketPrice === null ? 'Lihat Tiket' : 'Pilih Tiket'} <ArrowRight className="h-4 w-4" /></span>
                   </button>
                 )}
                 {event.registration_status === 'open' && <button onClick={() => router.navigate(`/event/${event.slug}/daftar`)} className="btn-secondary w-full !py-3.5 text-base">Daftar sebagai Peserta</button>}
@@ -383,10 +408,10 @@ export function EventDetailPage({ router, slug }: Props) {
             <div className="mx-auto max-w-3xl">
               <button type="button" onClick={() => router.navigate(`/event/${event.slug}/tiket`)} className="btn-primary event-ticket-light-leak group flex w-full !min-h-[4rem] items-center justify-between !rounded-2xl !bg-gradient-to-r !from-blue-700 !via-blue-600 !to-indigo-600 !px-4 !py-2.5 text-left shadow-[0_12px_30px_rgba(29,78,216,0.46)] ring-1 ring-white/30 transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(29,78,216,0.54)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 focus-visible:ring-offset-2 active:translate-y-0 active:scale-[0.99]">
                 <span className="min-w-0">
-                  <span className="block text-[9px] font-extrabold uppercase tracking-[0.14em] text-blue-100">Harga Mulai Dari</span>
-                  <span className="block text-lg font-black leading-tight text-white">{formatPrice(cheapestTicketPrice ?? 0)}</span>
+                  <span className="block text-[9px] font-extrabold uppercase tracking-[0.14em] text-blue-100">{cheapestTicketPrice === null ? 'Informasi Tiket' : 'Harga Online Mulai Dari'}</span>
+                  <span className="block text-lg font-black leading-tight text-white">{cheapestTicketPrice === null ? 'Lihat status kategori' : formatPrice(cheapestTicketPrice)}</span>
                 </span>
-                <span className="ml-3 inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border border-white/40 bg-white px-3 text-xs font-extrabold text-blue-800 shadow-sm">Beli Tiket <ArrowRight className="h-4 w-4" /></span>
+                <span className="ml-3 inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border border-white/40 bg-white px-3 text-xs font-extrabold text-blue-800 shadow-sm">{cheapestTicketPrice === null ? 'Lihat Tiket' : 'Pilih Tiket'} <ArrowRight className="h-4 w-4" /></span>
               </button>
             </div>
           </div>,

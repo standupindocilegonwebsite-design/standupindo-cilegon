@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, CalendarDays, Clock3, ExternalLink, MapPin, Ticket } from 'lucide-react';
 import type { Router } from '@/lib/router';
-import type { EventItem, EventTicket } from '@/lib/types';
+import type { EventItem } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { formatDate, formatPrice, getEventStatus } from '@/lib/format';
+import { fetchPublicTicketOfferings, type PublicTicketOffering } from '@/lib/public-ticket-availability';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -13,17 +14,9 @@ interface Props {
   slug: string;
 }
 
-interface TicketAvailability {
-  ticket_id: string;
-  sold_out: boolean;
-  temporarily_unavailable: boolean;
-  remaining_tickets: number | null;
-}
-
 export function TicketSelectionPage({ router, slug }: Props) {
   const [event, setEvent] = useState<EventItem | null>(null);
-  const [tickets, setTickets] = useState<EventTicket[]>([]);
-  const [ticketAvailability, setTicketAvailability] = useState<Map<string, TicketAvailability>>(new Map());
+  const [tickets, setTickets] = useState<PublicTicketOffering[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -46,39 +39,14 @@ export function TicketSelectionPage({ router, slug }: Props) {
       setEvent(eventRow);
 
       if (eventRow && getEventStatus(eventRow.status, eventRow.date) === 'upcoming') {
-        const { data: ticketData, error: ticketError } = await supabase
-          .from('event_tickets')
-          .select('*')
-          .eq('event_id', eventRow.id)
-          .eq('status', 'active')
-          .eq('available_public', true)
-          .order('sort_order', { ascending: true })
-          .order('price', { ascending: true });
-        if (ticketError) {
-          if (active) setLoadError('Daftar tiket publik gagal dimuat. Coba segarkan halaman.');
-          if (active) setLoading(false);
-          return;
-        }
-        const publicTickets = (ticketData as EventTicket[]) ?? [];
-        if (publicTickets.length > 0) {
-          const { data: availabilityData, error: availabilityError } = await supabase.functions.invoke<{
-            availability?: TicketAvailability[];
-            error?: string;
-          }>('ticketing-public', { body: { action: 'ticket-availability', event_id: eventRow.id } });
-          if (availabilityError || availabilityData?.error || !Array.isArray(availabilityData?.availability)) {
-            if (active) setLoadError(availabilityError?.message ?? availabilityData?.error ?? 'Ketersediaan tiket gagal diperiksa. Coba segarkan halaman.');
-            if (active) setLoading(false);
-            return;
-          }
-          const availability = availabilityData.availability;
-          if (publicTickets.some((ticket) => !availability.some((item) => item.ticket_id === ticket.id))) {
-            if (active) setLoadError('Ketersediaan tiket gagal diperiksa. Coba segarkan halaman.');
-            if (active) setLoading(false);
-            return;
-          }
+        try {
+          const offerings = await fetchPublicTicketOfferings(eventRow.id);
+          if (active) setTickets(offerings.sort((first, second) => first.sort_order - second.sort_order || first.price - second.price));
+        } catch (availabilityError) {
           if (active) {
-            setTickets(publicTickets);
-            setTicketAvailability(new Map(availability.map((item) => [item.ticket_id, item])));
+            setLoadError(availabilityError instanceof Error
+              ? availabilityError.message
+              : 'Ketersediaan tiket gagal diperiksa. Coba segarkan halaman.');
           }
         }
       }
@@ -126,6 +94,10 @@ export function TicketSelectionPage({ router, slug }: Props) {
     );
   }
 
+  const hasOnlineTickets = tickets.some((ticket) => ticket.available_public);
+  const hasAvailableOtsTickets = tickets.some((ticket) => ticket.available_ots && !ticket.sold_out && !ticket.temporarily_unavailable);
+  const allCategoriesSoldOut = tickets.length > 0 && tickets.every((ticket) => ticket.sold_out);
+
   return (
     <div className="animate-fade-in">
       <PageHeader router={router} title="Akses Acara" subtitle={event.title} backTo={backToEvent} />
@@ -156,13 +128,14 @@ export function TicketSelectionPage({ router, slug }: Props) {
               <EmptyState title={event.ticket_sales_mode === 'free' ? 'Acara ini gratis dan tidak memerlukan tiket.' : 'Tiket publik belum tersedia.'} />
             ) : (
               <div className="grid gap-3 sm:gap-4">
+                {allCategoriesSoldOut && <p role="status" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">Seluruh kategori tiket yang ditawarkan sudah sold out.</p>}
+                {!hasOnlineTickets && hasAvailableOtsTickets && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Penjualan tiket online sudah ditutup. Tiket OTS masih tersedia dan dapat dibeli langsung di lokasi.</p>}
                 {tickets.map((ticket) => {
-                  const externalTicketUrl = ticket.ticket_url && /^https?:\/\//i.test(ticket.ticket_url)
+                  const externalTicketUrl = ticket.available_public && ticket.ticket_url && /^https?:\/\//i.test(ticket.ticket_url)
                     ? ticket.ticket_url
                     : null;
-                  const availability = ticketAvailability.get(ticket.id);
-                  const soldOut = availability?.sold_out ?? false;
-                  const temporarilyUnavailable = availability?.temporarily_unavailable ?? false;
+                  const soldOut = ticket.sold_out;
+                  const temporarilyUnavailable = ticket.temporarily_unavailable;
                   return (
                     <article key={ticket.id} className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-[0_6px_18px_rgba(15,23,42,0.045)] transition hover:border-blue-200 hover:shadow-[0_10px_24px_rgba(37,99,235,0.1)]">
                       <div className="flex items-start gap-3 bg-gradient-to-r from-blue-50/80 via-white to-white p-4 sm:items-center sm:gap-4 sm:p-5">
@@ -171,15 +144,15 @@ export function TicketSelectionPage({ router, slug }: Props) {
                           <p className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-blue-700">Kategori Tiket</p>
                           <h3 className="mt-0.5 break-words text-base font-extrabold text-slate-900 sm:text-lg">{ticket.name}</h3>
                           {ticket.description && <p className="mt-1.5 whitespace-pre-line text-xs leading-5 text-slate-600 sm:text-sm">{ticket.description}</p>}
-                          {ticket.quota != null && availability?.remaining_tickets != null && (
-                            <p className="mt-2 text-xs font-bold text-slate-700">Sisa {availability.remaining_tickets} tiket</p>
+                          {ticket.quota != null && ticket.remaining_tickets != null && (
+                            <p className="mt-2 text-xs font-bold text-slate-700">Sisa {ticket.remaining_tickets} tiket</p>
                           )}
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3.5 sm:px-5">
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Harga tiket</p>
-                          <p className="mt-0.5 text-xl font-black tracking-tight text-slate-900">{formatPrice(ticket.price)}</p>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">{ticket.available_public ? 'Harga tiket online' : 'Harga OTS di lokasi'}</p>
+                          <p className="mt-0.5 text-xl font-black tracking-tight text-slate-900">{formatPrice(ticket.available_public ? ticket.price : ticket.ots_price ?? ticket.price)}</p>
                         </div>
                         {soldOut ? (
                           <button type="button" disabled className="btn-primary !min-h-11 !rounded-xl !px-4 !py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-60">
@@ -193,6 +166,11 @@ export function TicketSelectionPage({ router, slug }: Props) {
                             <p className="mt-1 text-xs font-semibold leading-5 text-amber-800">
                               Menunggu pembayaran atau verifikasi admin.
                             </p>
+                          </div>
+                        ) : !ticket.available_public ? (
+                          <div role="status" className="max-w-xs text-right">
+                            <span className="inline-flex min-h-11 items-center rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-900">Tersedia OTS di lokasi</span>
+                            <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">Pembelian online untuk kategori ini ditutup.</p>
                           </div>
                         ) : externalTicketUrl ? (
                           <a href={externalTicketUrl} target="_blank" rel="noopener noreferrer" className="btn-primary !min-h-11 !rounded-xl !px-4 !py-2.5 text-sm">

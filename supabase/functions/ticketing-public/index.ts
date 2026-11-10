@@ -36,8 +36,16 @@ type RequestBody = {
 
 type PublicTicketAvailability = {
   id: string;
+  name: string;
+  description: string | null;
+  price: number;
   quota: number | null;
   qr_per_purchase: number;
+  ticket_url: string | null;
+  available_public: boolean;
+  available_ots: boolean;
+  ots_price: number | null;
+  sort_order: number;
 };
 
 type TicketOrderReservation = {
@@ -91,7 +99,10 @@ serve(async (request) => {
       if (!event) return json({ error: 'Event tidak menerima pemesanan tiket.' }, 404);
 
       const { data: tickets, error: ticketError } = await serviceClient.from('event_tickets')
-        .select('id, quota, qr_per_purchase').eq('event_id', event.id).eq('status', 'active').eq('available_public', true);
+        .select('id, name, description, price, quota, qr_per_purchase, ticket_url, available_public, available_ots, ots_price, sort_order')
+        .eq('event_id', event.id)
+        .eq('status', 'active')
+        .or('available_public.eq.true,available_ots.eq.true');
       if (ticketError) return json({ error: 'Status ketersediaan tiket gagal diperiksa.' }, 500);
 
       const limitedTickets = (tickets ?? []) as PublicTicketAvailability[];
@@ -122,7 +133,12 @@ serve(async (request) => {
 
       const availability = limitedTickets.map((ticket) => {
         if (ticket.quota === null) {
-          return { ticket_id: ticket.id, sold_out: false, temporarily_unavailable: false, remaining_tickets: null };
+          return {
+            ticket_id: ticket.id,
+            sold_out: false,
+            temporarily_unavailable: false,
+            remaining_tickets: null,
+          };
         }
         const counts = quantitiesByTicket.get(ticket.id) ?? { confirmed: 0, reserved: 0 };
         return {
@@ -132,7 +148,15 @@ serve(async (request) => {
           remaining_tickets: Math.max(0, ticket.quota - counts.confirmed - counts.reserved),
         };
       });
-      return json({ availability });
+      const availabilityByTicket = new Map(availability.map((item) => [item.ticket_id, item]));
+      return json({
+        tickets: limitedTickets.map((ticket) => ({
+          ...ticket,
+          ticket_url: ticket.available_public ? ticket.ticket_url : null,
+          ...availabilityByTicket.get(ticket.id),
+        })),
+        availability,
+      });
     }
 
     if (body.action === 'create-order') {

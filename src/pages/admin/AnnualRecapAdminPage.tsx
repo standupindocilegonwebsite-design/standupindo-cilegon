@@ -104,7 +104,7 @@ export function AnnualRecapAdminPage({ onNotice }: { onNotice: (message: string,
       setMusicUrl(nextRecord?.music_url ?? '');
 
       try {
-        const nextStats = await loadAnnualRecapStats(selectedYear);
+        const nextStats = await loadAnnualRecapStats(selectedYear, { adminPreview: true });
         if (active) setStats(nextStats);
       } catch {
         if (active) setStatsError(true);

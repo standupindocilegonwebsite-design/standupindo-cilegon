@@ -9,7 +9,7 @@ const SLIDE_DURATIONS = {
   opening: 9000,
   numbers: 9000,
   people: 15000,
-  communities: 12000,
+  communities: 14000,
   yearline: 14000,
   spotlight: 12000,
   'open-mics': 15000,
@@ -270,6 +270,25 @@ export function AnnualRecapStory({ year, stats, closingNarrative, musicUrl, onCl
                 {stats.topCommunities.length === 0 && <p className="px-4 py-6 text-sm text-blue-100">Belum ada komunitas tamu tercatat.</p>}
               </div>
               <div className="mt-4 flex items-center gap-3 rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-3 text-blue-50" style={{ animationDelay: '8400ms' }}><Users className="h-5 w-5 shrink-0 text-cyan-300" /><strong className="min-w-0 flex-1 text-[10px] font-black uppercase leading-tight tracking-wide text-cyan-200">Komika umum / independen</strong><span className="shrink-0 text-right"><AnimatedCount value={stats.independentAppearanceCount} reducedMotion={reducedMotion} startDelay={8400} className="block text-xl font-black leading-none" /><span className="text-[9px] font-semibold text-blue-100">kali tampil</span></span></div>
+              <div className="recap-sequence mt-4">
+                <p style={{ animationDelay: '9800ms' }} className="text-[10px] font-black uppercase tracking-wide text-cyan-200">KOMIKA TAMU TERAKTIF</p>
+                <div style={{ animationDelay: '9900ms' }} className="recap-sequence mt-2 grid grid-cols-3 gap-2">
+                  {stats.topGuestPerformers.map((performer) => (
+                    <article key={performer.id} style={{ animationDelay: `${10300 + (performer.rank - 1) * 700}ms` }} className="relative flex aspect-[4/5] min-w-0 flex-col items-center justify-center overflow-hidden rounded-[18px] border-2 border-cyan-200/70 bg-gradient-to-br from-cyan-400 via-blue-600 to-indigo-950 px-2 pb-3 pt-11 text-center text-white shadow-[0_0_14px_rgba(34,211,238,0.2)]">
+                      <div className="absolute inset-0 bg-[linear-gradient(145deg,rgba(255,255,255,0.2),transparent_42%,rgba(15,23,80,0.65))]" />
+                      <span className={`absolute left-2 top-2 flex h-8 w-8 items-center justify-center rounded-full border-2 shadow-lg ${['border-amber-100 bg-amber-300 text-amber-950', 'border-slate-100 bg-slate-200 text-slate-800', 'border-orange-100 bg-orange-300 text-orange-950'][performer.rank - 1]}`}>
+                        <Medal className="h-6 w-6" /><span className="absolute text-[9px] font-black">{performer.rank}</span>
+                      </span>
+                      <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col items-center justify-center">
+                        <h2 className="line-clamp-3 break-words text-base font-black leading-tight drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">{performer.name}</h2>
+                        <p className="mt-2 line-clamp-3 break-words text-[11px] font-bold leading-tight text-cyan-100">{performer.community}</p>
+                      </div>
+                      <p className="relative z-10 mt-2 w-full border-t border-white/25 pt-2 text-[11px] font-semibold text-blue-100">{formatCount(performer.count)} penampilan</p>
+                    </article>
+                  ))}
+                  {stats.topGuestPerformers.length === 0 && <p style={{ animationDelay: '10300ms' }} className="col-span-3 py-3 text-center text-xs text-blue-100">Belum ada komika tamu yang tercatat tampil.</p>}
+                </div>
+              </div>
             </section>}
 
             {activeSlide === 'yearline' && <section className="relative flex min-h-full flex-col pb-2">
@@ -296,7 +315,7 @@ export function AnnualRecapStory({ year, stats, closingNarrative, musicUrl, onCl
                 <article className="recap-slide-enter flex min-h-0 flex-1 flex-col items-center pt-1" style={{ animationDelay: '2700ms' }}>
                   <div className="shrink-0 px-2 text-center text-white">
                     <div className="flex items-baseline justify-center gap-2"><strong className="text-4xl font-black leading-none">{stats.spotlightEvent ? formatCount(stats.spotlightEvent.ticketsSold) : stats.totalTicketsSold === null ? '—' : '0'}</strong><span className="text-[10px] font-black uppercase tracking-wide text-cyan-200">PENONTON</span></div>
-                    <p className="mt-1 truncate text-[10px] text-blue-100">{stats.spotlightEvent ? <>Hadir di <strong className="font-extrabold text-white">{stats.spotlightEvent.title}</strong></> : stats.totalTicketsSold === null ? 'Data tiket belum tersedia' : 'Belum ada tiket terjual'}</p>
+                    <p className="mt-1 truncate text-[10px] text-blue-100">{stats.spotlightEvent ? <>Hadir di <strong className="font-extrabold text-white">{stats.spotlightEvent.title}</strong></> : stats.ticketStatsUnavailable ? 'Statistik tiket gagal dimuat' : stats.totalTicketsSold === null ? 'Data tiket belum tersedia' : 'Belum ada tiket terjual'}</p>
                   </div>
                   {(stats.spotlightEvent?.poster || stats.spotlightEvent?.photo) && <div className="flex min-h-0 w-full flex-1 items-center justify-center pt-2"><img src={stats.spotlightEvent.poster || stats.spotlightEvent.photo || ''} alt={`Poster ${stats.spotlightEvent?.title ?? 'Event'}`} className="max-h-full max-w-full object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.3)]" /></div>}
                 </article>
