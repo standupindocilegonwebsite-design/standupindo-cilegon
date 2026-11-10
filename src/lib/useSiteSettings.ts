@@ -46,6 +46,7 @@ Waktu terus berjalan. Orang-orang datang dan pergi, pengalaman bertambah, dan ba
   affiliation_name: 'Standupindo',
   affiliation_website: 'https://standupindo.id/',
   affiliation_logo_url: '/assets/images/image.png',
+  home_open_mic_ranking_enabled: true,
   merch_banner_image_url: null,
   merch_banner_title: '',
   merch_banner_description: '',

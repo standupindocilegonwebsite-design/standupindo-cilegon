@@ -15,6 +15,7 @@ import { EmptyEventState } from '@/components/ui/EmptyEventState';
 import { PartnerMarqueeCollection } from '@/components/ui/PartnerMarquee';
 import { getEventStatus, getOpenMicNumbers, getOpenMicStatus } from '@/lib/format';
 import { CcsScheduleHighlights } from '@/components/CcsScheduleHighlights';
+import { HomeOpenMicRanking } from '@/components/HomeOpenMicRanking';
 
 interface Props {
   router: Router;
@@ -386,6 +387,8 @@ export function HomePage({ router }: Props) {
             )}
           </div>
         </section>
+
+        {settings.home_open_mic_ranking_enabled && <HomeOpenMicRanking />}
 
         <section data-home-reveal className="home-reveal">
           <CcsScheduleHighlights />

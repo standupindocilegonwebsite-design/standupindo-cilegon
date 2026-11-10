@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BarChart3, Building2, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, Crown, DoorOpen, Eye, EyeOff, FolderOpen, Handshake, History, ImagePlus, Instagram, Info, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, Minus, MoreHorizontal, Pencil, Phone, Plus, Power, Printer, RefreshCw, Search, Settings, Share2, ShieldPlus, Store, Ticket as TicketIcon, Trash2, UserCheck, UserPlus, UserRound, Users, X, ExternalLink, Youtube } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BarChart3, Building2, CalendarDays, Camera, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Copy, Crown, DoorOpen, Eye, EyeOff, FolderOpen, Handshake, History, ImagePlus, Instagram, Info, KeyRound, Link2, LogOut, MapPin, MessageCircle, Mic, Minus, MoreHorizontal, Pencil, Phone, Plus, Power, Printer, RefreshCw, Search, Settings, Share2, ShieldPlus, Store, Ticket as TicketIcon, Trash2, Trophy, UserCheck, UserPlus, UserRound, Users, X, ExternalLink, Youtube } from 'lucide-react';
 import type { Router } from '@/lib/router';
 import type { ApplicationStatus, AttendanceStatus, CommunityApplication, EventItem, EventPartnership, EventParticipant, EventTicket, EvaluatorAssignment, Komika, MemberOpenMicHistoryStatus, MemberOpenMicHistorySubmission, OpenMic, OpenMicRegistration, Partner, SiteSettings, TicketOrder, TicketOrderStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -43,13 +43,14 @@ import { AnimatedBottomNav } from '@/components/nav/AnimatedBottomNav';
 import { WorkspacePageHeader } from '@/components/admin/WorkspacePageHeader';
 import { AnnualRecapAdminPage } from '@/pages/admin/AnnualRecapAdminPage';
 import { CcsScheduleAdminPage } from '@/pages/admin/CcsScheduleAdminPage';
+import { HomeOpenMicRanking } from '@/components/HomeOpenMicRanking';
 
 import { MerchAdminPage } from '@/pages/admin/MerchAdminPage';
 
 interface Props { router: Router; settings: SiteSettings; onSettingsUpdated: () => Promise<void>; }
 type AdminNoticeHandler = (message: string, variant: StatusBannerVariant) => void;
 
-type Section = 'dashboard' | 'account-management' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'annual-recap' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'ticket-gates' | 'ticket-fees' | 'ticket-vouchers' | 'check-in-report' | 'maintenance' | 'ccs-schedule' | 'merch' | 'more';
+type Section = 'dashboard' | 'account-management' | 'open-mic' | 'registrants' | 'open-mic-list' | 'open-mic-performers' | 'open-mic-history' | 'event-participants' | 'events' | 'applications' | 'komika' | 'partners' | 'member-accounts' | 'admin-accounts' | 'evaluator' | 'annual-recap' | 'home-ranking' | 'settings' | 'profile-settings' | 'ticket-orders' | 'tickets' | 'scan' | 'payment-info' | 'ticket-report' | 'ticket-gates' | 'ticket-fees' | 'ticket-vouchers' | 'check-in-report' | 'maintenance' | 'ccs-schedule' | 'merch' | 'more';
 type RecapOfficialLineupQuery = Omit<RecapOfficialLineup, 'event'> & { event: RecapOfficialLineup['event'] | NonNullable<RecapOfficialLineup['event']>[] };
 
 function getErrorMessage(error: unknown): string {
@@ -170,6 +171,7 @@ function getSection(path: string): Section {
   if (parts[1] === 'account-management') return 'account-management';
   const part = parts[1] as Section | undefined;
   if (part === 'more') return 'more';
+  if (part === 'home-ranking') return 'home-ranking';
   if (NAV.some((n) => n.key === part)) return part as Section;
   return 'dashboard';
 }
@@ -1000,6 +1002,28 @@ export function AdminPage({ router, settings, onSettingsUpdated }: Props) {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ message: string; variant: StatusBannerVariant } | null>(null);
   const notify = (message: string, variant: StatusBannerVariant) => setNotice({ message, variant });
+  const [savingHomeRankingVisibility, setSavingHomeRankingVisibility] = useState(false);
+  async function updateHomeRankingVisibility(enabled: boolean) {
+    if (savingHomeRankingVisibility) return;
+    setSavingHomeRankingVisibility(true);
+    try {
+      const { error } = await supabase.from('site_settings')
+        .update({ home_open_mic_ranking_enabled: enabled })
+        .eq('id', 1);
+      if (error) {
+        console.error('Gagal mengubah visibilitas ranking Komika Terajin Open Mic.', error);
+        notify('Visibilitas ranking Komika Terajin Open Mic gagal diperbarui.', 'error');
+        return;
+      }
+      await onSettingsUpdated();
+      notify(enabled ? 'Ranking Komika Terajin Open Mic ditampilkan di Home.' : 'Ranking Komika Terajin Open Mic disembunyikan dari Home.', 'success');
+    } catch (error) {
+      console.error('Gagal mengubah visibilitas ranking Komika Terajin Open Mic.', error);
+      notify('Visibilitas ranking Komika Terajin Open Mic gagal diperbarui.', 'error');
+    } finally {
+      setSavingHomeRankingVisibility(false);
+    }
+  }
   const [deleteTarget, setDeleteTarget] = useState<{ table: 'open_mics' | 'events' | 'komika' | 'partners'; id: string } | null>(null);
   const [ticketDeleteTarget, setTicketDeleteTarget] = useState<string | null>(null);
   const [ticketEvent, setTicketEvent] = useState<EventItem | null>(null);
@@ -1320,6 +1344,16 @@ export function AdminPage({ router, settings, onSettingsUpdated }: Props) {
           {section === 'check-in-report' && isQrScanner && <TicketCheckInReportPage onBack={() => navigateSection('more')} />}
           {section === 'maintenance' && (isAdmin || isEventAdmin) && <TicketMaintenancePage events={events} />}
           {section === 'annual-recap' && isAdmin && <AnnualRecapAdminPage onNotice={notify} />}
+          {section === 'home-ranking' && isAdmin && (
+            <div className="space-y-4 pb-6 sm:space-y-6">
+              <WorkspacePageHeader eyebrow="Menu Komunitas" title="Komika Terajin Open Mic" subtitle="Tinjau ranking tahun berjalan, lalu atur apakah ranking ditampilkan di Home publik." />
+              <HomeOpenMicRanking
+                adminPublished={Boolean(settings.home_open_mic_ranking_enabled)}
+                publishing={savingHomeRankingVisibility}
+                onPublicationChange={updateHomeRankingVisibility}
+              />
+            </div>
+          )}
           {section === 'merch' && isAdmin && <MerchAdminPage settings={settings} onSaved={onSettingsUpdated} />}
           {section === 'settings' && <SettingsPanel settings={settings} onSaved={load} onNotice={notify} />}
           {section === 'more' && <MorePage onNavigate={navigateSection} onSignOut={async () => { await signOut(); router.navigate('/admin/login'); }} ticketOrderUnreadCount={notificationCounts['ticket-orders']} applicationUnreadCount={notificationCounts.applications} isAdmin={isAdmin} isOpenMicAdmin={isOpenMicAdmin} isEventAdmin={isEventAdmin} isTicketAdmin={isTicketAdmin} isQrScanner={isQrScanner} />}
@@ -4752,6 +4786,7 @@ function MorePage({ onNavigate, onSignOut, ticketOrderUnreadCount, applicationUn
     {
       label: 'Komunitas',
       items: [
+        { label: 'Ranking Komika Terajin Open Mic', icon: Trophy, section: 'home-ranking' },
         { label: 'Jadwal Cilegon Comedy Sharing', icon: CalendarDays, section: 'ccs-schedule' },
         { label: 'Gabung Komunitas', icon: UserPlus, section: 'applications', badge: applicationUnreadCount },
       ],
@@ -6059,7 +6094,7 @@ function TikTokSettingsIcon({ className }: { className?: string }) {
 function SettingsPanel({ settings, onSaved, onNotice }: { settings: SiteSettings; onSaved: () => void; onNotice: AdminNoticeHandler }) {
   type SettingsFieldKey = Exclude<
     keyof SiteSettings,
-    'id' | 'merch_banner_image_url' | 'merch_banner_title' | 'merch_banner_description' | 'merch_shop_url' | 'merch_banner_enabled'
+    'id' | 'home_open_mic_ranking_enabled' | 'merch_banner_image_url' | 'merch_banner_title' | 'merch_banner_description' | 'merch_shop_url' | 'merch_banner_enabled'
   >;
   const [form, setForm] = useState<SiteSettings>(settings);
   const [saving, setSaving] = useState(false);

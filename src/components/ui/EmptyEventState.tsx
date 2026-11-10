@@ -21,11 +21,11 @@ export function EmptyEventState({ action }: Props) {
         </div>
       </div>
       <div className="empty-event-copy">
-        <h3 aria-label="Belum ada event mendatang.">
-          <span>Belum ada</span>
-          <span>event mendatang.</span>
+        <h3 aria-label="Sesuatu yang seru sedang disiapkan.">
+          <span>Sesuatu yang seru</span>
+          <span>sedang disiapkan.</span>
         </h3>
-        <p>Pantau terus untuk keseruan berikutnya.</p>
+        <p>Nantikan event berikutnya dari Standupindo Cilegon!</p>
         {action && <div className="empty-event-action">{action}</div>}
       </div>
     </div>

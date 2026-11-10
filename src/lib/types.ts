@@ -445,6 +445,7 @@ export interface SiteSettings {
   affiliation_name?: string | null;
   affiliation_website?: string | null;
   affiliation_logo_url?: string | null;
+  home_open_mic_ranking_enabled?: boolean;
   merch_banner_image_url?: string | null;
   merch_banner_title?: string;
   merch_banner_description?: string;
