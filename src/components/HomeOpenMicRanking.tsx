@@ -258,24 +258,24 @@ export function HomeOpenMicRanking({ adminPublished, publishing = false, onPubli
   return (
     <section data-home-reveal={adminPublished === undefined ? true : undefined} className={`home-reveal ${adminPublished === undefined ? '' : 'is-visible'}`}>
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="relative flex items-center gap-3 border-b border-white/20 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 px-4 py-4 text-white sm:px-5 lg:justify-center lg:px-10 lg:py-5">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/15 text-white lg:absolute lg:left-5">
-            <Trophy aria-hidden="true" className="h-5 w-5" />
+        <div className="relative flex items-center gap-2 border-b border-white/20 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 px-3 py-2.5 text-white sm:gap-3 sm:px-5 sm:py-4 lg:justify-center lg:px-10 lg:py-5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/15 text-white sm:h-10 sm:w-10 lg:absolute lg:left-5">
+            <Trophy aria-hidden="true" className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
           </span>
           <div className="min-w-0 flex-1 lg:flex-none lg:text-center">
-            <h2 className="text-base font-extrabold text-white sm:text-lg">Komika Terajin Open Mic</h2>
-            <p className="text-xs font-semibold text-blue-200">Tahun {year} · berdasarkan kehadiran tercatat</p>
+            <h2 className="truncate whitespace-nowrap text-[13px] font-extrabold leading-tight text-white sm:text-lg">Komika Terajin Open Mic</h2>
+            <p className="mt-0.5 text-[10px] font-semibold leading-tight text-blue-200 sm:text-xs">Tahun {year}</p>
           </div>
           {adminPublished === undefined && (
-            <div className="ml-auto flex shrink-0 items-center gap-1 lg:absolute lg:right-5 lg:ml-0">
+            <div className="ml-auto flex shrink-0 items-center gap-0 sm:gap-1 lg:absolute lg:right-5 lg:ml-0">
               <button
                 type="button"
                 onClick={() => setShowInfo(true)}
                 aria-label="Informasi ranking Komika Terajin Open Mic"
                 title="Informasi ranking"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:h-9 sm:w-9"
               >
-                <Info aria-hidden="true" className="h-[18px] w-[18px]" />
+                <Info aria-hidden="true" className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
               </button>
               <button
                 type="button"
@@ -283,9 +283,9 @@ export function HomeOpenMicRanking({ adminPublished, publishing = false, onPubli
                 disabled={loading || Boolean(error) || (rankings.member.length === 0 && rankings['non-member'].length === 0)}
                 aria-label="Bagikan ringkasan ranking Komika Terajin Open Mic"
                 title="Bagikan ringkasan ranking"
-                className="inline-flex h-10 w-10 items-center justify-center text-white transition hover:text-blue-100 focus-visible:rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-9 w-9 items-center justify-center text-white transition hover:text-blue-100 focus-visible:rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-10"
               >
-                <Send aria-hidden="true" className="h-6 w-6" />
+                <Send aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" />
               </button>
             </div>
           )}
