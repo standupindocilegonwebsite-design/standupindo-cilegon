@@ -178,7 +178,6 @@ export function EventDetailPage({ router, slug }: Props) {
   const [targetParticipantUnavailable, setTargetParticipantUnavailable] = useState(false);
   const [posterLightboxOpen, setPosterLightboxOpen] = useState(false);
   const [tickets, setTickets] = useState<PublicTicketOffering[]>([]);
-  const [ticketLoadError, setTicketLoadError] = useState('');
   const [lineup, setLineup] = useState<EventLineupEntry[]>([]);
   const [lineupLoadError, setLineupLoadError] = useState('');
   const [partnersByRole, setPartnersByRole] = useState<Record<PartnerCategory, PublicPartnerLogo[]>>({ sponsor: [], support: [], media_partner: [] });
@@ -220,15 +219,11 @@ export function EventDetailPage({ router, slug }: Props) {
             offerings.sort((first, second) => first.sort_order - second.sort_order || first.price - second.price);
             setTickets(offerings);
             hasTicketOfferings = offerings.length > 0;
-            setTicketLoadError('');
           } catch (ticketError) {
-            setTicketLoadError(ticketError instanceof Error
-              ? ticketError.message
-              : 'Informasi tiket belum dapat dimuat. Coba segarkan halaman.');
+            console.error('Ketersediaan tiket untuk event gagal dimuat.', ticketError);
           }
         } else {
           setTickets([]);
-          setTicketLoadError('');
         }
 
         const { data: lineupData, error: lineupError } = await supabase
@@ -379,16 +374,15 @@ export function EventDetailPage({ router, slug }: Props) {
               <div className="flex items-center gap-2.5 border-t border-slate-100 px-3.5 py-3"><Clock className="h-5 w-5 shrink-0 text-blue-600" /> <span>{event.time} WIB</span></div>
               <div className="border-t border-slate-100"><LocationMapPanel venue={event.venue} location={event.location} mapsUrl={event.maps_url} title={event.title} completed={currentStatus === 'completed'} locationClassName="items-center gap-2.5 !rounded-none !border-0 !shadow-none !px-3.5 !py-3" /></div>
             </div>
-            {currentStatus === 'upcoming' && !ticketLoadError && isFreeEvent && <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">Acara gratis. Tidak perlu membeli tiket.</p>}
-            {currentStatus === 'upcoming' && !ticketLoadError && tickets.length === 0 && event.ticket_sales_mode === 'paid' && <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Informasi tiket belum tersedia.</p>}
+            {currentStatus === 'upcoming' && isFreeEvent && <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">Acara gratis. Tidak perlu membeli tiket.</p>}
+            {currentStatus === 'upcoming' && tickets.length === 0 && event.ticket_sales_mode === 'paid' && <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Tiket belum tersedia. Penjualan tiket mungkin belum dibuka atau kategori tiket masih disiapkan.</p>}
             {currentStatus === 'upcoming' && allCategoriesSoldOut && <p role="status" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">Seluruh kategori tiket yang ditawarkan sudah sold out.</p>}
             {currentStatus === 'upcoming' && onlineTickets.length === 0 && availableOtsTickets.length > 0 && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Penjualan tiket online sudah ditutup. Tiket OTS masih tersedia mulai {formatPrice(cheapestOtsPrice ?? 0)} dan dapat dibeli langsung di lokasi.</p>}
-            {ticketLoadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{ticketLoadError}</p>}
             {currentStatus !== 'completed' && <NoSmokeAreaNotice detail context="event" />}
 
             {currentStatus === 'upcoming' && (
               <div className="space-y-2">
-                {!ticketLoadError && tickets.length > 0 && (
+                {tickets.length > 0 && (
                   <button type="button" onClick={() => router.navigate(`/event/${event.slug}/tiket`)} className="btn-primary event-ticket-light-leak group hidden w-full !min-h-[4.5rem] items-center justify-between !rounded-2xl !bg-gradient-to-r !from-blue-700 !via-blue-600 !to-indigo-600 !px-5 !py-3 text-left shadow-[0_12px_26px_rgba(37,99,235,0.36)] ring-1 ring-blue-500/30 transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_32px_rgba(37,99,235,0.44)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 focus-visible:ring-offset-2 active:translate-y-0 active:scale-[0.99] md:flex">
                     <span className="min-w-0">
                       <span className="block text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-100">{cheapestTicketPrice === null ? 'Informasi Tiket' : 'Harga Online Mulai Dari'}</span>
@@ -403,7 +397,7 @@ export function EventDetailPage({ router, slug }: Props) {
           </div>
         </div>
 
-        {currentStatus === 'upcoming' && !ticketLoadError && tickets.length > 0 && createPortal(
+        {currentStatus === 'upcoming' && tickets.length > 0 && createPortal(
           <div className="fixed inset-x-0 z-30 px-4 md:hidden" style={{ bottom: 'var(--mobile-nav-clearance, calc(7.5rem + var(--safe-bottom)))' }}>
             <div className="mx-auto max-w-3xl">
               <button type="button" onClick={() => router.navigate(`/event/${event.slug}/tiket`)} className="btn-primary event-ticket-light-leak group flex w-full !min-h-[4rem] items-center justify-between !rounded-2xl !bg-gradient-to-r !from-blue-700 !via-blue-600 !to-indigo-600 !px-4 !py-2.5 text-left shadow-[0_12px_30px_rgba(29,78,216,0.46)] ring-1 ring-white/30 transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(29,78,216,0.54)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-300 focus-visible:ring-offset-2 active:translate-y-0 active:scale-[0.99]">

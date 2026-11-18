@@ -43,11 +43,7 @@ export function TicketSelectionPage({ router, slug }: Props) {
           const offerings = await fetchPublicTicketOfferings(eventRow.id);
           if (active) setTickets(offerings.sort((first, second) => first.sort_order - second.sort_order || first.price - second.price));
         } catch (availabilityError) {
-          if (active) {
-            setLoadError(availabilityError instanceof Error
-              ? availabilityError.message
-              : 'Ketersediaan tiket gagal diperiksa. Coba segarkan halaman.');
-          }
+          console.error('Ketersediaan tiket untuk event gagal dimuat.', availabilityError);
         }
       }
       if (active) setLoading(false);
@@ -125,7 +121,9 @@ export function TicketSelectionPage({ router, slug }: Props) {
               <h2 className="mt-1 text-xl font-extrabold text-slate-900">Pilih Tiket</h2>
             </div>
             {tickets.length === 0 ? (
-              <EmptyState title={event.ticket_sales_mode === 'free' ? 'Acara ini gratis dan tidak memerlukan tiket.' : 'Tiket publik belum tersedia.'} />
+              <EmptyState title={event.ticket_sales_mode === 'free'
+                ? 'Acara ini gratis dan tidak memerlukan tiket.'
+                : 'Tiket belum tersedia. Penjualan tiket mungkin belum dibuka atau kategori tiket masih disiapkan.'} />
             ) : (
               <div className="grid gap-3 sm:gap-4">
                 {allCategoriesSoldOut && <p role="status" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">Seluruh kategori tiket yang ditawarkan sudah sold out.</p>}

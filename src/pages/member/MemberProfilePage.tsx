@@ -13,6 +13,8 @@ import { safeExternalUrl } from '@/lib/format';
 import { MemberStageExperienceModal } from '@/pages/member/MemberStageExperienceModal';
 import { MemberStageJourneySummary } from '@/pages/member/MemberStageJourneySummary';
 
+const BIO_MAX_LENGTH = 500;
+
 function handleValue(value: string, prefix: string): string {
   return value.trim().replace(new RegExp(`^https?://(www\\.)?${prefix}\\.com/`, 'i'), '').replace(/^@/, '').replace(/\/.*$/, '').replace(/\s/g, '');
 }
@@ -73,7 +75,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
             stage_name: row.stage_name ?? '',
             full_name: row.full_name ?? '',
             whatsapp: row.whatsapp ?? '',
-            bio: row.bio ?? '',
+            bio: row.bio?.slice(0, BIO_MAX_LENGTH) ?? '',
             karya_url: row.karya_url ?? '',
             instagram_url: row.instagram_url ?? '',
             tiktok_url: row.tiktok_url ?? '',
@@ -121,7 +123,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
     const payload = {
       stage_name: form.stage_name.trim(),
       whatsapp: form.whatsapp.replace(/\D/g, '') || null,
-      bio: form.bio.trim() || null,
+      bio: form.bio.slice(0, BIO_MAX_LENGTH).trim() || null,
       karya_url: karyaUrl,
       instagram_url: profileUrl(form.instagram_url, 'instagram'),
       tiktok_url: profileUrl(form.tiktok_url, 'tiktok'),
@@ -201,7 +203,7 @@ export function MemberProfilePage({ router }: { router: Router }) {
       stage_name: profile.stage_name ?? '',
       full_name: profile.full_name ?? '',
       whatsapp: profile.whatsapp ?? '',
-      bio: profile.bio ?? '',
+      bio: profile.bio?.slice(0, BIO_MAX_LENGTH) ?? '',
       karya_url: profile.karya_url ?? '',
       instagram_url: profile.instagram_url ?? '',
       tiktok_url: profile.tiktok_url ?? '',
@@ -317,8 +319,8 @@ export function MemberProfilePage({ router }: { router: Router }) {
               </div>
 
               <div>
-                <label className="label-field" htmlFor="bio">Bio</label>
-                <textarea id="bio" value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} rows={5} className="input-field !min-h-[120px]" placeholder="Ceritakan singkat tentang kamu..." />
+                <label className="label-field flex items-center justify-between gap-2" htmlFor="bio">Bio <span className="font-medium text-slate-400">{form.bio.length}/{BIO_MAX_LENGTH}</span></label>
+                <textarea id="bio" value={form.bio} maxLength={BIO_MAX_LENGTH} onChange={(e) => setForm({ ...form, bio: e.target.value.slice(0, BIO_MAX_LENGTH) })} rows={5} className="input-field !min-h-[120px]" placeholder="Ceritakan singkat tentang kamu..." />
               </div>
 
               <div>
